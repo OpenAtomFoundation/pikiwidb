@@ -58,11 +58,15 @@ void EventLoop::Run() {
     }
   }
 
-  for (auto& pair : objects_) {
-    reactor_->Unregister(pair.second.get());
-  }
+  {
+    std::unique_lock<std::mutex> guard(object_mutex_);
+    for (auto& pair : objects_) {
+      reactor_->Unregister(pair.second.get());
+    }
 
-  objects_.clear();
+    objects_.clear();
+  }
+  
   reactor_.reset();
 }
 
@@ -93,7 +97,7 @@ std::future<bool> EventLoop::Cancel(TimerId id) {
 }
 
 bool EventLoop::InThisLoop() const {
-//  printf("EventLoop::InThisLoop this %p, g_this_loop %p\n", this, g_this_loop);
+  // printf("EventLoop::InThisLoop this %p, g_this_loop %p\n", this, g_this_loop);
   return this == g_this_loop;
 }
 
@@ -102,26 +106,29 @@ EventLoop* EventLoop::Self() { return g_this_loop; }
 bool EventLoop::Register(std::shared_ptr<EventObject> obj, int events) {
   if (!obj) return false;
 
-  assert(InThisLoop());
+  // assert(InThisLoop());
   assert(obj->GetUniqueId() == -1);
 
   if (!reactor_) {
     return false;
   }
 
-  // alloc unique id
-  int id = -1;
-  do {
-    id = obj_id_generator_.fetch_add(1) + 1;
-    if (id < 0) {
-      obj_id_generator_.store(0);
-    }
-  } while (id < 0 || objects_.count(id) != 0);
+  {
+    // alloc unique id
+    std::unique_lock<std::mutex> guard(object_mutex_);
+    int id = -1;
+    do {
+      id = obj_id_generator_.fetch_add(1) + 1;
+      if (id < 0) {
+        obj_id_generator_.store(0);
+      }
+    } while (id < 0 || objects_.count(id) != 0);
 
-  obj->SetUniqueId(id);
-  if (reactor_->Register(obj.get(), events)) {
-    objects_.insert({obj->GetUniqueId(), obj});
-    return true;
+    obj->SetUniqueId(id);
+    if (reactor_->Register(obj.get(), events)) {
+      objects_.insert({obj->GetUniqueId(), obj});
+      return true;
+    }
   }
 
   return false;
@@ -132,8 +139,12 @@ bool EventLoop::Modify(std::shared_ptr<EventObject> obj, int events) {
 
   assert(InThisLoop());
   assert(obj->GetUniqueId() >= 0);
-  assert(objects_.count(obj->GetUniqueId()) == 1);
 
+  {
+    std::unique_lock<std::mutex> guard(object_mutex_);
+    assert(objects_.count(obj->GetUniqueId()) == 1);
+  }
+  
   if (!reactor_) {
     return false;
   }
@@ -144,15 +155,18 @@ void EventLoop::Unregister(std::shared_ptr<EventObject> obj) {
   if (!obj) return;
 
   int id = obj->GetUniqueId();
-  assert(InThisLoop());
+  // assert(InThisLoop());
   assert(id >= 0);
-  assert(objects_.count(id) == 1);
+  {
+    std::unique_lock<std::mutex> guard(object_mutex_);
+    assert(objects_.count(id) == 1);
 
-  if (!reactor_) {
-    return;
+    if (!reactor_) {
+      return;
+    }
+    reactor_->Unregister(obj.get());
+    objects_.erase(id);
   }
-  reactor_->Unregister(obj.get());
-  objects_.erase(id);
 }
 
 bool EventLoop::Listen(const char* ip, int port, NewTcpConnectionCallback ccb, EventLoopSelector selector) {
@@ -202,10 +216,13 @@ std::shared_ptr<HttpClient> EventLoop::ConnectHTTP(const char* ip, int port) {
 }
 
 void EventLoop::Reset() {
-  for (auto& kv : objects_) {
-    Unregister(kv.second);
+  {
+    std::unique_lock<std::mutex> guard(object_mutex_);
+    for (auto& kv : objects_) {
+      Unregister(kv.second);
+    }
+    objects_.clear();
   }
-  objects_.clear();
 
   {
     std::unique_lock<std::mutex> guard(task_mutex_);
