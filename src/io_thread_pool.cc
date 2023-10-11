@@ -51,8 +51,8 @@ bool IOThreadPool::SetWorkerNum(size_t num) {
     return false;
   }
 
-  if (!loops_.empty()) {
-    ERROR("can only called once, not empty loops size: {}", loops_.size());
+  if (!worker_loops_.empty()) {
+    ERROR("can only called once, not empty loops size: {}", worker_loops_.size());
     return false;
   }
 
@@ -62,14 +62,14 @@ bool IOThreadPool::SetWorkerNum(size_t num) {
   }
 
   worker_num_.store(num);
-  workers_.reserve(num);
-  loops_.reserve(num);
+  worker_threads_.reserve(num);
+  worker_loops_.reserve(num);
 
   return true;
 }
 
 bool IOThreadPool::Init(const char* ip, int port, NewTcpConnectionCallback cb) {
-  auto f = std::bind(&IOThreadPool::Next, this);
+  auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
 
   base_.Init();
   printf("base loop %s %p, g_baseLoop %p\n", base_.GetName().c_str(), &base_, base_.Self());
@@ -89,10 +89,10 @@ void IOThreadPool::Run(int ac, char* av[]) {
   StartWorkers();
   base_.Run();
 
-  for (auto& w : workers_) {
+  for (auto& w : worker_threads_) {
     w.join();
   }
-  workers_.clear();
+  worker_threads_.clear();
 
   INFO("Process stopped, goodbye...");
 }
@@ -101,8 +101,8 @@ void IOThreadPool::Exit() {
   state_ = State::kStopped;
 
   BaseLoop()->Stop();
-  for (size_t index = 0; index < loops_.size(); ++index) {
-    EventLoop* loop = loops_[index].get();
+  for (size_t index = 0; index < worker_loops_.size(); ++index) {
+    EventLoop* loop = worker_loops_[index].get();
     loop->Stop();
   }
 }
@@ -111,12 +111,12 @@ bool IOThreadPool::IsExit() const { return state_ == State::kStopped; }
 
 EventLoop* IOThreadPool::BaseLoop() { return &base_; }
 
-EventLoop* IOThreadPool::Next() {
-  if (loops_.empty()) {
+EventLoop* IOThreadPool::ChooseNextWorkerEventLoop() {
+  if (worker_loops_.empty()) {
     return BaseLoop();
   }
 
-  auto& loop = loops_[current_loop_++ % loops_.size()];
+  auto& loop = worker_loops_[current_worker_loop_++ % worker_loops_.size()];
   return loop.get();
 }
 
@@ -125,23 +125,23 @@ void IOThreadPool::StartWorkers() {
   assert(state_ == State::kNone);
 
   size_t index = 1;
-  while (loops_.size() < worker_num_) {
+  while (worker_loops_.size() < worker_num_) {
     std::unique_ptr<EventLoop> loop(new EventLoop);
     if (!name_.empty()) {
       loop->SetName(name_ + "_" + std::to_string(index++));
       printf("loop %p, name %s\n", loop.get(), loop->GetName().c_str());
     }
-    loops_.push_back(std::move(loop));
+    worker_loops_.push_back(std::move(loop));
   }
 
-  for (index = 0; index < loops_.size(); ++index) {
-    EventLoop* loop = loops_[index].get();
+  for (index = 0; index < worker_loops_.size(); ++index) {
+    EventLoop* loop = worker_loops_[index].get();
     std::thread t([loop]() {
       loop->Init();
       loop->Run();
     });
     printf("thread %lu, thread loop %p, loop name %s \n", index, loop, loop->GetName().c_str());
-    workers_.push_back(std::move(t));
+    worker_threads_.push_back(std::move(t));
   }
 
   state_ = State::kStarted;
@@ -152,14 +152,14 @@ void IOThreadPool::SetName(const std::string& name) { name_ = name; }
 IOThreadPool::IOThreadPool() : state_(State::kNone) { InitSignal(); }
 
 bool IOThreadPool::Listen(const char* ip, int port, NewTcpConnectionCallback ccb) {
-  auto f = std::bind(&IOThreadPool::Next, this);
+  auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
   auto loop = BaseLoop();
   return loop->Execute([loop, ip, port, ccb, f]() { return loop->Listen(ip, port, std::move(ccb), f); }).get();
 }
 
 void IOThreadPool::Connect(const char* ip, int port, NewTcpConnectionCallback ccb, TcpConnectionFailCallback fcb, EventLoop* loop) {
   if (!loop) {
-    loop = Next();
+    loop = ChooseNextWorkerEventLoop();
   }
 
   std::string ipstr(ip);
@@ -186,7 +186,7 @@ std::shared_ptr<HttpClient> IOThreadPool::ConnectHTTP(const char* ip, int port, 
   auto fcb = [client](EventLoop*, const char* ip, int port) { client->OnConnectFail(ip, port); };
 
   if (!loop) {
-    loop = Next();
+    loop = ChooseNextWorkerEventLoop();
   }
   client->SetLoop(loop);
   Connect(ip, port, std::move(ncb), std::move(fcb), loop);

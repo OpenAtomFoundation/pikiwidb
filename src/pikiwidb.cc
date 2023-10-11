@@ -169,7 +169,7 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
   obj->SetNodelay(true);
-  obj->SetEventLoopSelector([]() { return pikiwidb::IOThreadPool::Instance().Next(); });
+  obj->SetEventLoopSelector([]() { return pikiwidb::IOThreadPool::Instance().ChooseNextWorkerEventLoop(); });
 }
 
 bool PikiwiDB::Init() {
