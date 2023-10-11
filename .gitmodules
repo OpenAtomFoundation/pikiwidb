@@ -1,0 +1,3 @@
+[submodule "samples"]
+	path = samples
+	url = git@github.com:OpenAtomFoundation/pikiwidb.git
