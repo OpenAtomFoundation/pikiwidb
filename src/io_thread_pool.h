@@ -30,7 +30,7 @@ class IOThreadPool {
   EventLoop* BaseLoop();
 
   // choose a loop
-  EventLoop* Next();
+  EventLoop* ChooseNextWorkerEventLoop();
 
   // set worker threads, each thread has a EventLoop object
   bool SetWorkerNum(size_t n);
@@ -69,9 +69,9 @@ class IOThreadPool {
   EventLoop base_;
 
   std::atomic<size_t> worker_num_{0};
-  std::vector<std::thread> workers_;
-  std::vector<std::unique_ptr<EventLoop>> loops_;
-  mutable std::atomic<size_t> current_loop_{0};
+  std::vector<std::thread> worker_threads_;
+  std::vector<std::unique_ptr<EventLoop>> worker_loops_;
+  mutable std::atomic<size_t> current_worker_loop_{0};
 
   enum class State {
     kNone,
