@@ -76,4 +76,7 @@ C++11实现的增强版Redis服务器,使用Leveldb作为持久化存储引擎�
 #### replication commands
 - sync slaveof
 
+## Contact Us
+
+![](docs/images/pikiwidb-wechat-cn.png)
 

@@ -62,3 +62,7 @@ Run this command, compare with redis use pipeline commands, try it.
 #### replication commands
 - sync slaveof
 
+## Contact Us
+
+![](docs/images/pikiwidb-wechat.png)
+
