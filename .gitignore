@@ -72,4 +72,4 @@ deps
 !codis/cmd/fe/assets/**
 
 tests/tmp
-
+bin
