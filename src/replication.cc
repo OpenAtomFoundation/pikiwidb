@@ -22,8 +22,6 @@
 
 namespace pikiwidb {
 
-
-
 PReplication& PReplication::Instance() {
   static PReplication rep;
   return rep;
@@ -75,11 +73,8 @@ void PReplication::OnRdbSaveDone() {
       char tmp[32];
       int n = snprintf(tmp, sizeof tmp - 1, "$%ld\r\n", (long)size);
       evbuffer_iovec iovecs[] = {
-          {tmp, (size_t)(n)},
-          {const_cast<char*>(data), size},
-          {buffer_.ReadAddr(), buffer_.ReadableSize()}
-      };
-      cli->GetTcpConnection()->SendPacket(iovecs, sizeof(iovecs) / sizeof(iovecs[0]));
+          {tmp, (size_t)(n)}, {const_cast<char*>(data), size}, {buffer_.ReadAddr(), buffer_.ReadableSize()}};
+      cli->SendPacket(iovecs, sizeof(iovecs) / sizeof(iovecs[0]));
 
       INFO("Send to slave rdb {}, buffer {}", size, buffer_.ReadableSize());
     }
@@ -155,7 +150,7 @@ void PReplication::SendToSlaves(const std::vector<PString>& params) {
       SaveCommand(params, ub);
     }
 
-    cli->GetTcpConnection()->SendPacket(ub);
+    cli->SendPacket(ub);
   }
 }
 
@@ -171,7 +166,7 @@ void PReplication::Cron() {
         ++it;
 
         if (cli->GetSlaveInfo()->state == PSlaveState_online) {
-          cli->GetTcpConnection()->SendPacket("PING\r\n", 6);
+          cli->SendPacket("PING\r\n", 6);
         }
       }
     }
@@ -219,7 +214,7 @@ void PReplication::Cron() {
             req.PushData("auth ", 5);
             req.PushData(g_config.masterauth.data(), g_config.masterauth.size());
             req.PushData("\r\n", 2);
-            master->GetTcpConnection()->SendPacket(req);
+            master->SendPacket(req);
             INFO("send auth with password {}", g_config.masterauth);
 
             masterInfo_.state = PReplState_wait_auth;
@@ -238,7 +233,7 @@ void PReplication::Cron() {
           // send replconf
           char req[128];
           auto len = snprintf(req, sizeof req - 1, "replconf listening-port %hu\r\n", g_config.port);
-          master->GetTcpConnection()->SendPacket(req, len);
+          master->SendPacket(req, len);
           masterInfo_.state = PReplState_wait_replconf;
 
           INFO("Send replconf listening-port {}", g_config.port);
@@ -255,7 +250,7 @@ void PReplication::Cron() {
           WARN("Master is down from wait_replconf to none");
         } else {
           // request sync rdb file
-          master->GetTcpConnection()->SendPacket("SYNC\r\n", 6);
+          master->SendPacket("SYNC\r\n", 6);
           INFO("Request SYNC");
 
           rdb_.Open(slaveRdbFile, false);
@@ -357,7 +352,7 @@ PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
       }
       info->listenPort = static_cast<unsigned short>(port);
     } else {
-        break;
+      break;
     }
   }
 

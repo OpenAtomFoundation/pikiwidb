@@ -37,11 +37,13 @@ class PClient : public std::enable_shared_from_this<PClient> {
 
   void OnConnect();
 
-  EventLoop* GetEventLoop(void) const { return tcp_connection_->GetEventLoop(); }
-  TcpConnection* GetTcpConnection(void) const { return tcp_connection_; }
+  const std::string& PeerIP() const;
+  int PeerPort() const;
 
-  const std::string& PeerIP() const { return tcp_connection_->GetPeerIp(); }
-  int PeerPort() const { return tcp_connection_->GetPeerPort(); }
+  bool SendPacket(const std::string& buf);
+  bool SendPacket(const void* data, size_t size);
+  bool SendPacket(UnboundedBuffer& data);
+  bool SendPacket(const evbuffer_iovec* iovecs, size_t nvecs);
 
   void Close();
 
@@ -98,13 +100,16 @@ class PClient : public std::enable_shared_from_this<PClient> {
   void RewriteCmd(std::vector<PString>& params) { parser_.SetParams(params); }
 
  private:
+  std::shared_ptr<TcpConnection> getTcpConnection() const { return tcp_connection_.lock(); }
   int handlePacket(pikiwidb::TcpConnection*, const char*, int);
   int handlePacketNew(pikiwidb::TcpConnection* obj, const std::vector<std::string>& params, const std::string& cmd);
   int processInlineCmd(const char*, size_t, std::vector<PString>&);
   void reset();
   bool isPeerMaster() const;
+  int UniqueId() const;
 
-  TcpConnection* const tcp_connection_;
+  // TcpConnection's life is undetermined, so use weak ptr for safety.
+  std::weak_ptr<TcpConnection> tcp_connection_;
 
   PProtoParser parser_;
   UnboundedBuffer reply_;
