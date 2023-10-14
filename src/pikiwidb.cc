@@ -261,8 +261,6 @@ int main(int ac, char* av[]) {
   g_pikiwidb = std::make_unique<PikiwiDB>();
 
   InitLogs();
-  INFO("pikiwidb server start...");
-
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();
     return -1;

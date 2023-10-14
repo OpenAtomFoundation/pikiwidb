@@ -150,7 +150,7 @@ class PReplication {
   // slave side
   PMasterInfo masterInfo_;
   std::weak_ptr<PClient> master_;
-  OutputMemoryFile rdb_;
+  pstd::OutputMemoryFile rdb_;
 };
 
 }  // namespace pikiwidb

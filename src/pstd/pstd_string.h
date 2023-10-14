@@ -32,22 +32,50 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef __PSTD_STRING_H__
-#define __PSTD_STRING_H__
+#pragma once
 
+#include <charconv>
 #include <string>
 #include <vector>
 
+namespace pstd {
 
 int stringmatchlen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase);
 int stringmatch(const char* p, const char* s, int nocase);
 long long memtoll(const char* p, int* err);
-int ll2string(char* dst, size_t dstlen, long long svalue);
-int string2int(const char* s, size_t slen, long long* value);
-int string2int(const char* s, size_t slen, long* lval);
-int string2int(const char* s, size_t slen, unsigned long* lval);
+uint32_t digits10(uint64_t v);
+
+int ll2string(char* dst, size_t dstlen, int64_t val);
+
+/* Convert a integral into a string. Returns the string after installation. */
+template <std::integral T>
+inline std::string int2string(T val) {
+  return std::to_string(val);
+}
+
+/* Convert a string into a integral. Returns 1 if the string could be parsed
+ * into a integer, 0 otherwise. The value will be set to
+ * the parsed value when appropriate. */
+template <std::integral T>
+int string2int(const char* s, size_t slen, T* val) {
+  auto [ptr, ec] = std::from_chars(s, s + slen, *val);
+  if (ec != std::errc()) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+
+template <std::integral T>
+inline int string2int(const std::string& s, T* val) {
+  return string2int(s.data(), s.size(), val);
+}
+
+int string2d(const char* s, size_t slen, double* val);
+inline int string2d(const std::string& s, double* val) { return string2d(s.data(), s.size(), val); }
+
 int d2string(char* buf, size_t len, double value);
-int string2d(const char* s, size_t slen, double* dval);
+
 std::vector<std::string>& StringSplit(const std::string& s, char delim, std::vector<std::string>& elems);
 std::string StringConcat(const std::vector<std::string>& elems, char delim);
 std::string& StringToLower(std::string& ori);
@@ -60,5 +88,4 @@ std::string getRandomHexChars(size_t len);
 
 bool isspace(const std::string& str);
 
-
-#endif  // __PSTD_STRING_H__
+}  // namespace pstd

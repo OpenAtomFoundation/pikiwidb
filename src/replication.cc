@@ -49,7 +49,7 @@ bool PReplication::HasAnyWaitingBgsave() const {
 void PReplication::OnRdbSaveDone() {
   bgsaving_ = false;
 
-  InputMemoryFile rdb;
+  pstd::InputMemoryFile rdb;
 
   // send rdb to slaves that wait rdb end, set state
   for (auto& wptr : slaves_) {

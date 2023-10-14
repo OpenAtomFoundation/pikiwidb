@@ -32,22 +32,23 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sys/time.h>
-#include <unistd.h>
 #include <cctype>
 #include <cfloat>
 #include <climits>
 #include <cmath>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
 
 #include <algorithm>
+#include <charconv>
+#include <random>
 
 #include "pstd_defer.h"
 #include "pstd_string.h"
+
+namespace pstd {
 
 /* Glob-style pattern matching. */
 int stringmatchlen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase) {
@@ -283,7 +284,7 @@ uint32_t digits10(uint64_t v) {
  *
  * Modified in order to handle signed integers since the original code was
  * designed for unsigned integers. */
-int ll2string(char* dst, size_t dstlen, long long svalue) {
+int ll2string(char* dst, size_t dstlen, int64_t val) {
   static const char digits[201] =
       "0001020304050607080910111213141516171819"
       "2021222324252627282930313233343536373839"
@@ -295,15 +296,15 @@ int ll2string(char* dst, size_t dstlen, long long svalue) {
 
   /* The main loop works with 64bit unsigned integers for simplicity, so
    * we convert the number here and remember if it is negative. */
-  if (svalue < 0) {
-    if (svalue != LLONG_MIN) {
-      value = -svalue;
+  if (val < 0) {
+    if (val != LLONG_MIN) {
+      value = -val;
     } else {
       value = (static_cast<unsigned long long>(LLONG_MAX) + 1);
     }
     negative = 1;
   } else {
-    value = svalue;
+    value = val;
     negative = 0;
   }
 
@@ -339,136 +340,6 @@ int ll2string(char* dst, size_t dstlen, long long svalue) {
     dst[0] = '-';
   }
   return length;
-}
-
-/* Convert a string into a long long. Returns 1 if the string could be parsed
- * into a (non-overflowing) long long, 0 otherwise. The value will be set to
- * the parsed value when appropriate. */
-int string2int(const char* s, size_t slen, long long* value) {
-  const char* p = s;
-  size_t plen = 0;
-  int negative = 0;
-  unsigned long long v;
-
-  if (plen == slen) {
-    return 0;
-  }
-
-  /* Special case: first and only digit is 0. */
-  if (slen == 1 && p[0] == '0') {
-    if (value) {
-      *value = 0;
-    }
-    return 1;
-  }
-
-  if (p[0] == '-') {
-    negative = 1;
-    p++;
-    plen++;
-
-    /* Abort on only a negative sign. */
-    if (plen == slen) {
-      return 0;
-    }
-  }
-
-  while (plen < slen && p[0] == '0') {
-    p++;
-    plen++;
-  }
-
-  if (plen == slen) {
-    if (value) {
-      *value = 0;
-    }
-    return 1;
-  }
-
-  /* First digit should be 1-9, otherwise the string should just be 0. */
-  if (p[0] >= '1' && p[0] <= '9') {
-    v = p[0] - '0';
-    p++;
-    plen++;
-  } else if (p[0] == '0' && slen == 1) {
-    *value = 0;
-    return 1;
-  } else {
-    return 0;
-  }
-
-  while (plen < slen && p[0] >= '0' && p[0] <= '9') {
-    if (v > (ULLONG_MAX / 10)) { /* Overflow. */
-      return 0;
-    }
-    v *= 10;
-
-    if (v > (ULLONG_MAX - (p[0] - '0'))) { /* Overflow. */
-      return 0;
-    }
-    v += p[0] - '0';
-
-    p++;
-    plen++;
-  }
-
-  /* Return if not all bytes were used. */
-  if (plen < slen) {
-    return 0;
-  }
-
-  if (negative != 0) {
-    if (v > (static_cast<unsigned long long>(-(LLONG_MIN + 1)) + 1)) { /* Overflow. */
-      return 0;
-    }
-    if (value) {
-      *value = -v;
-    }
-  } else {
-    if (v > LLONG_MAX) { /* Overflow. */
-      return 0;
-    }
-    if (value) {
-      *value = v;
-    }
-  }
-  return 1;
-}
-
-/* Convert a string into a long. Returns 1 if the string could be parsed into a
- * (non-overflowing) long, 0 otherwise. The value will be set to the parsed
- * value when appropriate. */
-int string2int(const char* s, size_t slen, long* lval) {
-  long long llval;
-
-  if (string2int(s, slen, &llval) == 0) {
-    return 0;
-  }
-
-  if (llval < LONG_MIN || llval > LONG_MAX) {
-    return 0;
-  }
-
-  *lval = static_cast<long>(llval);
-  return 1;
-}
-
-/* Convert a string into a unsigned long. Returns 1 if the string could be parsed into a
- * (non-overflowing) unsigned long, 0 otherwise. The value will be set to the parsed
- * value when appropriate. */
-int string2int(const char* s, size_t slen, unsigned long* lval) {
-  long long llval;
-
-  if (string2int(s, slen, &llval) == 0) {
-    return 0;
-  }
-
-  if (llval > static_cast<long long>(ULONG_MAX)) {
-    return 0;
-  }
-
-  *lval = static_cast<unsigned long>(llval);
-  return 1;
 }
 
 /* Convert a double to a string representation. Returns the number of bytes
@@ -512,17 +383,13 @@ int d2string(char* buf, size_t len, double value) {
   return len;
 }
 
-int string2d(const char* s, size_t slen, double* dval) {
-  char* pEnd;
-  double d = strtod(s, &pEnd);
-  if (pEnd != s + slen) {
+int string2d(const char* s, size_t slen, double* val) {
+  auto [ptr, ec] = std::from_chars(s, s + slen, *val);
+  if (ec != std::errc()) {
     return 0;
+  } else {
+    return 1;
   }
-
-  if (dval) {
-    *dval = d;
-  }
-  return 1;
 }
 
 /* Generate the Redis "Run ID", a SHA1-sized random number that identifies a
@@ -530,56 +397,19 @@ int string2d(const char* s, size_t slen, double* dval) {
  * having run_id == A, and you reconnect and it has run_id == B, you can be
  * sure that it is either a different instance or it was restarted. */
 std::string getRandomHexChars(const size_t len) {
-  FILE* fp = fopen("/dev/urandom", "r");
-  DEFER {
-    if (fp) {
-      fclose(fp);
-      fp = nullptr;
-    }
-  };
+  std::random_device rd;
+  std::mt19937 gen(rd());
 
-  char charset[] = "0123456789abcdef";
-  unsigned int j{0};
-  std::string buf(len, '\0');
-  char* p = buf.data();
+  std::string buf;
+  buf.reserve(len);
 
-  if (!fp || !fread(p, len, 1, fp)) {
-    /* If we can't read from /dev/urandom, do some reasonable effort
-     * in order to create some entropy, since this function is used to
-     * generate run_id and cluster instance IDs */
-    char* x = p;
-    unsigned int l = len;
-    struct timeval tv;
-    pid_t pid = getpid();
+  std::uniform_int_distribution<> dist(0, 15);
 
-    /* Use time and PID to fill the initial array. */
-    gettimeofday(&tv, nullptr);
-    if (l >= sizeof(tv.tv_usec)) {
-      memcpy(x, &tv.tv_usec, sizeof(tv.tv_usec));
-      l -= sizeof(tv.tv_usec);
-      x += sizeof(tv.tv_usec);
-    }
-    if (l >= sizeof(tv.tv_sec)) {
-      memcpy(x, &tv.tv_sec, sizeof(tv.tv_sec));
-      l -= sizeof(tv.tv_sec);
-      x += sizeof(tv.tv_sec);
-    }
-    if (l >= sizeof(pid)) {
-      memcpy(x, &pid, sizeof(pid));
-      l -= sizeof(pid);
-      x += sizeof(pid);
-    }
-    /* Finally xor it with rand() output, that was already seeded with
-     * time() at startup. */
-    for (j = 0; j < len; j++) {
-      p[j] ^= rand();
-    }
+  for (size_t i = 0; i < len; i++) {
+    buf += "0123456789abcdef"[dist(gen)];
   }
-  /* Turn it into hex digits taking just 4 bits out of 8 for every byte. */
-  for (j = 0; j < len; j++) {
-    p[j] = charset[p[j] & 0x0F];
-  }
-  return std::string(p, len);
+
+  return buf;
 }
 
 std::vector<std::string>& StringSplit(const std::string& s, char delim, std::vector<std::string>& elems) {
@@ -732,3 +562,5 @@ std::string StringTrim(const std::string& ori, const std::string& charlist) {
 bool isspace(const std::string& str) {
   return std::count_if(str.begin(), str.end(), [](unsigned char c) { return std::isspace(c); });
 }
+
+}  // namespace pstd

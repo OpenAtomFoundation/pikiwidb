@@ -7,13 +7,12 @@
 
 #include "io_thread_pool.h"
 
-#include <signal.h>
+#include <csignal>
 
 #include <cassert>
-#include <cstdlib>
 #include <cstring>
 
-#include "log.h"
+#include "pstd/log.h"
 #include "util.h"
 
 static void SignalHandler(int) { pikiwidb::IOThreadPool::Instance().Exit(); }
@@ -157,7 +156,8 @@ bool IOThreadPool::Listen(const char* ip, int port, NewTcpConnectionCallback ccb
   return loop->Execute([loop, ip, port, ccb, f]() { return loop->Listen(ip, port, std::move(ccb), f); }).get();
 }
 
-void IOThreadPool::Connect(const char* ip, int port, NewTcpConnectionCallback ccb, TcpConnectionFailCallback fcb, EventLoop* loop) {
+void IOThreadPool::Connect(const char* ip, int port, NewTcpConnectionCallback ccb, TcpConnectionFailCallback fcb,
+                           EventLoop* loop) {
   if (!loop) {
     loop = ChooseNextWorkerEventLoop();
   }

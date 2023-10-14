@@ -33,7 +33,7 @@ class PDBSaver {
   void saveHash(const PHASH& h);
   void saveZSet(const PZSET& ss);
 
-  OutputMemoryFile qdb_;
+  pstd::OutputMemoryFile qdb_;
 };
 
 extern time_t g_lastPDBSave;
@@ -66,7 +66,7 @@ class PDBLoader {
   void loadAux();
   void loadResizeDB();
 
-  InputMemoryFile qdb_;
+  pstd::InputMemoryFile qdb_;
 };
 
 }  // namespace pikiwidb
