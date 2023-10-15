@@ -72,9 +72,10 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 
 #include "pstd_hash.h"
-#include <cstdint>
 #include <cstdio>
 #include <cstring>
+
+namespace pstd {
 
 class SHA256 {
  protected:
@@ -627,3 +628,5 @@ std::string md5(const std::string& str, bool raw) {
   }
   return md5.hexdigest();
 }
+
+}  // namespace pstd

@@ -3,8 +3,7 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef __PSTD_DEFER_H__
-#define __PSTD_DEFER_H__
+#pragma once
 
 #include <functional>
 #include <type_traits>
@@ -59,5 +58,3 @@ class ExecuteOnScopeExit {
 // !!! DEFER
 #undef DEFER
 #define DEFER _MAKE_DEFER_(__LINE__)
-
-#endif  // __PSTD_DEFER_H__

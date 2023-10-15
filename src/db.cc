@@ -105,7 +105,7 @@ void PDBSaver::Save(const char* qdbFile) {
   qdb_.Write(&kEOF, 1);
 
   // crc 8 bytes
-  InputMemoryFile file;
+  pstd::InputMemoryFile file;
   file.Open(tmpFile);
 
   auto len = qdb_.Offset();

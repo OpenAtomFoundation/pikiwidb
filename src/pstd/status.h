@@ -3,11 +3,12 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef __STATUS_H__
-#define __STATUS_H__
+#pragma once
 
 #include <string>
 #include "slice.h"
+
+namespace pstd {
 
 class Status {
  public:
@@ -125,4 +126,4 @@ inline void Status::operator=(const Status& s) {
   }
 }
 
-#endif  // __STATUS_H__
+}  // namespace pstd

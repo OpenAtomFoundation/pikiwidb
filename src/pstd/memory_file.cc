@@ -14,6 +14,8 @@
 
 #include "memory_file.h"
 
+namespace pstd {
+
 using std::size_t;
 
 static const size_t kDefaultSize = 1 * 1024 * 1024;
@@ -221,3 +223,5 @@ void OutputMemoryFile::_AssureSpace(size_t size) {
 
   _ExtendFileSize(newSize);
 }
+
+}  // namespace pstd

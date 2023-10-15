@@ -72,15 +72,17 @@ documentation and/or software.
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef __PSTD_HASH_H__
-#define __PSTD_HASH_H__
+#pragma once
+
 #include <cstring>
 #include <iostream>
 #include <string>
+
+namespace pstd {
 
 std::string md5(const std::string& str, bool raw = false);
 std::string sha256(const std::string& input, bool raw = false);
 
 bool isSha256(const std::string& input);
 
-#endif  // __PSTD_HASH_H__
+}  // namespace pstd

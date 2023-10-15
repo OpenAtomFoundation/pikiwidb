@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <cstdio>
 
+namespace pstd {
+
 const char* Status::CopyState(const char* state) {
   uint32_t size;
   memcpy(&size, state, sizeof(size));
@@ -89,3 +91,5 @@ std::string Status::ToString() const {
     return result;
   }
 }
+
+}  // namespace pstd

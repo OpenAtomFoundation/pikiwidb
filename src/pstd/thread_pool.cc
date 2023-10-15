@@ -7,6 +7,8 @@
 
 #include "thread_pool.h"
 
+namespace pstd {
+
 thread_local bool ThreadPool::working_ = true;
 
 ThreadPool::ThreadPool() : waiters_(0), shutdown_(false) {
@@ -103,4 +105,6 @@ void ThreadPool::_MonitorRoutine() {
       ++pendingStopSignal_;
     }
   }
+}
+
 }

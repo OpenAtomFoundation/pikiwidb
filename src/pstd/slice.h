@@ -17,13 +17,14 @@
 // non-const method, all threads accessing the same Slice must use
 // external synchronization.
 
-#ifndef __SLICE_H__
-#define __SLICE_H__
+#pragma once
 
 #include <cassert>
 #include <cstddef>
 #include <cstring>
 #include <string>
+
+namespace pstd {
 
 class Slice {
  public:
@@ -107,4 +108,4 @@ inline int Slice::compare(const Slice& b) const {
   return r;
 }
 
-#endif  // __SLICE_H__
+}  // namespace pstd

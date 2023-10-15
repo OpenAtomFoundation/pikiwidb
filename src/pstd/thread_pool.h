@@ -16,6 +16,8 @@
 #include <mutex>
 #include <thread>
 
+namespace pstd {
+
 class ThreadPool final {
  public:
   ThreadPool();
@@ -74,3 +76,5 @@ auto ThreadPool::ExecuteTask(F&& f, Args&&... args) -> std::future<typename std:
 
   return task->get_future();
 }
+
+}  // namespace pstd

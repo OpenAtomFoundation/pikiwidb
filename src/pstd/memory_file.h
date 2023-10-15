@@ -9,6 +9,8 @@
 
 #include <string>
 
+namespace pstd {
+
 class InputMemoryFile {
  public:
   InputMemoryFile();
@@ -79,4 +81,4 @@ inline void OutputMemoryFile::Write(const T& t) {
   this->Write(&t, sizeof t);
 }
 
-
+}  // namespace pstd
