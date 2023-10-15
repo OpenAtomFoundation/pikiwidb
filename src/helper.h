@@ -11,7 +11,6 @@
 #include <vector>
 #include "pstring.h"
 #include "tbb/concurrent_hash_map.h"
-#include "tbb/scalable_allocator.h"
 
 namespace pikiwidb {
 

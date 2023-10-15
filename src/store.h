@@ -18,7 +18,6 @@
 #include <map>
 #include <memory>
 #include <vector>
-#include <scoped_allocator>
 
 namespace pikiwidb {
 
