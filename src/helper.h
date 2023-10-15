@@ -10,6 +10,8 @@
 #include <cstdlib>
 #include <vector>
 #include "pstring.h"
+#include "tbb/concurrent_hash_map.h"
+#include "tbb/scalable_allocator.h"
 
 namespace pikiwidb {
 
@@ -19,6 +21,12 @@ extern unsigned int dictGenHashFunction(const void* key, int len);
 // hash function
 struct my_hash {
   size_t operator()(const PString& str) const;
+};
+
+// tbb hash and compare function
+struct my_hash_compare {
+    size_t hash (const PString& str) const;
+    bool equal (const PString& key_first,const PString& key_second) const;
 };
 
 std::size_t BitCount(const uint8_t* buf, std::size_t len);
@@ -97,6 +105,35 @@ inline size_t ScanHashMember(const HASH& container, size_t cursor, size_t count,
   return 0;  // never here
 }
 
+template <typename HASH>
+inline size_t ScanConcurrentHashMember(const std::unique_ptr<HASH>& container, size_t cursor, size_t count,
+                             std::vector<typename HASH::const_iterator>& res) {
+    if (cursor >= container->size()) {
+        return 0;
+    }
+
+    auto idx = cursor;
+    for (typename HASH::const_iterator it = container->begin(); it != container->end(); ++it) {
+        if (idx == 0) {
+            size_t newCursor = cursor;
+            while (res.size() < count && it != container->end()) {
+                ++newCursor;
+                res.push_back(it++);
+
+                if (it == container->end()) {
+                    return newCursor;
+                }
+            }
+
+            return newCursor;
+        } else {
+            --idx;
+        }
+    }
+
+    return 0;  // never here
+}
+
 extern void getRandomHexChars(char* p, unsigned int len);
 
 enum MemoryInfoType {
@@ -114,4 +151,3 @@ extern std::vector<size_t> getMemoryInfo();
 extern size_t getMemoryInfo(MemoryInfoType type);
 
 }  // namespace pikiwidb
-

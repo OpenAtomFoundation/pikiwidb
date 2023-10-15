@@ -112,7 +112,14 @@ void PObject::freeValue() {
 
 int PStore::dirty_ = 0;
 
-void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) { expireKeys_[key] = when; }
+void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) {
+    P_EXPIRE_DB::accessor hash_accessor;
+    if (expireKeys_.find(hash_accessor, key)){
+        hash_accessor->second = when;
+    }else{
+      expireKeys_.insert(P_EXPIRE_DB::value_type(key,when));
+    }   
+}
 
 int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
   if (!PSTORE.ExistsKey(key)) {
@@ -129,8 +136,9 @@ int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
       break;
   }
 
-  auto it(expireKeys_.find(key));
-  return static_cast<int64_t>(it->second - now);
+  P_EXPIRE_DB::const_accessor hash_accessor;
+  expireKeys_.find(hash_accessor, key);
+  return static_cast<int64_t>(hash_accessor->second - now);
 }
 
 bool PStore::ExpiredDB::ClearExpire(const PString& key) {
@@ -138,16 +146,15 @@ bool PStore::ExpiredDB::ClearExpire(const PString& key) {
 }
 
 PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_t now) {
-  auto it(expireKeys_.find(key));
-
-  if (it != expireKeys_.end()) {
-    if (it->second > now) {
+  P_EXPIRE_DB::const_accessor hash_accessor;
+  if (expireKeys_.find(hash_accessor, key)) {
+    if (hash_accessor->second > now) {
       return ExpireResult::notExpire;
     }
 
-    WARN("Delete timeout key {}", it->first);
-    PSTORE.DeleteKey(it->first);
-    expireKeys_.erase(it);
+    WARN("Delete timeout key {}", hash_accessor->first);
+    PSTORE.DeleteKey(hash_accessor->first);
+    expireKeys_.erase(hash_accessor);
     return ExpireResult::expired;
   }
 
@@ -170,7 +177,8 @@ int PStore::ExpiredDB::LoopCheck(uint64_t now) {
       Propagate(params);
 
       PSTORE.DeleteKey(it->first);
-      expireKeys_.erase(it++);
+      expireKeys_.erase(it->first);
+      it = expireKeys_.begin();
 
       ++nDel;
     } else {
@@ -188,7 +196,9 @@ bool PStore::BlockedClients::BlockClient(const PString& key, PClient* client, ui
     return false;
   }
 
-  Clients& clients = blockedClients_[key];
+  WaitingList::accessor hash_accessor;
+  blockedClients_.find(hash_accessor,key);
+  Clients& clients = hash_accessor->second;
   clients.push_back(Clients::value_type(std::static_pointer_cast<PClient>(client->shared_from_this()), timeout, pos));
 
   INFO("{} is waited by {}, timeout {}", key, client->GetName(), timeout);
@@ -200,7 +210,9 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
   const auto& keys = client->WaitingKeys();
 
   for (const auto& key : keys) {
-    Clients& clients = blockedClients_[key];
+    WaitingList::accessor hash_accessor;
+    blockedClients_.find(hash_accessor,key);
+    Clients& clients = hash_accessor->second;
     assert(!clients.empty());
 
     for (auto it(clients.begin()); it != clients.end(); ++it) {
@@ -222,12 +234,12 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
 size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list) {
   assert(!list->empty());
 
-  auto it = blockedClients_.find(key);
-  if (it == blockedClients_.end()) {
+  WaitingList::accessor hash_accessor;
+  if (!blockedClients_.find(hash_accessor,key)) {
     return 0;
   }
 
-  Clients& clients = it->second;
+  Clients& clients = hash_accessor->second;
   if (clients.empty()) {
     return 0;
   }
@@ -332,7 +344,8 @@ int PStore::BlockedClients::LoopCheck(uint64_t now) {
     }
 
     if (clients.empty()) {
-      blockedClients_.erase(it++);
+      blockedClients_.erase(it->first);
+      it = blockedClients_.begin();
     } else {
       ++it;
     }
@@ -353,7 +366,11 @@ void PStore::Init(int dbNum) {
     dbNum = kMaxDBNum;
   }
 
-  dbs_.resize(dbNum);
+  dbs_.reserve(dbNum); 
+  for (size_t i = 0; i < dbNum; ++i) {
+      dbs_.push_back(std::make_unique<PDB>());
+  }
+
   expiredDBs_.resize(dbNum);
   blockedClients_.resize(dbNum);
 }
@@ -380,10 +397,10 @@ int PStore::SelectDB(int dbno) {
 int PStore::GetDB() const { return dbno_; }
 
 const PObject* PStore::GetObject(const PString& key) const {
-  auto db = &dbs_[dbno_];
-  PDB::const_iterator it(db->find(key));
-  if (it != db->end()) {
-    return &it->second;
+  auto& db = dbs_[dbno_];
+  PDB::const_accessor const_hash_accessor;
+  if (db->find(const_hash_accessor,key)) {
+    return &const_hash_accessor->second;
   }
 
   if (!backends_.empty()) {
@@ -397,8 +414,15 @@ const PObject* PStore::GetObject(const PString& key) const {
     if (obj.type != PType_invalid) {
       DEBUG("GetKey from leveldb:{}", key);
 
-      (*db)[key] = std::move(obj);
-      PObject& realobj = (*db)[key];
+      PDB::accessor hash_accessor;
+      if(db->find(hash_accessor,key)){
+        hash_accessor->second = std::move(obj);
+      }else{
+        db->insert(PDB::value_type(key,std::move(obj)));
+        db->find(hash_accessor,key);
+      }
+
+      PObject& realobj = hash_accessor->second;
       realobj.lru = PObject::lruclock;
 
       // trick: use lru field to store the remain seconds to be expired.
@@ -415,10 +439,12 @@ const PObject* PStore::GetObject(const PString& key) const {
 }
 
 bool PStore::DeleteKey(const PString& key) {
-  auto db = &dbs_[dbno_];
+  auto& db = dbs_[dbno_];
   // add to dirty queue
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = nullptr;  // null implies delete data
+    ToSyncDB::accessor hash_accessor;
+    waitSyncKeys_[dbno_].find(hash_accessor,key);
+    hash_accessor->second = nullptr; // null implies delete data
   }
 
   return db->erase(key) != 0;
@@ -438,23 +464,25 @@ PType PStore::KeyType(const PString& key) const {
   return PType(obj->type);
 }
 
-static bool RandomMember(const PDB& hash, PString& res, PObject** val) {
-  PDB::const_local_iterator it = RandomHashMember(hash);
-
-  if (it != PDB::const_local_iterator()) {
-    res = it->first;
-    if (val) {
-      *val = const_cast<PObject*>(&it->second);
-    }
-    return true;
+static bool RandomMember(const std::unique_ptr<PDB>& hash, PString& res, PObject** val) {
+  if (hash->empty()) {
+    return false;
   }
 
-  return false;
+  size_t rangdom_index = random() % hash->size();
+  auto it = hash->begin();
+  std::advance(it,rangdom_index);
+  res = it->first;
+  if(val){
+    *val = const_cast<PObject*>(&it->second);
+  }
+
+  return true;
 }
 
 PString PStore::RandomKey(PObject** val) const {
   PString res;
-  if (!dbs_.empty() && !dbs_[dbno_].empty()) {
+  if (!dbs_.empty() && !dbs_[dbno_]->empty()) {
     RandomMember(dbs_[dbno_], res, val);
   }
 
@@ -462,12 +490,12 @@ PString PStore::RandomKey(PObject** val) const {
 }
 
 size_t PStore::ScanKey(size_t cursor, size_t count, std::vector<PString>& res) const {
-  if (dbs_.empty() || dbs_[dbno_].empty()) {
+  if (dbs_.empty() || dbs_[dbno_]->empty()) {
     return 0;
   }
 
-  std::vector<PDB::const_local_iterator> iters;
-  size_t newCursor = ScanHashMember(dbs_[dbno_], cursor, count, iters);
+  std::vector<PDB::const_iterator> iters;
+  size_t newCursor = ScanConcurrentHashMember(dbs_[dbno_], cursor, count, iters);
 
   res.reserve(iters.size());
   for (auto it : iters) {
@@ -517,14 +545,23 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
-  auto db = &dbs_[dbno_];
-  (*db)[key] = std::move(value);
-  PObject& obj = (*db)[key];
+  auto& db = dbs_[dbno_];
+  PDB::accessor pdb_hash_accessor;
+  if(db->find(pdb_hash_accessor,key)){
+    pdb_hash_accessor->second = std::move(value);
+  }else{
+    db->insert(PDB::value_type(key,std::move(value)));
+    db->find(pdb_hash_accessor,key);
+  }
+
+  PObject& obj = pdb_hash_accessor->second;
   obj.lru = PObject::lruclock;
 
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = &obj;
+    ToSyncDB::accessor tsd_hash_accessor;
+    waitSyncKeys_[dbno_].find(tsd_hash_accessor,key);
+    tsd_hash_accessor->second = &obj;
   }
 
   return &obj;
@@ -552,7 +589,7 @@ void PStore::InitExpireTimer() {
 }
 
 void PStore::ResetDB() {
-  std::vector<PDB>(dbs_.size()).swap(dbs_);
+  std::vector<std::unique_ptr<PDB> >(dbs_.size()).swap(dbs_);
   std::vector<ExpiredDB>(expiredDBs_.size()).swap(expiredDBs_);
   std::vector<BlockedClients>(blockedClients_.size()).swap(blockedClients_);
   dbno_ = 0;
@@ -717,7 +754,8 @@ void PStore::DumpToBackends(int dbno) {
       DEBUG("DELETE leveldb key {}", it->first);
     }
 
-    it = dirtyKeys.erase(it);
+    dirtyKeys.erase(it->first);
+    it = dirtyKeys.begin();
   }
 }
 
@@ -726,14 +764,25 @@ void PStore::AddDirtyKey(const PString& key) {
   if (!waitSyncKeys_.empty()) {
     PObject* obj = nullptr;
     GetValue(key, obj);
-    waitSyncKeys_[dbno_][key] = obj;
+    
+    ToSyncDB::accessor hash_accessor;
+    if(waitSyncKeys_[dbno_].find(hash_accessor,key)){
+      hash_accessor->second = obj;
+    }else{
+      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key,obj));
+    }
   }
 }
 
 void PStore::AddDirtyKey(const PString& key, const PObject* value) {
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = value;
+    ToSyncDB::accessor hash_accessor;
+    if(waitSyncKeys_[dbno_].find(hash_accessor,key)){
+      hash_accessor->second = value;
+    }else{
+      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key,value));
+    }
   }
 }
 
