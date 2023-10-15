@@ -121,6 +121,12 @@ static int ProcessMaster(const char* start, const char* end) {
 }
 
 int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int bytes) {
+  auto conn = getTcpConnection();
+  if (!conn) {
+    ERROR("BUG: conn can't be null when recv data");
+    return -1;
+  }
+
   s_current = this;
 
   const char* const end = start + bytes;
@@ -137,7 +143,7 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
   auto parseRet = parser_.ParseRequest(ptr, end);
   if (parseRet == PParseResult::error) {
     if (!parser_.IsInitialState()) {
-      tcp_connection_->ActiveClose();
+      conn->ActiveClose();
       return 0;
     }
 
@@ -171,7 +177,7 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
       auto now = ::time(nullptr);
       if (now <= last_auth_ + 1) {
         // avoid guess password.
-        tcp_connection_->ActiveClose();
+        conn->ActiveClose();
         return 0;
       } else {
         last_auth_ = now;
@@ -182,7 +188,7 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
     }
   }
 
-  DEBUG("client {}, cmd {}", tcp_connection_->GetUniqueId(), cmd);
+  DEBUG("client {}, cmd {}", conn->GetUniqueId(), cmd);
 
   PSTORE.SelectDB(db_);
   FeedMonitors(params);
@@ -235,7 +241,8 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
 
 // 为了兼容老的命令处理流程，新的命令处理流程在这里
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
-int PClient::handlePacketNew(pikiwidb::TcpConnection* obj, const std::vector<std::string>& params, const std::string& cmd) {
+int PClient::handlePacketNew(pikiwidb::TcpConnection* obj, const std::vector<std::string>& params,
+                             const std::string& cmd) {
   auto cmdPtr = g_pikiwidb->CmdTableManager()->GetCommand(cmd);
 
   if (!cmdPtr) {
@@ -262,7 +269,11 @@ int PClient::handlePacketNew(pikiwidb::TcpConnection* obj, const std::vector<std
 
 PClient* PClient::Current() { return s_current; }
 
-PClient::PClient(TcpConnection* obj) : tcp_connection_(obj), db_(0), flag_(0), name_("clientxxx") {
+PClient::PClient(TcpConnection* obj)
+    : tcp_connection_(std::static_pointer_cast<TcpConnection>(obj->shared_from_this())),
+      db_(0),
+      flag_(0),
+      name_("clientxxx") {
   auth_ = false;
   SelectDB(0);
   reset();
@@ -303,9 +314,58 @@ void PClient::OnConnect() {
   }
 }
 
+const std::string& PClient::PeerIP() const {
+  if (auto c = getTcpConnection(); c) {
+    return c->GetPeerIp();
+  }
+
+  static const std::string kEmpty;
+  return kEmpty;
+}
+
+int PClient::PeerPort() const {
+  if (auto c = getTcpConnection(); c) {
+    return c->GetPeerPort();
+  }
+
+  return -1;
+}
+
+bool PClient::SendPacket(const std::string& buf) {
+  if (auto c = getTcpConnection(); c) {
+    return c->SendPacket(buf);
+  }
+
+  return false;
+}
+
+bool PClient::SendPacket(const void* data, size_t size) {
+  if (auto c = getTcpConnection(); c) {
+    return c->SendPacket(data, size);
+  }
+
+  return false;
+}
+bool PClient::SendPacket(UnboundedBuffer& data) {
+  if (auto c = getTcpConnection(); c) {
+    return c->SendPacket(data);
+  }
+
+  return false;
+}
+
+bool PClient::SendPacket(const evbuffer_iovec* iovecs, size_t nvecs) {
+  if (auto c = getTcpConnection(); c) {
+    return c->SendPacket(iovecs, nvecs);
+  }
+
+  return false;
+}
+
 void PClient::Close() {
-  if (tcp_connection_) {
-    tcp_connection_->ActiveClose();
+  if (auto c = getTcpConnection(); c) {
+    c->ActiveClose();
+    tcp_connection_.reset();
   }
 }
 
@@ -325,7 +385,15 @@ void PClient::reset() {
 
 bool PClient::isPeerMaster() const {
   const auto& repl_addr = PREPL.GetMasterAddr();
-  return repl_addr.GetIP() == tcp_connection_->GetPeerIp() && repl_addr.GetPort() == tcp_connection_->GetPeerPort();
+  return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
+}
+
+int PClient::UniqueId() const {
+  if (auto c = getTcpConnection(); c) {
+    return c->GetUniqueId();
+  }
+
+  return -1;
 }
 
 bool PClient::Watch(int dbno, const PString& key) {
@@ -335,12 +403,12 @@ bool PClient::Watch(int dbno, const PString& key) {
 
 bool PClient::NotifyDirty(int dbno, const PString& key) {
   if (IsFlagOn(ClientFlag_dirty)) {
-    INFO("client is already dirty {}", tcp_connection_->GetUniqueId());
+    INFO("client is already dirty {}", UniqueId());
     return true;
   }
 
   if (watch_keys_[dbno].count(key)) {
-    INFO("{} client become dirty because key {} in db {}", tcp_connection_->GetUniqueId(), key, dbno);
+    INFO("{} client become dirty because key {} in db {}", UniqueId(), key, dbno);
     SetFlag(ClientFlag_dirty);
     return true;
   } else {
@@ -367,7 +435,7 @@ bool PClient::Exec() {
 
   PreFormatMultiBulk(queue_cmds_.size(), &reply_);
   for (const auto& cmd : queue_cmds_) {
-    DEBUG("EXEC {}, for client {}", cmd[0], tcp_connection_->GetUniqueId());
+    DEBUG("EXEC {}, for client {}", cmd[0], UniqueId());
     const PCommandInfo* info = PCommandTable::GetCommandInfo(cmd[0]);
     PError err = PCommandTable::ExecuteCmd(cmd, info, &reply_);
 
@@ -425,8 +493,8 @@ void PClient::FeedMonitors(const std::vector<PString>& params) {
   }
 
   char buf[512];
-  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", PSTORE.GetDB(), s_current->tcp_connection_->GetPeerIp().c_str(),
-                   s_current->tcp_connection_->GetPeerPort());
+  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", PSTORE.GetDB(), s_current->PeerIP().c_str(),
+                   s_current->PeerPort());
 
   assert(n > 0);
 
@@ -446,8 +514,8 @@ void PClient::FeedMonitors(const std::vector<PString>& params) {
     for (auto it(monitors.begin()); it != monitors.end();) {
       auto m = it->lock();
       if (m) {
-        m->tcp_connection_->SendPacket(buf, n);
-        m->tcp_connection_->SendPacket("\"" CRLF, 3);
+        m->SendPacket(buf, n);
+        m->SendPacket("\"" CRLF, 3);
 
         ++it;
       } else {

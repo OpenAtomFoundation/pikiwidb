@@ -164,8 +164,8 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
 
   client->OnConnect();
 
-  auto msg_cb = std::bind(&pikiwidb::PClient::HandlePackets, client.get(),
-                          std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);
+  auto msg_cb = std::bind(&pikiwidb::PClient::HandlePackets, client.get(), std::placeholders::_1, std::placeholders::_2,
+                          std::placeholders::_3);
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
   obj->SetNodelay(true);
