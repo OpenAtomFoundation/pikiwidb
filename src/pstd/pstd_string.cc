@@ -384,12 +384,21 @@ int d2string(char* buf, size_t len, double value) {
 }
 
 int string2d(const char* s, size_t slen, double* val) {
+#if __clang__
+  try {
+    *val = std::stod(s);
+  } catch (std::exception& e) {
+    return 0;
+  }
+  return 1;
+#else
   auto [ptr, ec] = std::from_chars(s, s + slen, *val);
   if (ec != std::errc()) {
     return 0;
   } else {
     return 1;
   }
+#endif
 }
 
 /* Generate the Redis "Run ID", a SHA1-sized random number that identifies a
