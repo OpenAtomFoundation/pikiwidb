@@ -20,7 +20,9 @@ namespace pikiwidb {
 
 class IOThreadPool {
  public:
-  static IOThreadPool& Instance();
+  static const size_t kMaxWorkers;
+
+  IOThreadPool();
   ~IOThreadPool();
 
   bool Init(const char* ip, int port, NewTcpConnectionCallback ccb);
@@ -56,10 +58,7 @@ class IOThreadPool {
   void Reset();
 
  private:
-  IOThreadPool();
   void StartWorkers();
-
-  static const size_t kMaxWorkers;
 
   std::string name_;
   std::string listen_ip_;

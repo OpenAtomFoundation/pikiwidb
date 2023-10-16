@@ -15,30 +15,13 @@
 #include "pstd/log.h"
 #include "util.h"
 
-static void SignalHandler(int) { pikiwidb::IOThreadPool::Instance().Exit(); }
-
-static void InitSignal() {
-  struct sigaction sig;
-  ::memset(&sig, 0, sizeof(sig));
-
-  sig.sa_handler = SignalHandler;
-  sigaction(SIGINT, &sig, NULL);
-
-  // ignore sigpipe
-  sig.sa_handler = SIG_IGN;
-  sigaction(SIGPIPE, &sig, NULL);
-}
-
 namespace pikiwidb {
 
 const size_t IOThreadPool::kMaxWorkers = 128;
 
-IOThreadPool::~IOThreadPool() {}
+IOThreadPool::IOThreadPool() : state_(State::kNone) {}
 
-IOThreadPool& IOThreadPool::Instance() {
-  static IOThreadPool app;
-  return app;
-}
+IOThreadPool::~IOThreadPool() {}
 
 bool IOThreadPool::SetWorkerNum(size_t num) {
   if (num <= 1) {
@@ -52,11 +35,6 @@ bool IOThreadPool::SetWorkerNum(size_t num) {
 
   if (!worker_loops_.empty()) {
     ERROR("can only called once, not empty loops size: {}", worker_loops_.size());
-    return false;
-  }
-
-  if (num > kMaxWorkers) {
-    ERROR("number of threads can't exceeds {}, now is {}", kMaxWorkers, num);
     return false;
   }
 
@@ -128,7 +106,7 @@ void IOThreadPool::StartWorkers() {
     std::unique_ptr<EventLoop> loop(new EventLoop);
     if (!name_.empty()) {
       loop->SetName(name_ + "_" + std::to_string(index++));
-      printf("loop %p, name %s\n", loop.get(), loop->GetName().c_str());
+      INFO("loop {}, name {}", static_cast<void*>(loop.get()), loop->GetName().c_str());
     }
     worker_loops_.push_back(std::move(loop));
   }
@@ -147,8 +125,6 @@ void IOThreadPool::StartWorkers() {
 }
 
 void IOThreadPool::SetName(const std::string& name) { name_ = name; }
-
-IOThreadPool::IOThreadPool() : state_(State::kNone) { InitSignal(); }
 
 bool IOThreadPool::Listen(const char* ip, int port, NewTcpConnectionCallback ccb) {
   auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
