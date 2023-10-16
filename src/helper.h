@@ -25,7 +25,7 @@ struct my_hash {
 // tbb hash and compare function
 struct my_hash_compare {
     size_t hash (const PString& str) const;
-    bool equal (const PString& key_first,const PString& key_second) const;
+    bool equal (const PString& key_first, const PString& key_second) const;
 };
 
 std::size_t BitCount(const uint8_t* buf, std::size_t len);

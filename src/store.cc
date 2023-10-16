@@ -114,10 +114,10 @@ int PStore::dirty_ = 0;
 
 void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) {
     P_EXPIRE_DB::accessor hash_accessor;
-    if (expireKeys_.find(hash_accessor, key)){
+    if (expireKeys_.find(hash_accessor, key)) {
         hash_accessor->second = when;
-    }else{
-      expireKeys_.insert(P_EXPIRE_DB::value_type(key,when));
+    } else {
+      expireKeys_.insert(P_EXPIRE_DB::value_type(key, when));
     }   
 }
 
@@ -197,7 +197,7 @@ bool PStore::BlockedClients::BlockClient(const PString& key, PClient* client, ui
   }
 
   WaitingList::accessor hash_accessor;
-  blockedClients_.find(hash_accessor,key);
+  blockedClients_.find(hash_accessor, key);
   Clients& clients = hash_accessor->second;
   clients.push_back(Clients::value_type(std::static_pointer_cast<PClient>(client->shared_from_this()), timeout, pos));
 
@@ -211,7 +211,7 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
 
   for (const auto& key : keys) {
     WaitingList::accessor hash_accessor;
-    blockedClients_.find(hash_accessor,key);
+    blockedClients_.find(hash_accessor, key);
     Clients& clients = hash_accessor->second;
     assert(!clients.empty());
 
@@ -235,7 +235,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
   assert(!list->empty());
 
   WaitingList::accessor hash_accessor;
-  if (!blockedClients_.find(hash_accessor,key)) {
+  if (!blockedClients_.find(hash_accessor, key)) {
     return 0;
   }
 
@@ -399,7 +399,7 @@ int PStore::GetDB() const { return dbno_; }
 const PObject* PStore::GetObject(const PString& key) const {
   auto& db = dbs_[dbno_];
   PDB::const_accessor const_hash_accessor;
-  if (db->find(const_hash_accessor,key)) {
+  if (db->find(const_hash_accessor, key)) {
     return &const_hash_accessor->second;
   }
 
@@ -415,11 +415,11 @@ const PObject* PStore::GetObject(const PString& key) const {
       DEBUG("GetKey from leveldb:{}", key);
 
       PDB::accessor hash_accessor;
-      if(db->find(hash_accessor,key)){
+      if (db->find(hash_accessor, key)) {
         hash_accessor->second = std::move(obj);
-      }else{
-        db->insert(PDB::value_type(key,std::move(obj)));
-        db->find(hash_accessor,key);
+      } else {
+        db->insert(PDB::value_type(key, std::move(obj)));
+        db->find(hash_accessor, key);
       }
 
       PObject& realobj = hash_accessor->second;
@@ -443,7 +443,7 @@ bool PStore::DeleteKey(const PString& key) {
   // add to dirty queue
   if (!waitSyncKeys_.empty()) {
     ToSyncDB::accessor hash_accessor;
-    waitSyncKeys_[dbno_].find(hash_accessor,key);
+    waitSyncKeys_[dbno_].find(hash_accessor, key);
     hash_accessor->second = nullptr; // null implies delete data
   }
 
@@ -471,9 +471,9 @@ static bool RandomMember(const std::unique_ptr<PDB>& hash, PString& res, PObject
 
   size_t rangdom_index = random() % hash->size();
   auto it = hash->begin();
-  std::advance(it,rangdom_index);
+  std::advance(it, rangdom_index);
   res = it->first;
-  if(val){
+  if (val) {
     *val = const_cast<PObject*>(&it->second);
   }
 
@@ -547,11 +547,11 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
   auto& db = dbs_[dbno_];
   PDB::accessor pdb_hash_accessor;
-  if(db->find(pdb_hash_accessor,key)){
+  if (db->find(pdb_hash_accessor, key)) {
     pdb_hash_accessor->second = std::move(value);
-  }else{
-    db->insert(PDB::value_type(key,std::move(value)));
-    db->find(pdb_hash_accessor,key);
+  } else {
+    db->insert(PDB::value_type(key, std::move(value)));
+    db->find(pdb_hash_accessor, key);
   }
 
   PObject& obj = pdb_hash_accessor->second;
@@ -560,7 +560,7 @@ PObject* PStore::SetValue(const PString& key, PObject&& value) {
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
     ToSyncDB::accessor tsd_hash_accessor;
-    waitSyncKeys_[dbno_].find(tsd_hash_accessor,key);
+    waitSyncKeys_[dbno_].find(tsd_hash_accessor, key);
     tsd_hash_accessor->second = &obj;
   }
 
@@ -766,10 +766,10 @@ void PStore::AddDirtyKey(const PString& key) {
     GetValue(key, obj);
     
     ToSyncDB::accessor hash_accessor;
-    if(waitSyncKeys_[dbno_].find(hash_accessor,key)){
+    if (waitSyncKeys_[dbno_].find(hash_accessor, key)) {
       hash_accessor->second = obj;
-    }else{
-      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key,obj));
+    } else {
+      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key, obj));
     }
   }
 }
@@ -778,10 +778,10 @@ void PStore::AddDirtyKey(const PString& key, const PObject* value) {
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
     ToSyncDB::accessor hash_accessor;
-    if(waitSyncKeys_[dbno_].find(hash_accessor,key)){
+    if (waitSyncKeys_[dbno_].find(hash_accessor, key)) {
       hash_accessor->second = value;
-    }else{
-      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key,value));
+    } else {
+      waitSyncKeys_[dbno_].insert(ToSyncDB::value_type(key, value));
     }
   }
 }

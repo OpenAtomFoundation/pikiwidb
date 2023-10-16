@@ -82,14 +82,14 @@ size_t my_hash::operator()(const PString& str) const {
 }
 
 // tbb hash function
-size_t my_hash_compare::hash(const PString &str) const{
+size_t my_hash_compare::hash(const PString &str) const {
     return dictGenHashFunction(str.data(), static_cast<int>(str.size()));
 }
 
 // tbb compare function
-bool my_hash_compare::equal(const PString &key_first, const PString &key_second) const{
+bool my_hash_compare::equal(const PString &key_first, const PString &key_second) const {
     std::equal_to<PString> eq;
-    return eq(key_first,key_second);
+    return eq(key_first, key_second);
 }
 
 static const uint8_t bitsinbyte[256] = {
