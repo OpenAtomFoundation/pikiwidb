@@ -19,7 +19,7 @@ namespace pikiwidb {
 
 const size_t IOThreadPool::kMaxWorkers = 128;
 
-IOThreadPool::IOThreadPool() : state_(State::kNone) {}
+IOThreadPool::IOThreadPool() {}
 
 IOThreadPool::~IOThreadPool() {}
 

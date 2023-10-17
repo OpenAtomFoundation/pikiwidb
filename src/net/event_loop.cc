@@ -141,8 +141,10 @@ bool EventLoop::Modify(std::shared_ptr<EventObject> obj, int events) {
   assert(obj->GetUniqueId() >= 0);
 
   {
+#ifdef DEBUG
     std::unique_lock<std::mutex> guard(object_mutex_);
     assert(objects_.count(obj->GetUniqueId()) == 1);
+#endif
   }
 
   if (!reactor_) {

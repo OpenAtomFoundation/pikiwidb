@@ -51,8 +51,8 @@ static void InitSignal() {
 
 const unsigned PikiwiDB::kRunidSize = 40;
 
-PikiwiDB::PikiwiDB() : port_(0), master_port_(0) {
-  io_threads_ = std::make_unique<pikiwidb::IOThreadPool>();
+PikiwiDB::PikiwiDB() {
+  worker_threads_ = std::make_unique<pikiwidb::IOThreadPool>();
   slave_threads_ = std::make_unique<pikiwidb::IOThreadPool>();
   cmd_table_manager_ = std::make_unique<pikiwidb::CmdTableManager>();
 }
@@ -189,8 +189,8 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
   obj->SetNodelay(true);
-  obj->SetEventLoopSelector([this]() { return this->io_threads_->ChooseNextWorkerEventLoop(); });
-  obj->SetSlaveEventLoopSelector([this]() { return this->slave_threads_->ChooseNextWorkerEventLoop(); });
+  obj->SetEventLoopSelector([this]() { return worker_threads_->ChooseNextWorkerEventLoop(); });
+  obj->SetSlaveEventLoopSelector([this]() { return slave_threads_->ChooseNextWorkerEventLoop(); });
 }
 
 bool PikiwiDB::Init() {
@@ -214,16 +214,17 @@ bool PikiwiDB::Init() {
   }
 
   NewTcpConnectionCallback cb = std::bind(&PikiwiDB::OnNewConnection, this, std::placeholders::_1);
-  if (!io_threads_->Init(g_config.ip.c_str(), g_config.port, cb)) {
+  if (!worker_threads_->Init(g_config.ip.c_str(), g_config.port, cb)) {
     return false;
   }
 
-  auto num = g_config.io_threads_num + g_config.slave_threads_num;
-  if (num > IOThreadPool::kMaxWorkers) {
-    ERROR("number of threads can't exceeds {}, now is {}", IOThreadPool::kMaxWorkers, num);
+  auto num = g_config.worker_threads_num + g_config.slave_threads_num;
+  auto kMaxWorkers = IOThreadPool::GetMaxWorkerNum();
+  if (num > kMaxWorkers) {
+    ERROR("number of threads can't exceeds {}, now is {}", kMaxWorkers, num);
     return false;
   }
-  io_threads_->SetWorkerNum((size_t)(g_config.io_threads_num));
+  worker_threads_->SetWorkerNum((size_t)(g_config.worker_threads_num));
   slave_threads_->SetWorkerNum((size_t)(g_config.slave_threads_num));
 
   PCommandTable::Init();
@@ -244,7 +245,7 @@ bool PikiwiDB::Init() {
   PSlowLog::Instance().SetLogLimit(static_cast<std::size_t>(g_config.slowlogmaxlen));
 
   // init base loop
-  auto loop = io_threads_->BaseLoop();
+  auto loop = worker_threads_->BaseLoop();
   loop->ScheduleRepeatedly(1000 / pikiwidb::g_config.hz, PdbCron);
   loop->ScheduleRepeatedly(1000, &PReplication::Cron, &PREPL);
   loop->ScheduleRepeatedly(1, CheckChild);
@@ -266,22 +267,22 @@ bool PikiwiDB::Init() {
 }
 
 void PikiwiDB::Run() {
-  io_threads_->SetName("pikiwi-main");
+  worker_threads_->SetName("pikiwi-main");
   slave_threads_->SetName("pikiwi-slave");
 
   std::thread t([this]() {
-    auto slave_loop = this->slave_threads_->BaseLoop();
+    auto slave_loop = slave_threads_->BaseLoop();
     slave_loop->Init();
     slave_threads_->Run(0, nullptr);
   });
 
-  io_threads_->Run(0, nullptr);
+  worker_threads_->Run(0, nullptr);
 
   INFO("server exit running");
 }
 
 void PikiwiDB::Stop() {
-  io_threads_->Exit();
+  worker_threads_->Exit();
   slave_threads_->Exit();
 }
 

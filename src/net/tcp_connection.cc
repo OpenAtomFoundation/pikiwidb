@@ -339,6 +339,7 @@ void TcpConnection::ResetEventLoop(EventLoop* new_loop) {
 
   // disable event
   bufferevent_disable(bev_, EV_READ);
+  bufferevent_disable(bev_, EV_WRITE);
 
   // create a new bufferevent associated with the new loop
   auto new_base = reinterpret_cast<struct event_base*>(new_loop->GetReactor()->Backend());
