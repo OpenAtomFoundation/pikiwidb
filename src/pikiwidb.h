@@ -32,16 +32,16 @@ class PikiwiDB final {
 
  public:
   pikiwidb::PString cfg_file_;
-  unsigned short port_;
+  unsigned short port_{0};
   pikiwidb::PString log_level_;
 
   pikiwidb::PString master_;
-  unsigned short master_port_;
+  unsigned short master_port_{0};
 
   static const unsigned kRunidSize;
 
  private:
-  pikiwidb::IOThreadPool& worker_threads_;
+  std::unique_ptr<pikiwidb::IOThreadPool> worker_threads_;
   std::unique_ptr<pikiwidb::CmdTableManager> cmd_table_manager_;
 };
 

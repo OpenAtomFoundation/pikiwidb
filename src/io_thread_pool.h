@@ -20,7 +20,7 @@ namespace pikiwidb {
 
 class IOThreadPool {
  public:
-  static IOThreadPool& Instance();
+  IOThreadPool();
   ~IOThreadPool();
 
   bool Init(const char* ip, int port, NewTcpConnectionCallback ccb);
@@ -42,8 +42,8 @@ class IOThreadPool {
   bool Listen(const char* ip, int port, NewTcpConnectionCallback ccb);
 
   // TCP client
-  void Connect(const char* ip, int port, NewTcpConnectionCallback ccb, TcpConnectionFailCallback fcb = TcpConnectionFailCallback(),
-               EventLoop* loop = nullptr);
+  void Connect(const char* ip, int port, NewTcpConnectionCallback ccb,
+               TcpConnectionFailCallback fcb = TcpConnectionFailCallback(), EventLoop* loop = nullptr);
 
   // HTTP server
   std::shared_ptr<HttpServer> ListenHTTP(const char* ip, int port,
@@ -56,14 +56,13 @@ class IOThreadPool {
   void Reset();
 
  private:
-  IOThreadPool();
   void StartWorkers();
 
   static const size_t kMaxWorkers;
 
   std::string name_;
   std::string listen_ip_;
-  int listen_port_;
+  int listen_port_{0};
   NewTcpConnectionCallback new_conn_cb_;
 
   EventLoop base_;
@@ -78,7 +77,7 @@ class IOThreadPool {
     kStarted,
     kStopped,
   };
-  std::atomic<State> state_;
+  std::atomic<State> state_{State::kNone};
 };
 
 }  // namespace pikiwidb

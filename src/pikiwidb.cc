@@ -31,9 +31,28 @@
 
 std::unique_ptr<PikiwiDB> g_pikiwidb;
 
+static void SignalHandler(int) {
+  if (g_pikiwidb) {
+    g_pikiwidb->Stop();
+  }
+}
+
+static void InitSignal() {
+  struct sigaction sig;
+  ::memset(&sig, 0, sizeof(sig));
+
+  sig.sa_handler = SignalHandler;
+  sigaction(SIGINT, &sig, NULL);
+
+  // ignore sigpipe
+  sig.sa_handler = SIG_IGN;
+  sigaction(SIGPIPE, &sig, NULL);
+}
+
 const unsigned PikiwiDB::kRunidSize = 40;
 
-PikiwiDB::PikiwiDB() : worker_threads_(pikiwidb::IOThreadPool::Instance()), port_(0), master_port_(0) {
+PikiwiDB::PikiwiDB() {
+  worker_threads_ = std::make_unique<pikiwidb::IOThreadPool>();
   cmd_table_manager_ = std::make_unique<pikiwidb::CmdTableManager>();
 }
 
@@ -169,7 +188,7 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
   obj->SetNodelay(true);
-  obj->SetEventLoopSelector([]() { return pikiwidb::IOThreadPool::Instance().ChooseNextWorkerEventLoop(); });
+  obj->SetEventLoopSelector([this]() { return worker_threads_->ChooseNextWorkerEventLoop(); });
 }
 
 bool PikiwiDB::Init() {
@@ -193,10 +212,10 @@ bool PikiwiDB::Init() {
   }
 
   NewTcpConnectionCallback cb = std::bind(&PikiwiDB::OnNewConnection, this, std::placeholders::_1);
-  if (!worker_threads_.Init(g_config.ip.c_str(), g_config.port, cb)) {
+  if (!worker_threads_->Init(g_config.ip.c_str(), g_config.port, cb)) {
     return false;
   }
-  worker_threads_.SetWorkerNum((size_t)(g_config.worker_threads_num));
+  worker_threads_->SetWorkerNum((size_t)(g_config.worker_threads_num));
 
   PCommandTable::Init();
   PCommandTable::AliasCommand(g_config.aliases);
@@ -216,7 +235,7 @@ bool PikiwiDB::Init() {
   PSlowLog::Instance().SetLogLimit(static_cast<std::size_t>(g_config.slowlogmaxlen));
 
   // init base loop
-  auto loop = worker_threads_.BaseLoop();
+  auto loop = worker_threads_->BaseLoop();
   loop->ScheduleRepeatedly(1000 / pikiwidb::g_config.hz, PdbCron);
   loop->ScheduleRepeatedly(1000, &PReplication::Cron, &PREPL);
   loop->ScheduleRepeatedly(1, CheckChild);
@@ -238,12 +257,12 @@ bool PikiwiDB::Init() {
 }
 
 void PikiwiDB::Run() {
-  worker_threads_.SetName("pikiwi-main");
-  worker_threads_.Run(0, nullptr);
+  worker_threads_->SetName("pikiwi-main");
+  worker_threads_->Run(0, nullptr);
   INFO("server exit running");
 }
 
-void PikiwiDB::Stop() { worker_threads_.Exit(); }
+void PikiwiDB::Stop() { worker_threads_->Exit(); }
 
 std::unique_ptr<pikiwidb::CmdTableManager>& PikiwiDB::CmdTableManager() { return cmd_table_manager_; }
 
@@ -260,6 +279,7 @@ static void InitLogs() {
 int main(int ac, char* av[]) {
   g_pikiwidb = std::make_unique<PikiwiDB>();
 
+  InitSignal();
   InitLogs();
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();

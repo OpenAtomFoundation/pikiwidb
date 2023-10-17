@@ -15,30 +15,13 @@
 #include "pstd/log.h"
 #include "util.h"
 
-static void SignalHandler(int) { pikiwidb::IOThreadPool::Instance().Exit(); }
-
-static void InitSignal() {
-  struct sigaction sig;
-  ::memset(&sig, 0, sizeof(sig));
-
-  sig.sa_handler = SignalHandler;
-  sigaction(SIGINT, &sig, NULL);
-
-  // ignore sigpipe
-  sig.sa_handler = SIG_IGN;
-  sigaction(SIGPIPE, &sig, NULL);
-}
-
 namespace pikiwidb {
 
 const size_t IOThreadPool::kMaxWorkers = 128;
 
-IOThreadPool::~IOThreadPool() {}
+IOThreadPool::IOThreadPool() {}
 
-IOThreadPool& IOThreadPool::Instance() {
-  static IOThreadPool app;
-  return app;
-}
+IOThreadPool::~IOThreadPool() {}
 
 bool IOThreadPool::SetWorkerNum(size_t num) {
   if (num <= 1) {
@@ -147,8 +130,6 @@ void IOThreadPool::StartWorkers() {
 }
 
 void IOThreadPool::SetName(const std::string& name) { name_ = name; }
-
-IOThreadPool::IOThreadPool() : state_(State::kNone) { InitSignal(); }
 
 bool IOThreadPool::Listen(const char* ip, int port, NewTcpConnectionCallback ccb) {
   auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
