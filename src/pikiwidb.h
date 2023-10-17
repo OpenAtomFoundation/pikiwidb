@@ -41,7 +41,7 @@ class PikiwiDB final {
   static const unsigned kRunidSize;
 
  private:
-  pikiwidb::IOThreadPool& io_threads_;
+  pikiwidb::IOThreadPool& worker_threads_;
   std::unique_ptr<pikiwidb::CmdTableManager> cmd_table_manager_;
 };
 
