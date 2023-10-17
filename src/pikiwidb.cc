@@ -33,7 +33,7 @@ std::unique_ptr<PikiwiDB> g_pikiwidb;
 
 const unsigned PikiwiDB::kRunidSize = 40;
 
-PikiwiDB::PikiwiDB() : io_threads_(pikiwidb::IOThreadPool::Instance()), port_(0), master_port_(0) {
+PikiwiDB::PikiwiDB() : worker_threads_(pikiwidb::IOThreadPool::Instance()), port_(0), master_port_(0) {
   cmd_table_manager_ = std::make_unique<pikiwidb::CmdTableManager>();
 }
 
@@ -193,10 +193,10 @@ bool PikiwiDB::Init() {
   }
 
   NewTcpConnectionCallback cb = std::bind(&PikiwiDB::OnNewConnection, this, std::placeholders::_1);
-  if (!io_threads_.Init(g_config.ip.c_str(), g_config.port, cb)) {
+  if (!worker_threads_.Init(g_config.ip.c_str(), g_config.port, cb)) {
     return false;
   }
-  io_threads_.SetWorkerNum((size_t)(g_config.io_threads_num));
+  worker_threads_.SetWorkerNum((size_t)(g_config.worker_threads_num));
 
   PCommandTable::Init();
   PCommandTable::AliasCommand(g_config.aliases);
@@ -216,7 +216,7 @@ bool PikiwiDB::Init() {
   PSlowLog::Instance().SetLogLimit(static_cast<std::size_t>(g_config.slowlogmaxlen));
 
   // init base loop
-  auto loop = io_threads_.BaseLoop();
+  auto loop = worker_threads_.BaseLoop();
   loop->ScheduleRepeatedly(1000 / pikiwidb::g_config.hz, PdbCron);
   loop->ScheduleRepeatedly(1000, &PReplication::Cron, &PREPL);
   loop->ScheduleRepeatedly(1, CheckChild);
@@ -238,12 +238,12 @@ bool PikiwiDB::Init() {
 }
 
 void PikiwiDB::Run() {
-  io_threads_.SetName("pikiwi-main");
-  io_threads_.Run(0, nullptr);
+  worker_threads_.SetName("pikiwi-main");
+  worker_threads_.Run(0, nullptr);
   INFO("server exit running");
 }
 
-void PikiwiDB::Stop() { io_threads_.Exit(); }
+void PikiwiDB::Stop() { worker_threads_.Exit(); }
 
 std::unique_ptr<pikiwidb::CmdTableManager>& PikiwiDB::CmdTableManager() { return cmd_table_manager_; }
 

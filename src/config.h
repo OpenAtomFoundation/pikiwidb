@@ -68,7 +68,7 @@ struct PConfig {
   bool noeviction;       // default true
 
   // THREADED I/O
-  int io_threads_num;
+  int worker_threads_num;
 
   int backend;  // enum BackEndType
   PString backendPath;
