@@ -20,8 +20,8 @@ namespace pikiwidb {
 
 class IOThreadPool {
  public:
-  IOThreadPool();
-  ~IOThreadPool();
+  IOThreadPool() = default;
+  ~IOThreadPool()= default;
 
   bool Init(const char* ip, int port, NewTcpConnectionCallback ccb);
   void Run(int argc, char* argv[]);

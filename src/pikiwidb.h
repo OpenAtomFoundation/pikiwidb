@@ -15,8 +15,8 @@
 
 class PikiwiDB final {
  public:
-  PikiwiDB();
-  ~PikiwiDB();
+  PikiwiDB() = default;
+  ~PikiwiDB() = default;
 
   bool ParseArgs(int ac, char* av[]);
   const pikiwidb::PString& GetConfigName() const { return cfg_file_; }
@@ -28,7 +28,7 @@ class PikiwiDB final {
 
   void OnNewConnection(pikiwidb::TcpConnection* obj);
 
-  std::unique_ptr<pikiwidb::CmdTableManager>& CmdTableManager();
+  pikiwidb::CmdTableManager& GetCmdTableManager();
 
  public:
   pikiwidb::PString cfg_file_;
@@ -41,8 +41,8 @@ class PikiwiDB final {
   static const unsigned kRunidSize;
 
  private:
-  std::unique_ptr<pikiwidb::IOThreadPool> worker_threads_;
-  std::unique_ptr<pikiwidb::CmdTableManager> cmd_table_manager_;
+  pikiwidb::IOThreadPool worker_threads_;
+  pikiwidb::CmdTableManager cmd_table_manager_;
 };
 
 extern std::unique_ptr<PikiwiDB> g_pikiwidb;
