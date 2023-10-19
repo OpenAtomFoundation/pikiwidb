@@ -31,13 +31,25 @@
 
 std::unique_ptr<PikiwiDB> g_pikiwidb;
 
-const unsigned PikiwiDB::kRunidSize = 40;
-
-PikiwiDB::PikiwiDB() : worker_threads_(pikiwidb::IOThreadPool::Instance()), port_(0), master_port_(0) {
-  cmd_table_manager_ = std::make_unique<pikiwidb::CmdTableManager>();
+static void SignalHandler(int) {
+  if (g_pikiwidb) {
+    g_pikiwidb->Stop();
+  }
 }
 
-PikiwiDB::~PikiwiDB() {}
+static void InitSignal() {
+  struct sigaction sig;
+  ::memset(&sig, 0, sizeof(sig));
+
+  sig.sa_handler = SignalHandler;
+  sigaction(SIGINT, &sig, NULL);
+
+  // ignore sigpipe
+  sig.sa_handler = SIG_IGN;
+  sigaction(SIGPIPE, &sig, NULL);
+}
+
+const unsigned PikiwiDB::kRunidSize = 40;
 
 static void Usage() {
   std::cerr << "Usage:  ./pikiwidb-server [/path/to/redis.conf] [options]\n\
@@ -169,7 +181,7 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
   obj->SetNodelay(true);
-  obj->SetEventLoopSelector([]() { return pikiwidb::IOThreadPool::Instance().ChooseNextWorkerEventLoop(); });
+  obj->SetEventLoopSelector([this]() { return worker_threads_.ChooseNextWorkerEventLoop(); });
 }
 
 bool PikiwiDB::Init() {
@@ -232,7 +244,7 @@ bool PikiwiDB::Init() {
            static_cast<int>(g_config.port));
   std::cout << logo;
 
-  cmd_table_manager_->InitCmdTable();
+  cmd_table_manager_.InitCmdTable();
 
   return true;
 }
@@ -245,7 +257,7 @@ void PikiwiDB::Run() {
 
 void PikiwiDB::Stop() { worker_threads_.Exit(); }
 
-std::unique_ptr<pikiwidb::CmdTableManager>& PikiwiDB::CmdTableManager() { return cmd_table_manager_; }
+pikiwidb::CmdTableManager& PikiwiDB::GetCmdTableManager() { return cmd_table_manager_; }
 
 static void InitLogs() {
   logger::Init("logs/pikiwidb_server.log");
@@ -260,6 +272,7 @@ static void InitLogs() {
 int main(int ac, char* av[]) {
   g_pikiwidb = std::make_unique<PikiwiDB>();
 
+  InitSignal();
   InitLogs();
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();

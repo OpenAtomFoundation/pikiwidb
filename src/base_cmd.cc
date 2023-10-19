@@ -16,7 +16,7 @@ BaseCmd::BaseCmd(std::string name, int16_t arity, uint32_t flag, uint32_t aclCat
   arity_ = arity;
   flag_ = flag;
   aclCategory_ = aclCategory;
-  cmdId_ = g_pikiwidb->CmdTableManager()->GetCmdId();
+  cmdId_ = g_pikiwidb->GetCmdTableManager().GetCmdId();
 }
 
 bool BaseCmd::CheckArg(size_t num) const {

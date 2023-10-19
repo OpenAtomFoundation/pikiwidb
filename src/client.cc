@@ -243,7 +243,7 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
 int PClient::handlePacketNew(pikiwidb::TcpConnection* obj, const std::vector<std::string>& params,
                              const std::string& cmd) {
-  auto cmdPtr = g_pikiwidb->CmdTableManager()->GetCommand(cmd);
+  auto cmdPtr = g_pikiwidb->GetCmdTableManager().GetCommand(cmd);
 
   if (!cmdPtr) {
     ReplyError(PError_unknowCmd, &reply_);
