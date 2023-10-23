@@ -42,6 +42,7 @@ class PikiwiDB final {
 
  private:
   pikiwidb::IOThreadPool worker_threads_;
+  pikiwidb::IOThreadPool slave_threads_;
   pikiwidb::CmdTableManager cmd_table_manager_;
 };
 
