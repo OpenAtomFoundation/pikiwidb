@@ -23,6 +23,8 @@ class IOThreadPool {
   IOThreadPool() = default;
   ~IOThreadPool()= default;
 
+  static const size_t GetMaxWorkerNum() { return kMaxWorkers; }
+
   bool Init(const char* ip, int port, NewTcpConnectionCallback ccb);
   void Run(int argc, char* argv[]);
   void Exit();

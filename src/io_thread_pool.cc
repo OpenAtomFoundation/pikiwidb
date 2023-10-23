@@ -34,11 +34,6 @@ bool IOThreadPool::SetWorkerNum(size_t num) {
     return false;
   }
 
-  if (num > kMaxWorkers) {
-    ERROR("number of threads can't exceeds {}, now is {}", kMaxWorkers, num);
-    return false;
-  }
-
   worker_num_.store(num);
   worker_threads_.reserve(num);
   worker_loops_.reserve(num);

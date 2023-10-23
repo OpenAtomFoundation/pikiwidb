@@ -208,7 +208,15 @@ bool PikiwiDB::Init() {
   if (!worker_threads_.Init(g_config.ip.c_str(), g_config.port, cb)) {
     return false;
   }
+
+  auto num = g_config.worker_threads_num + g_config.slave_threads_num;
+  auto kMaxWorkerNum = IOThreadPool::GetMaxWorkerNum();
+  if (num > kMaxWorkerNum) {
+    ERROR("number of threads can't exceeds {}, now is {}", kMaxWorkerNum, num);
+    return false;
+  }
   worker_threads_.SetWorkerNum((size_t)(g_config.worker_threads_num));
+  slave_threads_.SetWorkerNum((size_t)(g_config.slave_threads_num));
 
   PCommandTable::Init();
   PCommandTable::AliasCommand(g_config.aliases);
@@ -251,11 +259,23 @@ bool PikiwiDB::Init() {
 
 void PikiwiDB::Run() {
   worker_threads_.SetName("pikiwi-main");
+  slave_threads_.SetName("pikiwi-slave");
+
+  std::thread t([this]() {
+    auto slave_loop = slave_threads_.BaseLoop();
+    slave_loop->Init();
+    slave_threads_.Run(0, nullptr);
+  });
+
   worker_threads_.Run(0, nullptr);
+  
   INFO("server exit running");
 }
 
-void PikiwiDB::Stop() { worker_threads_.Exit(); }
+void PikiwiDB::Stop() {
+  slave_threads_.Exit();
+  worker_threads_.Exit();
+}
 
 pikiwidb::CmdTableManager& PikiwiDB::GetCmdTableManager() { return cmd_table_manager_; }
 
