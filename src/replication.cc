@@ -454,7 +454,7 @@ PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   if (slave->state == PSlaveState_wait_bgsave_end || slave->state == PSlaveState_online) {
-    WARN("{} state is {}, ignore this sync request", cli->GetName(), slave->state);
+    WARN("{} state is {}, ignore this sync request", cli->GetName(), int(slave->state));
 
     return PError_ok;
   }

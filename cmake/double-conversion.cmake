@@ -7,9 +7,9 @@ include_guard()
 
 include(cmake/utils.cmake)
 
-FetchContent_DeclareGitHubWithMirror(fmt
-  fmtlib/fmt 10.1.1
-  SHA256=3c2e73019178ad72b0614a3124f25de454b9ca3a1afe81d5447b8d3cbdb6d322
+FetchContent_DeclareGitHubWithMirror(double-conversion
+  google/double-conversion v3.3.0
+  SHA256=4080014235f90854ffade6d1c423940b314bbca273a338235f049da296e47183
 )
 
-FetchContent_MakeAvailableWithArgs(fmt)
+FetchContent_MakeAvailableWithArgs(double-conversion)

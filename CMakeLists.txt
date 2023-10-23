@@ -59,6 +59,7 @@ ENDIF ()
 
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
     SET(CMAKE_CXX_FLAGS "-pthread")
+    SET(CMAKE_EXE_LINKER_FLAGS "-stdlib=libc++ -lc++ -lc++abi ${CMAKE_EXE_LINKER_FLAGS}")
     ADD_DEFINITIONS(-DOS_MACOSX)
 ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
     IF (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -103,8 +104,9 @@ include(cmake/findTools.cmake)
 include(cmake/leveldb.cmake)
 include(cmake/libevent.cmake)
 include(cmake/llhttp.cmake)
-include(cmake/spdlog.cmake)
 include(cmake/fmt.cmake)
+include(cmake/spdlog.cmake)
+include(cmake/folly.cmake)
 
 
 ADD_SUBDIRECTORY(src/pstd)

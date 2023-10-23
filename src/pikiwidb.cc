@@ -8,6 +8,8 @@
 //
 //  PikiwiDB.cc
 
+#include <folly/concurrency/ConcurrentHashMap.h>
+
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -270,6 +272,8 @@ static void InitLogs() {
 }
 
 int main(int ac, char* av[]) {
+  [[maybe_unused]] folly::ConcurrentHashMap<int, int> a;
+
   g_pikiwidb = std::make_unique<PikiwiDB>();
 
   InitSignal();
