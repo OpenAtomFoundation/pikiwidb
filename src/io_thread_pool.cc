@@ -65,6 +65,7 @@ void IOThreadPool::Run(int ac, char* av[]) {
   for (auto& w : worker_threads_) {
     w.join();
   }
+  
   worker_threads_.clear();
 
   INFO("Process stopped, goodbye...");
@@ -102,7 +103,7 @@ void IOThreadPool::StartWorkers() {
     std::unique_ptr<EventLoop> loop(new EventLoop);
     if (!name_.empty()) {
       loop->SetName(name_ + "_" + std::to_string(index++));
-      printf("loop %p, name %s\n", loop.get(), loop->GetName().c_str());
+      INFO("loop {}, name {}", static_cast<void*>(loop.get()), loop->GetName().c_str());
     }
     worker_loops_.push_back(std::move(loop));
   }

@@ -477,6 +477,26 @@ bool PClient::WaitFor(const PString& key, const PString* target) {
 
 void PClient::SetSlaveInfo() { slave_info_.reset(new PSlaveInfo()); }
 
+void PClient::TransferToSlaveThreads() {
+  // transfer to slave
+  auto tcp_connection = getTcpConnection();
+  if (!tcp_connection) {
+    return;
+  }
+
+  auto loop = tcp_connection->GetEventLoop();
+  auto loop_name = loop->GetName();
+  if (loop_name.find("slave") == std::string::npos) {
+    auto slave_loop = tcp_connection->SelectSlaveEventLoop();
+    auto id = tcp_connection->GetUniqueId();
+    auto event_object = loop->GetEventObject(id);
+    loop->Unregister(event_object);
+    event_object->SetUniqueId(-1);
+    slave_loop->Register(event_object, 0);
+    tcp_connection->ResetEventLoop(slave_loop);
+  }
+}
+
 void PClient::AddCurrentToMonitor() {
   std::unique_lock<std::mutex> guard(monitors_mutex);
   monitors.insert(std::static_pointer_cast<PClient>(s_current->shared_from_this()));

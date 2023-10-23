@@ -1,9 +1,9 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
-* This source code is licensed under the BSD-style license found in the
-* LICENSE file in the root directory of this source tree. An additional grant
-* of patent rights can be found in the PATENTS file in the same directory.
-*/
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
 
 #include "tcp_connection.h"
 
@@ -144,8 +144,8 @@ bool TcpConnection::SendPacket(const evbuffer_iovec* iovecs, size_t nvecs) {
   }
 
   if (loop_->InThisLoop()) {
-      auto output = bufferevent_get_output(bev_);
-      evbuffer_add_iovec(output, const_cast<evbuffer_iovec*>(iovecs), nvecs);
+    auto output = bufferevent_get_output(bev_);
+    evbuffer_add_iovec(output, const_cast<evbuffer_iovec*>(iovecs), nvecs);
   } else {
     std::vector<std::string> buffers;
     for (int i = 0; i < nvecs; ++i) {
@@ -333,6 +333,38 @@ void TcpConnection::OnEvent(struct bufferevent* bev, short events, void* obj) {
 }
 
 void TcpConnection::SetContext(std::shared_ptr<void> ctx) { context_ = std::move(ctx); }
+
+void TcpConnection::ResetEventLoop(EventLoop* new_loop) {
+  assert(loop_->InThisLoop());
+
+  // disable event
+  bufferevent_disable(bev_, EV_READ);
+  bufferevent_disable(bev_, EV_WRITE);
+
+  // create a new bufferevent associated with the new loop
+  auto new_base = reinterpret_cast<struct event_base*>(new_loop->GetReactor()->Backend());
+  auto new_bev = bufferevent_socket_new(new_base, bufferevent_getfd(bev_), BEV_OPT_CLOSE_ON_FREE);
+  assert(new_bev);
+
+  // set the callbacks and enable reading on the new bufferevent
+  bufferevent_setcb(new_bev, &TcpConnection::OnRecvData, nullptr, &TcpConnection::OnEvent, this);
+  bufferevent_enable(new_bev, EV_READ);
+
+  // update bev_ with the new bufferevent
+  bufferevent_setfd(bev_, -1);  // remove from the original but do not close this fd
+  bev_ = new_bev;
+
+  // update the loop_ pointer with the new loop
+  loop_ = new_loop;
+}
+
+EventLoop* TcpConnection::SelectSlaveEventLoop() {
+  if (slave_loop_selector_) {
+    return slave_loop_selector_();
+  }
+
+  return loop_;
+}
 
 void TcpConnection::ActiveClose(bool sync) {
   // weak: don't prolong life of this
