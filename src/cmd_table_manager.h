@@ -28,7 +28,7 @@ class CmdTableManager {
 
  public:
   void InitCmdTable();
-  BaseCmd* GetCommand(const std::string& cmdName);
+  std::pair<BaseCmd*,CmdRes::CmdRet> GetCommand(const std::string& cmdName, CmdContext& ctx);
   //  uint32_t DistributeKey(const std::string& key, uint32_t slot_num);
   bool CmdExist(const std::string& cmd) const;
   uint32_t GetCmdId();

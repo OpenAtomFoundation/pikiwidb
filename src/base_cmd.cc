@@ -48,8 +48,7 @@ bool BaseCmd::HasFlag(uint32_t flag) const { return flag_ & flag; }
 void BaseCmd::SetFlag(uint32_t flag) { flag_ |= flag; }
 void BaseCmd::ResetFlag(uint32_t flag) { flag_ &= ~flag; }
 bool BaseCmd::HasSubCommand() const { return false; }
-std::vector<std::string> BaseCmd::SubCommand() const { return {}; }
-int8_t BaseCmd::SubCmdIndex(const std::string& cmdName) { return -1; }
+BaseCmd* BaseCmd::GetSubCmd(const std::string& cmdNane) { return nullptr; }
 uint32_t BaseCmd::AclCategory() const { return aclCategory_; }
 void BaseCmd::AddAclCategory(uint32_t aclCategory) { aclCategory_ |= aclCategory; }
 std::string BaseCmd::Name() const { return name_; }
@@ -57,5 +56,29 @@ std::string BaseCmd::Name() const { return name_; }
 // void BaseCommand::SetResp(const std::shared_ptr<std::string>& resp) { resp_ = resp; }
 // std::shared_ptr<std::string> BaseCommand::GetResp() { return resp_.lock(); }
 uint32_t BaseCmd::GetCmdId() const { return cmdId_; }
+
+// BaseCmdGroup
+BaseCmdGroup::BaseCmdGroup(const std::string& name, uint32_t flag) : BaseCmdGroup(name, -2, flag) {}
+BaseCmdGroup::BaseCmdGroup(const std::string& name, int16_t arity, uint32_t flag) : BaseCmd(name, arity, flag, 0) {}
+
+void BaseCmdGroup::AddSubCmd(std::unique_ptr<BaseCmd> cmd) { subCmds_[cmd->Name()] = std::move(cmd); }
+
+BaseCmd* BaseCmdGroup::GetSubCmd(const std::string& cmdNane) {
+  auto subCmd = subCmds_.find(cmdNane);
+  if (subCmd == subCmds_.end()) {
+    return nullptr;
+  }
+  return subCmd->second.get();
+}
+
+bool BaseCmdGroup::DoInitial(CmdContext& ctx) {
+  ctx.subCmd_ = ctx.argv_[1];
+  std::transform(ctx.argv_[1].begin(), ctx.argv_[1].end(), ctx.subCmd_.begin(), ::tolower);
+  if (!subCmds_.contains(ctx.subCmd_)) {
+    ctx.SetRes(CmdRes::kSyntaxErr, ctx.argv_[0] + " unknown subcommand for '" + ctx.subCmd_ + "'");
+    return false;
+  }
+  return true;
+}
 
 }  // namespace pikiwidb

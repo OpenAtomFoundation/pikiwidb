@@ -5,10 +5,10 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#ifndef PIKIWIDB_SRC_BASE_CMD_H
-#define PIKIWIDB_SRC_BASE_CMD_H
+#pragma once
 
 #include <atomic>
+#include <map>
 #include <memory>
 #include <span>
 #include <string>
@@ -159,9 +159,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   // then these functions do not need to be implemented.
   // If it is a subcommand, you need to implement these functions
   // e.g: CmdConfig is a subcommand, and the subcommand is set and get
-  virtual bool HasSubCommand() const;                      // The command is there a sub command
-  virtual std::vector<std::string> SubCommand() const;     // Get command is there a sub command
-  virtual int8_t SubCmdIndex(const std::string& cmdName);  // if the command no subCommand，return -1；
+  virtual bool HasSubCommand() const;  // The command is there a sub command
+  virtual BaseCmd* GetSubCmd(const std::string& cmdNane);
 
   uint32_t AclCategory() const;
   void AddAclCategory(uint32_t aclCategory);
@@ -186,7 +185,6 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   std::string name_;
   int16_t arity_ = 0;
   uint32_t flag_ = 0;
-  std::vector<std::string> subCmdName_;  // sub command name, may be empty
 
   //  CmdRes res_;
   //  std::string dbName_;
@@ -207,5 +205,22 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   //  BaseCmd& operator=(const BaseCmd&);
 };
 
+class BaseCmdGroup : public BaseCmd {
+ public:
+  BaseCmdGroup(const std::string& name, uint32_t flag);
+  BaseCmdGroup(const std::string& name, int16_t arity, uint32_t flag);
+
+  ~BaseCmdGroup() override = default;
+
+  void AddSubCmd(std::unique_ptr<BaseCmd> cmd);
+  BaseCmd* GetSubCmd(const std::string& cmdNane) override;
+
+  void DoCmd(CmdContext& ctx) override{};
+
+  bool DoInitial(CmdContext& ctx) override;
+
+ private:
+  std::map<std::string, std::unique_ptr<BaseCmd>> subCmds_;
+};
+
 }  // namespace pikiwidb
-#endif  // PIKIWIDB_SRC_BASE_CMD_H

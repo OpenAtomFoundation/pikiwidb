@@ -12,24 +12,41 @@
 
 namespace pikiwidb {
 
-class CmdConfig : public BaseCmd {
+class CmdConfig : public BaseCmdGroup {
  public:
   CmdConfig(const std::string& name, int arity);
 
   bool HasSubCommand() const override;
-  std::vector<std::string> SubCommand() const override;
-  int8_t SubCmdIndex(const std::string& cmdName) override;
+
+ protected:
+  bool DoInitial(CmdContext& ctx) override { return true; };
+
+ private:
+  std::vector<std::string> subCmd_;
+
+  void DoCmd(CmdContext& ctx) override{};
+};
+
+class CmdConfigGet : public BaseCmd {
+ public:
+  CmdConfigGet(const std::string& name, int16_t arity);
 
  protected:
   bool DoInitial(CmdContext& ctx) override;
 
  private:
-  std::vector<std::string> subCmd_;
+  void DoCmd(pikiwidb::CmdContext& ctx) override;
+};
 
-  void DoCmd(CmdContext& ctx) override;
+class CmdConfigSet : public BaseCmd {
+ public:
+  CmdConfigSet(const std::string& name, int16_t arity);
 
-  void Get(CmdContext& ctx);
-  void Set(CmdContext& ctx);
+ protected:
+  bool DoInitial(CmdContext& ctx) override;
+
+ private:
+  void DoCmd(pikiwidb::CmdContext& ctx) override;
 };
 
 }  // namespace pikiwidb

@@ -9,48 +9,24 @@
 
 namespace pikiwidb {
 
-CmdConfig::CmdConfig(const std::string& name, int arity) : BaseCmd(name, arity, CmdFlagsAdmin, AclCategoryAdmin) {
+CmdConfig::CmdConfig(const std::string& name, int arity) : BaseCmdGroup(name, CmdFlagsAdmin, AclCategoryAdmin) {
   subCmd_ = {"set", "get"};
 }
 
 bool CmdConfig::HasSubCommand() const { return true; }
 
-std::vector<std::string> CmdConfig::SubCommand() const { return subCmd_; }
+CmdConfigGet::CmdConfigGet(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsAdmin | CmdFlagsWrite, AclCategoryAdmin) {}
 
-int8_t CmdConfig::SubCmdIndex(const std::string& cmdName) {
-  for (size_t i = 0; i < subCmd_.size(); i++) {
-    if (subCmd_[i] == cmdName) {
-      return i;
-    }
-  }
-  return -1;
-}
+bool CmdConfigGet::DoInitial(CmdContext& ctx) { return true; }
 
-bool CmdConfig::DoInitial(pikiwidb::CmdContext& ctx) {
-  ctx.subCmd_ = ctx.argv_[1];
-  std::transform(ctx.argv_[1].begin(), ctx.argv_[1].end(), ctx.subCmd_.begin(), ::tolower);
-  if (ctx.subCmd_ == subCmd_[0] || ctx.subCmd_ == subCmd_[1]) {
-    if (ctx.argv_.size() < 3) {
-      ctx.SetRes(CmdRes::kInvalidParameter, "config " + ctx.subCmd_);
-      return false;
-    }
-  }
+void CmdConfigGet::DoCmd(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
 
-  return true;
-}
+CmdConfigSet::CmdConfigSet(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsAdmin, AclCategoryAdmin) {}
 
-void CmdConfig::DoCmd(pikiwidb::CmdContext& ctx) {
-  if (ctx.subCmd_ == subCmd_[0]) {
-    Set(ctx);
-  } else if (ctx.subCmd_ == subCmd_[1]) {
-    Get(ctx);
-  } else {
-    ctx.SetRes(CmdRes::kSyntaxErr, "config error");
-  }
-}
+bool CmdConfigSet::DoInitial(CmdContext& ctx) { return true; }
 
-void CmdConfig::Get(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
-
-void CmdConfig::Set(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
+void CmdConfigSet::DoCmd(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
 
 }  // namespace pikiwidb
