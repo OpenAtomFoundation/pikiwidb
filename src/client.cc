@@ -248,10 +248,10 @@ int PClient::handlePacketNew(const std::vector<std::string>& params, const std::
   std::vector<std::string> argv = params;
   ctx.argv_ = argv;
 
-  auto cmdPtr = g_pikiwidb->GetCmdTableManager().GetCommand(cmd, ctx);
+  auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(cmd, ctx);
 
-  if (!cmdPtr.first) {
-    if (cmdPtr.second == CmdRes::kInvalidParameter) {
+  if (!cmdPtr) {
+    if (ret == CmdRes::kInvalidParameter) {
       ctx.SetRes(CmdRes::kInvalidParameter);
     } else {
       ctx.SetRes(CmdRes::kSyntaxErr, "unknown command '" + cmd + "'");
@@ -260,13 +260,14 @@ int PClient::handlePacketNew(const std::vector<std::string>& params, const std::
     return 0;
   }
 
-  if (cmdPtr.first->CheckArg(params.size())) {
+  if (cmdPtr->CheckArg(params.size())) {
     ctx.SetRes(CmdRes::kSyntaxErr, "wrong number of arguments for '" + cmd + "' command");
     reply_.PushData(ctx.message().data(), ctx.message().size());
     return 0;
   }
 
-  cmdPtr.first->Execute(ctx);
+  //execute a specific command
+  cmdPtr->Execute(ctx);
 
   reply_.PushData(ctx.message().data(), ctx.message().size());
   return 0;

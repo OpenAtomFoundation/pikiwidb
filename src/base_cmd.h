@@ -160,7 +160,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   // If it is a subcommand, you need to implement these functions
   // e.g: CmdConfig is a subcommand, and the subcommand is set and get
   virtual bool HasSubCommand() const;  // The command is there a sub command
-  virtual BaseCmd* GetSubCmd(const std::string& cmdNane);
+  virtual BaseCmd* GetSubCmd(const std::string& cmdName);
 
   uint32_t AclCategory() const;
   void AddAclCategory(uint32_t aclCategory);
@@ -213,10 +213,12 @@ class BaseCmdGroup : public BaseCmd {
   ~BaseCmdGroup() override = default;
 
   void AddSubCmd(std::unique_ptr<BaseCmd> cmd);
-  BaseCmd* GetSubCmd(const std::string& cmdNane) override;
+  BaseCmd* GetSubCmd(const std::string& cmdName) override;
 
+  // group cmd this function will not be called
   void DoCmd(CmdContext& ctx) override{};
 
+  // group cmd this function will not be called
   bool DoInitial(CmdContext& ctx) override;
 
  private:

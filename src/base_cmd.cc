@@ -48,7 +48,7 @@ bool BaseCmd::HasFlag(uint32_t flag) const { return flag_ & flag; }
 void BaseCmd::SetFlag(uint32_t flag) { flag_ |= flag; }
 void BaseCmd::ResetFlag(uint32_t flag) { flag_ &= ~flag; }
 bool BaseCmd::HasSubCommand() const { return false; }
-BaseCmd* BaseCmd::GetSubCmd(const std::string& cmdNane) { return nullptr; }
+BaseCmd* BaseCmd::GetSubCmd(const std::string& cmdName) { return nullptr; }
 uint32_t BaseCmd::AclCategory() const { return aclCategory_; }
 void BaseCmd::AddAclCategory(uint32_t aclCategory) { aclCategory_ |= aclCategory; }
 std::string BaseCmd::Name() const { return name_; }
@@ -63,8 +63,8 @@ BaseCmdGroup::BaseCmdGroup(const std::string& name, int16_t arity, uint32_t flag
 
 void BaseCmdGroup::AddSubCmd(std::unique_ptr<BaseCmd> cmd) { subCmds_[cmd->Name()] = std::move(cmd); }
 
-BaseCmd* BaseCmdGroup::GetSubCmd(const std::string& cmdNane) {
-  auto subCmd = subCmds_.find(cmdNane);
+BaseCmd* BaseCmdGroup::GetSubCmd(const std::string& cmdName) {
+  auto subCmd = subCmds_.find(cmdName);
   if (subCmd == subCmds_.end()) {
     return nullptr;
   }
