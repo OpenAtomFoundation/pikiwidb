@@ -37,10 +37,10 @@ class EventObject : public std::enable_shared_from_this<EventObject> {
   virtual void HandleErrorEvent() {}
 
   // set event loop selector
-  virtual void SetEventLoopSelector(EventLoopSelector cb) final { loop_selector_ = std::move(cb); }
+  void SetEventLoopSelector(EventLoopSelector cb) { loop_selector_ = std::move(cb); }
 
   // set slave event loop selector
-  virtual void SetSlaveEventLoopSelector(EventLoopSelector cb) final { slave_loop_selector_ = std::move(cb); }
+  void SetSlaveEventLoopSelector(EventLoopSelector cb) { slave_loop_selector_ = std::move(cb); }
 
   // The unique id, it'll not repeat in one thread.
   int GetUniqueId() const { return unique_id_; }

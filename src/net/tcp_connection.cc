@@ -338,8 +338,7 @@ void TcpConnection::ResetEventLoop(EventLoop* new_loop) {
   assert(loop_->InThisLoop());
 
   // disable event
-  bufferevent_disable(bev_, EV_READ);
-  bufferevent_disable(bev_, EV_WRITE);
+  bufferevent_disable(bev_, EV_READ | EV_WRITE);
 
   // create a new bufferevent associated with the new loop
   auto new_base = reinterpret_cast<struct event_base*>(new_loop->GetReactor()->Backend());
@@ -352,6 +351,7 @@ void TcpConnection::ResetEventLoop(EventLoop* new_loop) {
 
   // update bev_ with the new bufferevent
   bufferevent_setfd(bev_, -1);  // remove from the original but do not close this fd
+  bufferevent_free(bev_);
   bev_ = new_bev;
 
   // update the loop_ pointer with the new loop
