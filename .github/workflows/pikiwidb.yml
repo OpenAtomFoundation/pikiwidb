@@ -1,10 +1,9 @@
 name: Pikiwidb
 
 on:
+  # 为了方便测试，目前不指定分支就可以触发
   push:
-    branches: [ "unstable" ]
   pull_request:
-    branches: [ "unstable" ]
 
 jobs:
   build_on_macos:
