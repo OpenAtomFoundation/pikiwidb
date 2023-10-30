@@ -1,7 +1,6 @@
 name: Pikiwidb
 
 on:
-  # 为了方便测试，目前不指定分支就可以触发
   push:
   pull_request:
 
