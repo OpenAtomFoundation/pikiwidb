@@ -8,8 +8,8 @@
 #include <iostream>
 #include <vector>
 
-#include "config_parser.h"
 #include "config.h"
+#include "config_parser.h"
 
 namespace pikiwidb {
 
@@ -186,7 +186,7 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(hz > 0 && hz < 500);
   RETURN_IF_FAIL(maxmemory >= 512 * 1024 * 1024UL);
   RETURN_IF_FAIL(maxmemorySamples > 0 && maxmemorySamples < 10);
-  RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129); // as redis
+  RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129);  // as redis
   RETURN_IF_FAIL(backend >= BackEndNone && backend < BackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
 

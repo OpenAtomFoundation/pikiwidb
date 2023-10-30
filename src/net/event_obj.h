@@ -22,7 +22,7 @@ class EventObject : public std::enable_shared_from_this<EventObject> {
   /// Constructor, printf is for debug, you can comment it
   EventObject() {}
   /// Destructor, printf is for debug, you can comment it
-  virtual ~EventObject() { }
+  virtual ~EventObject() {}
 
   EventObject(const EventObject&) = delete;
   void operator=(const EventObject&) = delete;
@@ -37,7 +37,10 @@ class EventObject : public std::enable_shared_from_this<EventObject> {
   virtual void HandleErrorEvent() {}
 
   // set event loop selector
-  virtual void SetEventLoopSelector(EventLoopSelector cb) final { loop_selector_ = std::move(cb); }
+  void SetEventLoopSelector(EventLoopSelector cb) { loop_selector_ = std::move(cb); }
+
+  // set slave event loop selector
+  void SetSlaveEventLoopSelector(EventLoopSelector cb) { slave_loop_selector_ = std::move(cb); }
 
   // The unique id, it'll not repeat in one thread.
   int GetUniqueId() const { return unique_id_; }
@@ -46,6 +49,7 @@ class EventObject : public std::enable_shared_from_this<EventObject> {
 
  protected:
   EventLoopSelector loop_selector_;
+  EventLoopSelector slave_loop_selector_;
 
  private:
   int unique_id_ = -1;  // set by eventloop
