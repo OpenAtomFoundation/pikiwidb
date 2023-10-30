@@ -1,0 +1,16 @@
+name: Pikiwidb
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  build_on_macos:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          sh build.sh
