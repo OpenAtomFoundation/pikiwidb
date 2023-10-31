@@ -273,6 +273,7 @@ static void InitLogs() {
 
 int main(int ac, char* av[]) {
   [[maybe_unused]] folly::ConcurrentHashMap<int, int> a;
+  [[maybe_unused]] folly::ConcurrentHashMapSIMD<char, char> b;
 
   g_pikiwidb = std::make_unique<PikiwiDB>();
 

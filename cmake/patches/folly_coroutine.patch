@@ -1,0 +1,27 @@
+diff --color -urN a/folly/experimental/coro/Coroutine.h b/folly/experimental/coro/Coroutine.h
+--- a/folly/experimental/coro/Coroutine.h	2023-10-23 18:00:57.000000000 +0800
++++ b/folly/experimental/coro/Coroutine.h	2023-10-31 10:49:25.549555846 +0800
+@@ -228,23 +228,9 @@
+ 
+   bool eager = false;
+ 
+-// FIXME: when building against Apple SDKs using c++17, we hit this all over
+-// the place on complex testing infrastructure for iOS. Since it's not clear
+-// how to fix the issue properly right now, force ignore this warnings and help
+-// unblock expected/optional coroutines. This should be removed once the build
+-// configuration is changed to use -Wno-deprecated-experimental-coroutine.
+-#if defined(__clang__) && (__clang_major__ < 17 && __clang_major__ > 13)
+-#pragma clang diagnostic push
+-#pragma clang diagnostic ignored "-Wdeprecated-experimental-coroutine"
+   static detect_promise_return_object_eager_conversion_ go() noexcept {
+     co_return;
+   }
+-#pragma clang diagnostic pop
+-#else
+-  static detect_promise_return_object_eager_conversion_ go() noexcept {
+-    co_return;
+-  }
+-#endif
+ };
+ 
+ } // namespace detail

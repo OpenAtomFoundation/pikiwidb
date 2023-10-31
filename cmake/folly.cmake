@@ -29,9 +29,10 @@ include(cmake/fmt.cmake)
 
 add_compile_definitions(FOLLY_NO_CONFIG)
 
-FetchContent_DeclareGitHubWithMirror(pikiwidb-folly
-  pikiwidb/folly v2023.10.16.00
-  SHA256=EB29DC13474E3979A0680F624FF5820FA7A4E9CE0110607669AE87D69CFC104D
+FetchContent_Declare(pikiwidb-folly
+  URL https://github.com/pikiwidb/folly/archive/v2023.10.16.00.zip
+  URL_HASH SHA256=EB29DC13474E3979A0680F624FF5820FA7A4E9CE0110607669AE87D69CFC104D
+  PATCH_COMMAND patch -p1 -s -E -i ${PROJECT_SOURCE_DIR}/cmake/patches/folly_coroutine.patch
 )
 
 FetchContent_MakeAvailableWithArgs(pikiwidb-folly)
