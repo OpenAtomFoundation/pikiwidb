@@ -7,9 +7,9 @@ include_guard()
 
 include(cmake/utils.cmake)
 
-FetchContent_DeclareGitHubWithMirror(fmt
-  fmtlib/fmt 10.1.1
-  SHA256=3c2e73019178ad72b0614a3124f25de454b9ca3a1afe81d5447b8d3cbdb6d322
+FetchContent_DeclareGitHubWithMirror(pikiwidb-boost
+  pikiwidb/boost boost-1.83.0
+  SHA256=A3B453E3D5FD39E6A4C733C31548512A1E74B7328D4C358FAC562930A0E6E5B4
 )
 
-FetchContent_MakeAvailableWithArgs(fmt)
+FetchContent_MakeAvailableWithArgs(pikiwidb-boost)

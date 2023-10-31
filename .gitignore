@@ -73,3 +73,5 @@ deps
 
 tests/tmp
 bin
+
+compile_commands.json
