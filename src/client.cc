@@ -260,13 +260,13 @@ int PClient::handlePacketNew(const std::vector<std::string>& params, const std::
     return 0;
   }
 
-  if (cmdPtr->CheckArg(params.size())) {
+  if (!cmdPtr->CheckArg(params.size())) {
     ctx.SetRes(CmdRes::kSyntaxErr, "wrong number of arguments for '" + cmd + "' command");
     reply_.PushData(ctx.message().data(), ctx.message().size());
     return 0;
   }
 
-  //execute a specific command
+  // execute a specific command
   cmdPtr->Execute(ctx);
 
   reply_.PushData(ctx.message().data(), ctx.message().size());
