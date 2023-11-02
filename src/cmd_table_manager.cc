@@ -21,7 +21,10 @@ void CmdTableManager::InitCmdTable() {
   std::unique_lock wl(mutex_);
 
   // admin
-  std::unique_ptr<BaseCmd> configPtr = std::make_unique<CmdConfig>(kCmdNameConfig, -2);
+  auto configPtr = std::make_unique<CmdConfig>(kCmdNameConfig, -2);
+  configPtr->AddSubCmd(std::make_unique<CmdConfigGet>("get", -3));
+  configPtr->AddSubCmd(std::make_unique<CmdConfigSet>("set", -4));
+
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
   // kv
@@ -31,15 +34,22 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameSet, std::move(setPtr)));
 }
 
-BaseCmd* CmdTableManager::GetCommand(const std::string& cmdName) {
+std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, CmdContext& ctx) {
   std::shared_lock rl(mutex_);
 
   auto cmd = cmds_->find(cmdName);
 
   if (cmd == cmds_->end()) {
-    return nullptr;
+    return std::pair(nullptr, CmdRes::kSyntaxErr);
   }
-  return cmd->second.get();
+
+  if (cmd->second->HasSubCommand()) {
+    if (ctx.argv_.size() < 2) {
+      return std::pair(nullptr, CmdRes::kInvalidParameter);
+    }
+    return std::pair(cmd->second->GetSubCmd(ctx.argv_[1]), CmdRes::kSyntaxErr);
+  }
+  return std::pair(cmd->second.get(), CmdRes::kSyntaxErr);
 }
 
 bool CmdTableManager::CmdExist(const std::string& cmd) const {

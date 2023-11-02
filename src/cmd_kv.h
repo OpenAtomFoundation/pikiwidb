@@ -14,7 +14,7 @@ namespace pikiwidb {
 
 class GetCmd : public BaseCmd {
  public:
-  GetCmd(const std::string &name, int arity);
+  GetCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(CmdContext &ctx) override;
@@ -25,7 +25,7 @@ class GetCmd : public BaseCmd {
 
 class SetCmd : public BaseCmd {
  public:
-  SetCmd(const std::string &name, int arity);
+  SetCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(CmdContext &ctx) override;

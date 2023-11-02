@@ -10,7 +10,7 @@
 
 namespace pikiwidb {
 
-GetCmd::GetCmd(const std::string& name, int arity)
+GetCmd::GetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
 bool GetCmd::DoInitial(CmdContext& ctx) {
@@ -34,7 +34,7 @@ void GetCmd::DoCmd(CmdContext& ctx) {
   ctx.AppendString(reply);
 }
 
-SetCmd::SetCmd(const std::string& name, int arity)
+SetCmd::SetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool SetCmd::DoInitial(CmdContext& ctx) {
