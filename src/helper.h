@@ -49,7 +49,7 @@ inline typename HASH::const_local_iterator RandomHashMember(const HASH& containe
 }
 
 template <typename HASH>
-inline HASH::const_iterator KeyRandomHashMember(const HASH& container) {
+inline typename HASH::const_iterator KeyRandomHashMember(const HASH& container) {
   auto it = container.cend();
   if (container.empty()) {
     return it;
