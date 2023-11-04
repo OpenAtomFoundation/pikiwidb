@@ -7,6 +7,8 @@
 
 #pragma once
 
+#define GLOG_NO_ABBREVIATED_SEVERITIES
+
 #include "common.h"
 #include "dump_interface.h"
 #include "hash.h"
@@ -14,6 +16,7 @@
 #include "set.h"
 #include "sorted_set.h"
 
+#include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
 #include <vector>
@@ -79,7 +82,8 @@ struct PObject {
 
 class PClient;
 
-using PDB = std::unordered_map<PString, PObject, my_hash, std::equal_to<PString> >;
+//using PDB = std::unordered_map<PString, PObject, my_hash, std::equal_to<PString> >;
+using FDB = folly::ConcurrentHashMap<PString, PObject, my_hash, std::equal_to<PString>>;
 
 const int kMaxDBNum = 65536;
 
@@ -104,10 +108,12 @@ class PStore {
   size_t ScanKey(size_t cursor, size_t count, std::vector<PString>& res) const;
 
   // iterator
-  PDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
-  PDB::const_iterator end() const { return dbs_[dbno_].end(); }
-  PDB::iterator begin() { return dbs_[dbno_].begin(); }
-  PDB::iterator end() { return dbs_[dbno_].end(); }
+  FDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
+  FDB::const_iterator end() const { return dbs_[dbno_].end(); }
+
+//  FIXME: folly::ConcurrentHashMap doesn't support non-const iterator
+//  PDB::iterator begin() { return dbs_[dbno_].begin(); }
+//  PDB::iterator end() { return dbs_[dbno_].end(); }
 
   const PObject* GetObject(const PString& key) const;
   PError GetValue(const PString& key, PObject*& value, bool touch = true);
@@ -195,7 +201,7 @@ class PStore {
   PError setValue(const PString& key, PObject& value, bool exclusive = false);
 
   // Because GetObject() must be const, so mutable them
-  mutable std::vector<PDB> dbs_;
+  mutable std::vector<FDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
   std::vector<std::unique_ptr<PDumpInterface> > backends_;

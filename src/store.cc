@@ -381,7 +381,7 @@ int PStore::GetDB() const { return dbno_; }
 
 const PObject* PStore::GetObject(const PString& key) const {
   auto db = &dbs_[dbno_];
-  PDB::const_iterator it(db->find(key));
+  FDB::const_iterator it(db->find(key));
   if (it != db->end()) {
     return &it->second;
   }
@@ -397,12 +397,14 @@ const PObject* PStore::GetObject(const PString& key) const {
     if (obj.type != PType_invalid) {
       DEBUG("GetKey from leveldb:{}", key);
 
-      (*db)[key] = std::move(obj);
-      PObject& realobj = (*db)[key];
-      realobj.lru = PObject::lruclock;
+      unsigned int remainTtlSecondsTemp = obj.lru;
+      // XXX: assign lru here cause everything get from db is immutable
+      obj.lru = PObject::lruclock;
+      db->try_emplace(key, std::move(obj));
+      const PObject& realobj = db->find(key)->second;
 
       // trick: use lru field to store the remain seconds to be expired.
-      unsigned int remainTtlSeconds = obj.lru;
+      unsigned int remainTtlSeconds = remainTtlSecondsTemp;
       if (remainTtlSeconds > 0) {
         SetExpire(key, ::Now() + remainTtlSeconds * 1000);
       }
@@ -421,7 +423,15 @@ bool PStore::DeleteKey(const PString& key) {
     waitSyncKeys_[dbno_][key] = nullptr;  // null implies delete data
   }
 
-  return db->erase(key) != 0;
+  size_t ret = 0;
+  // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
+  try {
+   ret = db->erase(key);
+  } catch (const std::exception& e) {
+   return false;
+  }
+
+  return ret != 0;
 }
 
 bool PStore::ExistsKey(const PString& key) const {
@@ -438,10 +448,11 @@ PType PStore::KeyType(const PString& key) const {
   return PType(obj->type);
 }
 
-static bool RandomMember(const PDB& hash, PString& res, PObject** val) {
-  PDB::const_local_iterator it = RandomHashMember(hash);
+static bool RandomMember(const FDB& hash, PString& res, PObject** val) {
+  FDB::const_iterator it = KeyRandomHashMember(hash);
 
-  if (it != PDB::const_local_iterator()) {
+  // FIXME: bugs here
+  if (it != hash.cend()) {
     res = it->first;
     if (val) {
       *val = const_cast<PObject*>(&it->second);
@@ -466,11 +477,11 @@ size_t PStore::ScanKey(size_t cursor, size_t count, std::vector<PString>& res) c
     return 0;
   }
 
-  std::vector<PDB::const_local_iterator> iters;
+  std::vector<FDB::const_iterator> iters;
   size_t newCursor = ScanHashMember(dbs_[dbno_], cursor, count, iters);
 
   res.reserve(iters.size());
-  for (auto it : iters) {
+  for (const auto& it : iters) {
     res.push_back(it->first);
   }
 
@@ -518,16 +529,20 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
   auto db = &dbs_[dbno_];
-  (*db)[key] = std::move(value);
-  PObject& obj = (*db)[key];
-  obj.lru = PObject::lruclock;
+  value.lru = PObject::lruclock;
+  const auto& [_, status] = db->try_emplace(key, std::move(value));
+  // if this is an update cmd, try_emplace will return false
+  if (!status) {
+    db->assign(key, std::move(value));
+  }
+  const PObject& obj = db->find(key)->second;
 
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
     waitSyncKeys_[dbno_][key] = &obj;
   }
 
-  return &obj;
+  return const_cast<PObject*>(&obj);
 }
 
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }
@@ -552,7 +567,7 @@ void PStore::InitExpireTimer() {
 }
 
 void PStore::ResetDB() {
-  std::vector<PDB>(dbs_.size()).swap(dbs_);
+  std::vector<FDB>(dbs_.size()).swap(dbs_);
   std::vector<ExpiredDB>(expiredDBs_.size()).swap(expiredDBs_);
   std::vector<BlockedClients>(blockedClients_.size()).swap(blockedClients_);
   dbno_ = 0;

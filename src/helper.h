@@ -48,6 +48,29 @@ inline typename HASH::const_local_iterator RandomHashMember(const HASH& containe
   return typename HASH::const_local_iterator();
 }
 
+template <typename HASH>
+inline HASH::const_iterator KeyRandomHashMember(const HASH& container) {
+  auto it = container.cend();
+  if (container.empty()) {
+    return it;
+  }
+
+  it = container.cbegin();
+  // FIXME: don't iterator, use O(1) algorithm
+  size_t randomIdx = random() % container.size();
+  for (size_t i = 0; i < randomIdx; ++i) {
+    ++it;
+  }
+  return it;
+}
+
+template <typename HASH>
+inline size_t ScanHashMember(const HASH& container, size_t cursor, size_t count,
+                             std::vector<typename HASH::const_iterator>& res) {
+  // TODO(century): wait to do with folly concurrent hashmap
+  return 0;
+}
+
 // scan
 template <typename HASH>
 inline size_t ScanHashMember(const HASH& container, size_t cursor, size_t count,
