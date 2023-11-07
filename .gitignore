@@ -33,7 +33,7 @@ cmake-build-release
 
 # Log path
 make_config.mk
-log/
+logs/
 lib/
 output/
 

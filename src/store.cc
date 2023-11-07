@@ -112,7 +112,7 @@ void PObject::freeValue() {
 
 int PStore::dirty_ = 0;
 
-void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) { expireKeys_[key] = when; }
+void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) { expireKeys_.insert_or_assign(key, when); }
 
 int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
   if (!PSTORE.ExistsKey(key)) {
@@ -147,6 +147,7 @@ PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_
 
     WARN("Delete timeout key {}", it->first);
     PSTORE.DeleteKey(it->first);
+    // XXX: may throw exception if hash function crash
     expireKeys_.erase(it);
     return ExpireResult::expired;
   }
@@ -170,7 +171,7 @@ int PStore::ExpiredDB::LoopCheck(uint64_t now) {
       Propagate(params);
 
       PSTORE.DeleteKey(it->first);
-      expireKeys_.erase(it++);
+      it = expireKeys_.erase(it);
 
       ++nDel;
     } else {
@@ -188,8 +189,17 @@ bool PStore::BlockedClients::BlockClient(const PString& key, PClient* client, ui
     return false;
   }
 
-  Clients& clients = blockedClients_[key];
-  clients.push_back(Clients::value_type(std::static_pointer_cast<PClient>(client->shared_from_this()), timeout, pos));
+  auto it = blockedClients_.find(key);
+  if (it != blockedClients_.end()) {
+    // since folly doesn't support modify value directly, we have to make a copy to update atomically
+    auto clients = it->second;
+    clients.emplace_back(std::static_pointer_cast<PClient>(client->shared_from_this()), timeout, pos);
+    blockedClients_.assign(key, clients);
+  } else {
+    std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition>> clients;
+    clients.emplace_back(std::static_pointer_cast<PClient>(client->shared_from_this()), timeout, pos);
+    blockedClients_.insert(key, clients);
+  }
 
   INFO("{} is waited by {}, timeout {}", key, client->GetName(), timeout);
   return true;
@@ -200,7 +210,7 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
   const auto& keys = client->WaitingKeys();
 
   for (const auto& key : keys) {
-    Clients& clients = blockedClients_[key];
+    Clients clients = blockedClients_[key];
     assert(!clients.empty());
 
     for (auto it(clients.begin()); it != clients.end(); ++it) {
@@ -213,6 +223,7 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
         break;
       }
     }
+    blockedClients_.assign(key, clients);
   }
 
   client->ClearWaitingKeys();
@@ -227,7 +238,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
     return 0;
   }
 
-  Clients& clients = it->second;
+  Clients clients = it->second;
   if (clients.empty()) {
     return 0;
   }
@@ -300,6 +311,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
       ++nServed;
     } else {
       clients.pop_front();
+      blockedClients_.assign(it->first, clients);
     }
   }
 
@@ -310,7 +322,8 @@ int PStore::BlockedClients::LoopCheck(uint64_t now) {
   int n = 0;
 
   for (auto it(blockedClients_.begin()); it != blockedClients_.end() && n < 100;) {
-    Clients& clients = it->second;
+    // iterator in folly::ConcurrentHashMap is always const
+    Clients clients = it->second;
     for (auto cli(clients.begin()); cli != clients.end();) {
       if (std::get<1>(*cli) < now) {  // timeout
         ++n;
@@ -326,13 +339,15 @@ int PStore::BlockedClients::LoopCheck(uint64_t now) {
         }
 
         clients.erase(cli++);
+        // clients is a copy, once it's modified, map should update it
+        blockedClients_.assign(it->first, clients);
       } else {
         ++cli;
       }
     }
 
     if (clients.empty()) {
-      blockedClients_.erase(it++);
+      it = blockedClients_.erase(it);
     } else {
       ++it;
     }
@@ -381,14 +396,14 @@ int PStore::GetDB() const { return dbno_; }
 
 const PObject* PStore::GetObject(const PString& key) const {
   auto db = &dbs_[dbno_];
-  FDB::const_iterator it(db->find(key));
+  PDB::const_iterator it(db->find(key));
   if (it != db->end()) {
     return &it->second;
   }
 
   if (!backends_.empty()) {
     // if it's in dirty list, it must be deleted, wait sync to backend
-    if (waitSyncKeys_[dbno_].count(key)) {
+    if (waitSyncKeys_[dbno_].find(key) != waitSyncKeys_[dbno_].end()) {
       return nullptr;
     }
 
@@ -420,7 +435,7 @@ bool PStore::DeleteKey(const PString& key) {
   auto db = &dbs_[dbno_];
   // add to dirty queue
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = nullptr;  // null implies delete data
+    waitSyncKeys_[dbno_].insert_or_assign(key, nullptr);  // null implies delete data
   }
 
   size_t ret = 0;
@@ -448,10 +463,9 @@ PType PStore::KeyType(const PString& key) const {
   return PType(obj->type);
 }
 
-static bool RandomMember(const FDB& hash, PString& res, PObject** val) {
-  FDB::const_iterator it = KeyRandomHashMember(hash);
+static bool RandomMember(const PDB& hash, PString& res, PObject** val) {
+  PDB::const_iterator it = FollyRandomHashMember(hash);
 
-  // FIXME: bugs here
   if (it != hash.cend()) {
     res = it->first;
     if (val) {
@@ -477,12 +491,12 @@ size_t PStore::ScanKey(size_t cursor, size_t count, std::vector<PString>& res) c
     return 0;
   }
 
-  std::vector<FDB::const_iterator> iters;
-  size_t newCursor = ScanHashMember(dbs_[dbno_], cursor, count, iters);
+  std::vector<PString> iters;
+  size_t newCursor = FollyScanHashMember(dbs_[dbno_], cursor, count, iters);
 
   res.reserve(iters.size());
   for (const auto& it : iters) {
-    res.push_back(it->first);
+    res.push_back(it);
   }
 
   return newCursor;
@@ -530,18 +544,15 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
   auto db = &dbs_[dbno_];
   value.lru = PObject::lruclock;
-  const auto& [_, status] = db->try_emplace(key, std::move(value));
-  // if this is an update cmd, try_emplace will return false
-  if (!status) {
-    db->assign(key, std::move(value));
-  }
-  const PObject& obj = db->find(key)->second;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(value));
+  const PObject& obj = realObj->second;
 
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = &obj;
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
+  // XXX: any better solution without const_cast?
   return const_cast<PObject*>(&obj);
 }
 
@@ -567,7 +578,7 @@ void PStore::InitExpireTimer() {
 }
 
 void PStore::ResetDB() {
-  std::vector<FDB>(dbs_.size()).swap(dbs_);
+  std::vector<PDB>(dbs_.size()).swap(dbs_);
   std::vector<ExpiredDB>(expiredDBs_.size()).swap(expiredDBs_);
   std::vector<BlockedClients>(blockedClients_.size()).swap(blockedClients_);
   dbno_ = 0;
@@ -741,14 +752,14 @@ void PStore::AddDirtyKey(const PString& key) {
   if (!waitSyncKeys_.empty()) {
     PObject* obj = nullptr;
     GetValue(key, obj);
-    waitSyncKeys_[dbno_][key] = obj;
+    waitSyncKeys_[dbno_].insert_or_assign(key, obj);
   }
 }
 
 void PStore::AddDirtyKey(const PString& key, const PObject* value) {
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_][key] = value;
+    waitSyncKeys_[dbno_].insert_or_assign(key, value);
   }
 }
 

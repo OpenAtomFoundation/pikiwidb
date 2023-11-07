@@ -49,25 +49,50 @@ inline typename HASH::const_local_iterator RandomHashMember(const HASH& containe
 }
 
 template <typename HASH>
-inline typename HASH::const_iterator KeyRandomHashMember(const HASH& container) {
+inline typename HASH::const_iterator FollyRandomHashMember(const HASH& container) {
   auto it = container.cend();
   if (container.empty()) {
     return it;
   }
 
   it = container.cbegin();
-  // FIXME: don't iterator, use O(1) algorithm
   size_t randomIdx = random() % container.size();
-  for (size_t i = 0; i < randomIdx; ++i) {
+  while (randomIdx > 0) {
+    randomIdx--;
     ++it;
   }
+
   return it;
 }
 
 template <typename HASH>
-inline size_t ScanHashMember(const HASH& container, size_t cursor, size_t count,
-                             std::vector<typename HASH::const_iterator>& res) {
-  // TODO(century): wait to do with folly concurrent hashmap
+inline size_t FollyScanHashMember(const HASH& container, size_t cursor, size_t count,
+                             std::vector<PString>& res) {
+  if (cursor >= container.size()) {
+    return 0;
+  }
+
+  // find corresponding iterator
+  size_t idx = cursor;
+  auto it = container.cbegin();
+  while (idx > 0) {
+    --idx;
+    ++it;
+  }
+
+  size_t new_cursor = cursor;
+  auto end = container.cend();
+  while (res.size() < count && it != end) {
+    ++new_cursor;
+    res.push_back(it->first);
+    ++it;
+  }
+
+  // not the last element of map
+  if (it != end) {
+    return new_cursor;
+  }
+
   return 0;
 }
 

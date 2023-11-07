@@ -82,8 +82,7 @@ struct PObject {
 
 class PClient;
 
-//using PDB = std::unordered_map<PString, PObject, my_hash, std::equal_to<PString> >;
-using FDB = folly::ConcurrentHashMap<PString, PObject, my_hash, std::equal_to<PString>>;
+using PDB = folly::ConcurrentHashMap<PString, PObject, my_hash, std::equal_to<PString>>;
 
 const int kMaxDBNum = 65536;
 
@@ -108,12 +107,8 @@ class PStore {
   size_t ScanKey(size_t cursor, size_t count, std::vector<PString>& res) const;
 
   // iterator
-  FDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
-  FDB::const_iterator end() const { return dbs_[dbno_].end(); }
-
-//  FIXME: folly::ConcurrentHashMap doesn't support non-const iterator
-//  PDB::iterator begin() { return dbs_[dbno_].begin(); }
-//  PDB::iterator end() { return dbs_[dbno_].end(); }
+  PDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
+  PDB::const_iterator end() const { return dbs_[dbno_].end(); }
 
   const PObject* GetObject(const PString& key) const;
   PError GetValue(const PString& key, PObject*& value, bool touch = true);
@@ -177,7 +172,7 @@ class PStore {
     int LoopCheck(uint64_t now);
 
    private:
-    using P_EXPIRE_DB = std::unordered_map<PString, uint64_t, my_hash, std::equal_to<PString> >;
+    using P_EXPIRE_DB = folly::ConcurrentHashMap<PString, uint64_t, my_hash, std::equal_to<PString>>;
     P_EXPIRE_DB expireKeys_;  // all the keys to be expired, unordered.
   };
 
@@ -193,7 +188,7 @@ class PStore {
 
    private:
     using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition> >;
-    using WaitingList = std::unordered_map<PString, Clients>;
+    using WaitingList = folly::ConcurrentHashMap<PString, Clients, my_hash, std::equal_to<PString>>;
 
     WaitingList blockedClients_;
   };
@@ -201,12 +196,12 @@ class PStore {
   PError setValue(const PString& key, PObject& value, bool exclusive = false);
 
   // Because GetObject() must be const, so mutable them
-  mutable std::vector<FDB> dbs_;
+  mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
   std::vector<std::unique_ptr<PDumpInterface> > backends_;
 
-  using ToSyncDB = std::unordered_map<PString, const PObject*, my_hash, std::equal_to<PString> >;
+  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString> >;
   std::vector<ToSyncDB> waitSyncKeys_;
   int dbno_ = -1;
 };
