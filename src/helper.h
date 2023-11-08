@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <cstdlib>
+#include <random>
 #include <vector>
 #include "pstring.h"
 
@@ -46,6 +46,58 @@ inline typename HASH::const_local_iterator RandomHashMember(const HASH& containe
   }
 
   return typename HASH::const_local_iterator();
+}
+
+template <typename HASH>
+inline typename HASH::const_iterator FollyRandomHashMember(const HASH& container) {
+  auto it = container.cend();
+  if (container.empty()) {
+    return it;
+  }
+
+  it = container.cbegin();
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, container.size() - 1);
+
+  size_t randomIdx = dis(gen);
+  while (randomIdx > 0) {
+    randomIdx--;
+    ++it;
+  }
+
+  return it;
+}
+
+template <typename HASH>
+inline size_t FollyScanHashMember(const HASH& container, size_t cursor, size_t count,
+                             std::vector<PString>& res) {
+  if (cursor >= container.size()) {
+    return 0;
+  }
+
+  // find corresponding iterator
+  size_t idx = cursor;
+  auto it = container.cbegin();
+  while (idx > 0) {
+    --idx;
+    ++it;
+  }
+
+  size_t new_cursor = cursor;
+  auto end = container.cend();
+  while (res.size() < count && it != end) {
+    ++new_cursor;
+    res.push_back(it->first);
+    ++it;
+  }
+
+  // not the last element of map
+  if (it != end) {
+    return new_cursor;
+  }
+
+  return 0;
 }
 
 // scan
