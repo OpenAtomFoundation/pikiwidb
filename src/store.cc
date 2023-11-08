@@ -210,7 +210,7 @@ size_t PStore::BlockedClients::UnblockClient(PClient* client) {
   const auto& keys = client->WaitingKeys();
 
   for (const auto& key : keys) {
-    Clients clients = blockedClients_[key];
+    Clients clients = blockedClients_.find(key)->second;
     assert(!clients.empty());
 
     for (auto it(clients.begin()); it != clients.end(); ++it) {

@@ -7,7 +7,7 @@
 
 #pragma once
 
-#include <cstdlib>
+#include <random>
 #include <vector>
 #include "pstring.h"
 
@@ -56,7 +56,11 @@ inline typename HASH::const_iterator FollyRandomHashMember(const HASH& container
   }
 
   it = container.cbegin();
-  size_t randomIdx = random() % container.size();
+  std::random_device rd;
+  std::mt19937 gen(rd());
+  std::uniform_int_distribution<> dis(0, container.size() - 1);
+
+  size_t randomIdx = dis(gen);
   while (randomIdx > 0) {
     randomIdx--;
     ++it;
