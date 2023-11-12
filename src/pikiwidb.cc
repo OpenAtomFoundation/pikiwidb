@@ -28,6 +28,7 @@
 
 #include "pikiwidb.h"
 #include "pikiwidb_logo.h"
+#include "pstd_util.h"
 
 std::unique_ptr<PikiwiDB> g_pikiwidb;
 
@@ -292,7 +293,7 @@ static void InitLogs() {
 
 int main(int ac, char* av[]) {
   g_pikiwidb = std::make_unique<PikiwiDB>();
-
+  pstd::InitRandom();
   InitSignal();
   InitLogs();
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
