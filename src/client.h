@@ -68,7 +68,7 @@ class CmdRes {
   inline void AppendInteger(int64_t ori) { RedisAppendLen(message_, ori, ":"); }
   inline void AppendContent(const std::string& value) { RedisAppendContent(message_, value); }
   inline void AppendStringRaw(const std::string& value) { message_.append(value); }
-  inline constexpr void SetLineString(const std::string& value) { message_ = value + CRLF; }
+  inline void SetLineString(const std::string& value) { message_ = value + CRLF; }
 
   void AppendString(const std::string& value);
   void AppendStringVector(const std::vector<std::string>& strArray);
