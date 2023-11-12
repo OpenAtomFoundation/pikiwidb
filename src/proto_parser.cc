@@ -5,10 +5,10 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "proto_parser.h"
-#include "common.h"
+#include <cassert>
 
-#include <assert.h>
+#include "common.h"
+#include "proto_parser.h"
 
 // 1 request -> multi strlist
 // 2 multi -> * number crlf

@@ -26,15 +26,15 @@ bool BaseCmd::CheckArg(size_t num) const {
   return num >= -arity_;
 }
 
-std::vector<std::string> BaseCmd::CurrentKey(const CmdContext& context) const {
-  return std::vector<std::string>{context.key_};
+std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const {
+  return std::vector<std::string>{client->Key()};
 }
 
-void BaseCmd::Execute(CmdContext& ctx) {
-  if (!DoInitial(ctx)) {
+void BaseCmd::Execute(PClient* client) {
+  if (!DoInitial(client)) {
     return;
   }
-  DoCmd(ctx);
+  DoCmd(client);
 }
 
 std::string BaseCmd::ToBinlog(uint32_t exec_time, uint32_t term_id, uint64_t logic_id, uint32_t filenum,
@@ -43,7 +43,6 @@ std::string BaseCmd::ToBinlog(uint32_t exec_time, uint32_t term_id, uint64_t log
 }
 
 void BaseCmd::DoBinlog() {}
-bool BaseCmd::IsWrite() const { return HasFlag(CmdFlagsWrite); }
 bool BaseCmd::HasFlag(uint32_t flag) const { return flag_ & flag; }
 void BaseCmd::SetFlag(uint32_t flag) { flag_ |= flag; }
 void BaseCmd::ResetFlag(uint32_t flag) { flag_ &= ~flag; }
@@ -71,11 +70,10 @@ BaseCmd* BaseCmdGroup::GetSubCmd(const std::string& cmdName) {
   return subCmd->second.get();
 }
 
-bool BaseCmdGroup::DoInitial(CmdContext& ctx) {
-  ctx.subCmd_ = ctx.argv_[1];
-  std::transform(ctx.argv_[1].begin(), ctx.argv_[1].end(), ctx.subCmd_.begin(), ::tolower);
-  if (!subCmds_.contains(ctx.subCmd_)) {
-    ctx.SetRes(CmdRes::kSyntaxErr, ctx.argv_[0] + " unknown subcommand for '" + ctx.subCmd_ + "'");
+bool BaseCmdGroup::DoInitial(PClient* client) {
+  client->SetSubCmdName(client->argv_[1]);
+  if (!subCmds_.contains(client->SubCmdName())) {
+    client->SetRes(CmdRes::kSyntaxErr, client->argv_[0] + " unknown subcommand for '" + client->SubCmdName() + "'");
     return false;
   }
   return true;

@@ -34,7 +34,7 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameSet, std::move(setPtr)));
 }
 
-std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, CmdContext& ctx) {
+std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
   std::shared_lock rl(mutex_);
 
   auto cmd = cmds_->find(cmdName);
@@ -44,10 +44,10 @@ std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::strin
   }
 
   if (cmd->second->HasSubCommand()) {
-    if (ctx.argv_.size() < 2) {
+    if (client->argv_.size() < 2) {
       return std::pair(nullptr, CmdRes::kInvalidParameter);
     }
-    return std::pair(cmd->second->GetSubCmd(ctx.argv_[1]), CmdRes::kSyntaxErr);
+    return std::pair(cmd->second->GetSubCmd(client->argv_[1]), CmdRes::kSyntaxErr);
   }
   return std::pair(cmd->second.get(), CmdRes::kSyntaxErr);
 }

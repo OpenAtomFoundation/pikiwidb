@@ -8,28 +8,157 @@
 #include "log.h"
 
 #include <algorithm>
+#include <memory>
 
 #include "client.h"
-#include "cmd_context.h"
 #include "command.h"
 #include "config.h"
 #include "pikiwidb.h"
+#include "pstd_string.h"
 #include "slow_log.h"
 #include "store.h"
 
 namespace pikiwidb {
 
-thread_local PClient* PClient::s_current = 0;
+void CmdRes::RedisAppendLen(std::string& str, int64_t ori, const std::string& prefix) {
+  str.append(prefix);
+  str.append(pstd::int2string(ori));
+  str.append(CRLF);
+}
+
+void CmdRes::AppendStringVector(const std::vector<std::string>& strArray) {
+  if (strArray.empty()) {
+    AppendArrayLen(-1);
+    return;
+  }
+  AppendArrayLen(static_cast<int64_t>(strArray.size()));
+  for (const auto& item : strArray) {
+    AppendString(item);
+  }
+}
+
+void CmdRes::AppendString(const std::string& value) {
+  if (value.empty()) {
+    AppendStringLen(-1);
+  } else {
+    AppendStringLen(static_cast<int64_t>(value.size()));
+    AppendContent(value);
+  }
+}
+
+void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
+  ret_ = _ret;
+  switch (ret_) {
+    case kOk:
+      SetLineString("+OK");
+      break;
+    case kPong:
+      SetLineString("+PONG");
+      break;
+    case kSyntaxErr:
+      SetLineString("-ERR syntax error");
+      break;
+    case kInvalidInt:
+      SetLineString("-ERR value is not an integer or out of range");
+      break;
+    case kInvalidBitInt:
+      SetLineString("-ERR bit is not an integer or out of range");
+      break;
+    case kInvalidBitOffsetInt:
+      SetLineString("-ERR bit offset is not an integer or out of range");
+      break;
+    case kWrongBitOpNotNum:
+      SetLineString("-ERR BITOP NOT must be called with a single source key.");
+      break;
+    case kInvalidBitPosArgument:
+      SetLineString("-ERR The bit argument must be 1 or 0.");
+      break;
+    case kInvalidFloat:
+      SetLineString("-ERR value is not a valid float");
+      break;
+      break;
+    case kOverFlow:
+      SetLineString("-ERR increment or decrement would overflow");
+      break;
+    case kNotFound:
+      SetLineString("-ERR no such key");
+      break;
+    case kOutOfRange:
+      SetLineString("-ERR index out of range");
+      break;
+    case kInvalidPwd:
+      SetLineString("-ERR invalid password");
+      break;
+    case kNoneBgsave:
+      SetLineString("-ERR No BGSave Works now");
+      break;
+    case kPurgeExist:
+      SetLineString("-ERR binlog already in purging...");
+      break;
+    case kInvalidParameter:
+      SetLineString("-ERR Invalid Argument");
+      break;
+    case kWrongNum:
+      AppendStringRaw("-ERR wrong number of arguments for '");
+      AppendStringRaw(content);
+      AppendStringRaw("' command\r\n");
+      break;
+    case kInvalidIndex:
+      AppendStringRaw("-ERR invalid DB index for '");
+      AppendStringRaw(content);
+      AppendStringRaw("'\r\n");
+      break;
+    case kInvalidDbType:
+      AppendStringRaw("-ERR invalid DB for '");
+      AppendStringRaw(content);
+      AppendStringRaw("'\r\n");
+      break;
+    case kInconsistentHashTag:
+      SetLineString("-ERR parameters hashtag is inconsistent");
+    case kInvalidDB:
+      AppendStringRaw("-ERR invalid DB for '");
+      AppendStringRaw(content);
+      AppendStringRaw("'\r\n");
+      break;
+    case kErrOther:
+      AppendStringRaw("-ERR ");
+      AppendStringRaw(content);
+      AppendStringRaw(CRLF);
+      break;
+    case KIncrByOverFlow:
+      AppendStringRaw("-ERR increment would produce NaN or Infinity");
+      AppendStringRaw(content);
+      AppendStringRaw(CRLF);
+      break;
+    default:
+      break;
+  }
+}
+CmdRes::~CmdRes() { message_.clear(); }
+
+thread_local PClient* PClient::s_current = nullptr;
 
 std::mutex monitors_mutex;
 std::set<std::weak_ptr<PClient>, std::owner_less<std::weak_ptr<PClient> > > monitors;
 
-int PClient::processInlineCmd(const char* buf, size_t bytes, std::vector<PString>& params) {
+void PClient::SetSubCmdName(const std::string& name) {
+  subCmdName_ = name;
+  std::transform(subCmdName_.begin(), subCmdName_.end(), subCmdName_.begin(), ::tolower);
+}
+
+std::string PClient::FullCmdName() const {
+  if (subCmdName_.empty()) {
+    return cmdName_;
+  }
+  return cmdName_ + "|" + subCmdName_;
+}
+
+int PClient::processInlineCmd(const char* buf, size_t bytes, std::vector<std::string>& params) {
   if (bytes < 2) {
     return 0;
   }
 
-  PString res;
+  std::string res;
 
   for (size_t i = 0; i + 1 < bytes; ++i) {
     if (buf[i] == '\r' && buf[i + 1] == '\n') {
@@ -91,7 +220,7 @@ static int ProcessMaster(const char* start, const char* end) {
     case PReplState_wait_rdb: {
       const char* ptr = start;
       // recv RDB file
-      if (PREPL.GetRdbSize() == std::size_t(-1)) {
+      if (PREPL.GetRdbSize() == static_cast<std::size_t>(-1)) {
         ++ptr;  // skip $
         int s;
         if (PParseResult::ok == GetIntUntilCRLF(ptr, end - ptr, s)) {
@@ -101,26 +230,25 @@ static int ProcessMaster(const char* start, const char* end) {
           INFO("recv rdb size {}", s);
         }
       } else {
-        std::size_t rdb = static_cast<std::size_t>(end - ptr);
+        auto rdb = static_cast<std::size_t>(end - ptr);
         PREPL.SaveTmpRdb(ptr, rdb);
         ptr += rdb;
       }
 
       return static_cast<int>(ptr - start);
-    } break;
+    }
 
     case PReplState_online:
       break;
 
     default:
       assert(!!!"wrong master state");
-      break;
   }
 
   return -1;  // do nothing
 }
 
-int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int bytes) {
+int PClient::handlePacket(const char* start, int bytes) {
   auto conn = getTcpConnection();
   if (!conn) {
     ERROR("BUG: conn can't be null when recv data");
@@ -148,7 +276,7 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
     }
 
     // try inline command
-    std::vector<PString> params;
+    std::vector<std::string> params;
     auto len = processInlineCmd(ptr, bytes, params);
     if (len == 0) {
       return 0;
@@ -164,16 +292,22 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
   DEFER { reset(); };
 
   // handle packet
-  const auto& params = parser_.GetParams();
-  if (params.empty()) {
+  //  const auto& params = parser_.GetParams();
+  if (params_.empty()) {
     return static_cast<int>(ptr - start);
   }
 
-  PString cmd(params[0]);
-  std::transform(params[0].begin(), params[0].end(), cmd.begin(), ::tolower);
+  params_ = parser_.GetParams();
+  if (params_.empty()) {
+    return static_cast<int>(ptr - start);
+  }
+
+  argv_ = params_;
+  cmdName_ = params_[0];
+  pstd::StringToLower(cmdName_);
 
   if (!auth_) {
-    if (cmd == "auth") {
+    if (cmdName_ == kCmdNameAuth) {
       auto now = ::time(nullptr);
       if (now <= last_auth_ + 1) {
         // avoid guess password.
@@ -183,94 +317,84 @@ int PClient::handlePacket(pikiwidb::TcpConnection* obj, const char* start, int b
         last_auth_ = now;
       }
     } else {
-      ReplyError(PError_needAuth, &reply_);
+      SetLineString("-NOAUTH Authentication required.");
       return static_cast<int>(ptr - start);
     }
   }
 
-  DEBUG("client {}, cmd {}", conn->GetUniqueId(), cmd);
+  DEBUG("client {}, cmd {}", conn->GetUniqueId(), cmdName_);
 
   PSTORE.SelectDB(db_);
-  FeedMonitors(params);
+  FeedMonitors(params_);
 
-  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmd);
+  //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
 
-  if (!info) {  // 如果这个命令不存在，那么就走新的命令处理流程
-    handlePacketNew(params, cmd);
-    return static_cast<int>(ptr - start);
-  }
+  //  if (!info) {  // 如果这个命令不存在，那么就走新的命令处理流程
+  handlePacketNew();
+  //    return static_cast<int>(ptr - start);
+  //  }
 
   // check transaction
-  if (IsFlagOn(ClientFlag_multi)) {
-    if (cmd != "multi" && cmd != "exec" && cmd != "watch" && cmd != "unwatch" && cmd != "discard") {
-      if (!info->CheckParamsCount(static_cast<int>(params.size()))) {
-        ERROR("queue failed: cmd {} has params {}", cmd, params.size());
-        ReplyError(info ? PError_param : PError_unknowCmd, &reply_);
-        FlagExecWrong();
-      } else {
-        if (!IsFlagOn(ClientFlag_wrongExec)) {
-          queue_cmds_.push_back(params);
-        }
-
-        reply_.PushData("+QUEUED\r\n", 9);
-        INFO("queue cmd {}", cmd);
-      }
-
-      return static_cast<int>(ptr - start);
-    }
-  }
+  //  if (IsFlagOn(ClientFlag_multi)) {
+  //    if (cmdName_ != kCmdNameMulti && cmdName_ != kCmdNameExec && cmdName_ != kCmdNameWatch &&
+  //        cmdName_ != kCmdNameUnwatch && cmdName_ != kCmdNameDiscard) {
+  //      if (!info->CheckParamsCount(static_cast<int>(params.size()))) {
+  //        ERROR("queue failed: cmd {} has params {}", cmdName_, params.size());
+  //        ReplyError(info ? PError_param : PError_unknowCmd, &reply_);
+  //        FlagExecWrong();
+  //      } else {
+  //        if (!IsFlagOn(ClientFlag_wrongExec)) {
+  //          queue_cmds_.push_back(params);
+  //        }
+  //
+  //        reply_.PushData("+QUEUED\r\n", 9);
+  //        INFO("queue cmd {}", cmdName_);
+  //      }
+  //
+  //      return static_cast<int>(ptr - start);
+  //    }
+  //  }
 
   // check readonly slave and execute command
-  PError err = PError_ok;
-  if (PREPL.GetMasterState() != PReplState_none && !IsFlagOn(ClientFlag_master) &&
-      (info->attr & PCommandAttr::PAttr_write)) {
-    err = PError_readonlySlave;
-    ReplyError(err, &reply_);
-  } else {
-    PSlowLog::Instance().Begin();
-    err = PCommandTable::ExecuteCmd(params, info, IsFlagOn(ClientFlag_master) ? nullptr : &reply_);
-    PSlowLog::Instance().EndAndStat(params);
-  }
-
-  if (err == PError_ok && (info->attr & PAttr_write)) {
-    Propagate(params);
-  }
+  //  PError err = PError_ok;
+  //  if (PREPL.GetMasterState() != PReplState_none && !IsFlagOn(ClientFlag_master) &&
+  //      (info->attr & PCommandAttr::PAttr_write)) {
+  //    err = PError_readonlySlave;
+  //    ReplyError(err, &reply_);
+  //  } else {
+  //    PSlowLog::Instance().Begin();
+  //    err = PCommandTable::ExecuteCmd(params, info, IsFlagOn(ClientFlag_master) ? nullptr : &reply_);
+  //    PSlowLog::Instance().EndAndStat(params);
+  //  }
+  //
+  //  if (err == PError_ok && (info->attr & PAttr_write)) {
+  //    Propagate(params);
+  //  }
 
   return static_cast<int>(ptr - start);
 }
 
 // 为了兼容老的命令处理流程，新的命令处理流程在这里
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
-int PClient::handlePacketNew(const std::vector<std::string>& params, const std::string& cmd) {
-  CmdContext ctx;
-  ctx.client_ = this;
-  // 因为 params 是一个引用，不能直接传给 ctx.argv_，所以需要拷贝一份，后面可以优化
-  std::vector<std::string> argv = params;
-  ctx.argv_ = argv;
-
-  auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(cmd, ctx);
+void PClient::handlePacketNew() {
+  auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(CmdName(), this);
 
   if (!cmdPtr) {
     if (ret == CmdRes::kInvalidParameter) {
-      ctx.SetRes(CmdRes::kInvalidParameter);
+      SetRes(CmdRes::kInvalidParameter);
     } else {
-      ctx.SetRes(CmdRes::kSyntaxErr, "unknown command '" + cmd + "'");
+      SetRes(CmdRes::kSyntaxErr, "unknown command '" + CmdName() + "'");
     }
-    reply_.PushData(ctx.message().data(), ctx.message().size());
-    return 0;
+    return;
   }
 
-  if (!cmdPtr->CheckArg(params.size())) {
-    ctx.SetRes(CmdRes::kSyntaxErr, "wrong number of arguments for '" + cmd + "' command");
-    reply_.PushData(ctx.message().data(), ctx.message().size());
-    return 0;
+  if (!cmdPtr->CheckArg(params_.size())) {
+    SetRes(CmdRes::kSyntaxErr, "wrong number of arguments for '" + CmdName() + "' command");
+    return;
   }
 
   // execute a specific command
-  cmdPtr->Execute(ctx);
-
-  reply_.PushData(ctx.message().data(), ctx.message().size());
-  return 0;
+  cmdPtr->Execute(this);
 }
 
 PClient* PClient::Current() { return s_current; }
@@ -279,7 +403,8 @@ PClient::PClient(TcpConnection* obj)
     : tcp_connection_(std::static_pointer_cast<TcpConnection>(obj->shared_from_this())),
       db_(0),
       flag_(0),
-      name_("clientxxx") {
+      name_("clientxxx"),
+      parser_(params_) {
   auth_ = false;
   SelectDB(0);
   reset();
@@ -289,7 +414,7 @@ int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int 
   int total = 0;
 
   while (total < size) {
-    auto processed = handlePacket(obj, start + total, size - total);
+    auto processed = handlePacket(start + total, size - total);
     if (processed <= 0) {
       break;
     }
@@ -297,8 +422,9 @@ int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int 
     total += processed;
   }
 
-  obj->SendPacket(reply_.ReadAddr(), reply_.ReadableSize());
-  reply_.Clear();
+  obj->SendPacket(Message());
+  Clear();
+  //  reply_.Clear();
   return total;
 }
 
@@ -308,7 +434,7 @@ void PClient::OnConnect() {
     PREPL.SetMaster(std::static_pointer_cast<PClient>(shared_from_this()));
 
     SetName("MasterConnection");
-    SetFlag(ClientFlag_master);
+    SetFlag(ClientFlagMaster);
 
     if (g_config.masterauth.empty()) {
       SetAuth();
@@ -402,20 +528,20 @@ int PClient::UniqueId() const {
   return -1;
 }
 
-bool PClient::Watch(int dbno, const PString& key) {
+bool PClient::Watch(int dbno, const std::string& key) {
   DEBUG("Client {} watch {}, db {}", name_, key, dbno);
   return watch_keys_[dbno].insert(key).second;
 }
 
-bool PClient::NotifyDirty(int dbno, const PString& key) {
-  if (IsFlagOn(ClientFlag_dirty)) {
+bool PClient::NotifyDirty(int dbno, const std::string& key) {
+  if (IsFlagOn(ClientFlagDirty)) {
     INFO("client is already dirty {}", UniqueId());
     return true;
   }
 
-  if (watch_keys_[dbno].count(key)) {
+  if (watch_keys_[dbno].contains(key)) {
     INFO("{} client become dirty because key {} in db {}", UniqueId(), key, dbno);
-    SetFlag(ClientFlag_dirty);
+    SetFlag(ClientFlagDirty);
     return true;
   } else {
     INFO("Dirty key is not exist: {}, because client unwatch before dirty", key);
@@ -430,42 +556,43 @@ bool PClient::Exec() {
     this->ClearWatch();
   };
 
-  if (IsFlagOn(ClientFlag_wrongExec)) {
+  if (IsFlagOn(ClientFlagWrongExec)) {
     return false;
   }
 
-  if (IsFlagOn(ClientFlag_dirty)) {
-    FormatNullArray(&reply_);
+  if (IsFlagOn(ClientFlagDirty)) {
+    //    FormatNullArray(&reply_);
+    AppendString("");
     return true;
   }
 
-  PreFormatMultiBulk(queue_cmds_.size(), &reply_);
-  for (const auto& cmd : queue_cmds_) {
-    DEBUG("EXEC {}, for client {}", cmd[0], UniqueId());
-    const PCommandInfo* info = PCommandTable::GetCommandInfo(cmd[0]);
-    PError err = PCommandTable::ExecuteCmd(cmd, info, &reply_);
+  //  PreFormatMultiBulk(queue_cmds_.size(), &reply_);
+  //  for (const auto& cmd : queue_cmds_) {
+  //    DEBUG("EXEC {}, for client {}", cmd[0], UniqueId());
+  //    const PCommandInfo* info = PCommandTable::GetCommandInfo(cmd[0]);
+  //    PError err = PCommandTable::ExecuteCmd(cmd, info, &reply_);
 
-    // may dirty clients;
-    if (err == PError_ok && (info->attr & PAttr_write)) {
-      Propagate(cmd);
-    }
-  }
+  // may dirty clients;
+  //    if (err == PError_ok && (info->attr & PAttr_write)) {
+  //      Propagate(cmd);
+  //    }
+  //  }
 
   return true;
 }
 
 void PClient::ClearMulti() {
   queue_cmds_.clear();
-  ClearFlag(ClientFlag_multi);
-  ClearFlag(ClientFlag_wrongExec);
+  ClearFlag(ClientFlagMulti);
+  ClearFlag(ClientFlagWrongExec);
 }
 
 void PClient::ClearWatch() {
   watch_keys_.clear();
-  ClearFlag(ClientFlag_dirty);
+  ClearFlag(ClientFlagDirty);
 }
 
-bool PClient::WaitFor(const PString& key, const PString* target) {
+bool PClient::WaitFor(const std::string& key, const std::string* target) {
   bool succ = waiting_keys_.insert(key).second;
 
   if (succ && target) {
@@ -481,7 +608,7 @@ bool PClient::WaitFor(const PString& key, const PString* target) {
   return succ;
 }
 
-void PClient::SetSlaveInfo() { slave_info_.reset(new PSlaveInfo()); }
+void PClient::SetSlaveInfo() { slave_info_ = std::make_unique<PSlaveInfo>(); }
 
 void PClient::TransferToSlaveThreads() {
   // transfer to slave
@@ -508,7 +635,7 @@ void PClient::AddCurrentToMonitor() {
   monitors.insert(std::static_pointer_cast<PClient>(s_current->shared_from_this()));
 }
 
-void PClient::FeedMonitors(const std::vector<PString>& params) {
+void PClient::FeedMonitors(const std::vector<std::string>& params) {
   assert(!params.empty());
 
   {

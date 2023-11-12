@@ -8,7 +8,6 @@
 #pragma once
 
 #include "base_cmd.h"
-#include "cmd_context.h"
 
 namespace pikiwidb {
 
@@ -19,12 +18,12 @@ class CmdConfig : public BaseCmdGroup {
   bool HasSubCommand() const override;
 
  protected:
-  bool DoInitial(CmdContext& ctx) override { return true; };
+  bool DoInitial(PClient* client) override { return true; };
 
  private:
-  std::vector<std::string> subCmd_;
+//  std::vector<std::string> subCmd_;
 
-  void DoCmd(CmdContext& ctx) override{};
+  void DoCmd(PClient* client) override{};
 };
 
 class CmdConfigGet : public BaseCmd {
@@ -32,10 +31,10 @@ class CmdConfigGet : public BaseCmd {
   CmdConfigGet(const std::string& name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext& ctx) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(pikiwidb::CmdContext& ctx) override;
+  void DoCmd(PClient* client) override;
 };
 
 class CmdConfigSet : public BaseCmd {
@@ -43,10 +42,10 @@ class CmdConfigSet : public BaseCmd {
   CmdConfigSet(const std::string& name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext& ctx) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(pikiwidb::CmdContext& ctx) override;
+  void DoCmd(PClient* client) override;
 };
 
 }  // namespace pikiwidb
