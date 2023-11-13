@@ -22,7 +22,7 @@ namespace pikiwidb {
 
 void CmdRes::RedisAppendLen(std::string& str, int64_t ori, const std::string& prefix) {
   str.append(prefix);
-  str.append(pstd::int2string(ori));
+  str.append(pstd::Int2string(ori));
   str.append(CRLF);
 }
 
