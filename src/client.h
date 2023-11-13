@@ -60,7 +60,7 @@ class CmdRes {
     ret_ = kNone;
   }
 
-  inline std::string Message() const { return message_; };
+  inline const std::string& Message() const { return message_; };
 
   // Inline functions for Create Redis protocol
   inline void AppendStringLen(int64_t ori) { RedisAppendLen(message_, ori, "$"); }
@@ -184,11 +184,11 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
  private:
   std::shared_ptr<TcpConnection> getTcpConnection() const { return tcp_connection_.lock(); }
   int handlePacket(const char*, int);
-  void handlePacketNew();
+  void executeCommand();
   int processInlineCmd(const char*, size_t, std::vector<std::string>&);
   void reset();
   bool isPeerMaster() const;
-  int UniqueId() const;
+  int uniqueId() const;
 
   // TcpConnection's life is undetermined, so use weak ptr for safety.
   std::weak_ptr<TcpConnection> tcp_connection_;

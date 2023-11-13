@@ -330,7 +330,7 @@ int PClient::handlePacket(const char* start, int bytes) {
   //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
 
   //  if (!info) {  // 如果这个命令不存在，那么就走新的命令处理流程
-  handlePacketNew();
+  executeCommand();
   //    return static_cast<int>(ptr - start);
   //  }
 
@@ -376,7 +376,7 @@ int PClient::handlePacket(const char* start, int bytes) {
 
 // 为了兼容老的命令处理流程，新的命令处理流程在这里
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
-void PClient::handlePacketNew() {
+void PClient::executeCommand() {
   auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(CmdName(), this);
 
   if (!cmdPtr) {
@@ -520,7 +520,7 @@ bool PClient::isPeerMaster() const {
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
 }
 
-int PClient::UniqueId() const {
+int PClient::uniqueId() const {
   if (auto c = getTcpConnection(); c) {
     return c->GetUniqueId();
   }
@@ -535,12 +535,12 @@ bool PClient::Watch(int dbno, const std::string& key) {
 
 bool PClient::NotifyDirty(int dbno, const std::string& key) {
   if (IsFlagOn(ClientFlagDirty)) {
-    INFO("client is already dirty {}", UniqueId());
+    INFO("client is already dirty {}", uniqueId());
     return true;
   }
 
   if (watch_keys_[dbno].contains(key)) {
-    INFO("{} client become dirty because key {} in db {}", UniqueId(), key, dbno);
+    INFO("{} client become dirty because key {} in db {}", uniqueId(), key, dbno);
     SetFlag(ClientFlagDirty);
     return true;
   } else {
