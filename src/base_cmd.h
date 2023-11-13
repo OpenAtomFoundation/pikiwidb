@@ -25,6 +25,9 @@ namespace pikiwidb {
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
 const std::string kCmdNameConfig = "config";
+const std::string kCmdNameAppend = "append";
+const std::string kCmdNameGetset = "getset";
+const std::string kCmdNameMget = "mget";
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset

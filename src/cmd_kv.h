@@ -34,4 +34,39 @@ class SetCmd : public BaseCmd {
   void DoCmd(CmdContext &ctx) override;
 };
 
+class AppendCmd : public BaseCmd {
+ public:
+  AppendCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(CmdContext &ctx) override;
+
+ private:
+  void DoCmd(CmdContext &ctx) override;
+};
+
+class GetsetCmd : public BaseCmd {
+ public:
+  GetsetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(CmdContext &ctx) override;
+
+ private:
+  void DoCmd(CmdContext &ctx) override;
+};
+
+class MgetCmd : public BaseCmd {
+ public:
+  MgetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(CmdContext &ctx) override;
+
+ private:
+  std::vector<std::string> keys_;
+  std::vector<std::string> split_res_;
+  void DoCmd(CmdContext &ctx) override;
+};
+
 }  // namespace pikiwidb
