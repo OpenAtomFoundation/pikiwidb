@@ -9,24 +9,22 @@
 
 namespace pikiwidb {
 
-CmdConfig::CmdConfig(const std::string& name, int arity) : BaseCmdGroup(name, CmdFlagsAdmin, AclCategoryAdmin) {
-  subCmd_ = {"set", "get"};
-}
+CmdConfig::CmdConfig(const std::string& name, int arity) : BaseCmdGroup(name, CmdFlagsAdmin, AclCategoryAdmin) {}
 
 bool CmdConfig::HasSubCommand() const { return true; }
 
 CmdConfigGet::CmdConfigGet(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsAdmin | CmdFlagsWrite, AclCategoryAdmin) {}
 
-bool CmdConfigGet::DoInitial(CmdContext& ctx) { return true; }
+bool CmdConfigGet::DoInitial(PClient* client) { return true; }
 
-void CmdConfigGet::DoCmd(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
+void CmdConfigGet::DoCmd(PClient* client) { client->AppendString("config cmd in development"); }
 
 CmdConfigSet::CmdConfigSet(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsAdmin, AclCategoryAdmin) {}
 
-bool CmdConfigSet::DoInitial(CmdContext& ctx) { return true; }
+bool CmdConfigSet::DoInitial(PClient* client) { return true; }
 
-void CmdConfigSet::DoCmd(CmdContext& ctx) { ctx.AppendString("config cmd in development"); }
+void CmdConfigSet::DoCmd(PClient* client) { client->AppendString("config cmd in development"); }
 
 }  // namespace pikiwidb

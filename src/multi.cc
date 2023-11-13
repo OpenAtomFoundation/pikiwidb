@@ -25,12 +25,12 @@ void PMulti::Watch(PClient* client, int dbno, const PString& key) {
 }
 
 bool PMulti::Multi(PClient* client) {
-  if (client->IsFlagOn(ClientFlag_multi)) {
+  if (client->IsFlagOn(ClientFlagMulti)) {
     return false;
   }
 
   client->ClearMulti();
-  client->SetFlag(ClientFlag_multi);
+  client->SetFlag(ClientFlagMulti);
   return true;
 }
 
@@ -82,7 +82,7 @@ void PMulti::NotifyDirtyAll(int dbno) {
         std::for_each(key_clients.second.begin(), key_clients.second.end(), [&](const std::weak_ptr<PClient>& wcli) {
           auto scli = wcli.lock();
           if (scli) {
-            scli->SetFlag(ClientFlag_dirty);
+            scli->SetFlag(ClientFlagDirty);
           }
         });
       }
@@ -94,7 +94,7 @@ void PMulti::NotifyDirtyAll(int dbno) {
         std::for_each(key_clients.second.begin(), key_clients.second.end(), [&](const std::weak_ptr<PClient>& wcli) {
           auto scli = wcli.lock();
           if (scli) {
-            scli->SetFlag(ClientFlag_dirty);
+            scli->SetFlag(ClientFlagDirty);
           }
         });
       }
@@ -105,7 +105,7 @@ void PMulti::NotifyDirtyAll(int dbno) {
 // multi commands
 PError watch(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
-  if (client->IsFlagOn(ClientFlag_multi)) {
+  if (client->IsFlagOn(ClientFlagMulti)) {
     ReplyError(PError_watch, reply);
     return PError_watch;
   }
@@ -137,7 +137,7 @@ PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
-  if (!client->IsFlagOn(ClientFlag_multi)) {
+  if (!client->IsFlagOn(ClientFlagMulti)) {
     ReplyError(PError_noMulti, reply);
     return PError_noMulti;
   }
@@ -150,7 +150,7 @@ PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
-  if (!client->IsFlagOn(ClientFlag_multi)) {
+  if (!client->IsFlagOn(ClientFlagMulti)) {
     reply->PushData("-ERR DISCARD without MULTI\r\n", sizeof "-ERR DISCARD without MULTI\r\n" - 1);
   } else {
     PMulti::Instance().Discard(client);

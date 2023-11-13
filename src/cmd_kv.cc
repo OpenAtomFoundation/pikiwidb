@@ -13,39 +13,39 @@ namespace pikiwidb {
 GetCmd::GetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
-bool GetCmd::DoInitial(CmdContext& ctx) {
-  ctx.key_ = ctx.argv_[1];
+bool GetCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
   return true;
 }
 
-void GetCmd::DoCmd(CmdContext& ctx) {
+void GetCmd::DoCmd(PClient* client) {
   PObject* value;
-  PError err = PSTORE.GetValueByType(ctx.key_, value, PType_string);
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {
-      ctx.AppendString("");
+      client->AppendString("");
     } else {
-      ctx.SetRes(CmdRes::kSyntaxErr, "get key error");
+      client->SetRes(CmdRes::kSyntaxErr, "get key error");
     }
     return;
   }
   auto str = GetDecodedString(value);
   std::string reply(str->c_str(), str->size());
-  ctx.AppendString(reply);
+  client->AppendString(reply);
 }
 
 SetCmd::SetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool SetCmd::DoInitial(CmdContext& ctx) {
-  ctx.key_ = ctx.argv_[1];
+bool SetCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
   return true;
 }
 
-void SetCmd::DoCmd(CmdContext& ctx) {
-  PSTORE.ClearExpire(ctx.argv_[1]);  // clear key's old ttl
-  PSTORE.SetValue(ctx.argv_[1], PObject::CreateString(ctx.argv_[2]));
-  ctx.SetRes(CmdRes::kOk);
+void SetCmd::DoCmd(PClient* client) {
+  PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
+  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
+  client->SetRes(CmdRes::kOk);
 }
 
 }  // namespace pikiwidb

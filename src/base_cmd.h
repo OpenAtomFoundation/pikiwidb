@@ -16,15 +16,25 @@
 #include <vector>
 
 #include "client.h"
-#include "cmd_context.h"
 
 namespace pikiwidb {
 
 // command definition
-// 目前，为了兼容以前的，所有的命令都加了 `n_`前缀
+
+// string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
+
+// multi
+const std::string kCmdNameMulti = "multi";
+const std::string kCmdNameExec = "exec";
+const std::string kCmdNameWatch = "watch";
+const std::string kCmdNameUnwatch = "unwatch";
+const std::string kCmdNameDiscard = "discard";
+
+// admin
 const std::string kCmdNameConfig = "config";
+const std::string kCmdNameAuth = "auth";
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset
@@ -127,12 +137,12 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
 
   // get the key in the current command
   // e.g: set myKey value, return myKey
-  std::vector<std::string> CurrentKey(const CmdContext& context) const;
+  std::vector<std::string> CurrentKey(PClient* client) const;
 
   // the entry point for the entire cmd execution
   // 后续如果需要拓展，在这个函数里面拓展
   // 对外部调用者来说，只暴露这个函数，其他的都是内部实现
-  void Execute(CmdContext& ctx);
+  void Execute(PClient* client);
 
   // binlog 相关的函数，我对这块不熟悉，就没有移植，后面binlog应该可以在Execute里面调用
   virtual std::string ToBinlog(uint32_t exec_time, uint32_t term_id, uint64_t logic_id, uint32_t filenum,
@@ -150,7 +160,6 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   //  virtual void Split(std::shared_ptr<Slot> slot, const HintKeys& hint_keys) = 0;
   //  virtual void Merge() = 0;
 
-  bool IsWrite() const;
   bool HasFlag(uint32_t flag) const;
   void SetFlag(uint32_t flag);
   void ResetFlag(uint32_t flag);
@@ -180,7 +189,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
 
  protected:
   // Execute a specific command
-  virtual void DoCmd(CmdContext& ctx) = 0;
+  virtual void DoCmd(PClient* client) = 0;
 
   std::string name_;
   int16_t arity_ = 0;
@@ -199,7 +208,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   // The function to be executed first before executing `DoCmd`
   // What needs to be done at present are: extract the key in the command and fill it into the context
   // If this function returns false, then Do Cmd will not be executed
-  virtual bool DoInitial(CmdContext& ctx) = 0;
+  virtual bool DoInitial(PClient* client) = 0;
 
   //  virtual void Clear(){};
   //  BaseCmd& operator=(const BaseCmd&);
@@ -216,10 +225,10 @@ class BaseCmdGroup : public BaseCmd {
   BaseCmd* GetSubCmd(const std::string& cmdName) override;
 
   // group cmd this function will not be called
-  void DoCmd(CmdContext& ctx) override{};
+  void DoCmd(PClient* client) override{};
 
   // group cmd this function will not be called
-  bool DoInitial(CmdContext& ctx) override;
+  bool DoInitial(PClient* client) override;
 
  private:
   std::map<std::string, std::unique_ptr<BaseCmd>> subCmds_;
