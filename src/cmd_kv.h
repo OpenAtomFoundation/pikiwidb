@@ -8,7 +8,6 @@
 #pragma once
 
 #include "base_cmd.h"
-#include "cmd_context.h"
 
 namespace pikiwidb {
 
@@ -17,10 +16,10 @@ class GetCmd : public BaseCmd {
   GetCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext &ctx) override;
+  bool DoInitial(PClient *client) override;
 
  private:
-  void DoCmd(CmdContext &ctx) override;
+  void DoCmd(PClient *client) override;
 };
 
 class SetCmd : public BaseCmd {
@@ -28,10 +27,10 @@ class SetCmd : public BaseCmd {
   SetCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext &ctx) override;
+  bool DoInitial(PClient *client) override;
 
  private:
-  void DoCmd(CmdContext &ctx) override;
+  void DoCmd(PClient *client) override;
 };
 
 class AppendCmd : public BaseCmd {
@@ -39,10 +38,10 @@ class AppendCmd : public BaseCmd {
   AppendCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext &ctx) override;
+  bool DoInitial(PClient *client) override;
 
  private:
-  void DoCmd(CmdContext &ctx) override;
+  void DoCmd(PClient *client) override;
 };
 
 class GetsetCmd : public BaseCmd {
@@ -50,10 +49,10 @@ class GetsetCmd : public BaseCmd {
   GetsetCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext &ctx) override;
+  bool DoInitial(PClient *client) override;
 
  private:
-  void DoCmd(CmdContext &ctx) override;
+  void DoCmd(PClient *client) override;
 };
 
 class MgetCmd : public BaseCmd {
@@ -61,12 +60,12 @@ class MgetCmd : public BaseCmd {
   MgetCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(CmdContext &ctx) override;
+  bool DoInitial(PClient *client) override;
 
  private:
   std::vector<std::string> keys_;
   std::vector<std::string> split_res_;
-  void DoCmd(CmdContext &ctx) override;
+  void DoCmd(PClient *client) override;
 };
 
 }  // namespace pikiwidb
