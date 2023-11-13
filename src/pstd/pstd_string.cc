@@ -187,7 +187,7 @@ int StringMatch(const char* pattern, const char* string, int nocase) {
 }
 
 // Ignores case and compares two strings to see if they are equal
-bool StringCaseEqual(const std::string& str1, const std::string& str2) {
+bool StringEqualCaseInsensitive(const std::string& str1, const std::string& str2) {
   if (str1.size() != str2.size()) {
     return false;
   }

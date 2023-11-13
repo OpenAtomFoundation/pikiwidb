@@ -42,7 +42,7 @@ namespace pstd {
 
 int StringMatchLen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase);
 int StringMatch(const char* p, const char* s, int nocase);
-bool StringCaseEqual(const std::string& str1, const std::string& str2);
+bool StringEqualCaseInsensitive(const std::string& str1, const std::string& str2);
 long long Memtoll(const char* p, int* err);
 uint32_t Digits10(uint64_t v);
 
