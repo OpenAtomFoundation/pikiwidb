@@ -63,8 +63,17 @@ class MgetCmd : public BaseCmd {
   bool DoInitial(PClient *client) override;
 
  private:
-  std::vector<std::string> keys_;
-  std::vector<std::string> split_res_;
+  void DoCmd(PClient *client) override;
+};
+
+class MSetCmd : public BaseCmd {
+ public:
+  MSetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
   void DoCmd(PClient *client) override;
 };
 

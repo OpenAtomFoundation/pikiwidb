@@ -180,6 +180,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]
   std::span<std::string> argv_;
+  std::vector<std::string> keys_;
+  std::vector<std::pair<std::string, std::string>> kvs_;
 
  private:
   std::shared_ptr<TcpConnection> getTcpConnection() const { return tcp_connection_.lock(); }

@@ -60,7 +60,7 @@ bool AppendCmd::DoInitial(PClient *client) {
 
 void AppendCmd::DoCmd(PClient *client) {
   PObject* value;
-  PError err = PSTORE.GetValueByType(client->Key(),value, PType_string);
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {             // = set command
       PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
@@ -68,7 +68,7 @@ void AppendCmd::DoCmd(PClient *client) {
       client->AppendInteger(static_cast<int64_t>(client->argv_[2].size()));
     } else {  // append string
       auto str = GetDecodedString(value);
-      std::string old_value(str->c_str(),str->size());
+      std::string old_value(str->c_str(), str->size());
       std::string new_value = old_value + client->argv_[2];
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(new_value));
       client->AppendInteger(static_cast<int64_t>(new_value.size()));
@@ -96,7 +96,7 @@ void GetsetCmd::DoCmd(PClient *client) {
       client->AppendString("");
     } else {            // set new value
       auto str = GetDecodedString(old_value);
-      std::string ret_value(str->c_str(),str->size());
+      std::string ret_value(str->c_str(), str->size());
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendString(ret_value);
     }
@@ -109,19 +109,51 @@ MgetCmd::MgetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString){}
 
 bool MgetCmd::DoInitial(PClient *client) {
-  if (!CheckArg(ctx.argv_.size())) {
-    ctx.SetRes(CmdRes::kWrongNum, kCmdNameMget);
-    return false;
-  }
-  std::vector<std::string> keys(ctx.argv_.begin(), ctx.argv_.end());
-  keys_ = keys;
-  keys_.erase(keys_.begin());
-  split_res_.resize(keys_.size());
+  std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
+  client->keys_ = keys;
+  client->keys_.erase(client->keys_.begin());
   return true;
 }
 
 void MgetCmd::DoCmd(PClient *client) {
+  size_t valueSize = client->keys_.size();
+  client->AppendArrayLen(static_cast<int64_t >(valueSize));
+  for(const auto& k : client->keys_) {
+    PObject* value;
+    PError err = PSTORE.GetValueByType(k, value, PType_string);
+    if (err == PError_notExist) {
+      client->AppendContent("$-1");
+    } else {
+      auto str = GetDecodedString(value);
+      std::string reply(str->c_str(), str->size());
+      client->AppendContent(reply);
+    }
+  }
+}
 
+MSetCmd::MSetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+
+bool MSetCmd::DoInitial(PClient* client) {
+  size_t argcSize = client->argv_.size();
+  if (argcSize % 2 == 0) {
+    client->SetRes(CmdRes::kWrongNum, kCmdNameMset);
+    return false;
+  }
+  client->kvs_.clear();
+  for (size_t index = 1; index != argcSize; index += 2) {
+    client->kvs_.emplace_back(client->argv_[index], client->argv_[index + 1]);
+  }
+  return true;
+}
+
+void MSetCmd::DoCmd(PClient* client) {
+  std::vector<std::pair<std::string, std::string>>::const_iterator it;
+  for (it = client->kvs_.begin(); it != client->kvs_.end(); it++) {
+    PSTORE.ClearExpire(it->first);  // clear key's old ttl
+    PSTORE.SetValue(it->first, PObject::CreateString(it->second));
+  }
+  client->SetRes(CmdRes::kOk);
 }
 
 }  // namespace pikiwidb
