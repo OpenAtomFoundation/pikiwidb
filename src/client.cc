@@ -76,7 +76,6 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
     case kInvalidFloat:
       SetLineString("-ERR value is not a valid float");
       break;
-      break;
     case kOverFlow:
       SetLineString("-ERR increment or decrement would overflow");
       break;
@@ -520,7 +519,7 @@ bool PClient::isPeerMaster() const {
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
 }
 
-int PClient::uniqueId() const {
+int PClient::uniqueID() const {
   if (auto c = getTcpConnection(); c) {
     return c->GetUniqueId();
   }
@@ -535,12 +534,12 @@ bool PClient::Watch(int dbno, const std::string& key) {
 
 bool PClient::NotifyDirty(int dbno, const std::string& key) {
   if (IsFlagOn(ClientFlagDirty)) {
-    INFO("client is already dirty {}", uniqueId());
+    INFO("client is already dirty {}", uniqueID());
     return true;
   }
 
   if (watch_keys_[dbno].contains(key)) {
-    INFO("{} client become dirty because key {} in db {}", uniqueId(), key, dbno);
+    INFO("{} client become dirty because key {} in db {}", uniqueID(), key, dbno);
     SetFlag(ClientFlagDirty);
     return true;
   } else {

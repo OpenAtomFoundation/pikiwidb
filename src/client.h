@@ -188,7 +188,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   int processInlineCmd(const char*, size_t, std::vector<std::string>&);
   void reset();
   bool isPeerMaster() const;
-  int uniqueId() const;
+  int uniqueID() const;
 
   // TcpConnection's life is undetermined, so use weak ptr for safety.
   std::weak_ptr<TcpConnection> tcp_connection_;
