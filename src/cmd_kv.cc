@@ -6,13 +6,13 @@
  */
 
 #include "cmd_kv.h"
+#include "pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
 
 GetCmd::GetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
-
 
 bool GetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -38,7 +38,6 @@ void GetCmd::DoCmd(PClient* client) {
 SetCmd::SetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-
 bool SetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
@@ -53,16 +52,16 @@ void SetCmd::DoCmd(PClient* client) {
 AppendCmd::AppendCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool AppendCmd::DoInitial(PClient *client) {
+bool AppendCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void AppendCmd::DoCmd(PClient *client) {
+void AppendCmd::DoCmd(PClient* client) {
   PObject* value;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err != PError_ok) {
-    if (err == PError_notExist) {             // = set command
+    if (err == PError_notExist) {            // = set command
       PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendInteger(static_cast<int64_t>(client->argv_[2].size()));
@@ -73,7 +72,7 @@ void AppendCmd::DoCmd(PClient *client) {
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(new_value));
       client->AppendInteger(static_cast<int64_t>(new_value.size()));
     }
-  }else {
+  } else {
     client->SetRes(CmdRes::kErrOther, "append cmd error");
   }
 }
@@ -81,44 +80,44 @@ void AppendCmd::DoCmd(PClient *client) {
 GetsetCmd::GetsetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool GetsetCmd::DoInitial(PClient *client) {
+bool GetsetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void GetsetCmd::DoCmd(PClient *client) {
+void GetsetCmd::DoCmd(PClient* client) {
   PObject* old_value;
   PError err = PSTORE.GetValueByType(client->Key(), old_value, PType_string);
   if (err != PError_ok) {
-    if (err == PError_notExist) {             // = set command
+    if (err == PError_notExist) {            // = set command
       PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendString("");
-    } else {            // set new value
+    } else {  // set new value
       auto str = GetDecodedString(old_value);
       std::string ret_value(str->c_str(), str->size());
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendString(ret_value);
     }
-  }else {
+  } else {
     client->SetRes(CmdRes::kErrOther, "getset cmd error");
   }
 }
 
 MgetCmd::MgetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString){}
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
-bool MgetCmd::DoInitial(PClient *client) {
+bool MgetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
   client->keys_ = keys;
   client->keys_.erase(client->keys_.begin());
   return true;
 }
 
-void MgetCmd::DoCmd(PClient *client) {
+void MgetCmd::DoCmd(PClient* client) {
   size_t valueSize = client->keys_.size();
-  client->AppendArrayLen(static_cast<int64_t >(valueSize));
-  for(const auto& k : client->keys_) {
+  client->AppendArrayLen(static_cast<int64_t>(valueSize));
+  for (const auto& k : client->keys_) {
     PObject* value;
     PError err = PSTORE.GetValueByType(k, value, PType_string);
     if (err == PError_notExist) {
@@ -132,7 +131,7 @@ void MgetCmd::DoCmd(PClient *client) {
 }
 
 MSetCmd::MSetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool MSetCmd::DoInitial(PClient* client) {
   size_t argcSize = client->argv_.size();
@@ -154,6 +153,69 @@ void MSetCmd::DoCmd(PClient* client) {
     PSTORE.SetValue(it->first, PObject::CreateString(it->second));
   }
   client->SetRes(CmdRes::kOk);
+}
+
+BitCountCmd::BitCountCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+
+bool BitCountCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  size_t paramSize = client->argv_.size();
+  switch (paramSize) {
+    case 2:
+      start_offset_ = 0;
+      end_offset_ = -1;
+      break;
+    case 4:
+      if (pstd::string2int(client->argv_[2], &start_offset_) == 0) {
+        client->SetRes(CmdRes::kInvalidInt);
+        return false;
+      }
+      if (pstd::string2int(client->argv_[3], &end_offset_) == 0) {
+        client->SetRes(CmdRes::kInvalidInt);
+        return false;
+      }
+      break;
+    default:
+      client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
+      return false;
+  }
+  return true;
+}
+
+void BitCountCmd::DoCmd(PClient* client) {
+  PObject* value;
+  PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
+  if (err != PError_ok) {
+    if (err == PError_notExist) {
+      client->AppendInteger(0);
+    } else {
+      client->SetRes(CmdRes::kErrOther, "bitcount get key error");
+    }
+    return;
+  }
+  auto str = GetDecodedString(value);
+  auto value_length = static_cast<int64_t>(str->size());
+  if (start_offset_ < 0) {
+    start_offset_ += value_length;
+  }
+  if (end_offset_ < 0) {
+    end_offset_ += value_length;
+  }
+  if (start_offset_ < 0) {
+    start_offset_ = 0;
+  }
+  if (end_offset_ < 0) {
+    end_offset_ = 0;
+  }
+  if (end_offset_ >= value_length) {
+    end_offset_ = value_length - 1;
+  }
+  size_t count = 0;
+  if (end_offset_ >= start_offset_) {
+    count = BitCount(reinterpret_cast<const uint8_t*>(str->data()) + start_offset_, end_offset_ - start_offset_ + 1);
+  }
+  client->AppendInteger(static_cast<int64_t>(count));
 }
 
 }  // namespace pikiwidb

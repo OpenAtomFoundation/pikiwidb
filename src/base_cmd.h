@@ -39,6 +39,7 @@ const std::string kCmdNameAppend = "append";
 const std::string kCmdNameGetset = "getset";
 const std::string kCmdNameMget = "mget";
 const std::string kCmdNameMset = "mset";
+const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
 

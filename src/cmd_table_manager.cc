@@ -40,6 +40,8 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameMget, std::move(mgetPtr)));
   std::unique_ptr<BaseCmd> msetPtr = std::make_unique<MSetCmd>(kCmdNameMset, -3);
   cmds_->insert(std::make_pair(kCmdNameMset, std::move(msetPtr)));
+  std::unique_ptr<BaseCmd> bitcountPtr = std::make_unique<BitCountCmd>(kCmdNameBitCount, -2);
+  cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
