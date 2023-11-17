@@ -19,6 +19,8 @@
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <vector>
 
 namespace pikiwidb {
@@ -117,6 +119,8 @@ class PStore {
   PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = PType_invalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
+  // incr
+  PError Incrby(const PString& key, int64_t value, int64_t* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {
@@ -157,6 +161,8 @@ class PStore {
 
  private:
   PStore() : dbno_(0) {}
+  // mutex
+  mutable std::shared_mutex mutex_;
 
   PError getValueByType(const PString& key, PObject*& value, PType type = PType_invalid, bool touch = true);
 
@@ -187,7 +193,7 @@ class PStore {
     size_t Size() const { return blockedClients_.size(); }
 
    private:
-    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition> >;
+    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition>>;
     using WaitingList = folly::ConcurrentHashMap<PString, Clients, my_hash, std::equal_to<PString>>;
 
     WaitingList blockedClients_;
@@ -199,9 +205,9 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface> > backends_;
+  std::vector<std::unique_ptr<PDumpInterface>> backends_;
 
-  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString> >;
+  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
   std::vector<ToSyncDB> waitSyncKeys_;
   int dbno_ = -1;
 };
