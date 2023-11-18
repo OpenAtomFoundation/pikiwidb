@@ -24,7 +24,7 @@ int RandomInt(int min, int max) {
 }
 
 double RandomDouble() {
-  static std::uniform_real_distribution<double> dis(0.0, 1.0);
+  std::uniform_real_distribution<double> dis(0.0, 1.0);
   return dis(gen);
 }
 
