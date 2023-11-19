@@ -57,7 +57,6 @@ bool IncrbyCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kWrongNum, "incrby");
     return false;
   }
-  printf("logloglog");
   if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by_))) {
     client->SetRes(CmdRes::kInvalidInt);
     return false;
