@@ -48,6 +48,30 @@ TEST(UtilTest, RandomPermNegative) {
   ASSERT_EQ(perm.size(), 0);
 }
 
+TEST(UtilTest, UnixTimestamp) {
+  int64_t timestamp = pstd::UnixTimestamp();
+  std::cout << timestamp << std::endl;
+  ASSERT_GT(timestamp, 0);
+}
+
+TEST(UtilTest, UnixMilliTimestamp) {
+  int64_t timestamp = pstd::UnixMilliTimestamp();
+  std::cout << timestamp << std::endl;
+  ASSERT_GT(timestamp, 0);
+}
+
+TEST(UtilTest, UnixMicroTimestamp) {
+  int64_t timestamp = pstd::UnixMicroTimestamp();
+  std::cout << timestamp << std::endl;
+  ASSERT_GT(timestamp, 0);
+}
+
+TEST(UtilTest, UnixNanoTimestamp) {
+  int64_t timestamp = pstd::UnixNanoTimestamp();
+  std::cout << timestamp << std::endl;
+  ASSERT_GT(timestamp, 0);
+}
+
 int main(int argc, char** argv) {
   pstd::InitRandom();
   ::testing::InitGoogleTest(&argc, argv);
