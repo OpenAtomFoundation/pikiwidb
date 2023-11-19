@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <random>
 
 namespace pstd {
@@ -37,5 +38,28 @@ std::vector<T> RandomPerm(T n) {
 
 // return [0, 1] random double
 double RandomDouble();
+
+// returns t as a Unix time, the number of elapsed since January 1, 1970 UTC.
+inline int64_t UnixTimestamp() {
+  return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+}
+
+// returns t as a Unix time, the number of milliseconds elapsed since January 1, 1970 UTC.
+inline int64_t UnixMilliTimestamp() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
+
+// returns t as a Unix time, the number of Microseconds elapsed since January 1, 1970 UTC.
+inline int64_t UnixMicroTimestamp() {
+  return std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
+
+// returns t as a Unix time, the number of nanoseconds elapsed since January 1, 1970 UTC.
+inline int64_t UnixNanoTimestamp() {
+  return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::system_clock::now().time_since_epoch())
+      .count();
+}
 
 }  // namespace pstd
