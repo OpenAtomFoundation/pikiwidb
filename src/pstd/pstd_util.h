@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include <algorithm>
 #include <chrono>
 #include <random>
 
