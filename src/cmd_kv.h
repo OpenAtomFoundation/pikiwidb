@@ -9,6 +9,13 @@
 
 #include "base_cmd.h"
 
+enum BitOp_op {
+  BitOp_and,
+  BitOp_or,
+  BitOp_not,
+  BitOp_xor,
+};
+
 namespace pikiwidb {
 
 class GetCmd : public BaseCmd {
@@ -25,6 +32,17 @@ class GetCmd : public BaseCmd {
 class SetCmd : public BaseCmd {
  public:
   SetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class BitOp : public BaseCmd {
+ public:
+  BitOp(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

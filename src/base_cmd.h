@@ -24,6 +24,7 @@ namespace pikiwidb {
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
+const std::string kCmdNameBitOp = "bitop";
 
 // multi
 const std::string kCmdNameMulti = "multi";

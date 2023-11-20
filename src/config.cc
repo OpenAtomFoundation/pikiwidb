@@ -32,8 +32,9 @@ PConfig::PConfig() {
   daemonize = false;
   pidfile = "/var/run/pikiwidb.pid";
 
-  ip = "127.0.0.1";
-  port = 9221;
+//  ip = "127.0.0.1";
+  ip = "192.168.19.130";
+  port = 9222;
   timeout = 0;
 
   loglevel = "notice";
