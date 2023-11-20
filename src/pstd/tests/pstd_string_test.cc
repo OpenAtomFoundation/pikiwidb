@@ -21,6 +21,24 @@ TEST_F(StringTest, StringTrim) {
   ASSERT_EQ(pstd::StringTrim("\n", "\r\n "), "");
 }
 
+TEST_F(StringTest, StringTrimLeft) {
+  ASSERT_EQ(pstd::StringTrimLeft("   computer"), "computer");
+  ASSERT_EQ(pstd::StringTrimLeft("   computer  "), "computer  ");
+  ASSERT_EQ(pstd::StringTrimLeft("  comp  uter  "), "comp  uter  ");
+  ASSERT_EQ(pstd::StringTrimLeft("  comp  uter"), "comp  uter");
+  ASSERT_EQ(pstd::StringTrimLeft(" \n  computer \n ", "\n "), "computer \n ");
+  ASSERT_EQ(pstd::StringTrimLeft("\n", "\r\n "), "");
+}
+
+TEST_F(StringTest, StringTrimRight) {
+  ASSERT_EQ(pstd::StringTrimRight("computer  "), "computer");
+  ASSERT_EQ(pstd::StringTrimRight("   computer  "), "   computer");
+  ASSERT_EQ(pstd::StringTrimRight("  comp  uter  "), "  comp  uter");
+  ASSERT_EQ(pstd::StringTrimRight("comp  uter  "), "comp  uter");
+  ASSERT_EQ(pstd::StringTrimRight(" \n  computer \n ", "\n "), " \n  computer");
+  ASSERT_EQ(pstd::StringTrimRight("\n", "\r\n "), "");
+}
+
 TEST_F(StringTest, ParseIpPort) {
   std::string ip;
   int port;
