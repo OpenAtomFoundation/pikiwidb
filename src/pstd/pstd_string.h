@@ -40,16 +40,17 @@
 
 namespace pstd {
 
-int stringmatchlen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase);
-int stringmatch(const char* p, const char* s, int nocase);
-long long memtoll(const char* p, int* err);
-uint32_t digits10(uint64_t v);
+int StringMatchLen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase);
+int StringMatch(const char* p, const char* s, int nocase);
+bool StringEqualCaseInsensitive(const std::string& str1, const std::string& str2);
+long long Memtoll(const char* p, int* err);
+uint32_t Digits10(uint64_t v);
 
-int ll2string(char* dst, size_t dstlen, int64_t val);
+int Ll2string(char* dst, size_t dstlen, int64_t val);
 
 /* Convert a integral into a string. Returns the string after installation. */
 template <std::integral T>
-inline std::string int2string(T val) {
+inline std::string Int2string(T val) {
   return std::to_string(val);
 }
 
@@ -57,7 +58,7 @@ inline std::string int2string(T val) {
  * into a integer, 0 otherwise. The value will be set to
  * the parsed value when appropriate. */
 template <std::integral T>
-int string2int(const char* s, size_t slen, T* val) {
+int String2int(const char* s, size_t slen, T* val) {
   auto [ptr, ec] = std::from_chars(s, s + slen, *val);
   if (ec != std::errc()) {
     return 0;
@@ -67,14 +68,14 @@ int string2int(const char* s, size_t slen, T* val) {
 }
 
 template <std::integral T>
-inline int string2int(const std::string& s, T* val) {
-  return string2int(s.data(), s.size(), val);
+inline int String2int(const std::string& s, T* val) {
+  return String2int(s.data(), s.size(), val);
 }
 
-int string2d(const char* s, size_t slen, double* val);
-inline int string2d(const std::string& s, double* val) { return string2d(s.data(), s.size(), val); }
+int String2d(const char* s, size_t slen, double* val);
+inline int String2d(const std::string& s, double* val) { return String2d(s.data(), s.size(), val); }
 
-int d2string(char* buf, size_t len, double value);
+int D2string(char* buf, size_t len, double value);
 
 std::vector<std::string>& StringSplit(const std::string& s, char delim, std::vector<std::string>& elems);
 std::string StringConcat(const std::vector<std::string>& elems, char delim);
@@ -84,8 +85,10 @@ std::string IpPortString(const std::string& ip, int port);
 std::string ToRead(const std::string& str);
 bool ParseIpPortString(const std::string& ip_port, std::string& ip, int& port);
 std::string StringTrim(const std::string& ori, const std::string& charlist = " ");
-std::string getRandomHexChars(size_t len);
+std::string RandomHexChars(size_t len);
+std::string RandomString(size_t len);
+std::string RandomStringWithNumber(size_t len);
 
-bool isspace(const std::string& str);
+bool StringHasSpaces(const std::string& str);
 
 }  // namespace pstd

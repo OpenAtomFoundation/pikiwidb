@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "log.h"
+#include "rocksdb/db.h"
 
 #include "client.h"
 #include "command.h"
@@ -28,6 +29,7 @@
 
 #include "pikiwidb.h"
 #include "pikiwidb_logo.h"
+#include "pstd_util.h"
 
 std::unique_ptr<PikiwiDB> g_pikiwidb;
 
@@ -291,8 +293,9 @@ static void InitLogs() {
 }
 
 int main(int ac, char* av[]) {
+  [[maybe_unused]] rocksdb::DB* db;
   g_pikiwidb = std::make_unique<PikiwiDB>();
-
+  pstd::InitRandom();
   InitSignal();
   InitLogs();
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
