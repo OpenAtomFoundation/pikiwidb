@@ -9,7 +9,7 @@
 
 #include "base_cmd.h"
 
-enum BitOp_op {
+enum BitOp {
   BitOp_and,
   BitOp_or,
   BitOp_not,

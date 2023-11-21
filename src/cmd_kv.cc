@@ -65,7 +65,7 @@ bool BitOpCmd::DoInitial(PClient* client) {
   return true;
 }
 
-static PString StringBitOp(const std::vector<const PString*>& keys, BitOp_op op) {
+static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
   PString res;
 
   switch (op) {
