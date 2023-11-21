@@ -22,7 +22,7 @@ namespace pikiwidb {
 
 void CmdRes::RedisAppendLen(std::string& str, int64_t ori, const std::string& prefix) {
   str.append(prefix);
-  str.append(pstd::int2string(ori));
+  str.append(pstd::Int2string(ori));
   str.append(CRLF);
 }
 
@@ -75,7 +75,6 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
       break;
     case kInvalidFloat:
       SetLineString("-ERR value is not a valid float");
-      break;
       break;
     case kOverFlow:
       SetLineString("-ERR increment or decrement would overflow");
@@ -330,7 +329,7 @@ int PClient::handlePacket(const char* start, int bytes) {
   //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
 
   //  if (!info) {  // 如果这个命令不存在，那么就走新的命令处理流程
-  handlePacketNew();
+  executeCommand();
   //    return static_cast<int>(ptr - start);
   //  }
 
@@ -376,7 +375,7 @@ int PClient::handlePacket(const char* start, int bytes) {
 
 // 为了兼容老的命令处理流程，新的命令处理流程在这里
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
-void PClient::handlePacketNew() {
+void PClient::executeCommand() {
   auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(CmdName(), this);
 
   if (!cmdPtr) {
@@ -520,7 +519,7 @@ bool PClient::isPeerMaster() const {
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
 }
 
-int PClient::UniqueId() const {
+int PClient::uniqueID() const {
   if (auto c = getTcpConnection(); c) {
     return c->GetUniqueId();
   }
@@ -535,12 +534,12 @@ bool PClient::Watch(int dbno, const std::string& key) {
 
 bool PClient::NotifyDirty(int dbno, const std::string& key) {
   if (IsFlagOn(ClientFlagDirty)) {
-    INFO("client is already dirty {}", UniqueId());
+    INFO("client is already dirty {}", uniqueID());
     return true;
   }
 
   if (watch_keys_[dbno].contains(key)) {
-    INFO("{} client become dirty because key {} in db {}", UniqueId(), key, dbno);
+    INFO("{} client become dirty because key {} in db {}", uniqueID(), key, dbno);
     SetFlag(ClientFlagDirty);
     return true;
   } else {

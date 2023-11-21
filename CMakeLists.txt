@@ -107,6 +107,7 @@ include(cmake/llhttp.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/folly.cmake)
+include(cmake/rocksdb.cmake)
 
 
 ADD_SUBDIRECTORY(src/pstd)

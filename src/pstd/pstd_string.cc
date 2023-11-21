@@ -32,26 +32,26 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
+#include <algorithm>
 #include <cctype>
 #include <cfloat>
+#include <charconv>
 #include <climits>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <sstream>
-
-#include <algorithm>
-#include <charconv>
 #include <random>
+#include <sstream>
 
 #include "pstd_defer.h"
 #include "pstd_string.h"
+#include "pstd_util.h"
 
 namespace pstd {
 
 /* Glob-style pattern matching. */
-int stringmatchlen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase) {
+int StringMatchLen(const char* pattern, int patternLen, const char* string, int stringLen, int nocase) {
   while (patternLen != 0) {
     switch (pattern[0]) {
       case '*':
@@ -63,7 +63,7 @@ int stringmatchlen(const char* pattern, int patternLen, const char* string, int 
           return 1; /* match */
         }
         while (stringLen != 0) {
-          if (stringmatchlen(pattern + 1, patternLen - 1, string, stringLen, nocase) != 0) {
+          if (StringMatchLen(pattern + 1, patternLen - 1, string, stringLen, nocase) != 0) {
             return 1; /* match */
           }
           string++;
@@ -182,8 +182,21 @@ int stringmatchlen(const char* pattern, int patternLen, const char* string, int 
   return 0;
 }
 
-int stringmatch(const char* pattern, const char* string, int nocase) {
-  return stringmatchlen(pattern, strlen(pattern), string, strlen(string), nocase);
+int StringMatch(const char* pattern, const char* string, int nocase) {
+  return StringMatchLen(pattern, strlen(pattern), string, strlen(string), nocase);
+}
+
+// Ignores case and compares two strings to see if they are equal
+bool StringEqualCaseInsensitive(const std::string& str1, const std::string& str2) {
+  if (str1.size() != str2.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < str1.size(); i++) {
+    if (tolower(str1[i]) != tolower(str2[i])) {
+      return false;
+    }
+  }
+  return true;
 }
 
 /* Convert a string representing an amount of memory into the number of
@@ -192,7 +205,7 @@ int stringmatch(const char* pattern, const char* string, int nocase) {
  *
  * On parsing error, if *err is not null, it's set to 1, otherwise it's
  * set to 0 */
-long long memtoll(const char* p, int* err) {
+long long Memtoll(const char* p, int* err) {
   const char* u;
   char buf[128];
   long mul; /* unit multiplier */
@@ -245,7 +258,7 @@ long long memtoll(const char* p, int* err) {
 
 /* Return the number of digits of 'v' when converted to string in radix 10.
  * See ll2string() for more information. */
-uint32_t digits10(uint64_t v) {
+uint32_t Digits10(uint64_t v) {
   if (v < 10) {
     return 1;
   }
@@ -270,7 +283,7 @@ uint32_t digits10(uint64_t v) {
     }
     return 11 + static_cast<int>(v >= 100000000000UL);
   }
-  return 12 + digits10(v / 1000000000000UL);
+  return 12 + Digits10(v / 1000000000000UL);
 }
 
 /* Convert a long long into a string. Returns the number of
@@ -284,7 +297,7 @@ uint32_t digits10(uint64_t v) {
  *
  * Modified in order to handle signed integers since the original code was
  * designed for unsigned integers. */
-int ll2string(char* dst, size_t dstlen, int64_t val) {
+int Ll2string(char* dst, size_t dstlen, int64_t val) {
   static const char digits[201] =
       "0001020304050607080910111213141516171819"
       "2021222324252627282930313233343536373839"
@@ -309,7 +322,7 @@ int ll2string(char* dst, size_t dstlen, int64_t val) {
   }
 
   /* Check length. */
-  uint32_t const length = digits10(value) + negative;
+  uint32_t const length = Digits10(value) + negative;
   if (length >= dstlen) {
     return 0;
   }
@@ -344,7 +357,7 @@ int ll2string(char* dst, size_t dstlen, int64_t val) {
 
 /* Convert a double to a string representation. Returns the number of bytes
  * required. The representation should always be parsable by strtod(3). */
-int d2string(char* buf, size_t len, double value) {
+int D2string(char* buf, size_t len, double value) {
   if (std::isnan(value)) {
     len = snprintf(buf, len, "nan");
   } else if (std::isinf(value)) {
@@ -374,7 +387,7 @@ int d2string(char* buf, size_t len, double value) {
     double min = -4503599627370495; /* (2^52)-1 */
     double max = 4503599627370496;  /* -(2^52) */
     if (value > min && value < max && value == (static_cast<double>(static_cast<long long>(value)))) {
-      len = ll2string(buf, len, static_cast<long long>(value));
+      len = Ll2string(buf, len, static_cast<long long>(value));
     } else  // NOLINT
 #endif
       len = snprintf(buf, len, "%.17g", value);
@@ -383,7 +396,7 @@ int d2string(char* buf, size_t len, double value) {
   return len;
 }
 
-int string2d(const char* s, size_t slen, double* val) {
+int String2d(const char* s, size_t slen, double* val) {
 #if __clang__
   try {
     *val = std::stod(s);
@@ -405,10 +418,7 @@ int string2d(const char* s, size_t slen, double* val) {
  * given execution of Redis, so that if you are talking with an instance
  * having run_id == A, and you reconnect and it has run_id == B, you can be
  * sure that it is either a different instance or it was restarted. */
-std::string getRandomHexChars(const size_t len) {
-  std::random_device rd;
-  std::mt19937 gen(rd());
-
+std::string RandomHexChars(size_t len) {
   std::string buf;
   buf.reserve(len);
 
@@ -416,6 +426,39 @@ std::string getRandomHexChars(const size_t len) {
 
   for (size_t i = 0; i < len; i++) {
     buf += "0123456789abcdef"[dist(gen)];
+  }
+
+  return buf;
+}
+
+std::string RandomString(size_t len) {
+  if (len <= 0) {
+    return "";
+  }
+  std::string buf;
+  buf.reserve(len);
+
+  const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  std::uniform_int_distribution<> dist(0, static_cast<int>(str.size() - 1));
+
+  for (size_t i = 0; i < len; i++) {
+    buf += str[dist(gen)];
+  }
+
+  return buf;
+}
+std::string RandomStringWithNumber(size_t len) {
+  if (len <= 0) {
+    return "";
+  }
+  std::string buf;
+  buf.reserve(len);
+
+  const std::string str = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  std::uniform_int_distribution<> dist(0, static_cast<int>(str.size() - 1));
+
+  for (size_t i = 0; i < len; i++) {
+    buf += str[dist(gen)];
   }
 
   return buf;
@@ -462,7 +505,7 @@ std::string IpPortString(const std::string& ip, int port) {
     return {};
   }
   char buf[10];
-  if (ll2string(buf, sizeof(buf), port) <= 0) {
+  if (Ll2string(buf, sizeof(buf), port) <= 0) {
     return {};
   }
   return (ip + ":" + buf);
@@ -524,7 +567,7 @@ bool ParseIpPortString(const std::string& ip_port, std::string& ip, int& port) {
   ip = ip_port.substr(0, pos);
   std::string port_str = ip_port.substr(pos + 1);
   long lport = 0;
-  if (1 != string2int(port_str.data(), port_str.size(), &lport)) {
+  if (1 != String2int(port_str.data(), port_str.size(), &lport)) {
     return false;
   }
   port = static_cast<int>(lport);
@@ -568,7 +611,7 @@ std::string StringTrim(const std::string& ori, const std::string& charlist) {
   return ori.substr(pos, rpos - pos + 1);
 }
 
-bool isspace(const std::string& str) {
+bool StringHasSpaces(const std::string& str) {
   return std::count_if(str.begin(), str.end(), [](unsigned char c) { return std::isspace(c); });
 }
 
