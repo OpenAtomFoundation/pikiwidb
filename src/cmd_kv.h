@@ -79,8 +79,6 @@ class MSetCmd : public BaseCmd {
 
 class BitCountCmd : public BaseCmd {
  public:
-  int64_t start_offset_;
-  int64_t end_offset_;
   BitCountCmd(const std::string &name, int16_t arity);
 
  protected:

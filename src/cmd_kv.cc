@@ -109,15 +109,15 @@ MgetCmd::MgetCmd(const std::string& name, int16_t arity)
 
 bool MgetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
-  client->keys_ = std::move(keys);    // use std::move clear copy expense
-  client->keys_.erase(client->keys_.begin());
+  keys.erase(keys.begin());
+  client->SetKey(keys);
   return true;
 }
 
 void MgetCmd::DoCmd(PClient* client) {
-  size_t valueSize = client->keys_.size();
+  size_t valueSize = client->Keys().size();
   client->AppendArrayLen(static_cast<int64_t>(valueSize));
-  for (const auto& k : client->keys_) {
+  for (const auto& k : client->Keys()) {
     PObject* value;
     PError err = PSTORE.GetValueByType(k, value, PType_string);
     if (err == PError_notExist) {
@@ -125,6 +125,7 @@ void MgetCmd::DoCmd(PClient* client) {
     } else {
       auto str = GetDecodedString(value);
       std::string reply(str->c_str(), str->size());
+      client->AppendStringLen(static_cast<int64_t>(reply.size()));
       client->AppendContent(reply);
     }
   }
@@ -139,16 +140,17 @@ bool MSetCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kWrongNum, kCmdNameMset);
     return false;
   }
-  client->keys_.clear();
-  for (size_t index = 1; index != argcSize; index += 2) {
-    client->keys_.emplace_back(client->argv_[index]);
+  std::vector<std::string> keys;
+  for (size_t index = 1; index < argcSize; index += 2) {
+    keys.emplace_back(client->argv_[index]);
   }
+  client->SetKey(keys);
   return true;
 }
 
 void MSetCmd::DoCmd(PClient* client) {
   int valueIndex = 2;
-  for (const auto& it : client->keys_) {
+  for (const auto& it : client->Keys()) {
     PSTORE.ClearExpire(it);  // clear key's old ttl
     PSTORE.SetValue(it, PObject::CreateString(client->argv_[valueIndex]));
     valueIndex += 2;
@@ -157,28 +159,15 @@ void MSetCmd::DoCmd(PClient* client) {
 }
 
 BitCountCmd::BitCountCmd(const std::string& name, int16_t arity)
-    : start_offset_(0), end_offset_(-1), BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
 bool BitCountCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
   size_t paramSize = client->argv_.size();
-  switch (paramSize) {
-    case 2:
-      break;
-    case 4:
-      if (pstd::string2int(client->argv_[2], &start_offset_) == 0) {
-        client->SetRes(CmdRes::kInvalidInt);
-        return false;
-      }
-      if (pstd::string2int(client->argv_[3], &end_offset_) == 0) {
-        client->SetRes(CmdRes::kInvalidInt);
-        return false;
-      }
-      break;
-    default:
-      client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
-      return false;
+  if(paramSize != 2 && paramSize != 4) {
+    client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
+    return false;
   }
+  client->SetKey(client->argv_[1]);
   return true;
 }
 
@@ -193,6 +182,15 @@ void BitCountCmd::DoCmd(PClient* client) {
     }
     return;
   }
+
+  int64_t start_offset_;
+  int64_t end_offset_;
+  if (pstd::String2int(client->argv_[2], &start_offset_) == 0 ||
+      pstd::String2int(client->argv_[3], &end_offset_) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return ;
+  }
+
   auto str = GetDecodedString(value);
   auto value_length = static_cast<int64_t>(str->size());
   if (start_offset_ < 0) {

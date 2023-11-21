@@ -163,8 +163,10 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void SetSubCmdName(const std::string& name);
   const std::string& SubCmdName() const { return subCmdName_; }
   std::string FullCmdName() const;  // the full name of the command, such as config set|get|rewrite
-  void SetKey(const std::string& name) { key_ = name; }
-  const std::string& Key() const { return key_; }
+  void SetKey(const std::string& name) { keys_.clear(); keys_.emplace_back(name); }
+  void SetKey(std::vector<std::string>& name);
+  const std::string& Key() const { return keys_.at(0); }
+  const std::vector<std::string>& Keys() const { return keys_; }
 
   void SetSlaveInfo();
   PSlaveInfo* GetSlaveInfo() const { return slave_info_.get(); }
@@ -180,7 +182,6 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]
   std::span<std::string> argv_;
-  std::vector<std::string> keys_;
 
  private:
   std::shared_ptr<TcpConnection> getTcpConnection() const { return tcp_connection_.lock(); }
@@ -216,7 +217,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   std::string name_;        // client name
   std::string subCmdName_;  // suchAs config set|get|rewrite
   std::string cmdName_;     // suchAs config
-  std::string key_;
+  std::vector<std::string> keys_;
+
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]
