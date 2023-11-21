@@ -9,7 +9,7 @@
 #include <memory>
 #include <string>
 
-#include "pstd/include/lock_mgr.h"
+#include "pstd/lock_mgr.h"
 
 #include "src/mutex.h"
 
