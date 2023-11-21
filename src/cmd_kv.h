@@ -9,13 +9,6 @@
 
 #include "base_cmd.h"
 
-enum BitOp {
-  BitOp_and,
-  BitOp_or,
-  BitOp_not,
-  BitOp_xor,
-};
-
 namespace pikiwidb {
 
 class GetCmd : public BaseCmd {
@@ -42,6 +35,12 @@ class SetCmd : public BaseCmd {
 
 class BitOpCmd : public BaseCmd {
  public:
+  enum BitOp {
+      BitOp_and,
+      BitOp_or,
+      BitOp_not,
+      BitOp_xor,
+   };
   BitOpCmd(const std::string &name, int16_t arity);
 
  protected:

@@ -8,6 +8,7 @@
 #include "cmd_kv.h"
 #include "store.h"
 #include "string.h"
+#include "./pstd/pstd_string.h"
 #include <iostream>
 
 namespace pikiwidb {
@@ -54,24 +55,24 @@ BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool BitOpCmd::DoInitial(PClient* client) {
-  if (client->argv_[1] != "and" &&
-      client->argv_[1] != "or" &&
-      client->argv_[1] != "not" &&
-      client->argv_[1] != "xor") {
-    client->SetRes(CmdRes::kSyntaxErr, "operation error");
-    return false;
+  if (pstd::StringEqualCaseInsensitive(client->argv_[1],"and") &&
+      pstd::StringEqualCaseInsensitive(client->argv_[1],"or") &&
+      pstd::StringEqualCaseInsensitive(client->argv_[1],"not") &&
+      pstd::StringEqualCaseInsensitive(client->argv_[1],"xor")) {
+      client->SetRes(CmdRes::kSyntaxErr, "operation error");
+      return false;
   }
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
+static PString StringBitOp(const std::vector<const PString*>& keys, BitOpCmd::BitOp op) {
   PString res;
 
   switch (op) {
-    case BitOp_and:
-    case BitOp_or:
-    case BitOp_xor:
+    case BitOpCmd::BitOp_and:
+    case BitOpCmd::BitOp_or:
+    case BitOpCmd::BitOp_xor:
       for (auto k : keys) {
         PObject* val;
         if (PSTORE.GetValueByType(*k, val, PType_string) != PError_ok) {
@@ -89,18 +90,18 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
         }
 
         for (size_t i = 0; i < str->size(); ++i) {
-          if (op == BitOp_and) {
+          if (op == BitOpCmd::BitOp_and) {
             res[i] &= (*str)[i];
-          } else if (op == BitOp_or) {
+          } else if (op == BitOpCmd::BitOp_or) {
             res[i] |= (*str)[i];
-          } else if (op == BitOp_xor) {
+          } else if (op == BitOpCmd::BitOp_xor) {
             res[i] ^= (*str)[i];
           }
         }
       }
       break;
 
-    case BitOp_not: {
+    case BitOpCmd::BitOp_not: {
       assert(keys.size() == 1);
       PObject* val;
       if (PSTORE.GetValueByType(*keys[0], val, PType_string) != PError_ok) {
