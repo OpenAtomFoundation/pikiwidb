@@ -50,10 +50,10 @@ void SetCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk);
 }
 
-BitOp::BitOp(const std::string& name, int16_t arity)
+BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool BitOp::DoInitial(PClient* client) {
+bool BitOpCmd::DoInitial(PClient* client) {
   if (client->argv_[1] != "and" &&
       client->argv_[1] != "or" &&
       client->argv_[1] != "not" &&

@@ -40,9 +40,9 @@ class SetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class BitOp : public BaseCmd {
+class BitOpCmd : public BaseCmd {
  public:
-  BitOp(const std::string &name, int16_t arity);
+  BitOpCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
