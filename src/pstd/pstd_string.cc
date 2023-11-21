@@ -586,7 +586,7 @@ std::string StringTrim(const std::string& ori, const std::string& charList) {
   }
 
   auto end = ori.find_last_not_of(charList);
-  return std::move(ori.substr(begin, end - begin + 1));
+  return ori.substr(begin, end - begin + 1);
 }
 
 // Trim charList from left
@@ -599,7 +599,7 @@ std::string StringTrimLeft(const std::string& ori, const std::string& charList) 
   if (begin == std::string::npos) {
     return "";
   }
-  return std::move(ori.substr(begin, ori.size() - begin));
+  return ori.substr(begin, ori.size() - begin);
 }
 
 // Trim charList from right
@@ -609,7 +609,10 @@ std::string StringTrimRight(const std::string& ori, const std::string& charList)
   }
 
   auto end = ori.find_last_not_of(charList);
-  return std::move(ori.substr(0, end + 1));
+  if (end == std::string::npos) {
+    return "";
+  }
+  return ori.substr(0, end + 1);
 }
 
 bool StringHasSpaces(const std::string& str) {
