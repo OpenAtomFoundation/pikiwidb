@@ -124,7 +124,7 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOp_op op)
   return res;
 }
 
-void BitOp::DoCmd(PClient* client) {
+void BitOpCmd::DoCmd(PClient* client) {
 
   std::vector<const PString*> keys;
   for (size_t i = 3; i < client->argv_.size(); ++i) {
