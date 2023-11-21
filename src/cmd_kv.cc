@@ -99,9 +99,9 @@ void GetsetCmd::DoCmd(PClient* client) {
     return;
   }
   auto str = GetDecodedString(old_value);
-  std::string ret_value(str->c_str(), str->size());
+  PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
   PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
-  client->AppendString(ret_value);
+  client->AppendString(*str);
 }
 
 MgetCmd::MgetCmd(const std::string& name, int16_t arity)
@@ -109,7 +109,7 @@ MgetCmd::MgetCmd(const std::string& name, int16_t arity)
 
 bool MgetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
-  client->keys_ = keys;
+  client->keys_ = std::move(keys);    // use std::move clear copy expense
   client->keys_.erase(client->keys_.begin());
   return true;
 }
@@ -157,15 +157,13 @@ void MSetCmd::DoCmd(PClient* client) {
 }
 
 BitCountCmd::BitCountCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : start_offset_(0), end_offset_(-1), BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
 bool BitCountCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   size_t paramSize = client->argv_.size();
   switch (paramSize) {
     case 2:
-      start_offset_ = 0;
-      end_offset_ = -1;
       break;
     case 4:
       if (pstd::string2int(client->argv_[2], &start_offset_) == 0) {
