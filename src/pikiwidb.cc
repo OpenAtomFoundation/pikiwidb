@@ -16,6 +16,7 @@
 #include <thread>
 
 #include "log.h"
+#include "rocksdb/db.h"
 
 #include "client.h"
 #include "command.h"
@@ -292,6 +293,7 @@ static void InitLogs() {
 }
 
 int main(int ac, char* av[]) {
+  [[maybe_unused]] rocksdb::DB* db;
   g_pikiwidb = std::make_unique<PikiwiDB>();
   pstd::InitRandom();
   InitSignal();
