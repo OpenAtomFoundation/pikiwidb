@@ -6,7 +6,7 @@
 #ifndef SRC_BASE_DATA_KEY_FORMAT_H_
 #define SRC_BASE_DATA_KEY_FORMAT_H_
 
-#include "pstd/include/pstd_coding.h"
+#include "pstd/pstd_coding.h"
 
 namespace storage {
 class BaseDataKey {
