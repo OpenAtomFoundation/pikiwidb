@@ -10,7 +10,7 @@
 #include <cstring>
 #include <memory>
 
-#include "pstd_string.h"
+#include "pstd/pstd_string.h"
 
 #include "src/coding.h"
 #include "storage/util.h"

@@ -1,16 +1,20 @@
 #AUX_SOURCE_DIRECTORY(./src STORAGE_SRC)
-file(GLOB_RECURSE STORAGE_SRC "src/*.cc" "include/storage/*.h")
+FILE(GLOB STORAGE_SRC
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
+        "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+        "${CMAKE_CURRENT_SOURCE_DIR}/include/storage/*.h"
+)
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 ADD_LIBRARY(storage ${STORAGE_SRC})
 
-INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/pstd)
-
 TARGET_INCLUDE_DIRECTORIES(storage
+        PUBLIC ${CMAKE_SOURCE_DIR}/src
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
-        PUBLIC ${rocksdb_SOURCE_DIR}
+        PRIVATE ${rocksdb_SOURCE_DIR}/
+        PRIVATE ${rocksdb_SOURCE_DIR}/include
 )
 
-TARGET_LINK_LIBRARIES(storage; pstd rocksdb glog)
+TARGET_LINK_LIBRARIES(storage pstd glog rocksdb)
 
 SET_TARGET_PROPERTIES(storage PROPERTIES LINKER_LANGUAGE CXX)
