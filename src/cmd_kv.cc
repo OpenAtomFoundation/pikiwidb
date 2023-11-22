@@ -7,9 +7,7 @@
 
 #include "cmd_kv.h"
 #include "store.h"
-#include "string.h"
 #include "pstd/pstd_string.h"
-#include <iostream>
 
 namespace pikiwidb {
 
