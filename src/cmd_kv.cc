@@ -68,9 +68,9 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
   PString res;
 
   switch (op) {
-    case BitOpCmd::BitOp_and:
-    case BitOpCmd::BitOp_or:
-    case BitOpCmd::BitOp_xor:
+    case BitOpCmd::BitOpAnd:
+    case BitOpCmd::BitOpOr:
+    case BitOpCmd::BitOpXor:
       for (auto k : keys) {
         PObject* val;
         if (PSTORE.GetValueByType(k, val, PType_string) != PError_ok) {
@@ -88,18 +88,18 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
         }
 
         for (size_t i = 0; i < str->size(); ++i) {
-          if (op == BitOpCmd::BitOp_and) {
+          if (op == BitOpCmd::BitOpAnd) {
             res[i] &= (*str)[i];
-          } else if (op == BitOpCmd::BitOp_or) {
+          } else if (op == BitOpCmd::BitOpOr) {
             res[i] |= (*str)[i];
-          } else if (op == BitOpCmd::BitOp_xor) {
+          } else if (op == BitOpCmd::BitOpXor) {
             res[i] ^= (*str)[i];
           }
         }
       }
       break;
 
-    case BitOpCmd::BitOp_not: {
+    case BitOpCmd::BitOpNot: {
       assert(keys.size() == 1);
       PObject* val;
       if (PSTORE.GetValueByType(keys[0], val, PType_string) != PError_ok) {
@@ -136,19 +136,19 @@ void BitOpCmd::DoCmd(PClient* client) {
   if (client->Key().size() == 2) {
     if (pstd::StringEqualCaseInsensitive(client->argv_[1], "or")) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_or);
+      res = StringBitOp(keys, BitOpOr);
     }
   } else if (client->Key().size() == 3) {
     if (pstd::StringEqualCaseInsensitive(client->argv_[1], "xor")) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_xor);
+      res = StringBitOp(keys, BitOpXor);
     } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "and")) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_and);
+      res = StringBitOp(keys, BitOpAnd);
     } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "not")) {
       if (client->argv_.size() == 4) {
         err = PError_ok;
-        res = StringBitOp(keys, BitOp_not);
+        res = StringBitOp(keys, BitOpNot);
       }
     } else {
       ;

@@ -36,10 +36,10 @@ class SetCmd : public BaseCmd {
 class BitOpCmd : public BaseCmd {
  public:
   enum BitOp {
-      BitOp_and,
-      BitOp_or,
-      BitOp_not,
-      BitOp_xor,
+      BitOpAnd,
+      BitOpOr,
+      BitOpNot,
+      BitOpXor,
    };
   BitOpCmd(const std::string &name, int16_t arity);
 
