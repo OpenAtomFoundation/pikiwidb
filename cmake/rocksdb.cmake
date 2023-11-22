@@ -7,8 +7,9 @@ include_guard()
 FetchContent_Declare(
         rocksdb
         GIT_REPOSITORY https://github.com/facebook/rocksdb.git
-        GIT_TAG v8.6.7
+        GIT_TAG v8.3.3
 )
 
 FetchContent_MakeAvailable(rocksdb)
-include_directories(${rocksdb_SOURCE_DIR}/include)
+#include_directories(${rocksdb_SOURCE_DIR}/include)
+#include_directories(${rocksdb_SOURCE_DIR})

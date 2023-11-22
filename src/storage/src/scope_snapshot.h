@@ -8,7 +8,7 @@
 
 #include "rocksdb/db.h"
 
-#include "pstd/include/noncopyable.h"
+#include "pstd/noncopyable.h"
 
 namespace storage {
 class ScopeSnapshot : public pstd::noncopyable {

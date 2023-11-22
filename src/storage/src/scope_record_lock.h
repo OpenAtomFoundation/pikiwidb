@@ -11,7 +11,7 @@
 #include <utility>
 #include <vector>
 
-#include "pstd/include/scope_record_lock.h"
+#include "pstd/scope_record_lock.h"
 #include "src/lock_mgr.h"
 #include "storage/storage.h"
 
