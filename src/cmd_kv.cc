@@ -8,7 +8,7 @@
 #include "cmd_kv.h"
 #include "store.h"
 #include "string.h"
-#include "./pstd/pstd_string.h"
+#include "pstd/pstd_string.h"
 #include <iostream>
 
 namespace pikiwidb {
@@ -55,10 +55,10 @@ BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool BitOpCmd::DoInitial(PClient* client) {
-  if (pstd::StringEqualCaseInsensitive(client->argv_[1],"and") &&
-      pstd::StringEqualCaseInsensitive(client->argv_[1],"or") &&
-      pstd::StringEqualCaseInsensitive(client->argv_[1],"not") &&
-      pstd::StringEqualCaseInsensitive(client->argv_[1],"xor")) {
+  if (!(pstd::StringEqualCaseInsensitive(client->argv_[1], "and") ||
+        pstd::StringEqualCaseInsensitive(client->argv_[1], "or")  ||
+        pstd::StringEqualCaseInsensitive(client->argv_[1], "not") ||
+        pstd::StringEqualCaseInsensitive(client->argv_[1], "xor"))) {
       client->SetRes(CmdRes::kSyntaxErr, "operation error");
       return false;
   }
@@ -66,7 +66,7 @@ bool BitOpCmd::DoInitial(PClient* client) {
   return true;
 }
 
-static PString StringBitOp(const std::vector<const PString*>& keys, BitOpCmd::BitOp op) {
+static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::BitOp op) {
   PString res;
 
   switch (op) {
@@ -75,7 +75,7 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOpCmd::Bi
     case BitOpCmd::BitOp_xor:
       for (auto k : keys) {
         PObject* val;
-        if (PSTORE.GetValueByType(*k, val, PType_string) != PError_ok) {
+        if (PSTORE.GetValueByType(k, val, PType_string) != PError_ok) {
           continue;
         }
 
@@ -104,7 +104,7 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOpCmd::Bi
     case BitOpCmd::BitOp_not: {
       assert(keys.size() == 1);
       PObject* val;
-      if (PSTORE.GetValueByType(*keys[0], val, PType_string) != PError_ok) {
+      if (PSTORE.GetValueByType(keys[0], val, PType_string) != PError_ok) {
         break;
       }
 
@@ -127,27 +127,27 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOpCmd::Bi
 
 void BitOpCmd::DoCmd(PClient* client) {
 
-  std::vector<const PString*> keys;
+  std::vector<std::string> keys;
   for (size_t i = 3; i < client->argv_.size(); ++i) {
-    keys.push_back(&client->argv_[i]);
+    keys.push_back(client->argv_[i]);
   }
 
   PError err = PError_param;
   PString res;
 
   if (client->Key().size() == 2) {
-    if (strncasecmp(client->argv_[1].c_str(), "or", 2) == 0) {
+    if (pstd::StringEqualCaseInsensitive(client->argv_[1], "or")) {
       err = PError_ok;
       res = StringBitOp(keys, BitOp_or);
     }
   } else if (client->Key().size() == 3) {
-    if (strncasecmp(client->argv_[1].c_str(), "xor", 3) == 0) {
+    if (pstd::StringEqualCaseInsensitive(client->argv_[1], "xor")) {
       err = PError_ok;
       res = StringBitOp(keys, BitOp_xor);
-    } else if (strncasecmp(client->argv_[1].c_str(), "and", 3) == 0) {
+    } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "and")) {
       err = PError_ok;
       res = StringBitOp(keys, BitOp_and);
-    } else if (strncasecmp(client->argv_[1].c_str(), "not", 3) == 0) {
+    } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "not")) {
       if (client->argv_.size() == 4) {
         err = PError_ok;
         res = StringBitOp(keys, BitOp_not);
