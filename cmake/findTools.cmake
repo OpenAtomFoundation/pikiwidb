@@ -15,6 +15,15 @@ ELSE()
     MESSAGE(STATUS "found clang-tidy at ${CLANG_TIDY_BIN}")
 ENDIF()
 
+FIND_PROGRAM(CPPLINT_BIN
+	NAMES cpplint cpplint.py
+	HINTS "${BUILD_SUPPORT_DIR}")
+IF("${CPPLINT_BIN}" STREQUAL "CPPLINT_BIN-NOTFOUND")
+  MESSAGE(WARNING "couldn't find cpplint.py")
+ELSE()
+  MESSAGE(STATUS "found cpplint at ${CPPLINT_BIN}")
+ENDIF()
+
 FIND_PROGRAM(CLANG_APPLY_REPLACEMENTS_BIN
         NAMES clang-apply-replacements clang-apply-replacements-12
         HINTS ${CLANG_SEARCH_PATH})
