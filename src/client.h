@@ -164,7 +164,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   const std::string& SubCmdName() const { return subCmdName_; }
   std::string FullCmdName() const;  // the full name of the command, such as config set|get|rewrite
   void SetKey(const std::string& name) { keys_.clear(); keys_.emplace_back(name); }
-  void SetKey(std::vector<std::string>& name);
+  void SetKey(std::vector<std::string>& names);
   const std::string& Key() const { return keys_.at(0); }
   const std::vector<std::string>& Keys() const { return keys_; }
 

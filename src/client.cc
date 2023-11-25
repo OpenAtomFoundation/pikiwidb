@@ -676,9 +676,8 @@ void PClient::FeedMonitors(const std::vector<std::string>& params) {
     }
   }
 }
-void PClient::SetKey(std::vector<std::string>& name) {
-  keys_.clear();
-  keys_ = std::move(name); // use std::move clear copy expense
+void PClient::SetKey(std::vector<std::string>& names) {
+  keys_ = std::move(names); // use std::move clear copy expense
 }
 
 }  // namespace pikiwidb

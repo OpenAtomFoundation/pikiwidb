@@ -20,7 +20,7 @@ bool GetCmd::DoInitial(PClient* client) {
 }
 
 void GetCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {
@@ -58,7 +58,7 @@ bool AppendCmd::DoInitial(PClient* client) {
 }
 
 void AppendCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {            // = set command
@@ -86,7 +86,7 @@ bool GetsetCmd::DoInitial(PClient* client) {
 }
 
 void GetsetCmd::DoCmd(PClient* client) {
-  PObject* old_value;
+  PObject* old_value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), old_value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {            // = set command
@@ -118,7 +118,7 @@ void MgetCmd::DoCmd(PClient* client) {
   size_t valueSize = client->Keys().size();
   client->AppendArrayLen(static_cast<int64_t>(valueSize));
   for (const auto& k : client->Keys()) {
-    PObject* value;
+    PObject* value = nullptr;
     PError err = PSTORE.GetValueByType(k, value, PType_string);
     if (err == PError_notExist) {
       client->AppendStringLen(-1);
@@ -172,7 +172,7 @@ bool BitCountCmd::DoInitial(PClient* client) {
 }
 
 void BitCountCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
   if (err != PError_ok) {
     if (err == PError_notExist) {
