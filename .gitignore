@@ -75,3 +75,6 @@ tests/tmp
 bin
 
 compile_commands.json
+
+# build support
+build_support/__pycache__
