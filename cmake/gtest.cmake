@@ -3,12 +3,10 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-AUX_SOURCE_DIRECTORY(. STD_SRC)
-SET(LIBRARY_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
-ADD_LIBRARY(pstd ${STD_SRC})
-
-ADD_SUBDIRECTORY(tests)
-
-TARGET_LINK_LIBRARIES(pstd; spdlog pthread)
-
-SET_TARGET_PROPERTIES(pstd PROPERTIES LINKER_LANGUAGE CXX)
+FETCHCONTENT_DECLARE(
+        gtest
+        GIT_REPOSITORY https://github.com/google/googletest.git
+        GIT_TAG v1.14.0
+)
+set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
+FETCHCONTENT_MAKEAVAILABLE(gtest)
