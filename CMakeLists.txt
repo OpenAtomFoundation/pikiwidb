@@ -108,8 +108,10 @@ include(cmake/llhttp.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/folly.cmake)
+include(cmake/gtest.cmake)
 include(cmake/rocksdb.cmake)
 
+enable_testing()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)

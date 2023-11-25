@@ -10,5 +10,16 @@ FetchContent_Declare(
         GIT_TAG v8.6.7
 )
 
-FetchContent_MakeAvailable(rocksdb)
-include_directories(${rocksdb_SOURCE_DIR}/include)
+FetchContent_MakeAvailableWithArgs(rocksdb
+        BUILD_TYPE=OFF
+        WITH_TESTS=OFF
+        WITH_BENCHMARK=OFF
+        WITH_BENCHMARK_TOOLS=OFF
+        WITH_TOOLS=OFF
+        WITH_CORE_TOOLS=OFF
+        WITH_TRACE_TOOLS=OFF
+        WITH_EXAMPLES=OFF
+        ROCKSDB_BUILD_SHARED=OFF
+        WITH_GFLAGS=OFF
+        WITH_LIBURING=OFF
+)
