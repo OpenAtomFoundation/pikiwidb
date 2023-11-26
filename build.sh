@@ -32,7 +32,7 @@ echo "BUILD_TIME:" $BUILD_TIME
 echo "COMMIT_ID:" $SHORT_COMMIT_ID
 
 cmake -DCMAKE_BUILD_TYPE=debug -DBUILD_TIME=$BUILD_TIME -DGIT_COMMIT_ID=$SHORT_COMMIT_ID -S . -B build
-cmake --build build -- -j ${CPU_CORE} pikiwidb
+cmake --build build -- -j ${CPU_CORE}
 
 if [ $? -eq 0 ]; then
     echo -e "pika compile complete, output file ${C_GREEN} ${BUILD_DIR}/pika ${C_END}"

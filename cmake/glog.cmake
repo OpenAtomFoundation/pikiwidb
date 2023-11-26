@@ -16,7 +16,7 @@ FetchContent_Declare(glog
 FetchContent_MakeAvailableWithArgs(glog
   CMAKE_MODULE_PATH=${PROJECT_SOURCE_DIR}/cmake/modules/glog
   WITH_GFLAGS=ON
-  WITH_GTEST=OFF
+  BUILD_TESTING=OFF
   BUILD_SHARED_LIBS=OFF
   WITH_UNWIND=ON
 )
