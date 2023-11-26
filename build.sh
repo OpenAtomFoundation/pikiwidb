@@ -31,7 +31,7 @@ fi
 echo "BUILD_TIME:" $BUILD_TIME
 echo "COMMIT_ID:" $SHORT_COMMIT_ID
 
-cmake -DCMAKE_BUILD_TYPE=debug -DBUILD_TIME=$BUILD_TIME -DGIT_COMMIT_ID=$SHORT_COMMIT_ID -S . -B build
+cmake -DCMAKE_BUILD_TYPE=release -DBUILD_TIME=$BUILD_TIME -DGIT_COMMIT_ID=$SHORT_COMMIT_ID -S . -B build
 cmake --build build -- -j ${CPU_CORE}
 
 if [ $? -eq 0 ]; then
