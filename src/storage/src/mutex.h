@@ -9,7 +9,7 @@
 
 #include "rocksdb/status.h"
 
-#include "pstd/mutex.h"
+#include "pstd/include/mutex.h"
 
 namespace storage {
 
