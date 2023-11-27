@@ -101,14 +101,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "redis_zip_list.h"
-
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "redis_zip_list.h"
 
 #define memrev32ifbe(x) (x)
 #define intrev32ifbe(x) (x)
