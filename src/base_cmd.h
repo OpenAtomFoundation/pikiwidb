@@ -48,6 +48,8 @@ const std::string kCmdNameHSet = "hset";
 const std::string kCmdNameHGet = "hget";
 const std::string kCmdNameHMSet = "hmset";
 const std::string kCmdNameHMGet = "hmget";
+const std::string kCmdNameHGetAll = "hgetall";
+const std::string kCmdNameHKeys = "hkeys";
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset

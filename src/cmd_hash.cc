@@ -77,4 +77,50 @@ void HMGetCmd::DoCmd(PClient* client) {
   client->AppendStringRaw(reply.ReadAddr());
 }
 
+HGetAllCmd::HGetAllCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+
+bool HGetAllCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HGetAllCmd::DoCmd(PClient* client) {
+  UnboundedBuffer reply;
+  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
+  PError err = hgetall(params, &reply);
+  if (err != PError_ok) {
+    if (err == PError_notExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kErrOther, "hgetall cmd error");
+    }
+    return;
+  }
+  client->AppendStringRaw(reply.ReadAddr());
+}
+
+HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+
+bool HKeysCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HKeysCmd::DoCmd(PClient* client) {
+  UnboundedBuffer reply;
+  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
+  PError err = hkeys(params, &reply);
+  if (err != PError_ok) {
+    if (err == PError_notExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kErrOther, "hkeys cmd error");
+    }
+    return;
+  }
+  client->AppendStringRaw(reply.ReadAddr());
+}
+
 }  // namespace pikiwidb
