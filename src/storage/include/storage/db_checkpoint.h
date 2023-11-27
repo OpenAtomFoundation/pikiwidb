@@ -5,7 +5,7 @@
 //
 // A checkpoint is an openable snapshot of a database at a point in time.
 
-#ifndef ROCKSDB_LITE
+#pragma once
 
 #  include <vector>
 #  include "rocksdb/status.h"
@@ -40,4 +40,3 @@ class DBCheckpoint {
 };
 
 }  // namespace rocksdb
-#endif  // !ROCKSDB_LITE

@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_SCOPE_SNAPSHOT_H_
-#define SRC_SCOPE_SNAPSHOT_H_
+#pragma once
 
 #include "rocksdb/db.h"
 
@@ -24,4 +23,3 @@ class ScopeSnapshot : public pstd::noncopyable {
 };
 
 }  // namespace storage
-#endif  // SRC_SCOPE_SNAPSHOT_H_

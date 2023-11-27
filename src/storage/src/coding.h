@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_CODING_H_
-#define SRC_CODING_H_
+#pragma once
 
 #if defined(__APPLE__)
 #  include <machine/endian.h>  // __BYTE_ORDER
@@ -80,4 +79,3 @@ inline uint64_t DecodeFixed64(const char* ptr) {
 }
 
 }  // namespace storage
-#endif  // SRC_CODING_H_

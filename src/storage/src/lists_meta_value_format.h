@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LISTS_META_VALUE_FORMAT_H_
-#define SRC_LISTS_META_VALUE_FORMAT_H_
+#pragma once
 
 #include <string>
 
@@ -226,4 +225,3 @@ class ParsedListsMetaValue : public ParsedInternalValue {
 };
 
 }  //  namespace storage
-#endif  //  SRC_LISTS_META_VALUE_FORMAT_H_

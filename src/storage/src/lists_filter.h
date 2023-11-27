@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LISTS_FILTER_H_
-#define SRC_LISTS_FILTER_H_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -144,4 +143,3 @@ class ListsDataFilterFactory : public rocksdb::CompactionFilterFactory {
 };
 
 }  //  namespace storage
-#endif  // SRC_LISTS_FILTER_H_

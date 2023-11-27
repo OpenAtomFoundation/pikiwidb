@@ -7,8 +7,6 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#ifndef ROCKSDB_LITE
-
 #  include "storage/db_checkpoint.h"
 
 #  ifndef __STDC_FORMAT_MACROS
@@ -261,5 +259,3 @@ Status DBCheckpointImpl::CreateCheckpointWithFiles(const std::string& checkpoint
   return s;
 }
 }  // namespace rocksdb
-
-#endif  // ROCKSDB_LITE

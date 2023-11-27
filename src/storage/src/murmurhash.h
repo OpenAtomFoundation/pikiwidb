@@ -9,8 +9,7 @@
   All code is released to the public domain. For business purposes, Murmurhash
   is under the MIT license.
 */
-#ifndef SRC_MURMURHASH_H_
-#define SRC_MURMURHASH_H_
+#pragma once
 
 #include <cstdint>
 #include "rocksdb/slice.h"
@@ -41,4 +40,3 @@ struct murmur_hash {
   size_t operator()(const Slice& slice) const { return MurmurHash(slice.data(), static_cast<int>(slice.size()), 0); }
 };
 }  // namespace storage
-#endif  // SRC_MURMURHASH_H_

@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LOCK_MGR_H_
-#define SRC_LOCK_MGR_H_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -18,4 +17,3 @@ namespace storage {
 using LockMgr = pstd::lock::LockMgr;
 
 }  //  namespace storage
-#endif  // SRC_LOCK_MGR_H_
