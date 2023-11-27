@@ -22,7 +22,7 @@
 #include "rocksdb/status.h"
 #include "rocksdb/table.h"
 
-#include "pstd/pstd_mutex.h"
+#include "pstd/include/pstd_mutex.h"
 
 namespace storage {
 
