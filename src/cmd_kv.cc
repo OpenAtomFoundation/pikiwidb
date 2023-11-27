@@ -169,6 +169,8 @@ bool BitCountCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
     return false;
   }
+  client->SetKey(client->argv_[1]);
+  return true;
 }
 
 void BitCountCmd::DoCmd(PClient* client) {
