@@ -2,6 +2,7 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
+
 include_guard()
 
 FetchContent_Declare(
@@ -22,4 +23,9 @@ FetchContent_MakeAvailableWithArgs(rocksdb
         ROCKSDB_BUILD_SHARED=OFF
         WITH_GFLAGS=OFF
         WITH_LIBURING=OFF
+        WITH_LZ4=ON
+        WITH_SNAPPY=ON
+        WITH_ZLIB=ON
+        WITH_ZSTD=ON
+        WITH_GFLAGS=ON
 )

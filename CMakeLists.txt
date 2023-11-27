@@ -110,6 +110,10 @@ include(cmake/spdlog.cmake)
 include(cmake/folly.cmake)
 include(cmake/gtest.cmake)
 include(cmake/rocksdb.cmake)
+include(cmake/lz4.cmake)
+include(cmake/snappy.cmake)
+include(cmake/zlib.cmake)
+include(cmake/zstd.cmake)
 
 enable_testing()
 
