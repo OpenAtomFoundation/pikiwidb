@@ -34,14 +34,22 @@ class SetCmd : public BaseCmd {
 };
 
 class BitOpCmd : public BaseCmd {
- public:
-  enum BitOp {
-      kBitOpAnd,
-      kBitOpOr,
-      kBitOpNot,
-      kBitOpXor,
-   };
-  BitOpCmd(const std::string &name, int16_t arity);
+public:
+    enum BitOp {
+        kBitOpAnd,
+        kBitOpOr,
+        kBitOpNot,
+        kBitOpXor,
+    };
+
+    BitOpCmd(const std::string &name, int16_t arity);
+
+    protected:
+        bool DoInitial(PClient *client) override;
+
+    private:
+        void DoCmd(PClient *client) override;
+};
 
 class AppendCmd : public BaseCmd {
  public:
@@ -98,5 +106,4 @@ class BitCountCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-};  // namespace pikiwidb
-}
+}  // namespace pikiwidb
