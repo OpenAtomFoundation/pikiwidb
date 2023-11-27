@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_ZSETS_FILTER_H_
-#define SRC_ZSETS_FILTER_H_
+#pragma once
 
 #include <memory>
 #include <string>
@@ -103,4 +102,3 @@ class ZSetsScoreFilterFactory : public rocksdb::CompactionFilterFactory {
 };
 
 }  //  namespace storage
-#endif  // SRC_ZSETS_FILTER_H_

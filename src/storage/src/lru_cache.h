@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LRU_CACHE_H_
-#define SRC_LRU_CACHE_H_
+#pragma once
 
 #include <cassert>
 #include <cstdio>
@@ -294,4 +293,3 @@ bool LRUCache<T1, T2>::FinishErase(LRUHandle<T1, T2>* const e) {
 }
 
 }  //  namespace storage
-#endif  // SRC_LRU_CACHE_H_

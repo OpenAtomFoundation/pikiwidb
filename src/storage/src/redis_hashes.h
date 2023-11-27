@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_REDIS_HASHES_H_
-#define SRC_REDIS_HASHES_H_
+#pragma once
 
 #include <string>
 #include <unordered_set>
@@ -72,4 +71,3 @@ class RedisHashes : public Redis {
 };
 
 }  //  namespace storage
-#endif  //  SRC_REDIS_HASHES_H_

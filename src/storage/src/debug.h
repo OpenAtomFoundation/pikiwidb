@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_DEBUG_H_
-#define SRC_DEBUG_H_
+#pragma once
 
 #ifndef NDEBUG
 #  define TRACE(M, ...) fprintf(stderr, "[TRACE] (%s:%d) " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
@@ -13,5 +12,3 @@
 #  define TRACE(M, ...) {}
 #  define DEBUG(M, ...) {}
 #endif  // NDEBUG
-
-#endif  // SRC_DEBUG_H_

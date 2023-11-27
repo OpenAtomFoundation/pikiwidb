@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LISTS_DATA_KEY_FORMAT_H_
-#define SRC_LISTS_DATA_KEY_FORMAT_H_
+#pragma once
 
 #include "pstd/pstd_coding.h"
 
@@ -94,4 +93,3 @@ class ParsedListsDataKey {
 };
 
 }  //  namespace storage
-#endif  // SRC_LISTS_DATA_KEY_FORMAT_H_

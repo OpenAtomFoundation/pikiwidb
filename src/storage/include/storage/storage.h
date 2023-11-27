@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef INCLUDE_STORAGE_STORAGE_H_
-#define INCLUDE_STORAGE_STORAGE_H_
+#pragma once
 
 #include <unistd.h>
 #include <list>
@@ -1051,4 +1050,3 @@ class Storage {
 };
 
 }  //  namespace storage
-#endif  //  INCLUDE_STORAGE_STORAGE_H_

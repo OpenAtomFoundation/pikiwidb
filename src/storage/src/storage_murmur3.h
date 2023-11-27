@@ -1,5 +1,4 @@
-#ifndef MURMUR3_H_
-#define MURMUR3_H_
+#pragma once
 
 //-----------------------------------------------------------------------------
 // MurmurHash3 was written by Austin Appleby, and is placed in the public
@@ -147,5 +146,3 @@ extern
 }
 
 }  // namespace storage
-
-#endif

@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_MUTEX_H_
-#define SRC_MUTEX_H_
+#pragma once
 
 #include <memory>
 
@@ -21,4 +20,3 @@ using CondVar = pstd::lock::CondVar;
 using MutexFactory = pstd::lock::MutexFactory;
 
 }  // namespace storage
-#endif  // SRC_MUTEX_H_

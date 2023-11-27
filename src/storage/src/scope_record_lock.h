@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_SCOPE_RECORD_LOCK_H_
-#define SRC_SCOPE_RECORD_LOCK_H_
+#pragma once
 
 #include <algorithm>
 #include <string>
@@ -21,4 +20,3 @@ using ScopeRecordLock = pstd::lock::ScopeRecordLock;
 using MultiScopeRecordLock = pstd::lock::MultiScopeRecordLock;
 
 }  // namespace storage
-#endif  // SRC_SCOPE_RECORD_LOCK_H_

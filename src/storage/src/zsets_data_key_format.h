@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_ZSETS_DATA_KEY_FORMAT_H_
-#define SRC_ZSETS_DATA_KEY_FORMAT_H_
+#pragma once
 
 namespace storage {
 
@@ -106,4 +105,3 @@ class ParsedZSetsScoreKey {
 };
 
 }  // namespace storage
-#endif  // SRC_ZSETS_DATA_KEY_FORMAT_H_

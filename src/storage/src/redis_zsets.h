@@ -3,8 +3,7 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_REDIS_ZSETS_h
-#define SRC_REDIS_ZSETS_h
+#pragma once
 
 #include <string>
 #include <unordered_set>
@@ -81,4 +80,3 @@ class RedisZSets : public Redis {
 };
 
 }  // namespace storage
-#endif  //  SRC_REDIS_ZSETS_h

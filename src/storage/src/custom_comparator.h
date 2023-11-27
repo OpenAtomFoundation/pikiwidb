@@ -3,8 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef INCLUDE_CUSTOM_COMPARATOR_H_
-#define INCLUDE_CUSTOM_COMPARATOR_H_
+#pragma once
+
 #include "string"
 
 #include <glog/logging.h>
@@ -264,4 +264,3 @@ class ZSetsScoreKeyComparatorImpl : public rocksdb::Comparator {
 };
 
 }  //  namespace storage
-#endif  //  INCLUDE_CUSTOM_COMPARATOR_H_
