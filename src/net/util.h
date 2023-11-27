@@ -179,90 +179,54 @@ inline bool Probability(int percent) {
   return RandomBetween(1, 100 * 100) <= percent * 100;
 }
 
-struct SocketAddr
-{
-    static const uint16_t kInvalidPort = -1;
+struct SocketAddr {
+  static const uint16_t kInvalidPort = -1;
 
-    SocketAddr()
-    {
-        memset(&addr_, 0, sizeof addr_);
-    }
-    
-    SocketAddr(const sockaddr_in& addr)
-    {
-        Init(addr);
-    }
+  SocketAddr() { memset(&addr_, 0, sizeof addr_); }
 
-    SocketAddr(uint32_t netip, uint16_t netport)
-    {
-        Init(netip, netport);
-    }
+  SocketAddr(const sockaddr_in& addr) { Init(addr); }
 
-    SocketAddr(const char* ip, uint16_t hostport)
-    {
-        Init(ip, hostport);
-    }
+  SocketAddr(uint32_t netip, uint16_t netport) { Init(netip, netport); }
 
-    void Init(const sockaddr_in& addr)
-    {
-        memcpy(&addr_, &addr, sizeof(addr));
-    }
+  SocketAddr(const char* ip, uint16_t hostport) { Init(ip, hostport); }
 
-    void Init(uint32_t netip, uint16_t netport)
-    {
-        addr_.sin_family = AF_INET;       
-        addr_.sin_addr.s_addr = netip;       
-        addr_.sin_port   = netport;
-    }
+  void Init(const sockaddr_in& addr) { memcpy(&addr_, &addr, sizeof(addr)); }
 
-    void Init(const char* ip, uint16_t hostport)
-    {
-        addr_.sin_family = AF_INET;
-        addr_.sin_addr.s_addr = ::inet_addr(ip);
-        addr_.sin_port = htons(hostport);
-    }
+  void Init(uint32_t netip, uint16_t netport) {
+    addr_.sin_family = AF_INET;
+    addr_.sin_addr.s_addr = netip;
+    addr_.sin_port = netport;
+  }
 
-    const sockaddr_in& GetAddr() const
-    {
-        return addr_;
-    }
+  void Init(const char* ip, uint16_t hostport) {
+    addr_.sin_family = AF_INET;
+    addr_.sin_addr.s_addr = ::inet_addr(ip);
+    addr_.sin_port = htons(hostport);
+  }
 
-    std::string GetIP() const
-    {
-        char tmp[32];
-        const char* res = inet_ntop(AF_INET, &addr_.sin_addr,
-                                    tmp, (socklen_t)(sizeof tmp));
-        return std::string(res);
-    }
+  const sockaddr_in& GetAddr() const { return addr_; }
 
-    uint16_t GetPort() const
-    {
-        return ntohs(addr_.sin_port);
-    }
+  std::string GetIP() const {
+    char tmp[32];
+    const char* res = inet_ntop(AF_INET, &addr_.sin_addr, tmp, (socklen_t)(sizeof tmp));
+    return std::string(res);
+  }
 
-    bool IsValid() const { return addr_.sin_family != 0; }
+  uint16_t GetPort() const { return ntohs(addr_.sin_port); }
 
-    void Clear()
-    {
-        memset(&addr_, 0, sizeof addr_);
-    }
+  bool IsValid() const { return addr_.sin_family != 0; }
 
-    inline friend bool operator== (const SocketAddr& a, const SocketAddr& b)
-    {
-        return a.addr_.sin_family      ==  b.addr_.sin_family &&
-               a.addr_.sin_addr.s_addr ==  b.addr_.sin_addr.s_addr &&
-               a.addr_.sin_port        ==  b.addr_.sin_port ;
-    }
+  void Clear() { memset(&addr_, 0, sizeof addr_); }
 
-    inline friend bool operator!= (const SocketAddr& a, const SocketAddr& b)
-    {
-        return !(a == b);
-    }
+  inline friend bool operator==(const SocketAddr& a, const SocketAddr& b) {
+    return a.addr_.sin_family == b.addr_.sin_family && a.addr_.sin_addr.s_addr == b.addr_.sin_addr.s_addr &&
+           a.addr_.sin_port == b.addr_.sin_port;
+  }
 
-private:
-    sockaddr_in  addr_;
+  inline friend bool operator!=(const SocketAddr& a, const SocketAddr& b) { return !(a == b); }
+
+ private:
+  sockaddr_in addr_;
 };
-
-
 
 }  // namespace pikiwidb

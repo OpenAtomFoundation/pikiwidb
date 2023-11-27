@@ -21,7 +21,7 @@ class CmdConfig : public BaseCmdGroup {
   bool DoInitial(PClient* client) override { return true; };
 
  private:
-//  std::vector<std::string> subCmd_;
+  //  std::vector<std::string> subCmd_;
 
   void DoCmd(PClient* client) override{};
 };

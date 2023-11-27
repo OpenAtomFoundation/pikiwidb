@@ -19,4 +19,3 @@ using PHash = std::unordered_map<PString, PString, my_hash, std::equal_to<PStrin
 size_t HScanKey(const PHash& hash, size_t cursor, size_t count, std::vector<PString>& res);
 
 }  // namespace pikiwidb
-
