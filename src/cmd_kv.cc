@@ -6,7 +6,7 @@
  */
 
 #include "cmd_kv.h"
-#include "pstd_string.h"
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -226,6 +226,7 @@ bool BitOpCmd::DoInitial(PClient* client) {
         client->SetRes(CmdRes::kSyntaxErr, "operation error");
         return false;
     }
+    return true;
 }
 
 static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::BitOp op) {
