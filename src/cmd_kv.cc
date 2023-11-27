@@ -163,7 +163,7 @@ BitCountCmd::BitCountCmd(const std::string& name, int16_t arity)
 
 bool BitCountCmd::DoInitial(PClient* client) {
   size_t paramSize = client->argv_.size();
-  if(paramSize != 2 && paramSize != 4) {
+  if (paramSize != 2 && paramSize != 4) {
     client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
     return false;
   }
@@ -188,7 +188,7 @@ void BitCountCmd::DoCmd(PClient* client) {
   if (pstd::String2int(client->argv_[2], &start_offset_) == 0 ||
       pstd::String2int(client->argv_[3], &end_offset_) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
-    return ;
+    return;
   }
 
   auto str = GetDecodedString(value);
