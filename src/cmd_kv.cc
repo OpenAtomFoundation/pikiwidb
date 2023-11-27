@@ -72,7 +72,7 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
     case BitOpCmd::kBitOpOr:
     case BitOpCmd::kBitOpXor:
       for (auto k : keys) {
-        PObject* val;
+        PObject* val = nullptr;
         if (PSTORE.GetValueByType(k, val, PType_string) != PError_ok) {
           continue;
         }
@@ -101,7 +101,7 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
 
     case BitOpCmd::kBitOpNot: {
       assert(keys.size() == 1);
-      PObject* val;
+      PObject* val = nullptr;
       if (PSTORE.GetValueByType(keys[0], val, PType_string) != PError_ok) {
         break;
       }
