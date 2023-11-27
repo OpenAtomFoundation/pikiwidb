@@ -574,41 +574,45 @@ bool ParseIpPortString(const std::string& ip_port, std::string& ip, int& port) {
   return true;
 }
 
-// Trim charlist
-std::string StringTrim(const std::string& ori, const std::string& charlist) {
+// Trim charList
+std::string StringTrim(const std::string& ori, const std::string& charList) {
   if (ori.empty()) {
     return ori;
   }
 
-  size_t pos = 0;
-  int rpos = ori.size() - 1;
-  while (pos < ori.size()) {
-    bool meet = false;
-    for (char c : charlist) {
-      if (ori.at(pos) == c) {
-        meet = true;
-        break;
-      }
-    }
-    if (!meet) {
-      break;
-    }
-    ++pos;
+  auto begin = ori.find_first_not_of(charList);
+  if (begin == std::string::npos) {
+    return "";
   }
-  while (rpos >= 0) {
-    bool meet = false;
-    for (char c : charlist) {
-      if (ori.at(rpos) == c) {
-        meet = true;
-        break;
-      }
-    }
-    if (!meet) {
-      break;
-    }
-    --rpos;
+
+  auto end = ori.find_last_not_of(charList);
+  return ori.substr(begin, end - begin + 1);
+}
+
+// Trim charList from left
+std::string StringTrimLeft(const std::string& ori, const std::string& charList) {
+  if (ori.empty()) {
+    return ori;
   }
-  return ori.substr(pos, rpos - pos + 1);
+
+  auto begin = ori.find_first_not_of(charList);
+  if (begin == std::string::npos) {
+    return "";
+  }
+  return ori.substr(begin, ori.size() - begin);
+}
+
+// Trim charList from right
+std::string StringTrimRight(const std::string& ori, const std::string& charList) {
+  if (ori.empty()) {
+    return ori;
+  }
+
+  auto end = ori.find_last_not_of(charList);
+  if (end == std::string::npos) {
+    return "";
+  }
+  return ori.substr(0, end + 1);
 }
 
 bool StringHasSpaces(const std::string& str) {

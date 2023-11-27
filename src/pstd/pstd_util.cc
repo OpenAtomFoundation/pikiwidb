@@ -16,7 +16,7 @@ void InitRandom() {
   gen.seed(rd());
 }
 
-int RandomInt(int max) { return RandomInt(0, max + 1); }
+int RandomInt(int max) { return RandomInt(0, max); }
 
 int RandomInt(int min, int max) {
   std::uniform_int_distribution<> dist(min, max);

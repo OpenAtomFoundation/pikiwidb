@@ -33,6 +33,7 @@ class SetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+<<<<<<< HEAD
 class BitOpCmd : public BaseCmd {
  public:
   enum BitOp {
@@ -42,6 +43,55 @@ class BitOpCmd : public BaseCmd {
       kBitOpXor,
    };
   BitOpCmd(const std::string &name, int16_t arity);
+=======
+class AppendCmd : public BaseCmd {
+ public:
+  AppendCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class GetsetCmd : public BaseCmd {
+ public:
+  GetsetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class MgetCmd : public BaseCmd {
+ public:
+  MgetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class MSetCmd : public BaseCmd {
+ public:
+  MSetCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class BitCountCmd : public BaseCmd {
+ public:
+  BitCountCmd(const std::string &name, int16_t arity);
+>>>>>>> stringcmdincr
 
  protected:
   bool DoInitial(PClient *client) override;
