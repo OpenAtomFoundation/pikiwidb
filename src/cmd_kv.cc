@@ -8,7 +8,6 @@
 #include "cmd_kv.h"
 #include "pstd_string.h"
 #include "store.h"
-#include "pstd/pstd_string.h"
 
 namespace pikiwidb {
 
@@ -50,7 +49,6 @@ void SetCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk);
 }
 
-<<<<<<< HEAD
 BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
@@ -61,7 +59,8 @@ bool BitOpCmd::DoInitial(PClient* client) {
         pstd::StringEqualCaseInsensitive(client->argv_[1], "xor"))) {
       client->SetRes(CmdRes::kSyntaxErr, "operation error");
       return false;
-=======
+}
+
 AppendCmd::AppendCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
@@ -179,13 +178,11 @@ bool BitCountCmd::DoInitial(PClient* client) {
   if(paramSize != 2 && paramSize != 4) {
     client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
     return false;
->>>>>>> stringcmdincr
   }
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-<<<<<<< HEAD
 static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::BitOp op) {
   PString res;
 
@@ -287,7 +284,7 @@ void BitOpCmd::DoCmd(PClient* client) {
 }
 
 }  // namespace pikiwidb
-=======
+
 void BitCountCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
@@ -333,4 +330,3 @@ void BitCountCmd::DoCmd(PClient* client) {
 }
 
 }  // namespace pikiwidb
->>>>>>> stringcmdincr
