@@ -423,7 +423,7 @@ int PDBLoader::Load(const char* filename) {
       case kTypeQuickList: {
         PString key = LoadKey();
         PObject obj = LoadObject(indicator);
-        //        DEBUG("encounter key = {}, obj.encoding = {}", key, obj.encoding);
+        // DEBUG("encounter key = {}, obj.encoding = {}", key, obj.encoding);
 
         assert(absTimeout >= 0);
 
