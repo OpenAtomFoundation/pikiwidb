@@ -7,8 +7,7 @@
 // * In addition we support variable length "varint" encoding
 // * Strings are encoded prefixed by their length in varint format
 
-#ifndef __PSTD_CODING_H__
-#define __PSTD_CODING_H__
+#pragma once
 
 #include <cstdint>
 #include <cstring>
@@ -150,5 +149,3 @@ inline const char* GetVarint32Ptr(const char* p, const char* limit, uint32_t* va
 }
 
 }  // namespace pstd
-
-#endif  // __PSTD_CODING_H__
