@@ -9,6 +9,7 @@
 #include "pstd_string.h"
 #include "store.h"
 
+
 namespace pikiwidb {
 
 GetCmd::GetCmd(const std::string& name, int16_t arity)
@@ -167,6 +168,86 @@ bool BitCountCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
     return false;
   }
+
+StrlenCmd::StrlenCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+
+bool StrlenCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void StrlenCmd::DoCmd(PClient* client) {
+  PObject* value;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
+
+  switch (err){
+  case PError_ok:
+  {
+    auto str = GetDecodedString(value);
+    size_t len = str->size();
+    client->AppendInteger(static_cast<int64_t>(len));
+    break;
+  }
+  case PError_notExist:
+  {
+    client->AppendInteger(0);
+    break;
+  }
+  default:
+  {
+    client->SetRes(CmdRes::kErrOther, "error other");
+    break;
+  }
+  }
+}
+
+SetexCmd::SetexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+
+bool SetexCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  int64_t sec = 0;
+  if (pstd::String2int(client->argv_[2], &sec) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  return true;
+}
+
+void SetexCmd::DoCmd(PClient* client) {
+  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
+  int64_t sec = 0;
+  pstd::String2int(client->argv_[2], &sec);
+  PSTORE.SetExpire(client->argv_[1], ::Now() + sec * 1000);
+  client->SetRes(CmdRes::kOk);
+}
+
+PsetexCmd::PsetexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+
+bool PsetexCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  int64_t msec = 0;
+  if (pstd::String2int(client->argv_[2], &msec) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  return true;
+}
+
+void PsetexCmd::DoCmd(PClient* client) {
+  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
+  int64_t msec = 0;
+  pstd::String2int(client->argv_[2], &msec);
+  PSTORE.SetExpire(client->argv_[1], ::Now() + msec);
+  client->SetRes(CmdRes::kOk);
+}
+
+SetnxCmd::SetnxCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+
+bool SetnxCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
@@ -251,3 +332,19 @@ void IncrbyCmd::DoCmd(PClient* client) {
   }
 }
 }  // namespace pikiwidb
+
+void SetnxCmd::DoCmd(PClient* client) {
+  int iSuccess = 1;
+  PObject* value;
+  PError err = PSTORE.GetValue(client->argv_[1], value);
+  if (err == PError_notExist) {
+    PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
+    PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
+    client->AppendInteger(iSuccess);
+  }else{
+    client->AppendInteger(!iSuccess);
+  }
+}
+
+}  // namespace pikiwidb
+
