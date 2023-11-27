@@ -26,6 +26,7 @@ jobs:
         run: |
           mkdir build && cd build
           cmake .. -DCMAKE_BUILD_TYPE=Release
+          make -j $(nproc)
       
       - name: Check Format
         working-directory: ${{ github.workspace }}/build
