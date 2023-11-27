@@ -34,7 +34,15 @@ const std::string kCmdNameDiscard = "discard";
 
 // admin
 const std::string kCmdNameConfig = "config";
+
+const std::string kCmdNameAppend = "append";
+const std::string kCmdNameGetset = "getset";
+const std::string kCmdNameMget = "mget";
+const std::string kCmdNameMset = "mset";
+const std::string kCmdNameBitCount = "bitcount";
+
 const std::string kCmdNameAuth = "auth";
+
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset
