@@ -223,7 +223,7 @@ bool StrlenCmd::DoInitial(PClient* client) {
 }
 
 void StrlenCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
 
   switch (err){
@@ -380,7 +380,7 @@ void IncrbyCmd::DoCmd(PClient* client) {
 
 void SetnxCmd::DoCmd(PClient* client) {
   int iSuccess = 1;
-  PObject* value;
+  PObject* value = nullptr;
   PError err = PSTORE.GetValue(client->argv_[1], value);
   if (err == PError_notExist) {
     PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
