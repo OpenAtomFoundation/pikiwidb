@@ -8,6 +8,7 @@
 #include "cmd_table_manager.h"
 #include <memory>
 #include "cmd_admin.h"
+#include "cmd_hash.h"
 #include "cmd_kv.h"
 
 namespace pikiwidb {
@@ -42,6 +43,16 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameMset, std::move(msetPtr)));
   std::unique_ptr<BaseCmd> bitcountPtr = std::make_unique<BitCountCmd>(kCmdNameBitCount, -2);
   cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
+
+  // hash
+  std::unique_ptr<BaseCmd> hsetPtr = std::make_unique<HMSetCmd>(kCmdNameHSet, -4);  // "hset" == "hmset"
+  cmds_->insert(std::make_pair(kCmdNameHSet, std::move(hsetPtr)));
+  std::unique_ptr<BaseCmd> hgetPtr = std::make_unique<HGetCmd>(kCmdNameHGet, 3);
+  cmds_->insert(std::make_pair(kCmdNameHGet, std::move(hgetPtr)));
+  std::unique_ptr<BaseCmd> hmsetPtr = std::make_unique<HMSetCmd>(kCmdNameHMSet, -4);
+  cmds_->insert(std::make_pair(kCmdNameHMSet, std::move(hmsetPtr)));
+  std::unique_ptr<BaseCmd> hmgetPtr = std::make_unique<HMGetCmd>(kCmdNameHMGet, -3);
+  cmds_->insert(std::make_pair(kCmdNameHMGet, std::move(hmgetPtr)));
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

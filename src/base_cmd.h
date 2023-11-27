@@ -43,6 +43,11 @@ const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
 
+// hash cmd
+const std::string kCmdNameHSet = "hset";
+const std::string kCmdNameHGet = "hget";
+const std::string kCmdNameHMSet = "hmset";
+const std::string kCmdNameHMGet = "hmget";
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset
