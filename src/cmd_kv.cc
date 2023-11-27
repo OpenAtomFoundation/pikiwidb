@@ -283,8 +283,6 @@ void BitOpCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk,std::to_string(static_cast<long>(res.size())));
 }
 
-}  // namespace pikiwidb
-
 void BitCountCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
