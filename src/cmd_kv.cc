@@ -169,6 +169,51 @@ bool BitCountCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
     return false;
   }
+}
+
+void BitCountCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
+  if (err != PError_ok) {
+    if (err == PError_notExist) {
+      client->AppendInteger(0);
+    } else {
+      client->SetRes(CmdRes::kErrOther, "bitcount get key error");
+    }
+    return;
+  }
+
+  int64_t start_offset_;
+  int64_t end_offset_;
+  if (pstd::String2int(client->argv_[2], &start_offset_) == 0 ||
+      pstd::String2int(client->argv_[3], &end_offset_) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return ;
+  }
+
+  auto str = GetDecodedString(value);
+  auto value_length = static_cast<int64_t>(str->size());
+  if (start_offset_ < 0) {
+    start_offset_ += value_length;
+  }
+  if (end_offset_ < 0) {
+    end_offset_ += value_length;
+  }
+  if (start_offset_ < 0) {
+    start_offset_ = 0;
+  }
+  if (end_offset_ < 0) {
+    end_offset_ = 0;
+  }
+  if (end_offset_ >= value_length) {
+    end_offset_ = value_length - 1;
+  }
+  size_t count = 0;
+  if (end_offset_ >= start_offset_) {
+    count = BitCount(reinterpret_cast<const uint8_t*>(str->data()) + start_offset_, end_offset_ - start_offset_ + 1);
+  }
+  client->AppendInteger(static_cast<int64_t>(count));
+}
 
 StrlenCmd::StrlenCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
@@ -249,8 +294,8 @@ SetnxCmd::SetnxCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
 
 bool SetnxCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
-  return true;
+client->SetKey(client->argv_[1]);
+return true;
 }
 
 void BitCountCmd::DoCmd(PClient* client) {
