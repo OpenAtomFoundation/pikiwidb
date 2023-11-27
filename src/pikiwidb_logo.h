@@ -13,4 +13,4 @@ const char* pikiwidbLogo =
     "| |_/ /  _ | | __ _ __      __ _ | | | || |_/ /  PikiwiDB(%s) %d bits \n"  // version and
     "|  __/  | || |/ /| |\\ \\ /\\ / /| || | | || ___ \\ \n"
     "| |     | ||   < | | \\ V  V / | || |/ / | |_/ /  Port: %d\n"
-    "\\_|     |_||_|\\_\\|_|  \\_/\\_/  |_||___/  \\____/   https://github.com/OpenAtomFoundation/pika \n\n\n";
+    "\\_|     |_||_|\\_\\|_|  \\_/\\_/  |_||___/  \\____/   https://github.com/OpenAtomFoundation/pikiwidb \n\n\n";
