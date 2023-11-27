@@ -1,5 +1,9 @@
-#ifndef __PSTD_STATUS_H__
-#define __PSTD_STATUS_H__
+// Copyright (c) 2015-present, Qihoo, Inc.  All rights reserved.
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree. An additional grant
+// of patent rights can be found in the PATENTS file in the same directory.
+
+#pragma once
 
 #include <string>
 #include "pstd_slice.h"
@@ -23,9 +27,7 @@ class Status {
   static Status NotFound(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kNotFound, msg, msg2); }
   static Status Corruption(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kCorruption, msg, msg2); }
   static Status NotSupported(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kNotSupported, msg, msg2); }
-  static Status InvalidArgument(const Slice& msg, const Slice& msg2 = Slice()) {
-    return {kInvalidArgument, msg, msg2};
-  }
+  static Status InvalidArgument(const Slice& msg, const Slice& msg2 = Slice()) { return {kInvalidArgument, msg, msg2}; }
   static Status IOError(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kIOError, msg, msg2); }
   static Status EndFile(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kEndFile, msg, msg2); }
 
@@ -38,6 +40,8 @@ class Status {
   static Status AuthFailed(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kAuthFailed, msg, msg2); }
 
   static Status Busy(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kBusy, msg, msg2); }
+
+  static Status Error(const Slice& msg, const Slice& msg2 = Slice()) { return Status(kError, msg, msg2); }
 
   // Returns true if the status indicates success.
   bool ok() const { return !state_; }
@@ -75,6 +79,8 @@ class Status {
   // Return true if the status is Busy
   bool IsBusy() const { return code() == kBusy; }
 
+  bool IsError() const { return code() == kError; }
+
   // Return a string representation of this status suitable for printing.
   // Returns the string "OK" for success.
   std::string ToString() const;
@@ -99,7 +105,8 @@ class Status {
     kComplete = 8,
     kTimeout = 9,
     kAuthFailed = 10,
-    kBusy = 11
+    kBusy = 11,
+    kError = 12
   };
 
   Code code() const { return !state_ ? kOk : static_cast<Code>(state_[4]); }
@@ -109,15 +116,14 @@ class Status {
 };
 
 inline Status::Status(const Status& s) { state_ = !s.state_ ? nullptr : CopyState(s.state_); }
+
 inline void Status::operator=(const Status& s) {
   // The following condition catches both aliasing (when this == &s),
   // and the common case where both s and *this are ok.
-  if (&s != this && state_ != s.state_) {
+  if (state_ != s.state_) {
     delete[] state_;
     state_ = !s.state_ ? nullptr : CopyState(s.state_);
   }
 }
 
 }  // namespace pstd
-
-#endif  // __PSTD_STATUS_H__
