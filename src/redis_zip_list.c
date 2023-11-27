@@ -101,14 +101,14 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "redis_zip_list.h"
-
 #include <assert.h>
 #include <limits.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "redis_zip_list.h"
 
 #define memrev32ifbe(x) (x)
 #define intrev32ifbe(x) (x)
@@ -138,7 +138,7 @@
 #define INT24_MIN (-INT24_MAX - 1)
 
 /* Macro to determine type */
-#define ZIP_IS_STR(enc) (((enc)&ZIP_STR_MASK) < ZIP_STR_MASK)
+#define ZIP_IS_STR(enc) (((enc) & ZIP_STR_MASK) < ZIP_STR_MASK)
 
 /* Utility macros */
 #define ZIPLIST_BYTES(zl) (*((uint32_t *)(zl)))

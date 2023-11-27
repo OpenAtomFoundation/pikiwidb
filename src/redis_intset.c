@@ -28,10 +28,11 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "redis_intset.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#include "redis_intset.h"
 
 #define memrev16ifbe(x) (x)
 #define memrev32ifbe(x) (x)
