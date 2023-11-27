@@ -131,6 +131,12 @@ ADD_CUSTOM_TARGET(format
   --quiet
   --fix
 )
+ADD_CUSTOM_TARGET(check-format
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
+  /usr/bin/clang-format
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  --source_dirs ${FORMAT_DIRS}
+)
 
 ADD_CUSTOM_TARGET(clang-tidy
   COMMAND ${BUILD_SUPPORT_DIR}/run_clang_tidy.py
