@@ -104,17 +104,17 @@ void GetsetCmd::DoCmd(PClient* client) {
   client->AppendString(*str);
 }
 
-MgetCmd::MgetCmd(const std::string& name, int16_t arity)
+MGetCmd::MGetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
-bool MgetCmd::DoInitial(PClient* client) {
+bool MGetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
   keys.erase(keys.begin());
   client->SetKey(keys);
   return true;
 }
 
-void MgetCmd::DoCmd(PClient* client) {
+void MGetCmd::DoCmd(PClient* client) {
   size_t valueSize = client->Keys().size();
   client->AppendArrayLen(static_cast<int64_t>(valueSize));
   for (const auto& k : client->Keys()) {
@@ -137,7 +137,7 @@ MSetCmd::MSetCmd(const std::string& name, int16_t arity)
 bool MSetCmd::DoInitial(PClient* client) {
   size_t argcSize = client->argv_.size();
   if (argcSize % 2 == 0) {
-    client->SetRes(CmdRes::kWrongNum, kCmdNameMset);
+    client->SetRes(CmdRes::kWrongNum, kCmdNameMSet);
     return false;
   }
   std::vector<std::string> keys;

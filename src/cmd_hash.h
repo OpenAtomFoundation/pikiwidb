@@ -33,6 +33,8 @@ class HMSetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+using HSetCmd = HMSetCmd;
+
 class HMGetCmd : public BaseCmd {
  public:
   HMGetCmd(const std::string &name, int16_t arity);

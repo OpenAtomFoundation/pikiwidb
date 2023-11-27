@@ -11,6 +11,12 @@
 #include "cmd_hash.h"
 #include "cmd_kv.h"
 
+#define ADD_COMMAND(cmd, argc)                                                        \
+  do {                                                                                \
+    std::unique_ptr<BaseCmd> ptr = std::make_unique<cmd##Cmd>(kCmdName##cmd, (argc)); \
+    cmds_->insert(std::make_pair(kCmdName##cmd, std::move(ptr)));                     \
+  } while (0)
+
 namespace pikiwidb {
 
 CmdTableManager::CmdTableManager() {
@@ -25,34 +31,22 @@ void CmdTableManager::InitCmdTable() {
   auto configPtr = std::make_unique<CmdConfig>(kCmdNameConfig, -2);
   configPtr->AddSubCmd(std::make_unique<CmdConfigGet>("get", -3));
   configPtr->AddSubCmd(std::make_unique<CmdConfigSet>("set", -4));
-
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
   // kv
-  std::unique_ptr<BaseCmd> getPtr = std::make_unique<GetCmd>(kCmdNameGet, 2);
-  cmds_->insert(std::make_pair(kCmdNameGet, std::move(getPtr)));
-  std::unique_ptr<BaseCmd> setPtr = std::make_unique<SetCmd>(kCmdNameSet, -3);
-  cmds_->insert(std::make_pair(kCmdNameSet, std::move(setPtr)));
-  std::unique_ptr<BaseCmd> appendPtr = std::make_unique<AppendCmd>(kCmdNameAppend, 3);
-  cmds_->insert(std::make_pair(kCmdNameAppend, std::move(appendPtr)));
-  std::unique_ptr<BaseCmd> getsetPtr = std::make_unique<GetsetCmd>(kCmdNameGetset, 3);
-  cmds_->insert(std::make_pair(kCmdNameGetset, std::move(getsetPtr)));
-  std::unique_ptr<BaseCmd> mgetPtr = std::make_unique<MgetCmd>(kCmdNameMget, -2);
-  cmds_->insert(std::make_pair(kCmdNameMget, std::move(mgetPtr)));
-  std::unique_ptr<BaseCmd> msetPtr = std::make_unique<MSetCmd>(kCmdNameMset, -3);
-  cmds_->insert(std::make_pair(kCmdNameMset, std::move(msetPtr)));
-  std::unique_ptr<BaseCmd> bitcountPtr = std::make_unique<BitCountCmd>(kCmdNameBitCount, -2);
-  cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
+  ADD_COMMAND(Get, 2);
+  ADD_COMMAND(Set, -3);
+  ADD_COMMAND(Append, 3);
+  ADD_COMMAND(Getset, 3);
+  ADD_COMMAND(MGet, -2);
+  ADD_COMMAND(MSet, -3);
+  ADD_COMMAND(BitCount, -2);
 
   // hash
-  std::unique_ptr<BaseCmd> hsetPtr = std::make_unique<HMSetCmd>(kCmdNameHSet, -4);  // "hset" == "hmset"
-  cmds_->insert(std::make_pair(kCmdNameHSet, std::move(hsetPtr)));
-  std::unique_ptr<BaseCmd> hgetPtr = std::make_unique<HGetCmd>(kCmdNameHGet, 3);
-  cmds_->insert(std::make_pair(kCmdNameHGet, std::move(hgetPtr)));
-  std::unique_ptr<BaseCmd> hmsetPtr = std::make_unique<HMSetCmd>(kCmdNameHMSet, -4);
-  cmds_->insert(std::make_pair(kCmdNameHMSet, std::move(hmsetPtr)));
-  std::unique_ptr<BaseCmd> hmgetPtr = std::make_unique<HMGetCmd>(kCmdNameHMGet, -3);
-  cmds_->insert(std::make_pair(kCmdNameHMGet, std::move(hmgetPtr)));
+  ADD_COMMAND(HSet, -4);
+  ADD_COMMAND(HGet, 3);
+  ADD_COMMAND(HMSet, -4);
+  ADD_COMMAND(HMGet, -3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
