@@ -225,24 +225,25 @@ bool DecrCmd::DoInitial(pikiwidb::PClient *client) {
 
 void DecrCmd::DoCmd(pikiwidb::PClient *client) {
     PObject* value = nullptr;
-    PError err = PSTORE.GetValueByType(client->Key(),value,PType_string);
+    PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
     if(err == PError_notExist){
-        client->SetRes(CmdRes::kNotFound);
+        value = PSTORE.SetValue(client->Key(), PObject::CreateString(0));
     }
 
     if(err != PError_ok){
         client->SetRes(CmdRes::kErrOther);
+        return;
     }
 
     if(value->encoding != PEncode_int){
         client->SetRes(CmdRes::kOk);
+        return;
     }
 
     intptr_t oldVal = (intptr_t)value->value;
-    value->Reset((void*)(oldVal-1));
+    value->Reset((void*)(oldVal - 1));
 
-    client->AppendInteger(oldVal-1);
+    client->AppendInteger(oldVal - 1);
 }
-
 
 }  // namespace pikiwidb
