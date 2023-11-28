@@ -21,7 +21,6 @@ FetchContent_MakeAvailableWithArgs(rocksdb
         WITH_TRACE_TOOLS=OFF
         WITH_EXAMPLES=OFF
         ROCKSDB_BUILD_SHARED=OFF
-        WITH_GFLAGS=OFF
         WITH_LIBURING=OFF
         WITH_LZ4=ON
         WITH_SNAPPY=ON
