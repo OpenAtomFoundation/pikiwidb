@@ -7,9 +7,46 @@
 
 #include "cmd_hash.h"
 
-#include "command.h"
+#include "store.h"
 
 namespace pikiwidb {
+
+#define GET_HASH(cmd)                                                   \
+  PObject* value;                                                       \
+  UnboundedBuffer reply;                                                \
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash); \
+  if (err != PError_ok) {                                               \
+    ReplyError(err, &reply);                                            \
+    if (err == PError_notExist) {                                       \
+      client->AppendString("");                                         \
+    } else {                                                            \
+      client->SetRes(CmdRes::kSyntaxErr, #cmd " cmd error");            \
+    }                                                                   \
+    return;                                                             \
+  }
+
+#define GET_OR_SET_HASH(cmd)                                            \
+  PObject* value;                                                       \
+  UnboundedBuffer reply;                                                \
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash); \
+  if (err != PError_ok && err != PError_notExist) {                     \
+    ReplyError(err, &reply);                                            \
+    client->SetRes(CmdRes::kSyntaxErr, #cmd " cmd error");              \
+    return;                                                             \
+  }                                                                     \
+  if (err == PError_notExist) {                                         \
+    value = PSTORE.SetValue(client->Key(), PObject::CreateHash());      \
+  }
+
+static inline PHash::iterator _set_hash_force(PHash& hash, const PString& key, const PString& val) {
+  auto it(hash.find(key));
+  if (it != hash.end()) {
+    it->second = val;
+  } else {
+    it = hash.insert(PHash::value_type(key, val)).first;
+  }
+  return it;
+}
 
 HGetCmd::HGetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
@@ -20,16 +57,15 @@ bool HGetCmd::DoInitial(PClient* client) {
 }
 
 void HGetCmd::DoCmd(PClient* client) {
-  UnboundedBuffer reply;
-  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
-  PError err = hget(params, &reply);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kErrOther, "hget cmd error");
-    }
-    return;
+  GET_HASH(hget);
+
+  auto hash = value->CastHash();
+  auto it = hash->find(client->argv_[2]);
+
+  if (it != hash->end()) {
+    FormatBulk(it->second, &reply);
+  } else {
+    FormatNull(&reply);
   }
   client->AppendStringRaw(reply.ReadAddr());
 }
@@ -47,17 +83,13 @@ bool HMSetCmd::DoInitial(PClient* client) {
 }
 
 void HMSetCmd::DoCmd(PClient* client) {
-  UnboundedBuffer reply;
-  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
-  PError err = hmset(params, &reply);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kErrOther, "hmset cmd error");
-    }
-    return;
+  GET_OR_SET_HASH(hmset);
+
+  auto hash = value->CastHash();
+  for (size_t i = 2; i < client->argv_.size(); i += 2) {
+    _set_hash_force(*hash, client->argv_[i], client->argv_[i + 1]);
   }
+  FormatOK(&reply);
   client->AppendStringRaw(reply.ReadAddr());
 }
 
@@ -70,16 +102,18 @@ bool HMGetCmd::DoInitial(PClient* client) {
 }
 
 void HMGetCmd::DoCmd(PClient* client) {
-  UnboundedBuffer reply;
-  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
-  PError err = hmget(params, &reply);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
-      client->AppendString("");
+  GET_HASH(hmget);
+
+  auto hash = value->CastHash();
+  PreFormatMultiBulk(client->argv_.size() - 2, &reply);
+
+  for (size_t i = 2; i < client->argv_.size(); ++i) {
+    auto it = hash->find(client->argv_[i]);
+    if (it != hash->end()) {
+      FormatBulk(it->second, &reply);
     } else {
-      client->SetRes(CmdRes::kErrOther, "hmget cmd error");
+      FormatNull(&reply);
     }
-    return;
   }
   client->AppendStringRaw(reply.ReadAddr());
 }
@@ -93,16 +127,14 @@ bool HGetAllCmd::DoInitial(PClient* client) {
 }
 
 void HGetAllCmd::DoCmd(PClient* client) {
-  UnboundedBuffer reply;
-  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
-  PError err = hgetall(params, &reply);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kErrOther, "hgetall cmd error");
-    }
-    return;
+  GET_HASH(hgetall);
+
+  auto hash = value->CastHash();
+  PreFormatMultiBulk(2 * hash->size(), &reply);
+
+  for (const auto& kv : *hash) {
+    FormatBulk(kv.first, &reply);
+    FormatBulk(kv.second, &reply);
   }
   client->AppendStringRaw(reply.ReadAddr());
 }
@@ -116,16 +148,13 @@ bool HKeysCmd::DoInitial(PClient* client) {
 }
 
 void HKeysCmd::DoCmd(PClient* client) {
-  UnboundedBuffer reply;
-  std::vector<std::string> params(client->argv_.begin(), client->argv_.end());
-  PError err = hkeys(params, &reply);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kErrOther, "hkeys cmd error");
-    }
-    return;
+  GET_HASH(hkeys);
+
+  auto hash = value->CastHash();
+  PreFormatMultiBulk(hash->size(), &reply);
+
+  for (const auto& kv : *hash) {
+    FormatBulk(kv.first, &reply);
   }
   client->AppendStringRaw(reply.ReadAddr());
 }
