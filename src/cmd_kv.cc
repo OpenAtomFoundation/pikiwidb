@@ -227,8 +227,7 @@ void IncrCmd::DoCmd(pikiwidb::PClient *client) {
     PObject* value = nullptr;
     PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
     if(err == PError_notExist){
-        value = PSTORE.SetValue(client->Key(), PObject::CreateString(1));
-        client->AppendInteger(1);
+        value = PSTORE.SetValue(client->Key(), PObject::CreateString(0));
     }
 
     if(err != PError_ok){
@@ -242,9 +241,9 @@ void IncrCmd::DoCmd(pikiwidb::PClient *client) {
     }
 
     intptr_t oldVal = (intptr_t)value->value;
-    value->Reset((void*)(oldVal+1));
+    value->Reset((void*)(oldVal + 1));
 
-    client->AppendInteger(oldVal+1);
+    client->AppendInteger(oldVal + 1);
 }
 
 }  // namespace pikiwidb
