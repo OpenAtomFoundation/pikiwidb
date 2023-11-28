@@ -88,4 +88,15 @@ class BitCountCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class DecrCmd : public BaseCmd {
+  public:
+    DecrCmd(const std::string &name, int16_t arity);
+
+  protected:
+    bool DoInitial(PClient *client) override;
+
+  private:
+    void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

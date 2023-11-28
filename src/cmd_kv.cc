@@ -215,4 +215,34 @@ void BitCountCmd::DoCmd(PClient* client) {
   client->AppendInteger(static_cast<int64_t>(count));
 }
 
+DecrCmd::DecrCmd(const std::string& name, int16_t arity)
+        : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+
+bool DecrCmd::DoInitial(pikiwidb::PClient *client) {
+    client->SetKey(client->argv_[1]);
+    return true;
+}
+
+void DecrCmd::DoCmd(pikiwidb::PClient *client) {
+    PObject* value = nullptr;
+    PError err = PSTORE.GetValueByType(client->Key(),value,PType_string);
+    if(err == PError_notExist){
+        client->SetRes(CmdRes::kNotFound);
+    }
+
+    if(err != PError_ok){
+        client->SetRes(CmdRes::kErrOther);
+    }
+
+    if(value->encoding != PEncode_int){
+        client->SetRes(CmdRes::kOk);
+    }
+
+    intptr_t oldVal = (intptr_t)value->value;
+    value->Reset((void*)(oldVal-1));
+
+    client->AppendInteger(oldVal-1);
+}
+
+
 }  // namespace pikiwidb
