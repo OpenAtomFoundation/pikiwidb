@@ -55,9 +55,9 @@ class GetsetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class MGetCmd : public BaseCmd {
+class MgetCmd : public BaseCmd {
  public:
-  MGetCmd(const std::string &name, int16_t arity);
+  MgetCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
