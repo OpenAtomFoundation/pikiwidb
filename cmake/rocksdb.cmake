@@ -22,9 +22,9 @@ FetchContent_MakeAvailableWithArgs(rocksdb
         WITH_EXAMPLES=OFF
         ROCKSDB_BUILD_SHARED=OFF
         WITH_LIBURING=OFF
-        WITH_LZ4=ON
-        WITH_SNAPPY=ON
-        WITH_ZLIB=ON
-        WITH_ZSTD=ON
-        WITH_GFLAGS=ON
+        WITH_LZ4=OFF
+        WITH_SNAPPY=OFF
+        WITH_ZLIB=OFF
+        WITH_ZSTD=OFF
+        WITH_GFLAGS=OFF
 )
