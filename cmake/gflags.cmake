@@ -18,6 +18,7 @@ FetchContent_MakeAvailableWithArgs(gflags
   BUILD_SHARED_LIBS=OFF
   BUILD_gflags_LIB=ON
   BUILD_gflags_nothreads_LIB=OFF
+  BUILD_TESTING=OFF
 )
 
 find_package(Threads REQUIRED)
