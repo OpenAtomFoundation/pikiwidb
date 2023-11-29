@@ -557,7 +557,7 @@ PObject* PStore::SetValue(const PString& key, PObject&& value) {
 }
 
 PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
-  PObject* old_value;
+  PObject* old_value = nullptr;
   auto db = &dbs_[dbno_];
 
   // shared when reading
