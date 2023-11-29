@@ -561,7 +561,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   auto db = &dbs_[dbno_];
 
   // shared when reading
-  std::shared_lock<std::shared_mutex> lock(mutex_);
+  std::unique_lock<std::shared_mutex> lock(mutex_);
   PError err = getValueByType(key, old_value, PType_string);
   if (err != PError_ok) {
     return err;

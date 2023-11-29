@@ -96,7 +96,6 @@ class IncrbyCmd : public BaseCmd {
   bool DoInitial(PClient *client) override;
 
  private:
-  int64_t by_, new_value_ = 0;
   void DoCmd(PClient *client) override;
 };
 
