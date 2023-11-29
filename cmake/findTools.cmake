@@ -6,6 +6,15 @@ ENDIF()
 
 #set(CLANG_SEARCH_PATH "/usr/local/bin" "/usr/bin" "/usr/local/opt/llvm/bin"
 #                      "/usr/local/opt/llvm@12/bin")
+FIND_PROGRAM(CLANG_FORMAT_BIN
+        NAMES clang-format
+        HINTS ${CLANG_SEARCH_PATH})
+IF("${CLANG_FORMAT_BIN}" STREQUAL "CLANG_FORMAT_BIN-NOTFOUND")
+    MESSAGE(WARNING "couldn't find clang-format.")
+ELSE()
+    MESSAGE(STATUS "found clang-format at ${CLANG_FORMAT_BIN}")
+ENDIF()
+
 FIND_PROGRAM(CLANG_TIDY_BIN
         NAMES clang-tidy clang-tidy-12
         HINTS ${CLANG_SEARCH_PATH})
