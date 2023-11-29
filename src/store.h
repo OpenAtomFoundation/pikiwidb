@@ -187,7 +187,7 @@ class PStore {
     size_t Size() const { return blockedClients_.size(); }
 
    private:
-    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition> >;
+    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition>>;
     using WaitingList = folly::ConcurrentHashMap<PString, Clients, my_hash, std::equal_to<PString>>;
 
     WaitingList blockedClients_;
@@ -199,9 +199,9 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface> > backends_;
+  std::vector<std::unique_ptr<PDumpInterface>> backends_;
 
-  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString> >;
+  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
   std::vector<ToSyncDB> waitSyncKeys_;
   int dbno_ = -1;
 };

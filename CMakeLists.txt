@@ -123,25 +123,34 @@ ADD_SUBDIRECTORY(src)
 SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 STRING(CONCAT FORMAT_DIRS "${PROJECT_SOURCE_DIR}/src,")
+FILE(WRITE
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  "${PROJECT_SOURCE_DIR}/src/redis_intset.c\n${PROJECT_SOURCE_DIR}/src/redis_zip_list.c")
 ADD_CUSTOM_TARGET(format
   COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
-  /usr/bin/clang-format
+  ${CLANG_FORMAT_BIN}
   ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
   --source_dirs ${FORMAT_DIRS}
   --quiet
   --fix
 )
+ADD_CUSTOM_TARGET(check-format
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
+  ${CLANG_FORMAT_BIN}
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  --source_dirs ${FORMAT_DIRS}
+)
 
 ADD_CUSTOM_TARGET(clang-tidy
   COMMAND ${BUILD_SUPPORT_DIR}/run_clang_tidy.py
-  -clang-tidy-binary /usr/bin/clang-tidy
+  -clang-tidy-binary ${CLANG_TIDY_BIN}
   -p ${CMAKE_BINARY_DIR}
   -extra-arg=-std=c++17
 )
 
 ADD_CUSTOM_TARGET(clang-tidy-fix 
   COMMAND ${BUILD_SUPPORT_DIR}/run_clang_tidy.py
-  -clang-tidy-binary /usr/bin/clang-tidy
+  -clang-tidy-binary ${CLANG_TIDY_BIN}
   -p ${CMAKE_BINARY_DIR}
   -extra-arg=-std=c++17
   -fix
@@ -149,7 +158,7 @@ ADD_CUSTOM_TARGET(clang-tidy-fix
 
 FILE(GLOB_RECURSE LINT_FILES
   "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
 )
 ADD_CUSTOM_TARGET(cpplint echo '${LINT_FILES}' | xargs -n12 -P8
   ${CPPLINT_BIN}

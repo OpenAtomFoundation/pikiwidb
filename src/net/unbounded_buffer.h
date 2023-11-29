@@ -5,7 +5,6 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-
 #pragma once
 
 #include <cstring>
@@ -47,4 +46,3 @@ class UnboundedBuffer {
 };
 
 }  // namespace pikiwidb
-

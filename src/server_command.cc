@@ -76,8 +76,8 @@ PError flushall(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (g_qdbPid != -1) {
-    FormatBulk("-ERR Background save already in progress",
-               sizeof "-ERR Background save already in progress" - 1, reply);
+    FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
+               reply);
 
     return PError_ok;
   }
@@ -101,8 +101,8 @@ PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (g_qdbPid != -1) {
-    FormatBulk("-ERR Background save already in progress",
-               sizeof "-ERR Background save already in progress" - 1, reply);
+    FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
+               reply);
 
     return PError_ok;
   }

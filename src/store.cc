@@ -441,9 +441,9 @@ bool PStore::DeleteKey(const PString& key) {
   size_t ret = 0;
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
   try {
-   ret = db->erase(key);
+    ret = db->erase(key);
   } catch (const std::exception& e) {
-   return false;
+    return false;
   }
 
   return ret != 0;

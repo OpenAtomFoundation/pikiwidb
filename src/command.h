@@ -9,8 +9,9 @@
 
 #include <map>
 #include <vector>
-#include "delegate.h"
+
 #include "common.h"
+#include "delegate.h"
 #include "pstring.h"
 
 namespace pikiwidb {
@@ -218,4 +219,3 @@ class PCommandTable {
 };
 
 }  // namespace pikiwidb
-

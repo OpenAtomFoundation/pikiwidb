@@ -52,7 +52,7 @@ static PError push(const vector<PString>& params, UnboundedBuffer* reply, ListPo
 
   FormatInt(static_cast<long>(list->size()), reply);
   if (mayReady && !list->empty()) {
-    if (reply)  {
+    if (reply) {
       // push must before pop(serve)...
       Propagate(params);                    // the push
       PSTORE.ServeClient(params[1], list);  // the pop
@@ -134,7 +134,7 @@ PError rpop(const vector<PString>& params, UnboundedBuffer* reply) {
 }
 
 static bool blockClient(PClient* client, const PString& key, uint64_t timeout, ListPosition pos,
-                         const PString* dstList = 0) {
+                        const PString* dstList = 0) {
   auto now = ::Now();
 
   if (timeout > 0) {
@@ -147,8 +147,8 @@ static bool blockClient(PClient* client, const PString& key, uint64_t timeout, L
 }
 
 static PError genericBlockedPop(vector<PString>::const_iterator keyBegin, vector<PString>::const_iterator keyEnd,
-                                 UnboundedBuffer* reply, ListPosition pos, long timeout,
-                                 const PString* target = nullptr, bool withKey = true) {
+                                UnboundedBuffer* reply, ListPosition pos, long timeout, const PString* target = nullptr,
+                                bool withKey = true) {
   for (auto it(keyBegin); it != keyEnd; ++it) {
     PString result;
     PError err = GenericPop(*it, pos, result);
@@ -365,7 +365,7 @@ static void Index2Iterator(long start, long end, PList& list, PList::iterator* b
 static size_t GetRange(long start, long end, PList& list, PList::iterator* beginIt = nullptr,
                        PList::iterator* endIt = nullptr) {
   size_t rangeLen = 0;
-  if (start > end)  { // empty
+  if (start > end) {  // empty
     if (beginIt) {
       *beginIt = list.end();
     }

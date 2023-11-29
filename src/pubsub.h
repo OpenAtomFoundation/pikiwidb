@@ -55,4 +55,3 @@ class PPubsub {
 };
 
 }  // namespace pikiwidb
-

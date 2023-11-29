@@ -149,7 +149,7 @@ void getRandomHexChars(char* p, unsigned int len) {
      * time() at startup. */
     for (j = 0; j < len; j++) {
       p[j] ^= rand();
-    } 
+    }
   }
   /* Turn it into hex digits taking just 4 bits out of 8 for every byte. */
   for (j = 0; j < len; j++) {
@@ -261,19 +261,19 @@ size_t getMemoryInfo(MemoryInfoType type) {
   while (!found && std::getline(ifs, line)) {
     switch (type) {
       case VmPeak:
-        if (line.find("VmPeak") == 0)  {
+        if (line.find("VmPeak") == 0) {
           found = true;
         }
         break;
 
       case VmSize:
-        if (line.find("VmSize") == 0)  {
+        if (line.find("VmSize") == 0) {
           found = true;
         }
         break;
 
       case VmLck:
-        if (line.find("VmLck") == 0)  {
+        if (line.find("VmLck") == 0) {
           found = true;
         }
         break;
@@ -285,13 +285,13 @@ size_t getMemoryInfo(MemoryInfoType type) {
         break;
 
       case VmRSS:
-        if (line.find("VmRSS") == 0)  {
+        if (line.find("VmRSS") == 0) {
           found = true;
         }
         break;
 
       case VmSwap:
-        if (line.find("VmSwap") == 0)  {
+        if (line.find("VmSwap") == 0) {
           found = true;
         }
         break;

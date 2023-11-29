@@ -43,7 +43,6 @@ const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
 
-
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset
   CmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
