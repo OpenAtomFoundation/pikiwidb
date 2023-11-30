@@ -19,6 +19,8 @@
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <vector>
 
 namespace pikiwidb {
@@ -117,6 +119,8 @@ class PStore {
   PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = PType_invalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
+  // incr
+  PError Incrby(const PString& key, int64_t value, int64_t* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {
@@ -157,6 +161,8 @@ class PStore {
 
  private:
   PStore() : dbno_(0) {}
+  // mutex
+  mutable std::shared_mutex mutex_;
 
   PError getValueByType(const PString& key, PObject*& value, PType type = PType_invalid, bool touch = true);
 

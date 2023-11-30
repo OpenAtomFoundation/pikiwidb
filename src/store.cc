@@ -556,6 +556,39 @@ PObject* PStore::SetValue(const PString& key, PObject&& value) {
   return const_cast<PObject*>(&obj);
 }
 
+PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
+  PObject* old_value = nullptr;
+  auto db = &dbs_[dbno_];
+
+  // shared when reading
+  std::unique_lock<std::shared_mutex> lock(mutex_);
+  PError err = getValueByType(key, old_value, PType_string);
+  if (err != PError_ok) {
+    return err;
+  }
+  char* end = nullptr;
+  auto str = pikiwidb::GetDecodedString(old_value);
+  int64_t ival = strtoll(str->c_str(), &end, 10);
+  if (*end != 0) {
+    // value is not a integer
+    return PError_type;
+  }
+
+  PObject new_value;
+  *ret = ival + value;
+  new_value = PObject::CreateString((long)(*ret));
+  new_value.lru = PObject::lruclock;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
+  const PObject& obj = realObj->second;
+
+  // put this key to sync list
+  if (!waitSyncKeys_.empty()) {
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
+  }
+
+  return PError_ok;
+}
+
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }
 
 int64_t PStore::TTL(const PString& key, uint64_t now) { return expiredDBs_[dbno_].TTL(key, now); }
