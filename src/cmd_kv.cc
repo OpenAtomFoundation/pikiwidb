@@ -7,6 +7,7 @@
 
 #include "cmd_kv.h"
 #include "pstd_string.h"
+#include "pstd_util.h"
 #include "store.h"
 
 
@@ -266,7 +267,7 @@ void SetexCmd::DoCmd(PClient* client) {
   PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
   int64_t sec = 0;
   pstd::String2int(client->argv_[2], &sec);
-  PSTORE.SetExpire(client->argv_[1], ::Now() + sec * 1000);
+  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + sec * 1000);
   client->SetRes(CmdRes::kOk);
 }
 
@@ -287,7 +288,7 @@ void PsetexCmd::DoCmd(PClient* client) {
   PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
   int64_t msec = 0;
   pstd::String2int(client->argv_[2], &msec);
-  PSTORE.SetExpire(client->argv_[1], ::Now() + msec);
+  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + msec);
   client->SetRes(CmdRes::kOk);
 }
 
