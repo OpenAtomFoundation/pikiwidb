@@ -10,7 +10,6 @@
 #include "pstd_util.h"
 #include "store.h"
 
-
 namespace pikiwidb {
 
 GetCmd::GetCmd(const std::string& name, int16_t arity)
@@ -190,7 +189,7 @@ void BitCountCmd::DoCmd(PClient* client) {
   if (pstd::String2int(client->argv_[2], &start_offset_) == 0 ||
       pstd::String2int(client->argv_[3], &end_offset_) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
-    return ;
+    return;
   }
 
   auto str = GetDecodedString(value);
@@ -229,29 +228,26 @@ void StrlenCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
 
-  switch (err){
-  case PError_ok:
-  {
-    auto str = GetDecodedString(value);
-    size_t len = str->size();
-    client->AppendInteger(static_cast<int64_t>(len));
-    break;
-  }
-  case PError_notExist:
-  {
-    client->AppendInteger(0);
-    break;
-  }
-  default:
-  {
-    client->SetRes(CmdRes::kErrOther, "error other");
-    break;
-  }
+  switch (err) {
+    case PError_ok: {
+      auto str = GetDecodedString(value);
+      size_t len = str->size();
+      client->AppendInteger(static_cast<int64_t>(len));
+      break;
+    }
+    case PError_notExist: {
+      client->AppendInteger(0);
+      break;
+    }
+    default: {
+      client->SetRes(CmdRes::kErrOther, "error other");
+      break;
+    }
   }
 }
 
 SetexCmd::SetexCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool SetexCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -272,7 +268,7 @@ void SetexCmd::DoCmd(PClient* client) {
 }
 
 PsetexCmd::PsetexCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool PsetexCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -329,7 +325,7 @@ void IncrbyCmd::DoCmd(PClient* client) {
 }
 
 SetnxCmd::SetnxCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString){}
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool SetnxCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -344,10 +340,9 @@ void SetnxCmd::DoCmd(PClient* client) {
     PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
     PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
     client->AppendInteger(iSuccess);
-  }else{
+  } else {
     client->AppendInteger(!iSuccess);
   }
 }
 
 }  // namespace pikiwidb
-
