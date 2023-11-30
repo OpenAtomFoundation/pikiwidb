@@ -260,11 +260,19 @@ bool SetexCmd::DoInitial(PClient* client) {
 }
 
 void SetexCmd::DoCmd(PClient* client) {
+<<<<<<< HEAD
  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
  int64_t sec = 0;
  pstd::String2int(client->argv_[2], &sec);
  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + sec * 1000);
  client->SetRes(CmdRes::kOk);
+=======
+  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
+  int64_t sec = 0;
+  pstd::String2int(client->argv_[2], &sec);
+  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + sec * 1000);
+  client->SetRes(CmdRes::kOk);
+>>>>>>> 8acda13 (replace with pstd time function)
 }
 
 PsetexCmd::PsetexCmd(const std::string& name, int16_t arity)
@@ -281,11 +289,19 @@ bool PsetexCmd::DoInitial(PClient* client) {
 }
 
 void PsetexCmd::DoCmd(PClient* client) {
+<<<<<<< HEAD
  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
  int64_t msec = 0;
  pstd::String2int(client->argv_[2], &msec);
  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + msec);
  client->SetRes(CmdRes::kOk);
+=======
+  PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
+  int64_t msec = 0;
+  pstd::String2int(client->argv_[2], &msec);
+  PSTORE.SetExpire(client->argv_[1], pstd::UnixMilliTimestamp() + msec);
+  client->SetRes(CmdRes::kOk);
+>>>>>>> 8acda13 (replace with pstd time function)
 }
 
 IncrbyCmd::IncrbyCmd(const std::string& name, int16_t arity)
