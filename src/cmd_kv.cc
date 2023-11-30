@@ -219,11 +219,7 @@ IncrbyCmd::IncrbyCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool IncrbyCmd::DoInitial(PClient* client) {
-  if (!CheckArg(client->argv_.size())) {
-    client->SetRes(CmdRes::kWrongNum, "incrby");
-    return false;
-  }
-  int64_t by_;
+  int64_t by_ = 0;
   if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by_))) {
     client->SetRes(CmdRes::kInvalidInt);
     return false;
