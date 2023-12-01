@@ -23,5 +23,3 @@ class DelCmd : public BaseCmd {
 };
 
 }  // namespace pikiwidb
-
-#endif  // PIKIWIDB_CMD_KEYS_H
