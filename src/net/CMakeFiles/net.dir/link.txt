@@ -1,0 +1,2 @@
+/usr/bin/ar qc ../../bin/libnet.a CMakeFiles/net.dir/config_parser.cc.o CMakeFiles/net.dir/event_loop.cc.o CMakeFiles/net.dir/http_client.cc.o CMakeFiles/net.dir/http_parser.cc.o CMakeFiles/net.dir/http_server.cc.o CMakeFiles/net.dir/libevent_reactor.cc.o CMakeFiles/net.dir/pipe_obj.cc.o CMakeFiles/net.dir/tcp_connection.cc.o CMakeFiles/net.dir/tcp_listener.cc.o CMakeFiles/net.dir/unbounded_buffer.cc.o CMakeFiles/net.dir/lzf/lzf_c.c.o CMakeFiles/net.dir/lzf/lzf_d.c.o
+/usr/bin/ranlib ../../bin/libnet.a
