@@ -23,9 +23,9 @@ class IOThreadPool {
   IOThreadPool() = default;
   ~IOThreadPool() = default;
 
-  static const size_t GetMaxWorkerNum() { return kMaxWorkers; }
+  static size_t GetMaxWorkerNum() { return kMaxWorkers; }
 
-  bool Init(const char* ip, int port, NewTcpConnectionCallback ccb);
+  bool Init(const char* ip, int port, const NewTcpConnectionCallback& ccb);
   void Run(int argc, char* argv[]);
   void Exit();
   bool IsExit() const;
@@ -41,11 +41,11 @@ class IOThreadPool {
   void SetName(const std::string& name);
 
   // TCP server
-  bool Listen(const char* ip, int port, NewTcpConnectionCallback ccb);
+  bool Listen(const char* ip, int port, const NewTcpConnectionCallback& ccb);
 
   // TCP client
-  void Connect(const char* ip, int port, NewTcpConnectionCallback ccb,
-               TcpConnectionFailCallback fcb = TcpConnectionFailCallback(), EventLoop* loop = nullptr);
+  void Connect(const char* ip, int port, const NewTcpConnectionCallback& ccb,
+               const TcpConnectionFailCallback& fcb = TcpConnectionFailCallback(), EventLoop* loop = nullptr);
 
   // HTTP server
   std::shared_ptr<HttpServer> ListenHTTP(const char* ip, int port,

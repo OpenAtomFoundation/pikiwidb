@@ -23,7 +23,7 @@ class PikiwiDB final {
 
   bool Init();
   void Run();
-  void Recycle();
+//  void Recycle();
   void Stop();
 
   void OnNewConnection(pikiwidb::TcpConnection* obj);
@@ -32,13 +32,13 @@ class PikiwiDB final {
 
  public:
   pikiwidb::PString cfg_file_;
-  unsigned short port_{0};
+  uint16_t port_{0};
   pikiwidb::PString log_level_;
 
   pikiwidb::PString master_;
-  unsigned short master_port_{0};
+  uint16_t master_port_{0};
 
-  static const unsigned kRunidSize;
+  static const uint32_t kRunidSize;
 
  private:
   pikiwidb::IOThreadPool worker_threads_;
