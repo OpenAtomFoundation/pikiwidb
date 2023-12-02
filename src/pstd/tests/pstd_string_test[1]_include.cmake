@@ -1,5 +1,0 @@
-if(EXISTS "/home/pan/MyRepo/pikiwidb/src/pstd/tests/pstd_string_test[1]_tests.cmake")
-  include("/home/pan/MyRepo/pikiwidb/src/pstd/tests/pstd_string_test[1]_tests.cmake")
-else()
-  add_test(pstd_string_test_NOT_BUILT pstd_string_test_NOT_BUILT)
-endif()

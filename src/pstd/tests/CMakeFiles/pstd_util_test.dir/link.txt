@@ -1,1 +1,0 @@
-/usr/bin/c++ -pthread -Wl,--no-as-needed -ldl -Wno-restrict -msse -msse4.2 -g -static-libgcc -static-libstdc++ CMakeFiles/pstd_util_test.dir/pstd_util_test.cc.o -o pstd_util_test  ../../../bin/libpstd.a ../../../lib/libgtest.a ../../../_deps/spdlog-build/libspdlogd.a ../../../_deps/fmt-build/libfmtd.a -lpthread 
