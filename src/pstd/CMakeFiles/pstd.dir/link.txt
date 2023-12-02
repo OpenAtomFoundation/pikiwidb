@@ -1,2 +1,0 @@
-/usr/bin/ar qc ../../bin/libpstd.a CMakeFiles/pstd.dir/memory_file.cc.o CMakeFiles/pstd.dir/pstd_hash.cc.o CMakeFiles/pstd.dir/pstd_string.cc.o CMakeFiles/pstd.dir/pstd_util.cc.o CMakeFiles/pstd.dir/status.cc.o CMakeFiles/pstd.dir/thread_pool.cc.o
-/usr/bin/ranlib ../../bin/libpstd.a
