@@ -21,7 +21,7 @@ namespace pikiwidb {
 
 // command definition
 
-//key cmd
+// key cmd
 const std::string kCmdNameDel = "del";
 
 // string cmd

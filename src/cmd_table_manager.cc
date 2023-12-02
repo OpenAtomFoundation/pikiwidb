@@ -28,7 +28,7 @@ void CmdTableManager::InitCmdTable() {
 
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
-  //keyspace
+  // keyspace
   std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
   cmds_->insert(std::make_pair(kCmdNameDel, std::move(delPtr)));
 
