@@ -40,4 +40,3 @@ class PMulti {
 };
 
 }  // namespace pikiwidb
-

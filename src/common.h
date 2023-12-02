@@ -7,12 +7,13 @@
 
 #pragma once
 
-#include <cstdio>
 #include <strings.h>
 #include <algorithm>
 #include <cstddef>
+#include <cstdio>
 #include <functional>
 #include <vector>
+
 #include "pstring.h"
 
 #define CRLF "\r\n"

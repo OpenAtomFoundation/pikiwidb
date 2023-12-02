@@ -3,6 +3,7 @@ name: Pikiwidb
 on:
   push:
   pull_request:
+    branches: [ "unstable" ]
 
 jobs:
   build_on_macos:
@@ -11,9 +12,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Deps
+        run: |
+          brew install clang-format
+
       - name: Build
         run: |
           sh build.sh
+
+      - name: Check Format
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          make check-format
 
       - name: GTest
         working-directory: ${{ github.workspace }}/build
@@ -30,6 +40,10 @@ jobs:
       - name: Build
         run: |
           bash build.sh
+
+      - name: Check Format
+        working-directory: ${{ github.workspace }}/build
+        run: make check-format
 
       - name: GTest
         working-directory: ${{ github.workspace }}/build

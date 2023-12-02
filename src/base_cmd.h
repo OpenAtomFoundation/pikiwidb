@@ -25,6 +25,10 @@ namespace pikiwidb {
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
 const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetex = "setex";
+const std::string kCmdNamePsetex = "psetex";
+const std::string kCmdNameSetnx = "setnx";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -43,7 +47,6 @@ const std::string kCmdNameMset = "mset";
 const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
-
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset
