@@ -23,7 +23,7 @@ class PikiwiDB final {
 
   bool Init();
   void Run();
-//  void Recycle();
+  //  void Recycle();
   void Stop();
 
   void OnNewConnection(pikiwidb::TcpConnection* obj);
