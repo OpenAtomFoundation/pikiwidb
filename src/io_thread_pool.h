@@ -21,7 +21,7 @@ namespace pikiwidb {
 class IOThreadPool {
  public:
   IOThreadPool() = default;
-  ~IOThreadPool()= default;
+  ~IOThreadPool() = default;
 
   static const size_t GetMaxWorkerNum() { return kMaxWorkers; }
 

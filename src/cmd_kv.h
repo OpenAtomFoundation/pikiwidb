@@ -34,21 +34,64 @@ class SetCmd : public BaseCmd {
 };
 
 class BitOpCmd : public BaseCmd {
-public:
-    enum BitOp {
-        kBitOpAnd,
-        kBitOpOr,
-        kBitOpNot,
-        kBitOpXor,
-    };
+ public:
+  enum BitOp {
+   kBitOpAnd,
+   kBitOpOr,
+   kBitOpNot,
+   kBitOpXor,
+  };
+  BitOpCmd(const std::string &name, int16_t arity);
 
-    BitOpCmd(const std::string &name, int16_t arity);
+ protected:
+  bool DoInitial(PClient *client) override;
 
-    protected:
-        bool DoInitial(PClient *client) override;
+ private:
+  void DoCmd(PClient *client) override;
+};
 
-    private:
-        void DoCmd(PClient *client) override;
+class StrlenCmd : public BaseCmd {
+ public:
+  StrlenCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SetexCmd : public BaseCmd {
+ public:
+  SetexCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class PsetexCmd : public BaseCmd {
+ public:
+  PsetexCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SetnxCmd : public BaseCmd {
+ public:
+  SetnxCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
 };
 
 class AppendCmd : public BaseCmd {
@@ -98,6 +141,17 @@ class MSetCmd : public BaseCmd {
 class BitCountCmd : public BaseCmd {
  public:
   BitCountCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class IncrbyCmd : public BaseCmd {
+ public:
+  IncrbyCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

@@ -39,7 +39,7 @@
 #define STANDALONE 1 /* at the moment, this is ok. */
 
 #ifndef STANDALONE
-# include "lzf.h"
+#  include "lzf.h"
 #endif
 
 /*
@@ -51,7 +51,7 @@
  * For best compression, use 15 or 16 (or more, up to 23).
  */
 #ifndef HLOG
-# define HLOG 16
+#  define HLOG 16
 #endif
 
 /*
@@ -60,7 +60,7 @@
  * (very roughly) 15% faster. This is the preferred mode of operation.
  */
 #ifndef VERY_FAST
-# define VERY_FAST 1
+#  define VERY_FAST 1
 #endif
 
 /*
@@ -71,14 +71,14 @@
  * possibly disable this for text data.
  */
 #ifndef ULTRA_FAST
-# define ULTRA_FAST 0
+#  define ULTRA_FAST 0
 #endif
 
 /*
  * Unconditionally aligning does not cost very much, so do it if unsure
  */
 #ifndef STRICT_ALIGN
-# define STRICT_ALIGN !(defined(__i386) || defined (__amd64))
+#  define STRICT_ALIGN !(defined(__i386) || defined(__amd64))
 #endif
 
 /*
@@ -87,7 +87,7 @@
  * deterministic/repeatable when the configuration otherwise is the same).
  */
 #ifndef INIT_HTAB
-# define INIT_HTAB 0
+#  define INIT_HTAB 0
 #endif
 
 /*
@@ -96,7 +96,7 @@
  * the documentation in lzf.h.
  */
 #ifndef AVOID_ERRNO
-# define AVOID_ERRNO 0
+#  define AVOID_ERRNO 0
 #endif
 
 /*
@@ -105,7 +105,7 @@
  * NOTE: this breaks the prototype in lzf.h.
  */
 #ifndef LZF_STATE_ARG
-# define LZF_STATE_ARG 0
+#  define LZF_STATE_ARG 0
 #endif
 
 /*
@@ -117,7 +117,7 @@
  * (<1% slowdown), but might slow down older cpus considerably.
  */
 #ifndef CHECK_INPUT
-# define CHECK_INPUT 1
+#  define CHECK_INPUT 1
 #endif
 
 /*****************************************************************************/
@@ -129,27 +129,27 @@ typedef const u8 *LZF_STATE[1 << (HLOG)];
 
 #if !STRICT_ALIGN
 /* for unaligned accesses we need a 16 bit datatype. */
-# include <limits.h>
-# if USHRT_MAX == 65535
-    typedef unsigned short u16;
-# elif UINT_MAX == 65535
-    typedef unsigned int u16;
-# else
-#  undef STRICT_ALIGN
-#  define STRICT_ALIGN 1
-# endif
+#  include <limits.h>
+#  if USHRT_MAX == 65535
+typedef unsigned short u16;
+#  elif UINT_MAX == 65535
+typedef unsigned int u16;
+#  else
+#    undef STRICT_ALIGN
+#    define STRICT_ALIGN 1
+#  endif
 #endif
 
 #if ULTRA_FAST
-# if defined(VERY_FAST)
-#  undef VERY_FAST
-# endif
+#  if defined(VERY_FAST)
+#    undef VERY_FAST
+#  endif
 #endif
 
 #if INIT_HTAB
-# ifdef __cplusplus
-#  include <cstring>
-# else
-#  include <string.h>
-# endif
+#  ifdef __cplusplus
+#    include <cstring>
+#  else
+#    include <string.h>
+#  endif
 #endif

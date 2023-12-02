@@ -31,8 +31,8 @@ class PSortedSet {
   void AddMember(const PString& member, double score);
   double UpdateMember(const Member2Score::iterator& itMem, double delta);
 
-  int Rank(const PString& member) const;     // 0-based
-  int RevRank(const PString& member) const;  // 0-based
+  int Rank(const PString& member) const;     // 0-based
+  int RevRank(const PString& member) const;  // 0-based
   bool DelMember(const PString& member);
   Member2Score::value_type GetMemberByRank(std::size_t rank) const;
 
@@ -47,4 +47,3 @@ class PSortedSet {
 };
 
 }  // namespace pikiwidb
-

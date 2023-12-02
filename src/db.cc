@@ -5,7 +5,6 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-
 #include "db.h"
 #include <arpa/inet.h>
 #include <math.h>
@@ -424,7 +423,7 @@ int PDBLoader::Load(const char* filename) {
       case kTypeQuickList: {
         PString key = LoadKey();
         PObject obj = LoadObject(indicator);
-//        DEBUG("encounter key = {}, obj.encoding = {}", key, obj.encoding);
+        // DEBUG("encounter key = {}, obj.encoding = {}", key, obj.encoding);
 
         assert(absTimeout >= 0);
 

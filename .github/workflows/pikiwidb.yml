@@ -3,6 +3,7 @@ name: Pikiwidb
 on:
   push:
   pull_request:
+    branches: [ "unstable" ]
 
 jobs:
   build_on_macos:
@@ -11,6 +12,41 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install Deps
+        run: |
+          brew install clang-format
+
       - name: Build
         run: |
           sh build.sh
+
+      - name: Check Format
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          make check-format
+
+      - name: GTest
+        working-directory: ${{ github.workspace }}/build
+        # Execute tests defined by the CMake configuration.
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest
+
+  build_on_ubuntu:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          bash build.sh
+
+      - name: Check Format
+        working-directory: ${{ github.workspace }}/build
+        run: make check-format
+
+      - name: GTest
+        working-directory: ${{ github.workspace }}/build
+        # Execute tests defined by the CMake configuration.
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: ctest
