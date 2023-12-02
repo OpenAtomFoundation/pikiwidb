@@ -88,4 +88,3 @@ extern PConfig g_config;
 extern bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg);
 
 }  // namespace pikiwidb
-

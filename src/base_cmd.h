@@ -24,6 +24,11 @@ namespace pikiwidb {
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
+const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetex = "setex";
+const std::string kCmdNamePsetex = "psetex";
+const std::string kCmdNameSetnx = "setnx";
 
 // multi
 const std::string kCmdNameMulti = "multi";

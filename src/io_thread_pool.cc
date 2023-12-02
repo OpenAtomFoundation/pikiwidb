@@ -65,7 +65,7 @@ void IOThreadPool::Run(int ac, char* av[]) {
   for (auto& w : worker_threads_) {
     w.join();
   }
-  
+
   worker_threads_.clear();
 
   INFO("Process stopped, goodbye...");

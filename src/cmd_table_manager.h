@@ -16,7 +16,6 @@
 
 #include "base_cmd.h"
 
-
 namespace pikiwidb {
 
 using CmdTable = std::unordered_map<std::string, std::unique_ptr<BaseCmd>>;
@@ -28,7 +27,7 @@ class CmdTableManager {
 
  public:
   void InitCmdTable();
-  std::pair<BaseCmd*,CmdRes::CmdRet> GetCommand(const std::string& cmdName, PClient* client);
+  std::pair<BaseCmd*, CmdRes::CmdRet> GetCommand(const std::string& cmdName, PClient* client);
   //  uint32_t DistributeKey(const std::string& key, uint32_t slot_num);
   bool CmdExist(const std::string& cmd) const;
   uint32_t GetCmdId();

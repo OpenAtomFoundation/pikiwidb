@@ -19,4 +19,3 @@ enum class ListPosition {
 
 using PList = std::list<PString>;
 }  // namespace pikiwidb
-

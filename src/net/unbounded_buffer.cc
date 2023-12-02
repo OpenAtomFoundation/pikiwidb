@@ -5,7 +5,6 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-
 #include "unbounded_buffer.h"
 #include <cassert>
 #include <iostream>

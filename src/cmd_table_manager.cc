@@ -43,6 +43,16 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameMset, std::move(msetPtr)));
   std::unique_ptr<BaseCmd> bitcountPtr = std::make_unique<BitCountCmd>(kCmdNameBitCount, -2);
   cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
+  std::unique_ptr<BaseCmd> incrbyPtr = std::make_unique<IncrbyCmd>(kCmdNameIncrby, 3);
+  cmds_->insert(std::make_pair(kCmdNameIncrby, std::move(incrbyPtr)));
+  std::unique_ptr<BaseCmd> strlenPtr = std::make_unique<StrlenCmd>(kCmdNameStrlen, 2);
+  cmds_->insert(std::make_pair(kCmdNameStrlen, std::move(strlenPtr)));
+  std::unique_ptr<BaseCmd> setexPtr = std::make_unique<SetexCmd>(kCmdNameSetex, 4);
+  cmds_->insert(std::make_pair(kCmdNameSetex, std::move(setexPtr)));
+  std::unique_ptr<BaseCmd> psetexPtr = std::make_unique<PsetexCmd>(kCmdNamePsetex, 4);
+  cmds_->insert(std::make_pair(kCmdNamePsetex, std::move(psetexPtr)));
+  std::unique_ptr<BaseCmd> setnxPtr = std::make_unique<SetnxCmd>(kCmdNameSetnx, 3);
+  cmds_->insert(std::make_pair(kCmdNameSetnx, std::move(setnxPtr)));
 
   // hash
   std::unique_ptr<BaseCmd> hsetPtr = std::make_unique<HSetCmd>(kCmdNameHSet, -4);

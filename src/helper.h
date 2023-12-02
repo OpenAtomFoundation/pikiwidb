@@ -70,8 +70,7 @@ inline typename HASH::const_iterator FollyRandomHashMember(const HASH& container
 }
 
 template <typename HASH>
-inline size_t FollyScanHashMember(const HASH& container, size_t cursor, size_t count,
-                             std::vector<PString>& res) {
+inline size_t FollyScanHashMember(const HASH& container, size_t cursor, size_t count, std::vector<PString>& res) {
   if (cursor >= container.size()) {
     return 0;
   }
@@ -166,4 +165,3 @@ extern std::vector<size_t> getMemoryInfo();
 extern size_t getMemoryInfo(MemoryInfoType type);
 
 }  // namespace pikiwidb
-
