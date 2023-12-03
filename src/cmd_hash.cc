@@ -30,7 +30,7 @@ bool HGetCmd::DoInitial(PClient* client) {
 }
 
 void HGetCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok) {
@@ -67,7 +67,7 @@ bool HMSetCmd::DoInitial(PClient* client) {
 }
 
 void HMSetCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok && err != PError_notExist) {
@@ -96,7 +96,7 @@ bool HMGetCmd::DoInitial(PClient* client) {
 }
 
 void HMGetCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok) {
@@ -132,7 +132,7 @@ bool HGetAllCmd::DoInitial(PClient* client) {
 }
 
 void HGetAllCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok) {
@@ -164,7 +164,7 @@ bool HKeysCmd::DoInitial(PClient* client) {
 }
 
 void HKeysCmd::DoCmd(PClient* client) {
-  PObject* value;
+  PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok) {
