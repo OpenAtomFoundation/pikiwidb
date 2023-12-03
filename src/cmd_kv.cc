@@ -315,8 +315,6 @@ void BitOpCmd::DoCmd(PClient* client) {
         err = PError_ok;
         res = StringBitOp(keys, kBitOpNot);
       }
-    } else {
-      ;
     }
   }
 
