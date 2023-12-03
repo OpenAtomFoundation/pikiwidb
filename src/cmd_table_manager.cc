@@ -9,6 +9,7 @@
 #include <memory>
 #include "cmd_admin.h"
 #include "cmd_hash.h"
+#include "cmd_keys.h"
 #include "cmd_kv.h"
 
 namespace pikiwidb {
@@ -28,11 +29,18 @@ void CmdTableManager::InitCmdTable() {
 
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
+  // keyspace
+  std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
+  cmds_->insert(std::make_pair(kCmdNameDel, std::move(delPtr)));
+
   // kv
   std::unique_ptr<BaseCmd> getPtr = std::make_unique<GetCmd>(kCmdNameGet, 2);
   cmds_->insert(std::make_pair(kCmdNameGet, std::move(getPtr)));
   std::unique_ptr<BaseCmd> setPtr = std::make_unique<SetCmd>(kCmdNameSet, -3);
   cmds_->insert(std::make_pair(kCmdNameSet, std::move(setPtr)));
+
+  std::unique_ptr<BaseCmd> bitOpPtr = std::make_unique<BitOpCmd>(kCmdNameBitOp, -4);
+  cmds_->insert(std::make_pair(kCmdNameBitOp, std::move(bitOpPtr)));
   std::unique_ptr<BaseCmd> appendPtr = std::make_unique<AppendCmd>(kCmdNameAppend, 3);
   cmds_->insert(std::make_pair(kCmdNameAppend, std::move(appendPtr)));
   std::unique_ptr<BaseCmd> getsetPtr = std::make_unique<GetsetCmd>(kCmdNameGetset, 3);
