@@ -11,7 +11,7 @@
 
 namespace pikiwidb {
 
-static inline PHash::iterator _set_hash_force(PHash& hash, const PString& key, const PString& val) {
+static inline PHash::iterator setHashForce(PHash& hash, const PString& key, const PString& val) {
   auto it(hash.find(key));
   if (it != hash.end()) {
     it->second = val;
@@ -81,7 +81,7 @@ void HMSetCmd::DoCmd(PClient* client) {
 
   auto hash = value->CastHash();
   for (size_t i = 2; i < client->argv_.size(); i += 2) {
-    _set_hash_force(*hash, client->argv_[i], client->argv_[i + 1]);
+    setHashForce(*hash, client->argv_[i], client->argv_[i + 1]);
   }
   FormatOK(&reply);
   client->AppendStringRaw(reply.ReadAddr());
