@@ -21,6 +21,40 @@ static inline PHash::iterator setHashForce(PHash& hash, const PString& key, cons
   return it;
 }
 
+HSetCmd::HSetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryHash) {}
+
+bool HSetCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() % 2 != 0) {
+    client->SetRes(CmdRes::kWrongNum, kCmdNameHSet);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HSetCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  UnboundedBuffer reply;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
+  if (err != PError_ok && err != PError_notExist) {
+    ReplyError(err, &reply);
+    client->SetRes(CmdRes::kSyntaxErr, "hset cmd error");
+    return;
+  }
+  if (err == PError_notExist) {
+    value = PSTORE.SetValue(client->Key(), PObject::CreateHash());
+  }
+
+  auto hash = value->CastHash();
+  for (size_t i = 2; i < client->argv_.size(); i += 2) {
+    setHashForce(*hash, client->argv_[i], client->argv_[i + 1]);
+  }
+  auto argc = client->argv_.size() / 2 - 1;
+  FormatInt(argc, &reply);
+  client->AppendStringRaw(reply.ReadAddr());
+}
+
 HGetCmd::HGetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
 
