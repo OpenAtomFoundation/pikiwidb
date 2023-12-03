@@ -8,6 +8,7 @@
 #include "cmd_table_manager.h"
 #include <memory>
 #include "cmd_admin.h"
+#include "cmd_keys.h"
 #include "cmd_kv.h"
 
 namespace pikiwidb {
@@ -26,6 +27,10 @@ void CmdTableManager::InitCmdTable() {
   configPtr->AddSubCmd(std::make_unique<CmdConfigSet>("set", -4));
 
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
+
+  // keyspace
+  std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
+  cmds_->insert(std::make_pair(kCmdNameDel, std::move(delPtr)));
 
   // kv
   std::unique_ptr<BaseCmd> getPtr = std::make_unique<GetCmd>(kCmdNameGet, 2);
