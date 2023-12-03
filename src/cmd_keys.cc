@@ -36,7 +36,7 @@ bool ExistsCmd::DoInitial(PClient* client) {
 }
 
 void ExistsCmd::DoCmd(PClient* client) {
-  if(PSTORE.ExistsKey(client->Key())) {
+  if (PSTORE.ExistsKey(client->Key())) {
     client->AppendInteger(1);
   } else {
     client->AppendInteger(0);
