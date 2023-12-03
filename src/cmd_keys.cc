@@ -26,4 +26,21 @@ void DelCmd::DoCmd(PClient* client) {
     client->AppendInteger(0);
   }
 }
+
+ExistsCmd::ExistsCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryKeyspace) {}
+
+bool ExistsCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void ExistsCmd::DoCmd(PClient* client) {
+  if(PSTORE.ExistsKey(client->Key()))
+  {
+    client->AppendInteger(1);
+  }else{
+    client->AppendInteger(0);
+  }
+}
+
 }  // namespace pikiwidb

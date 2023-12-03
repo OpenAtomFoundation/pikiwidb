@@ -31,6 +31,8 @@ void CmdTableManager::InitCmdTable() {
   // keyspace
   std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
   cmds_->insert(std::make_pair(kCmdNameDel, std::move(delPtr)));
+  std::unique_ptr<BaseCmd> existsPtr = std::make_unique<ExistsCmd>(kCmdNameExists, 2);
+  cmds_->insert(std::make_pair(kCmdNameExists, std::move(existsPtr)));
 
   // kv
   std::unique_ptr<BaseCmd> getPtr = std::make_unique<GetCmd>(kCmdNameGet, 2);
