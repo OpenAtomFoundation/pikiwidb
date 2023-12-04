@@ -11,12 +11,12 @@
 
 namespace pikiwidb {
 
-static inline PHash::iterator setHashForce(PHash& hash, const PString& key, const PString& val) {
-  auto it(hash.find(key));
+static inline PHash::iterator setHashForce(PHash& hash, const PString& field, const PString& val) {
+  auto it(hash.find(field));
   if (it != hash.end()) {
     it->second = val;
   } else {
-    it = hash.insert(PHash::value_type(key, val)).first;
+    it = hash.insert(PHash::value_type(field, val)).first;
   }
   return it;
 }
