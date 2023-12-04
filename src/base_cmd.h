@@ -29,6 +29,7 @@ const std::string kCmdNameStrlen = "strlen";
 const std::string kCmdNameSetex = "setex";
 const std::string kCmdNamePsetex = "psetex";
 const std::string kCmdNameSetnx = "setnx";
+const std::string kCmdNameIncrbyfloat = "incrbyfloat";
 
 // multi
 const std::string kCmdNameMulti = "multi";

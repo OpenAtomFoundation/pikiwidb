@@ -9,12 +9,12 @@
 #include <cassert>
 #include <limits>
 #include "client.h"
+#include "common.h"
 #include "config.h"
 #include "event_loop.h"
 #include "leveldb.h"
 #include "log.h"
 #include "multi.h"
-
 namespace pikiwidb {
 
 uint32_t PObject::lruclock = static_cast<uint32_t>(::time(nullptr));
@@ -577,6 +577,50 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   PObject new_value;
   *ret = ival + value;
   new_value = PObject::CreateString((long)(*ret));
+  new_value.lru = PObject::lruclock;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
+  const PObject& obj = realObj->second;
+
+  // put this key to sync list
+  if (!waitSyncKeys_.empty()) {
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
+  }
+
+  return PError_ok;
+}
+
+PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
+  PObject* old_value = nullptr;
+  long double old_number = 0.000;
+  long double long_double_by = 0.000;
+  auto db = &dbs_[dbno_];
+
+  if (StrToLongDouble(value.data(), value.size(), &long_double_by)) {
+    return PError_type;
+  }
+
+  // shared when reading
+  std::unique_lock<std::shared_mutex> lock(mutex_);
+  PError err = getValueByType(key, old_value, PType_string);
+  if (err != PError_ok) {
+    return err;
+  }
+
+  auto old_number_str = pikiwidb::GetDecodedString(old_value);
+  // old number to long double
+  if (StrToLongDouble(old_number_str->c_str(), old_number_str->size(), &old_number)) {
+    return PError_type;
+  }
+
+  std::string total_string = "";
+  long double total = old_number + long_double_by;
+  if (LongDoubleToStr(total, &total_string)) {
+    return PError_overflow;
+  }
+
+  *ret = total_string;
+  PObject new_value;
+  new_value = PObject::CreateString(total_string);
   new_value.lru = PObject::lruclock;
   auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
   const PObject& obj = realObj->second;

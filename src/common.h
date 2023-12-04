@@ -94,6 +94,7 @@ enum PError {
   PError_moduleinit = 16,
   PError_moduleuninit = 17,
   PError_modulerepeat = 18,
+  PError_overflow = 19,
   PError_max,
 };
 
@@ -145,6 +146,8 @@ inline std::size_t Number2Str(char* ptr, std::size_t nBytes, T val) {
 }
 
 int Double2Str(char* ptr, std::size_t nBytes, double val);
+int StrToLongDouble(const char* s, size_t slen, long double* ldval);
+int LongDoubleToStr(long double ldval, std::string* value);
 bool TryStr2Long(const char* ptr, std::size_t nBytes, long& val);  // only for decimal
 bool Strtol(const char* ptr, std::size_t nBytes, long* outVal);
 bool Strtoll(const char* ptr, std::size_t nBytes, long long* outVal);

@@ -44,6 +44,8 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
   std::unique_ptr<BaseCmd> incrbyPtr = std::make_unique<IncrbyCmd>(kCmdNameIncrby, 3);
   cmds_->insert(std::make_pair(kCmdNameIncrby, std::move(incrbyPtr)));
+  std::unique_ptr<BaseCmd> incrbyfloatPtr = std::make_unique<IncrbyfloatCmd>(kCmdNameIncrbyfloat, 3);
+  cmds_->insert(std::make_pair(kCmdNameIncrbyfloat, std::move(incrbyfloatPtr)));
   std::unique_ptr<BaseCmd> strlenPtr = std::make_unique<StrlenCmd>(kCmdNameStrlen, 2);
   cmds_->insert(std::make_pair(kCmdNameStrlen, std::move(strlenPtr)));
   std::unique_ptr<BaseCmd> setexPtr = std::make_unique<SetexCmd>(kCmdNameSetex, 4);
