@@ -7,15 +7,19 @@
 
 #pragma once
 
-#include <list>
-#include "pstring.h"
+#include "base_cmd.h"
 
 namespace pikiwidb {
 
-enum class ListPosition {
-  head,
-  tail,
+class DelCmd : public BaseCmd {
+ public:
+  DelCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
 };
 
-using PList = std::list<PString>;
 }  // namespace pikiwidb

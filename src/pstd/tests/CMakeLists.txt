@@ -16,7 +16,7 @@ foreach (pstd_test_source ${PSTD_TEST_SOURCE})
     get_filename_component(pstd_test_filename ${pstd_test_source} NAME)
     string(REPLACE ".cc" "" pstd_test_name ${pstd_test_filename})
 
-    set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
+#    set(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
     add_executable(${pstd_test_name} ${pstd_test_source})
     target_include_directories(${pstd_test_name}
             PUBLIC ${PROJECT_SOURCE_DIR}/src
@@ -27,6 +27,5 @@ foreach (pstd_test_source ${PSTD_TEST_SOURCE})
             PUBLIC pstd
             PUBLIC gtest
             )
-    gtest_discover_tests(${pstd_test_name}
-            WORKING_DIRECTORY .)
+    gtest_discover_tests(${pstd_test_name})
 endforeach ()

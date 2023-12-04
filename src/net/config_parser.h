@@ -13,7 +13,7 @@
 #include <vector>
 
 #ifdef CONFIG_DEBUG
-#include <iostream>
+#  include <iostream>
 #endif
 
 class ConfigParser {

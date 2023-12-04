@@ -57,4 +57,3 @@ class PLeveldb : public PDumpInterface {
 };
 
 }  // namespace pikiwidb
-

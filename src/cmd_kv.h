@@ -33,6 +33,67 @@ class SetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class BitOpCmd : public BaseCmd {
+ public:
+  enum BitOp {
+    kBitOpAnd,
+    kBitOpOr,
+    kBitOpNot,
+    kBitOpXor,
+  };
+  BitOpCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class StrlenCmd : public BaseCmd {
+ public:
+  StrlenCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SetexCmd : public BaseCmd {
+ public:
+  SetexCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class PsetexCmd : public BaseCmd {
+ public:
+  PsetexCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SetnxCmd : public BaseCmd {
+ public:
+  SetnxCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 class AppendCmd : public BaseCmd {
  public:
   AppendCmd(const std::string &name, int16_t arity);
@@ -89,14 +150,25 @@ class BitCountCmd : public BaseCmd {
 };
 
 class DecrCmd : public BaseCmd {
-  public:
-    DecrCmd(const std::string& name, int16_t arity);
+ public:
+  DecrCmd(const std::string &name, int16_t arity);
 
-  protected:
-    bool DoInitial(PClient *client) override;
+ protected:
+  bool DoInitial(PClient *client) override;
 
-  private:
-    void DoCmd(PClient *client) override;
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class IncrbyCmd : public BaseCmd {
+ public:
+  IncrbyCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
 };
 
 }  // namespace pikiwidb
