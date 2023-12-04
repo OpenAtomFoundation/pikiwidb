@@ -16,4 +16,3 @@ using PSet = std::unordered_set<PString, my_hash, std::equal_to<PString> >;
 size_t SScanKey(const PSet& qset, size_t cursor, size_t count, std::vector<PString>& res);
 
 }  // namespace pikiwidb
-

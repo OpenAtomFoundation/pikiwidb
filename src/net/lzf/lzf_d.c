@@ -1,16 +1,16 @@
 /*
  * Copyright (c) 2000-2007 Marc Alexander Lehmann <schmorp@schmorp.de>
- * 
+ *
  * Redistribution and use in source and binary forms, with or without modifica-
  * tion, are permitted provided that the following conditions are met:
- * 
+ *
  *   1.  Redistributions of source code must retain the above copyright notice,
  *       this list of conditions and the following disclaimer.
- * 
+ *
  *   2.  Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in the
  *       documentation and/or other materials provided with the distribution.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR IMPLIED
  * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MER-
  * CHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO
@@ -37,10 +37,10 @@
 #include "lzfp.h"
 
 #if AVOID_ERRNO
-# define SET_ERRNO(n)
+#  define SET_ERRNO(n)
 #else
-# include <errno.h>
-# define SET_ERRNO(n) errno = (n)
+#  include <errno.h>
+#  define SET_ERRNO(n) errno = (n)
 #endif
 
 /*
@@ -52,99 +52,83 @@
 #endif
 */
 
-unsigned int 
-lzf_decompress (const void *const in_data,  unsigned int in_len,
-                void             *out_data, unsigned int out_len)
-{
+unsigned int lzf_decompress(const void *const in_data, unsigned int in_len, void *out_data, unsigned int out_len) {
   u8 const *ip = (const u8 *)in_data;
-  u8       *op = (u8 *)out_data;
-  u8 const *const in_end  = ip + in_len;
-  u8       *const out_end = op + out_len;
+  u8 *op = (u8 *)out_data;
+  u8 const *const in_end = ip + in_len;
+  u8 *const out_end = op + out_len;
 
-  do
+  do {
+    unsigned int ctrl = *ip++;
+
+    if (ctrl < (1 << 5)) /* literal run */
     {
-      unsigned int ctrl = *ip++;
+      ctrl++;
 
-      if (ctrl < (1 << 5)) /* literal run */
-        {
-          ctrl++;
-
-          if (op + ctrl > out_end)
-            {
-              SET_ERRNO (E2BIG);
-              return 0;
-            }
+      if (op + ctrl > out_end) {
+        SET_ERRNO(E2BIG);
+        return 0;
+      }
 
 #if CHECK_INPUT
-          if (ip + ctrl > in_end)
-            {
-              SET_ERRNO (EINVAL);
-              return 0;
-            }
+      if (ip + ctrl > in_end) {
+        SET_ERRNO(EINVAL);
+        return 0;
+      }
 #endif
 
 #ifdef lzf_movsb
-          lzf_movsb (op, ip, ctrl);
+      lzf_movsb(op, ip, ctrl);
 #else
-          do
-            *op++ = *ip++;
-          while (--ctrl);
+      do *op++ = *ip++;
+      while (--ctrl);
 #endif
+    } else /* back reference */
+    {
+      unsigned int len = ctrl >> 5;
+
+      u8 *ref = op - ((ctrl & 0x1f) << 8) - 1;
+
+#if CHECK_INPUT
+      if (ip >= in_end) {
+        SET_ERRNO(EINVAL);
+        return 0;
+      }
+#endif
+      if (len == 7) {
+        len += *ip++;
+#if CHECK_INPUT
+        if (ip >= in_end) {
+          SET_ERRNO(EINVAL);
+          return 0;
         }
-      else /* back reference */
-        {
-          unsigned int len = ctrl >> 5;
-
-          u8 *ref = op - ((ctrl & 0x1f) << 8) - 1;
-
-#if CHECK_INPUT
-          if (ip >= in_end)
-            {
-              SET_ERRNO (EINVAL);
-              return 0;
-            }
 #endif
-          if (len == 7)
-            {
-              len += *ip++;
-#if CHECK_INPUT
-              if (ip >= in_end)
-                {
-                  SET_ERRNO (EINVAL);
-                  return 0;
-                }
-#endif
-            }
+      }
 
-          ref -= *ip++;
+      ref -= *ip++;
 
-          if (op + len + 2 > out_end)
-            {
-              SET_ERRNO (E2BIG);
-              return 0;
-            }
+      if (op + len + 2 > out_end) {
+        SET_ERRNO(E2BIG);
+        return 0;
+      }
 
-          if (ref < (u8 *)out_data)
-            {
-              SET_ERRNO (EINVAL);
-              return 0;
-            }
+      if (ref < (u8 *)out_data) {
+        SET_ERRNO(EINVAL);
+        return 0;
+      }
 
 #ifdef lzf_movsb
-          len += 2;
-          lzf_movsb (op, ref, len);
+      len += 2;
+      lzf_movsb(op, ref, len);
 #else
-          *op++ = *ref++;
-          *op++ = *ref++;
+      *op++ = *ref++;
+      *op++ = *ref++;
 
-          do
-            *op++ = *ref++;
-          while (--len);
+      do *op++ = *ref++;
+      while (--len);
 #endif
-        }
     }
-  while (ip < in_end);
+  } while (ip < in_end);
 
   return (unsigned int)(op - (u8 *)out_data);
 }
-

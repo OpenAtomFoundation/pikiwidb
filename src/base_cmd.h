@@ -21,9 +21,18 @@ namespace pikiwidb {
 
 // command definition
 
+// key cmd
+const std::string kCmdNameDel = "del";
+
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
+const std::string kCmdNameBitOp = "bitop";
+const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetex = "setex";
+const std::string kCmdNamePsetex = "psetex";
+const std::string kCmdNameSetnx = "setnx";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -43,7 +52,6 @@ const std::string kCmdNameBitCount = "bitcount";
 const std::string kCmdNameIncr = "incr";
 
 const std::string kCmdNameAuth = "auth";
-
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset

@@ -117,4 +117,3 @@ inline std::shared_ptr<T> TcpConnection::GetContext() const {
 }
 
 }  // namespace pikiwidb
-
