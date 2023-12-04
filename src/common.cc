@@ -6,15 +6,15 @@
  */
 
 #include "common.h"
+#include <math.h>
 #include <algorithm>
 #include <cerrno>
-#include <math.h>
-#include <iomanip>
-#include <sstream>
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include "unbounded_buffer.h"
 
 namespace pikiwidb {
@@ -66,29 +66,29 @@ int StrToLongDouble(const char* s, size_t slen, long double* ldval) {
 
 int LongDoubleToStr(long double ldval, std::string* value) {
   if (isnan(ldval)) {
-        return -1;
-    } else if (isinf(ldval)) {
-        if (ldval > 0) {
-            *value = "inf";
-        } else {
-            *value = "-inf";
-        }
-        return -1;
+    return -1;
+  } else if (isinf(ldval)) {
+    if (ldval > 0) {
+      *value = "inf";
     } else {
-        std::ostringstream oss;
-        oss << std::setprecision(15) << ldval;
-        *value = oss.str();
-
-        // Remove trailing zeroes after the '.'
-        size_t dotPos = value->find('.');
-        if (dotPos != std::string::npos) {
-            value->erase(value->find_last_not_of('0') + 1, std::string::npos);
-            if (value->back() == '.') {
-                value->pop_back();
-            }
-        }
-        return 0;
+      *value = "-inf";
     }
+    return -1;
+  } else {
+    std::ostringstream oss;
+    oss << std::setprecision(15) << ldval;
+    *value = oss.str();
+
+    // Remove trailing zeroes after the '.'
+    size_t dotPos = value->find('.');
+    if (dotPos != std::string::npos) {
+      value->erase(value->find_last_not_of('0') + 1, std::string::npos);
+      if (value->back() == '.') {
+        value->pop_back();
+      }
+    }
+    return 0;
+  }
 }
 
 bool TryStr2Long(const char* ptr, size_t nBytes, long& val) {
