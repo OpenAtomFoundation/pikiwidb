@@ -11,16 +11,6 @@
 
 namespace pikiwidb {
 
-static inline PHash::iterator setHashForce(PHash& hash, const PString& field, const PString& val) {
-  auto it(hash.find(field));
-  if (it != hash.end()) {
-    it->second = val;
-  } else {
-    it = hash.insert(PHash::value_type(field, val)).first;
-  }
-  return it;
-}
-
 HSetCmd::HSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryHash) {}
 
@@ -46,12 +36,20 @@ void HSetCmd::DoCmd(PClient* client) {
     value = PSTORE.SetValue(client->Key(), PObject::CreateHash());
   }
 
+  auto new_cnt = 0;
   auto hash = value->CastHash();
   for (size_t i = 2; i < client->argv_.size(); i += 2) {
-    setHashForce(*hash, client->argv_[i], client->argv_[i + 1]);
+    auto field = client->argv_[i];
+    auto value = client->argv_[i + 1];
+    auto it = hash->find(field);
+    if (it == hash->end()) {
+      hash->insert(PHash::value_type(field, value));
+      ++new_cnt;
+    } else {
+      it->second = value;
+    }
   }
-  auto argc = client->argv_.size() / 2 - 1;
-  FormatInt(argc, &reply);
+  FormatInt(new_cnt, &reply);
   client->AppendStringRaw(reply.ReadAddr());
 }
 
@@ -115,7 +113,14 @@ void HMSetCmd::DoCmd(PClient* client) {
 
   auto hash = value->CastHash();
   for (size_t i = 2; i < client->argv_.size(); i += 2) {
-    setHashForce(*hash, client->argv_[i], client->argv_[i + 1]);
+    auto field = client->argv_[i];
+    auto value = client->argv_[i + 1];
+    auto it = hash->find(field);
+    if (it == hash->end()) {
+      hash->insert(PHash::value_type(field, value));
+    } else {
+      it->second = value;
+    }
   }
   FormatOK(&reply);
   client->AppendStringRaw(reply.ReadAddr());
