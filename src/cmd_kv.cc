@@ -491,4 +491,47 @@ void SetnxCmd::DoCmd(PClient* client) {
   }
 }
 
+GetBitCmd::GetBitCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+
+bool GetBitCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void GetBitCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
+  if (err != PError_ok) {
+    client->SetRes(CmdRes::kErrOther);
+    return;
+  }
+
+  long offset = 0;
+  if (!Strtol(client->argv_[2].c_str(), client->argv_[2].size(), &offset)) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  auto str = GetDecodedString(value);
+  const uint8_t* buf = (const uint8_t*)str->c_str();
+  size_t size = 8 * str->size();
+
+  if (offset < 0 || offset >= static_cast<long>(size)) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  size_t bytesOffset = offset / 8;
+  size_t bitsOffset = offset % 8;
+  uint8_t byte = buf[bytesOffset];
+  if (byte & (0x1 << bitsOffset)) {
+    client->AppendInteger(1);
+  } else {
+    client->AppendInteger(0);
+  }
+
+  return;
+}
+
 }  // namespace pikiwidb
