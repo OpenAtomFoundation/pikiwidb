@@ -30,6 +30,8 @@ void CmdTableManager::InitCmdTable() {
 
   std::unique_ptr<BaseCmd> flushdbPtr = std::make_unique<FlushdbCmd>(kCmdNameFlushdb, 1);
   cmds_->insert(std::make_pair(kCmdNameFlushdb, std::move(flushdbPtr)));
+  std::unique_ptr<BaseCmd> flushallPtr = std::make_unique<FlushallCmd>(kCmdNameFlushall, 1);
+  cmds_->insert(std::make_pair(kCmdNameFlushall, std::move(flushallPtr)));
 
   // keyspace
   std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
