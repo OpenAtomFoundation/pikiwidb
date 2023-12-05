@@ -160,6 +160,18 @@ class IncrbyCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class DecrbyCmd : public BaseCmd {
+ public:
+  DecrbyCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+
+};
+
 class GetBitCmd : public BaseCmd {
  public:
   GetBitCmd(const std::string &name, int16_t arity);

@@ -30,6 +30,7 @@ const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
 const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameDecrby = "decrby";
 const std::string kCmdNameStrlen = "strlen";
 const std::string kCmdNameSetex = "setex";
 const std::string kCmdNamePsetex = "psetex";
