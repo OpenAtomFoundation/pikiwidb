@@ -8,6 +8,7 @@
 #include "cmd_table_manager.h"
 #include <memory>
 #include "cmd_admin.h"
+#include "cmd_hash.h"
 #include "cmd_keys.h"
 #include "cmd_kv.h"
 
@@ -62,6 +63,10 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNamePsetex, std::move(psetexPtr)));
   std::unique_ptr<BaseCmd> setnxPtr = std::make_unique<SetnxCmd>(kCmdNameSetnx, 3);
   cmds_->insert(std::make_pair(kCmdNameSetnx, std::move(setnxPtr)));
+
+  // hash
+  std::unique_ptr<BaseCmd> hsetnxPtr = std::make_unique<HSetNxCmd>(kCmdNameHSetNx, 4);
+  cmds_->insert(std::make_pair(kCmdNameHSetNx, std::move(hsetnxPtr)));
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
