@@ -456,4 +456,61 @@ void SetnxCmd::DoCmd(PClient* client) {
   }
 }
 
+SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+
+bool SetBitCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SetBitCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
+  if (err == PError_notExist) {
+    value = PSTORE.SetValue(client->Key(), PObject::CreateString(""));
+    err = PError_ok;
+  }
+
+  if (err != PError_ok) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  long offset = 0;
+  long on = 0;
+  if (!Strtol(client->argv_[2].c_str(), client->argv_[2].size(), &offset) ||
+      !Strtol(client->argv_[3].c_str(), client->argv_[3].size(), &on)) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  if (offset < 0 || offset > kStringMaxBytes) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  PString newVal(*GetDecodedString(value));
+
+  size_t bytes = offset / 8;
+  size_t bits = offset % 8;
+
+  if (bytes + 1 > newVal.size()) {
+    newVal.resize(bytes + 1, '\0');
+  }
+
+  const char oldByte = newVal[bytes];
+  char& byte = newVal[bytes];
+  if (on) {
+    byte |= (0x1 << bits);
+  } else {
+    byte &= ~(0x1 << bits);
+  }
+
+  value->Reset(new PString(newVal));
+  value->encoding = PEncode_raw;
+  client->AppendInteger((oldByte & (0x1 << bits)) ? 1 : 0);
+  return;
+}
+
 }  // namespace pikiwidb

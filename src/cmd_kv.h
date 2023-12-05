@@ -160,4 +160,15 @@ class IncrbyCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SetBitCmd : public BaseCmd {
+ public:
+  SetBitCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb
