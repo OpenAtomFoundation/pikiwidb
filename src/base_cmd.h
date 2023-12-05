@@ -46,6 +46,7 @@ const std::string kCmdNameDiscard = "discard";
 
 // admin
 const std::string kCmdNameConfig = "config";
+const std::string kCmdNameFlushdb = "flushdb";
 
 const std::string kCmdNameAppend = "append";
 const std::string kCmdNameGetset = "getset";

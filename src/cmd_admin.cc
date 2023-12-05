@@ -6,6 +6,7 @@
  */
 
 #include "cmd_admin.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -26,5 +27,17 @@ CmdConfigSet::CmdConfigSet(const std::string& name, int16_t arity)
 bool CmdConfigSet::DoInitial(PClient* client) { return true; }
 
 void CmdConfigSet::DoCmd(PClient* client) { client->AppendString("config cmd in development"); }
+
+FlushdbCmd::FlushdbCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsAdmin | CmdFlagsWrite, AclCategoryWrite | AclCategoryAdmin) {}
+
+bool FlushdbCmd::DoInitial(PClient* client) { return true; }
+
+void FlushdbCmd::DoCmd(PClient* client) {
+  PSTORE.dirty_ += PSTORE.DBSize();
+  PSTORE.ClearCurrentDB();
+  Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
+  client->SetRes(CmdRes::kOk);
+}
 
 }  // namespace pikiwidb
