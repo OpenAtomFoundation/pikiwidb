@@ -36,11 +36,14 @@ bool ExistsCmd::DoInitial(PClient* client) {
 }
 
 void ExistsCmd::DoCmd(PClient* client) {
+<<<<<<< HEAD
   if (PSTORE.ExistsKey(client->Key())) {
+=======
+  if(PSTORE.ExistsKey(client->Key())){
+>>>>>>> d5104d3 (code format)
     client->AppendInteger(1);
   } else {
     client->AppendInteger(0);
   }
 }
-
 }  // namespace pikiwidb
