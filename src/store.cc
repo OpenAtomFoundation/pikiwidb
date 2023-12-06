@@ -591,8 +591,8 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 
 PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
   PObject* old_value = nullptr;
-  long double old_number = 0.00L;
-  long double long_double_by = 0.00L;
+  long double old_number = 0.00f;
+  long double long_double_by = 0.00f;
   auto db = &dbs_[dbno_];
 
   if (StrToLongDouble(value.data(), value.size(), &long_double_by)) {
