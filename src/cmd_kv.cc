@@ -440,7 +440,7 @@ IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool IncrbyfloatCmd::DoInitial(PClient* client) {
-  long double by_ = 0.00L;
+  long double by_ = 0.00f;
   if (StrToLongDouble(client->argv_[2].data(), client->argv_[2].size(), &by_)) {
     client->SetRes(CmdRes::kInvalidFloat);
     return false;
