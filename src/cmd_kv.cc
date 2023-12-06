@@ -440,7 +440,7 @@ IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
 bool IncrbyfloatCmd::DoInitial(PClient* client) {
-  long double by_ = 0.0;
+  long double by_ = 0.00L;
   if (StrToLongDouble(client->argv_[2].data(), client->argv_[2].size(), &by_)) {
     client->SetRes(CmdRes::kInvalidFloat);
     return false;
@@ -450,7 +450,7 @@ bool IncrbyfloatCmd::DoInitial(PClient* client) {
 }
 
 void IncrbyfloatCmd::DoCmd(PClient* client) {
-  std::string new_value_ = "";
+  std::string new_value_;
   PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value_);
   switch (err) {
     case PError_type:
