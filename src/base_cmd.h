@@ -23,6 +23,7 @@ namespace pikiwidb {
 
 // key cmd
 const std::string kCmdNameDel = "del";
+const std::string kCmdNameExists = "exists";
 
 // string cmd
 const std::string kCmdNameSet = "set";
@@ -33,6 +34,7 @@ const std::string kCmdNameStrlen = "strlen";
 const std::string kCmdNameSetex = "setex";
 const std::string kCmdNamePsetex = "psetex";
 const std::string kCmdNameSetnx = "setnx";
+const std::string kCmdNameGetBit = "getbit";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -43,6 +45,7 @@ const std::string kCmdNameDiscard = "discard";
 
 // admin
 const std::string kCmdNameConfig = "config";
+const std::string kCmdNameFlushdb = "flushdb";
 
 const std::string kCmdNameAppend = "append";
 const std::string kCmdNameGetset = "getset";
