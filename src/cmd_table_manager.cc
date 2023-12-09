@@ -29,9 +29,14 @@ void CmdTableManager::InitCmdTable() {
 
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
+  std::unique_ptr<BaseCmd> flushdbPtr = std::make_unique<FlushdbCmd>(kCmdNameFlushdb, 1);
+  cmds_->insert(std::make_pair(kCmdNameFlushdb, std::move(flushdbPtr)));
+
   // keyspace
   std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
   cmds_->insert(std::make_pair(kCmdNameDel, std::move(delPtr)));
+  std::unique_ptr<BaseCmd> existsPtr = std::make_unique<ExistsCmd>(kCmdNameExists, 2);
+  cmds_->insert(std::make_pair(kCmdNameExists, std::move(existsPtr)));
 
   // kv
   std::unique_ptr<BaseCmd> getPtr = std::make_unique<GetCmd>(kCmdNameGet, 2);
@@ -61,6 +66,8 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNamePsetex, std::move(psetexPtr)));
   std::unique_ptr<BaseCmd> setnxPtr = std::make_unique<SetnxCmd>(kCmdNameSetnx, 3);
   cmds_->insert(std::make_pair(kCmdNameSetnx, std::move(setnxPtr)));
+  std::unique_ptr<BaseCmd> getbitPtr = std::make_unique<GetBitCmd>(kCmdNameGetBit, 3);
+  cmds_->insert(std::make_pair(kCmdNameGetBit, std::move(getbitPtr)));
 
   // hash
   std::unique_ptr<BaseCmd> hsetPtr = std::make_unique<HSetCmd>(kCmdNameHSet, -4);
