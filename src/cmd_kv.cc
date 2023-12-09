@@ -414,10 +414,10 @@ bool IncrbyCmd::DoInitial(PClient* client) {
 }
 
 void IncrbyCmd::DoCmd(PClient* client) {
-  int64_t new_value_ = 0;
+  int64_t new_value = 0;
   int64_t by_ = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by_);
-  PError err = PSTORE.Incrby(client->Key(), by_, &new_value_);
+  PError err = PSTORE.Incrby(client->Key(), by_, &new_value);
   switch (err) {
     case PError_type:
       client->SetRes(CmdRes::kInvalidInt);
@@ -428,7 +428,7 @@ void IncrbyCmd::DoCmd(PClient* client) {
       client->AppendInteger(by_);
       break;
     case PError_ok:
-      client->AppendInteger(new_value_);
+      client->AppendInteger(new_value);
       break;
     default:
       client->SetRes(CmdRes::kErrOther, "incrby cmd error");
@@ -450,8 +450,8 @@ bool IncrbyfloatCmd::DoInitial(PClient* client) {
 }
 
 void IncrbyfloatCmd::DoCmd(PClient* client) {
-  std::string new_value_;
-  PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value_);
+  std::string new_value;
+  PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value);
   switch (err) {
     case PError_type:
       client->SetRes(CmdRes::kInvalidFloat);
@@ -462,7 +462,7 @@ void IncrbyfloatCmd::DoCmd(PClient* client) {
       client->AppendString(client->argv_[2]);
       break;
     case PError_ok:
-      client->AppendString(new_value_);
+      client->AppendString(new_value);
       break;
     default:
       client->SetRes(CmdRes::kErrOther, "incrbyfloat cmd error");
