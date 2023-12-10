@@ -433,7 +433,7 @@ void PClient::OnConnect() {
     PREPL.SetMaster(std::static_pointer_cast<PClient>(shared_from_this()));
 
     SetName("MasterConnection");
-    SetFlag(ClientFlagMaster);
+    SetFlag(kClientFlagMaster);
 
     if (g_config.masterauth.empty()) {
       SetAuth();
@@ -533,14 +533,14 @@ bool PClient::Watch(int dbno, const std::string& key) {
 }
 
 bool PClient::NotifyDirty(int dbno, const std::string& key) {
-  if (IsFlagOn(ClientFlagDirty)) {
+  if (IsFlagOn(kClientFlagDirty)) {
     INFO("client is already dirty {}", uniqueID());
     return true;
   }
 
   if (watch_keys_[dbno].contains(key)) {
     INFO("{} client become dirty because key {} in db {}", uniqueID(), key, dbno);
-    SetFlag(ClientFlagDirty);
+    SetFlag(kClientFlagDirty);
     return true;
   } else {
     INFO("Dirty key is not exist: {}, because client unwatch before dirty", key);
@@ -555,11 +555,11 @@ bool PClient::Exec() {
     this->ClearWatch();
   };
 
-  if (IsFlagOn(ClientFlagWrongExec)) {
+  if (IsFlagOn(kClientFlagWrongExec)) {
     return false;
   }
 
-  if (IsFlagOn(ClientFlagDirty)) {
+  if (IsFlagOn(kClientFlagDirty)) {
     //    FormatNullArray(&reply_);
     AppendString("");
     return true;
@@ -582,13 +582,13 @@ bool PClient::Exec() {
 
 void PClient::ClearMulti() {
   queue_cmds_.clear();
-  ClearFlag(ClientFlagMulti);
-  ClearFlag(ClientFlagWrongExec);
+  ClearFlag(kClientFlagMulti);
+  ClearFlag(kClientFlagWrongExec);
 }
 
 void PClient::ClearWatch() {
   watch_keys_.clear();
-  ClearFlag(ClientFlagDirty);
+  ClearFlag(kClientFlagDirty);
 }
 
 bool PClient::WaitFor(const std::string& key, const std::string* target) {

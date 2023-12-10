@@ -89,10 +89,10 @@ class CmdRes {
 };
 
 enum ClientFlag {
-  ClientFlagMulti = (1 << 0),
-  ClientFlagDirty = (1 << 1),
-  ClientFlagWrongExec = (1 << 2),
-  ClientFlagMaster = (1 << 3),
+  kClientFlagMulti = (1 << 0),
+  kClientFlagDirty = (1 << 1),
+  kClientFlagWrongExec = (1 << 2),
+  kClientFlagMaster = (1 << 3),
 };
 
 class DB;
@@ -125,8 +125,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void ClearFlag(uint32_t flag) { flag_ &= ~flag; }
   bool IsFlagOn(uint32_t flag) { return flag_ & flag; }
   void FlagExecWrong() {
-    if (IsFlagOn(ClientFlagMulti)) {
-      SetFlag(ClientFlagWrongExec);
+    if (IsFlagOn(kClientFlagMulti)) {
+      SetFlag(kClientFlagWrongExec);
     }
   }
 

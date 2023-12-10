@@ -187,7 +187,7 @@ static PError genericBlockedPop(vector<PString>::const_iterator keyBegin, vector
   }
 
   // Do NOT block if in transaction
-  if (PClient::Current() && PClient::Current()->IsFlagOn(ClientFlagMulti)) {
+  if (PClient::Current() && PClient::Current()->IsFlagOn(kClientFlagMulti)) {
     FormatNull(reply);
     return PError_nop;
   }
