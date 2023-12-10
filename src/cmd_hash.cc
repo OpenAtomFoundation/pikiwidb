@@ -12,7 +12,7 @@
 namespace pikiwidb {
 
 HSetCmd::HSetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
 bool HSetCmd::DoInitial(PClient* client) {
   if (client->argv_.size() % 2 != 0) {
@@ -54,7 +54,7 @@ void HSetCmd::DoCmd(PClient* client) {
 }
 
 HGetCmd::HGetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HGetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -87,7 +87,7 @@ void HGetCmd::DoCmd(PClient* client) {
 }
 
 HMSetCmd::HMSetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
 bool HMSetCmd::DoInitial(PClient* client) {
   if (client->argv_.size() % 2 != 0) {
@@ -127,7 +127,7 @@ void HMSetCmd::DoCmd(PClient* client) {
 }
 
 HMGetCmd::HMGetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HMGetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -163,7 +163,7 @@ void HMGetCmd::DoCmd(PClient* client) {
 }
 
 HGetAllCmd::HGetAllCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HGetAllCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -195,7 +195,7 @@ void HGetAllCmd::DoCmd(PClient* client) {
 }
 
 HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HKeysCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);

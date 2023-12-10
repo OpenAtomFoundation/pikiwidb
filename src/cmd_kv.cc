@@ -14,7 +14,7 @@
 namespace pikiwidb {
 
 GetCmd::GetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
 
 bool GetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -38,7 +38,7 @@ void GetCmd::DoCmd(PClient* client) {
 }
 
 SetCmd::SetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool SetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -52,7 +52,7 @@ void SetCmd::DoCmd(PClient* client) {
 }
 
 AppendCmd::AppendCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool AppendCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -79,8 +79,13 @@ void AppendCmd::DoCmd(PClient* client) {
   client->AppendInteger(static_cast<int64_t>(new_value.size()));
 }
 
+<<<<<<< HEAD
 GetSetCmd::GetSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+=======
+GetsetCmd::GetsetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+>>>>>>> 1a06206 (style:variable name modification)
 
 bool GetSetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -106,8 +111,13 @@ void GetSetCmd::DoCmd(PClient* client) {
   client->AppendString(*str);
 }
 
+<<<<<<< HEAD
 MGetCmd::MGetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+=======
+MgetCmd::MgetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+>>>>>>> 1a06206 (style:variable name modification)
 
 bool MGetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
@@ -134,7 +144,7 @@ void MGetCmd::DoCmd(PClient* client) {
 }
 
 MSetCmd::MSetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool MSetCmd::DoInitial(PClient* client) {
   size_t argcSize = client->argv_.size();
@@ -161,7 +171,7 @@ void MSetCmd::DoCmd(PClient* client) {
 }
 
 BitCountCmd::BitCountCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
 
 bool BitCountCmd::DoInitial(PClient* client) {
   size_t paramSize = client->argv_.size();
@@ -218,7 +228,7 @@ void BitCountCmd::DoCmd(PClient* client) {
 }
 
 BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool BitOpCmd::DoInitial(PClient* client) {
   if (!(pstd::StringEqualCaseInsensitive(client->argv_[1], "and") ||
@@ -329,7 +339,7 @@ void BitOpCmd::DoCmd(PClient* client) {
 }
 
 StrlenCmd::StrlenCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
 
 bool StrlenCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -358,8 +368,13 @@ void StrlenCmd::DoCmd(PClient* client) {
   }
 }
 
+<<<<<<< HEAD
 SetExCmd::SetExCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+=======
+SetexCmd::SetexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+>>>>>>> 1a06206 (style:variable name modification)
 
 bool SetExCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -379,8 +394,13 @@ void SetExCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk);
 }
 
+<<<<<<< HEAD
 PSetExCmd::PSetExCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+=======
+PsetexCmd::PsetexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+>>>>>>> 1a06206 (style:variable name modification)
 
 bool PSetExCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -401,7 +421,7 @@ void PSetExCmd::DoCmd(PClient* client) {
 }
 
 IncrbyCmd::IncrbyCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool IncrbyCmd::DoInitial(PClient* client) {
   int64_t by_ = 0;
@@ -470,8 +490,13 @@ void IncrbyFloatCmd::DoCmd(PClient* client) {
   }
 }
 
+<<<<<<< HEAD
 SetNXCmd::SetNXCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+=======
+SetnxCmd::SetnxCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+>>>>>>> 1a06206 (style:variable name modification)
 
 bool SetNXCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -492,7 +517,7 @@ void SetNXCmd::DoCmd(PClient* client) {
 }
 
 GetBitCmd::GetBitCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool GetBitCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
