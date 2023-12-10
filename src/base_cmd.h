@@ -28,14 +28,19 @@ const std::string kCmdNameExists = "exists";
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
-const std::string kCmdNameBitOp = "bitop";
+const std::string kCmdNameMGet = "mget";
+const std::string kCmdNameMSet = "mset";
+const std::string kCmdNameGetSet = "getset";
+const std::string kCmdNameSetNX = "setnx";
+const std::string kCmdNameAppend = "append";
 const std::string kCmdNameIncrby = "incrby";
-const std::string kCmdNameStrlen = "strlen";
-const std::string kCmdNameSetex = "setex";
-const std::string kCmdNamePsetex = "psetex";
-const std::string kCmdNameSetnx = "setnx";
 const std::string kCmdNameIncrbyfloat = "incrbyfloat";
+const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetEx = "setex";
+const std::string kCmdNamePSetEx = "psetex";
+const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
+const std::string kCmdNameBitCount = "bitcount";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -49,11 +54,6 @@ const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
 
-const std::string kCmdNameAppend = "append";
-const std::string kCmdNameGetset = "getset";
-const std::string kCmdNameMget = "mget";
-const std::string kCmdNameMset = "mset";
-const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
 
