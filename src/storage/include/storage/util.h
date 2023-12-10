@@ -29,4 +29,3 @@ bool isTailWildcard(const std::string& pattern);
 void GetFilepath(const char* path, const char* filename, char* filepath);
 bool DeleteFiles(const char* path);
 }  // namespace storage
-

@@ -131,7 +131,8 @@ Status RedisStrings::PKPatternMatchDel(const std::string& pattern, int32_t* ret)
     key = iter->key().ToString();
     value = iter->value().ToString();
     ParsedStringsValue parsed_strings_value(&value);
-    if (!parsed_strings_value.IsStale() && (StringMatch(pattern.data(), pattern.size(), key.data(), key.size(), 0) != 0)) {
+    if (!parsed_strings_value.IsStale() &&
+        (StringMatch(pattern.data(), pattern.size(), key.data(), key.size(), 0) != 0)) {
       batch.Delete(key);
     }
     // In order to be more efficient, we use batch deletion here
@@ -150,7 +151,7 @@ Status RedisStrings::PKPatternMatchDel(const std::string& pattern, int32_t* ret)
   if (batch.Count() != 0U) {
     s = db_->Write(default_write_options_, &batch);
     if (s.ok()) {
-      total_delete += static_cast<int32_t>( batch.Count());
+      total_delete += static_cast<int32_t>(batch.Count());
       batch.Clear();
     }
   }
@@ -290,7 +291,7 @@ std::string BitOpOperate(BitOpType op, const std::vector<std::string>& src_value
 }
 
 Status RedisStrings::BitOp(BitOpType op, const std::string& dest_key, const std::vector<std::string>& src_keys,
-                            std::string &value_to_dest, int64_t* ret) {
+                           std::string& value_to_dest, int64_t* ret) {
   Status s;
   if (op == kBitOpNot && src_keys.size() != 1) {
     return Status::InvalidArgument("the number of source keys is not right");
@@ -301,7 +302,7 @@ Status RedisStrings::BitOp(BitOpType op, const std::string& dest_key, const std:
   int64_t max_len = 0;
   int64_t value_len = 0;
   std::vector<std::string> src_values;
-  for (const auto & src_key : src_keys) {
+  for (const auto& src_key : src_keys) {
     std::string value;
     s = db_->Get(default_read_options_, src_key, &value);
     if (s.ok()) {
@@ -578,7 +579,7 @@ Status RedisStrings::MGet(const std::vector<std::string>& keys, std::vector<Valu
 Status RedisStrings::MSet(const std::vector<KeyValue>& kvs) {
   std::vector<std::string> keys;
   keys.reserve(kvs.size());
-for (const auto& kv : kvs) {
+  for (const auto& kv : kvs) {
     keys.push_back(kv.key);
   }
 
@@ -596,7 +597,7 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   bool exists = false;
   *ret = 0;
   std::string value;
-  for (const auto & kv : kvs) {
+  for (const auto& kv : kvs) {
     s = db_->Get(default_read_options_, kv.key, &value);
     if (s.ok()) {
       ParsedStringsValue parsed_strings_value(&value);
@@ -1350,10 +1351,9 @@ void RedisStrings::ScanDatabase() {
       survival_time =
           parsed_strings_value.timestamp() - current_time > 0 ? parsed_strings_value.timestamp() - current_time : -1;
     }
-    LOG(INFO) << fmt::format("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]", iter->key().ToString(), 
-                             parsed_strings_value.value().ToString(), parsed_strings_value.timestamp(), parsed_strings_value.version(),  
-                             survival_time);
-
+    LOG(INFO) << fmt::format("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+                             iter->key().ToString(), parsed_strings_value.value().ToString(),
+                             parsed_strings_value.timestamp(), parsed_strings_value.version(), survival_time);
   }
   delete iter;
 }
