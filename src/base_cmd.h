@@ -34,6 +34,7 @@ const std::string kCmdNameStrlen = "strlen";
 const std::string kCmdNameSetex = "setex";
 const std::string kCmdNamePsetex = "psetex";
 const std::string kCmdNameSetnx = "setnx";
+const std::string kCmdNameIncrbyfloat = "incrbyfloat";
 const std::string kCmdNameGetBit = "getbit";
 
 // multi
