@@ -532,19 +532,19 @@ PError strlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
 }
 
 enum BitOp {
-  BitOp_and,
-  BitOp_or,
-  BitOp_not,
-  BitOp_xor,
+  kBitOp_and,
+  kBitOp_or,
+  kBitOp_not,
+  kBitOp_xor,
 };
 
 static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
   PString res;
 
   switch (op) {
-    case BitOp_and:
-    case BitOp_or:
-    case BitOp_xor:
+    case kBitOp_and:
+    case kBitOp_or:
+    case kBitOp_xor:
       for (auto k : keys) {
         PObject* val;
         if (PSTORE.GetValueByType(*k, val, PType_string) != PError_ok) {
@@ -562,18 +562,18 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
         }
 
         for (size_t i = 0; i < str->size(); ++i) {
-          if (op == BitOp_and) {
+          if (op == kBitOp_and) {
             res[i] &= (*str)[i];
-          } else if (op == BitOp_or) {
+          } else if (op == kBitOp_or) {
             res[i] |= (*str)[i];
-          } else if (op == BitOp_xor) {
+          } else if (op == kBitOp_xor) {
             res[i] ^= (*str)[i];
           }
         }
       }
       break;
 
-    case BitOp_not: {
+    case kBitOp_not: {
       assert(keys.size() == 1);
       PObject* val;
       if (PSTORE.GetValueByType(*keys[0], val, PType_string) != PError_ok) {
@@ -608,19 +608,19 @@ PError bitop(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params[1].size() == 2) {
     if (strncasecmp(params[1].c_str(), "or", 2) == 0) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_or);
+      res = StringBitOp(keys, kBitOp_or);
     }
   } else if (params[1].size() == 3) {
     if (strncasecmp(params[1].c_str(), "xor", 3) == 0) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_xor);
+      res = StringBitOp(keys, kBitOp_xor);
     } else if (strncasecmp(params[1].c_str(), "and", 3) == 0) {
       err = PError_ok;
-      res = StringBitOp(keys, BitOp_and);
+      res = StringBitOp(keys, kBitOp_and);
     } else if (strncasecmp(params[1].c_str(), "not", 3) == 0) {
       if (params.size() == 4) {
         err = PError_ok;
-        res = StringBitOp(keys, BitOp_not);
+        res = StringBitOp(keys, kBitOp_not);
       }
     } else {
       ;
