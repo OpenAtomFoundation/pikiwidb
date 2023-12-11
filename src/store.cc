@@ -289,7 +289,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
           FormatBulk(key, &reply);
         }
 
-        if (pos == ListPosition::head) {
+        if (pos == ListPosition::khead) {
           FormatBulk(list->front(), &reply);
           list->pop_front();
 

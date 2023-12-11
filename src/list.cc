@@ -43,7 +43,7 @@ static PError push(const vector<PString>& params, UnboundedBuffer* reply, ListPo
   auto list = value->CastList();
   bool mayReady = list->empty();
   for (size_t i = 2; i < params.size(); ++i) {
-    if (pos == ListPosition::head) {
+    if (pos == ListPosition::khead) {
       list->push_front(params[i]);
     } else {
       list->push_back(params[i]);
@@ -74,7 +74,7 @@ static PError GenericPop(const PString& key, ListPosition pos, PString& result) 
   auto list = value->CastList();
   assert(!list->empty());
 
-  if (pos == ListPosition::head) {
+  if (pos == ListPosition::khead) {
     result = std::move(list->front());
     list->pop_front();
   } else {
@@ -89,21 +89,21 @@ static PError GenericPop(const PString& key, ListPosition pos, PString& result) 
   return PError_ok;
 }
 
-PError lpush(const vector<PString>& params, UnboundedBuffer* reply) { return push(params, reply, ListPosition::head); }
+PError lpush(const vector<PString>& params, UnboundedBuffer* reply) { return push(params, reply, ListPosition::khead); }
 
-PError rpush(const vector<PString>& params, UnboundedBuffer* reply) { return push(params, reply, ListPosition::tail); }
+PError rpush(const vector<PString>& params, UnboundedBuffer* reply) { return push(params, reply, ListPosition::ktail); }
 
 PError lpushx(const vector<PString>& params, UnboundedBuffer* reply) {
-  return push(params, reply, ListPosition::head, false);
+  return push(params, reply, ListPosition::khead, false);
 }
 
 PError rpushx(const vector<PString>& params, UnboundedBuffer* reply) {
-  return push(params, reply, ListPosition::tail, false);
+  return push(params, reply, ListPosition::ktail, false);
 }
 
 PError lpop(const vector<PString>& params, UnboundedBuffer* reply) {
   PString result;
-  PError err = GenericPop(params[1], ListPosition::head, result);
+  PError err = GenericPop(params[1], ListPosition::khead, result);
   switch (err) {
     case PError_ok:
       FormatBulk(result, reply);
@@ -119,7 +119,7 @@ PError lpop(const vector<PString>& params, UnboundedBuffer* reply) {
 
 PError rpop(const vector<PString>& params, UnboundedBuffer* reply) {
   PString result;
-  PError err = GenericPop(params[1], ListPosition::tail, result);
+  PError err = GenericPop(params[1], ListPosition::ktail, result);
   switch (err) {
     case PError_ok:
       FormatBulk(result, reply);
@@ -167,7 +167,7 @@ static PError genericBlockedPop(vector<PString>::const_iterator keyBegin, vector
 
         {
           std::vector<PString> params;
-          params.push_back(pos == ListPosition::head ? "lpop" : "rpop");
+          params.push_back(pos == ListPosition::khead ? "lpop" : "rpop");
           params.push_back(*it);
 
           PClient::Current()->RewriteCmd(params);
@@ -209,7 +209,7 @@ PError blpop(const vector<PString>& params, UnboundedBuffer* reply) {
 
   timeout *= 1000;
 
-  return genericBlockedPop(++params.begin(), --params.end(), reply, ListPosition::head, timeout);
+  return genericBlockedPop(++params.begin(), --params.end(), reply, ListPosition::khead, timeout);
 }
 
 PError brpop(const vector<PString>& params, UnboundedBuffer* reply) {
@@ -221,7 +221,7 @@ PError brpop(const vector<PString>& params, UnboundedBuffer* reply) {
 
   timeout *= 1000;
 
-  return genericBlockedPop(++params.begin(), --params.end(), reply, ListPosition::tail, timeout);
+  return genericBlockedPop(++params.begin(), --params.end(), reply, ListPosition::ktail, timeout);
 }
 
 PError lindex(const vector<PString>& params, UnboundedBuffer* reply) {
@@ -500,16 +500,16 @@ PError lrem(const vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   auto list = value->CastList();
-  ListPosition start = ListPosition::head;
+  ListPosition start = ListPosition::khead;
   if (count < 0) {
     count = -count;
-    start = ListPosition::tail;
+    start = ListPosition::ktail;
   } else if (count == 0) {
     count = list->size();  // remove all elements equal to param[3]
   }
 
   long resultCount = 0;
-  if (start == ListPosition::head) {
+  if (start == ListPosition::khead) {
     auto it = list->begin();
     while (it != list->end() && resultCount < count) {
       if (*it == params[3]) {
@@ -585,7 +585,7 @@ PError brpoplpush(const vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   auto dstKeyIter = --(--params.end());
-  return genericBlockedPop(++params.begin(), dstKeyIter, reply, ListPosition::tail, timeout, &*dstKeyIter, false);
+  return genericBlockedPop(++params.begin(), dstKeyIter, reply, ListPosition::ktail, timeout, &*dstKeyIter, false);
 }
 
 }  // namespace pikiwidb
