@@ -226,7 +226,7 @@ bool PikiwiDB::Init() {
   PPubsub::Instance().InitPubsubTimer();
 
   // Only if there is no backend, load rdb
-  if (g_config.backend == pikiwidb::BackEndNone) {
+  if (g_config.backend == pikiwidb::kBackEndNone) {
     LoadDBFromDisk();
   }
 

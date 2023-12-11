@@ -760,11 +760,11 @@ void PStore::InitEvictionTimer() {
 void PStore::InitDumpBackends() {
   assert(waitSyncKeys_.empty());
 
-  if (g_config.backend == BackEndNone) {
+  if (g_config.backend == kBackEndNone) {
     return;
   }
 
-  if (g_config.backend == BackEndLeveldb) {
+  if (g_config.backend == kBackEndLeveldb) {
     waitSyncKeys_.resize(dbs_.size());
     for (size_t i = 0; i < dbs_.size(); ++i) {
       std::unique_ptr<PLeveldb> db(new PLeveldb);
