@@ -216,15 +216,15 @@ PSet& PSet_union(const PSet& l, const PSet& r, PSet& result) {
 }
 
 enum SetOperation {
-  SetOperation_diff,
-  SetOperation_inter,
-  SetOperation_union,
+  kSetOperationDiff,
+  kSetOperationInter,
+  kSetOperationUnion,
 };
 
 static void _set_operation(const std::vector<PString>& params, size_t offset, PSet& res, SetOperation oper) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[offset], value, PType_set);
-  if (err != PError_ok && oper != SetOperation_union) {
+  if (err != PError_ok && oper != kSetOperationUnion) {
     return;
   }
 
@@ -237,7 +237,7 @@ static void _set_operation(const std::vector<PString>& params, size_t offset, PS
     PObject* val;
     PError err = PSTORE.GetValueByType(params[i], val, PType_set);
     if (err != PError_ok) {
-      if (oper == SetOperation_inter) {
+      if (oper == kSetOperationInter) {
         res.clear();
         return;
       }
@@ -246,17 +246,17 @@ static void _set_operation(const std::vector<PString>& params, size_t offset, PS
 
     PSet tmp;
     auto r = val->CastSet();
-    if (oper == SetOperation_diff) {
+    if (oper == kSetOperationDiff) {
       PSet_diff(res, *r, tmp);
-    } else if (oper == SetOperation_inter) {
+    } else if (oper == kSetOperationInter) {
       PSet_inter(res, *r, tmp);
-    } else if (oper == SetOperation_union) {
+    } else if (oper == kSetOperationUnion) {
       PSet_union(res, *r, tmp);
     }
 
     res.swap(tmp);
 
-    if (oper != SetOperation_union && res.empty()) {
+    if (oper != kSetOperationUnion && res.empty()) {
       return;
     }
   }
@@ -267,7 +267,7 @@ PError sdiffstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   auto res = obj.CastSet();
   PSTORE.SetValue(params[1], std::move(obj));
 
-  _set_operation(params, 2, *res, SetOperation_diff);
+  _set_operation(params, 2, *res, kSetOperationDiff);
 
   FormatInt(static_cast<long>(res->size()), reply);
   return PError_ok;
@@ -275,7 +275,7 @@ PError sdiffstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError sdiff(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PSet res;
-  _set_operation(params, 1, res, SetOperation_diff);
+  _set_operation(params, 1, res, kSetOperationDiff);
 
   PreFormatMultiBulk(res.size(), reply);
   for (const auto& elem : res) {
@@ -287,7 +287,7 @@ PError sdiff(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError sinter(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PSet res;
-  _set_operation(params, 1, res, SetOperation_inter);
+  _set_operation(params, 1, res, kSetOperationInter);
 
   PreFormatMultiBulk(res.size(), reply);
   for (const auto& elem : res) {
@@ -302,7 +302,7 @@ PError sinterstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   auto res = obj.CastSet();
   PSTORE.SetValue(params[1], std::move(obj));
 
-  _set_operation(params, 2, *res, SetOperation_inter);
+  _set_operation(params, 2, *res, kSetOperationInter);
 
   FormatInt(static_cast<long>(res->size()), reply);
   return PError_ok;
@@ -310,7 +310,7 @@ PError sinterstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
 PError sunion(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PSet res;
-  _set_operation(params, 1, res, SetOperation_union);
+  _set_operation(params, 1, res, kSetOperationUnion);
 
   PreFormatMultiBulk(res.size(), reply);
   for (const auto& elem : res) {
@@ -325,7 +325,7 @@ PError sunionstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   auto res = obj.CastSet();
   PSTORE.SetValue(params[1], std::move(obj));
 
-  _set_operation(params, 2, *res, SetOperation_union);
+  _set_operation(params, 2, *res, kSetOperationUnion);
 
   FormatInt(static_cast<long>(res->size()), reply);
   return PError_ok;

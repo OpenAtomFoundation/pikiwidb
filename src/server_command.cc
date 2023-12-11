@@ -344,10 +344,10 @@ PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
 // Config options get/set
 //
 enum ConfigType {
-  Config_string,
-  Config_bool,
-  Config_int,
-  Config_int64,
+  kConfigString,
+  kConfigBool,
+  kConfigInt,
+  kConfigInt64,
 };
 
 struct ConfigInfo {
@@ -358,27 +358,27 @@ struct ConfigInfo {
 
 // TODO sanity check: use function setter
 std::map<PString, ConfigInfo> configOptions = {
-    {"bind", {Config_string, false, &g_config.ip}},
-    {"dbfilename", {Config_string, true, &g_config.rdbfullname}},
-    {"databases", {Config_int, false, &g_config.databases}},
-    {"daemonize", {Config_bool, false, &g_config.daemonize}},
-    {"hz", {Config_int, false, &g_config.hz}},
-    {"logfile", {Config_string, false, &g_config.logdir}},
-    {"loglevel", {Config_string, true, &g_config.loglevel}},
-    {"masterauth", {Config_string, true, &g_config.masterauth}},
-    {"maxclients", {Config_int, true, &g_config.maxclients}},
-    {"port", {Config_int, false, &g_config.port}},
-    {"requirepass", {Config_string, true, &g_config.password}},
-    {"rdbchecksum", {Config_bool, false, &g_config.rdbchecksum}},
-    {"rdbcompression", {Config_bool, false, &g_config.rdbcompression}},
-    {"slowlog-log-slower-than", {Config_int, true, &g_config.slowlogtime}},
-    {"slowlog-max-len", {Config_int, true, &g_config.slowlogmaxlen}},
-    {"slaveof", {Config_string, false, &g_config.masterIp}},
-    {"maxmemory", {Config_int64, true, &g_config.maxmemory}},
-    {"maxmemorySamples", {Config_int, true, &g_config.maxmemorySamples}},
-    {"maxmemory-noevict", {Config_bool, true, &g_config.noeviction}},
-    {"backend", {Config_int, false, &g_config.backend}},
-    {"backendhz", {Config_int, false, &g_config.backendHz}},
+    {"bind", {kConfigString, false, &g_config.ip}},
+    {"dbfilename", {kConfigString, true, &g_config.rdbfullname}},
+    {"databases", {kConfigInt, false, &g_config.databases}},
+    {"daemonize", {kConfigBool, false, &g_config.daemonize}},
+    {"hz", {kConfigInt, false, &g_config.hz}},
+    {"logfile", {kConfigString, false, &g_config.logdir}},
+    {"loglevel", {kConfigString, true, &g_config.loglevel}},
+    {"masterauth", {kConfigString, true, &g_config.masterauth}},
+    {"maxclients", {kConfigInt, true, &g_config.maxclients}},
+    {"port", {kConfigInt, false, &g_config.port}},
+    {"requirepass", {kConfigString, true, &g_config.password}},
+    {"rdbchecksum", {kConfigBool, false, &g_config.rdbchecksum}},
+    {"rdbcompression", {kConfigBool, false, &g_config.rdbcompression}},
+    {"slowlog-log-slower-than", {kConfigInt, true, &g_config.slowlogtime}},
+    {"slowlog-max-len", {kConfigInt, true, &g_config.slowlogmaxlen}},
+    {"slaveof", {kConfigString, false, &g_config.masterIp}},
+    {"maxmemory", {kConfigInt64, true, &g_config.maxmemory}},
+    {"maxmemorySamples", {kConfigInt, true, &g_config.maxmemorySamples}},
+    {"maxmemory-noevict", {kConfigBool, true, &g_config.noeviction}},
+    {"backend", {kConfigInt, false, &g_config.backend}},
+    {"backendhz", {kConfigInt, false, &g_config.backendHz}},
 };
 
 static std::vector<PString> GetConfig(const PString& option) {
@@ -406,7 +406,7 @@ static std::vector<PString> GetConfig(const PString& option) {
 
     // push value
     switch (it->second.type) {
-      case Config_bool:
+      case kConfigBool:
         if (*(bool*)(it->second.value)) {
           res.push_back("true");
         } else {
@@ -414,14 +414,14 @@ static std::vector<PString> GetConfig(const PString& option) {
         }
         break;
 
-      case Config_string:
+      case kConfigString:
         res.push_back(*(const PString*)it->second.value);
         break;
 
-      case Config_int:
-      case Config_int64: {
+      case kConfigInt:
+      case kConfigInt64: {
         int64_t val = 0;
-        if (it->second.type == Config_int) {
+        if (it->second.type == kConfigInt) {
           val = *(int*)it->second.value;
         } else {
           val = *(int64_t*)it->second.value;
@@ -454,19 +454,19 @@ static PError SetConfig(const PString& option, const PString& value) {
 
   // set option value
   switch (it->second.type) {
-    case Config_bool:
+    case kConfigBool:
       *(bool*)(it->second.value) = (value == "true");
       break;
 
-    case Config_string:
+    case kConfigString:
       *(PString*)it->second.value = value;
       break;
 
-    case Config_int:
-    case Config_int64: {
+    case kConfigInt:
+    case kConfigInt64: {
       long val = 0;
       if (Strtol(value.data(), value.size(), &val)) {
-        if (it->second.type == Config_int) {
+        if (it->second.type == kConfigInt) {
           *(int*)it->second.value = static_cast<int>(val);
         } else {
           *(int64_t*)it->second.value = static_cast<int64_t>(val);
