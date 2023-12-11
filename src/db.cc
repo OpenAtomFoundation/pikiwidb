@@ -91,7 +91,7 @@ void PDBSaver::Save(const char* qdbFile) {
 
         qdb_.Write(&kExpireMs, 1);
         qdb_.Write(&ttl, sizeof ttl);
-      } else if (ttl == PStore::ExpireResult::expired) {
+      } else if (ttl == PStore::ExpireResult::kExpired) {
         continue;
       }
 

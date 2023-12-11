@@ -116,13 +116,13 @@ void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) { expireKey
 
 int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
   if (!PSTORE.ExistsKey(key)) {
-    return ExpireResult::notExist;
+    return ExpireResult::kNotExist;
   }
 
   ExpireResult ret = ExpireIfNeed(key, now);
   switch (ret) {
-    case ExpireResult::expired:
-    case ExpireResult::persist:
+    case ExpireResult::kExpired:
+    case ExpireResult::kPersist:
       return ret;
 
     default:
@@ -134,7 +134,7 @@ int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
 }
 
 bool PStore::ExpiredDB::ClearExpire(const PString& key) {
-  return ExpireResult::expired == ExpireIfNeed(key, std::numeric_limits<uint64_t>::max());
+  return ExpireResult::kExpired == ExpireIfNeed(key, std::numeric_limits<uint64_t>::max());
 }
 
 PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_t now) {
@@ -142,17 +142,17 @@ PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_
 
   if (it != expireKeys_.end()) {
     if (it->second > now) {
-      return ExpireResult::notExpire;
+      return ExpireResult::kNotExpire;
     }
 
     WARN("Delete timeout key {}", it->first);
     PSTORE.DeleteKey(it->first);
     // XXX: may throw exception if hash function crash
     expireKeys_.erase(it);
-    return ExpireResult::expired;
+    return ExpireResult::kExpired;
   }
 
-  return ExpireResult::persist;
+  return ExpireResult::kPersist;
 }
 
 int PStore::ExpiredDB::LoopCheck(uint64_t now) {
@@ -519,7 +519,7 @@ PError PStore::GetValueByTypeNoTouch(const PString& key, PObject*& value, PType 
 }
 
 PError PStore::getValueByType(const PString& key, PObject*& value, PType type, bool touch) {
-  if (expireIfNeed(key, ::Now()) == ExpireResult::expired) {
+  if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
     return PError_notExist;
   }
 
@@ -806,8 +806,8 @@ void PStore::DumpToBackends(int dbno) {
     // check ttl
     int64_t when = PSTORE.TTL(it->first, now);
 
-    if (it->second && when != PStore::ExpireResult::expired) {
-      assert(when != PStore::ExpireResult::notExpire);
+    if (it->second && when != PStore::ExpireResult::kExpired) {
+      assert(when != PStore::ExpireResult::kNotExpire);
 
       if (when > 0) {
         when += now;

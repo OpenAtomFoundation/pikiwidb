@@ -125,10 +125,10 @@ class PStore {
 
   // for expire key
   enum ExpireResult : std::int8_t {
-    notExpire = 0,
-    persist = -1,
-    expired = -2,
-    notExist = -2,
+    kNotExpire = 0,
+    kPersist = -1,
+    kExpired = -2,
+    kNotExist = -2,
   };
   void SetExpire(const PString& key, uint64_t when) const;
   int64_t TTL(const PString& key, uint64_t now);

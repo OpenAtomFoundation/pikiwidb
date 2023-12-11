@@ -61,7 +61,7 @@ bool PLeveldb::Put(const PString& key) {
   int64_t ttl = PSTORE.TTL(key, now);
   if (ttl > 0) {
     ttl += now;
-  } else if (ttl == PStore::ExpireResult::expired) {
+  } else if (ttl == PStore::ExpireResult::kExpired) {
     return false;
   }
 

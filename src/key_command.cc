@@ -124,11 +124,11 @@ PError pexpireat(const std::vector<PString>& params, UnboundedBuffer* reply) {
 }
 
 static int64_t _ttl(const PString& key) {
-  int64_t ret = PStore::ExpireResult::notExist;
+  int64_t ret = PStore::ExpireResult::kNotExist;
   if (PSTORE.ExistsKey(key)) {
     int64_t ttl = PSTORE.TTL(key, ::Now());
     if (ttl < 0) {
-      ret = PStore::ExpireResult::persist;
+      ret = PStore::ExpireResult::kPersist;
     } else {
       ret = ttl;
     }
@@ -245,14 +245,14 @@ static PError RenameKey(const PString& oldKey, const PString& newKey, bool force
   auto now = ::Now();
   auto ttl = PSTORE.TTL(oldKey, now);
 
-  if (ttl == PStore::expired) {
+  if (ttl == PStore::kExpired) {
     return PError_notExist;
   }
 
   PSTORE.SetValue(newKey, std::move(*val));
   if (ttl > 0) {
     PSTORE.SetExpire(newKey, ttl + now);
-  } else if (ttl == PStore::persist) {
+  } else if (ttl == PStore::kPersist) {
     PSTORE.ClearExpire(newKey);
   }
 
