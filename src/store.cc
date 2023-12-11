@@ -703,7 +703,7 @@ static void EvictItems() {
 
   int tryCnt = 0;
   size_t usedMem = 0;
-  while (tryCnt++ < 32 && (usedMem = getMemoryInfo(VmRSS)) > g_config.maxmemory) {
+  while (tryCnt++ < 32 && (usedMem = getMemoryInfo(kVmRSS)) > g_config.maxmemory) {
     if (g_config.noeviction) {
       WARN("noeviction policy, but memory usage exceeds: {}", usedMem);
       return;

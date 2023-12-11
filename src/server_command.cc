@@ -222,8 +222,8 @@ void OnMemoryInfoCollect(UnboundedBuffer& res) {
                    "used_memory_rss_human:%sMB\r\n"
                    "used_memory_lock:%lu\r\n"
                    "used_memory_swap:%lu\r\n",
-                   minfo[VmPeak], minfo[VmSize], std::to_string(minfo[VmSize] / 1024.0f / 1024.0f).data(), minfo[VmHWM],
-                   minfo[VmRSS], std::to_string(minfo[VmRSS] / 1024.0f / 1024.0f).data(), minfo[VmLck], minfo[VmSwap]);
+                   minfo[kVmPeak], minfo[kVmSize], std::to_string(minfo[kVmSize] / 1024.0f / 1024.0f).data(), minfo[kVmHWM],
+                   minfo[kVmRSS], std::to_string(minfo[kVmRSS] / 1024.0f / 1024.0f).data(), minfo[kVmLck], minfo[kVmSwap]);
 
   if (!res.IsEmpty()) {
     res.PushData("\r\n", 2);

@@ -203,7 +203,7 @@ std::vector<size_t> getMemoryInfo() {
   VmHWM = 3,
   VmRSS = 4,
   VmSwap = 5, */
-  std::vector<size_t> res(VmMax);
+  std::vector<size_t> res(kVmMax);
   // int page = sysconf(_SC_PAGESIZE);
 
   char filename[64];
@@ -211,26 +211,26 @@ std::vector<size_t> getMemoryInfo() {
   std::ifstream ifs(filename);
   std::string line;
   int count = 0;
-  while (count < VmMax && std::getline(ifs, line)) {
+  while (count < kVmMax && std::getline(ifs, line)) {
     auto it(res.begin());
     if (line.find("VmPeak") == 0) {
       ++count;
-      std::advance(it, VmPeak);
+      std::advance(it, kVmPeak);
     } else if (line.find("VmSize") == 0) {
       ++count;
-      std::advance(it, VmSize);
+      std::advance(it, kVmSize);
     } else if (line.find("VmLck") == 0) {
       ++count;
-      std::advance(it, VmLck);
+      std::advance(it, kVmLck);
     } else if (line.find("VmHWM") == 0) {
       ++count;
-      std::advance(it, VmHWM);
+      std::advance(it, kVmHWM);
     } else if (line.find("VmRSS") == 0) {
       ++count;
-      std::advance(it, VmRSS);
+      std::advance(it, kVmRSS);
     } else if (line.find("VmSwap") == 0) {
       ++count;
-      std::advance(it, VmSwap);
+      std::advance(it, kVmSwap);
     } else {
       continue;
     }
@@ -260,37 +260,37 @@ size_t getMemoryInfo(MemoryInfoType type) {
   bool found = false;
   while (!found && std::getline(ifs, line)) {
     switch (type) {
-      case VmPeak:
+      case kVmPeak:
         if (line.find("VmPeak") == 0) {
           found = true;
         }
         break;
 
-      case VmSize:
+      case kVmSize:
         if (line.find("VmSize") == 0) {
           found = true;
         }
         break;
 
-      case VmLck:
+      case kVmLck:
         if (line.find("VmLck") == 0) {
           found = true;
         }
         break;
 
-      case VmHWM:
+      case kVmHWM:
         if (line.find("VmHWM") == 0) {
           found = true;
         }
         break;
 
-      case VmRSS:
+      case kVmRSS:
         if (line.find("VmRSS") == 0) {
           found = true;
         }
         break;
 
-      case VmSwap:
+      case kVmSwap:
         if (line.find("VmSwap") == 0) {
           found = true;
         }
