@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -11,7 +11,8 @@
 
 namespace pstd::lock {
 
-MultiScopeRecordLock::MultiScopeRecordLock(const std::shared_ptr<LockMgr>& lock_mgr, const std::vector<std::string>& keys)
+MultiScopeRecordLock::MultiScopeRecordLock(const std::shared_ptr<LockMgr>& lock_mgr,
+                                           const std::vector<std::string>& keys)
     : lock_mgr_(lock_mgr), keys_(keys) {
   std::string pre_key;
   std::sort(keys_.begin(), keys_.end());

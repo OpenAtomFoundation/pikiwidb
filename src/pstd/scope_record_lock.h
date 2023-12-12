@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -21,36 +21,36 @@ namespace pstd::lock {
 using Slice = rocksdb::Slice;
 
 class ScopeRecordLock final : public pstd::noncopyable {
-public:
+ public:
   ScopeRecordLock(const std::shared_ptr<LockMgr>& lock_mgr, const Slice& key) : lock_mgr_(lock_mgr), key_(key) {
     lock_mgr_->TryLock(key_.ToString());
   }
   ~ScopeRecordLock() { lock_mgr_->UnLock(key_.ToString()); }
 
-private:
+ private:
   std::shared_ptr<LockMgr> const lock_mgr_;
   Slice key_;
 };
 
 class MultiScopeRecordLock final : public pstd::noncopyable {
-public:
+ public:
   MultiScopeRecordLock(const std::shared_ptr<LockMgr>& lock_mgr, const std::vector<std::string>& keys);
   ~MultiScopeRecordLock();
 
-private:
+ private:
   std::shared_ptr<LockMgr> const lock_mgr_;
   std::vector<std::string> keys_;
 };
 
 class MultiRecordLock : public noncopyable {
-public:
+ public:
   explicit MultiRecordLock(const std::shared_ptr<LockMgr>& lock_mgr) : lock_mgr_(lock_mgr) {}
   ~MultiRecordLock() = default;
 
   void Lock(const std::vector<std::string>& keys);
   void Unlock(const std::vector<std::string>& keys);
 
-private:
+ private:
   std::shared_ptr<LockMgr> const lock_mgr_;
 };
 
