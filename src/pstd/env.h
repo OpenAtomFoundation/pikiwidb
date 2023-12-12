@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -8,12 +8,12 @@
 #pragma once
 
 #include <unistd.h>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
 
-#include "pstd_status.h"
 #include "noncopyable.h"
+#include "pstd_status.h"
 
 namespace pstd {
 
@@ -57,7 +57,8 @@ int RenameFile(const std::string& oldname, const std::string& newname);
 class FileLock : public pstd::noncopyable {
  public:
   FileLock() = default;
-  virtual ~FileLock()= default;;
+  virtual ~FileLock() = default;
+  ;
 
   int fd_ = -1;
   std::string name_;
@@ -100,7 +101,8 @@ class WritableFile : public pstd::noncopyable {
 // A abstract for the sequential readable file
 class SequentialFile {
  public:
-  SequentialFile()= default;;
+  SequentialFile() = default;
+  ;
   virtual ~SequentialFile();
   // virtual Status Read(size_t n, char *&result, char *scratch) = 0;
   virtual Status Read(size_t n, Slice* result, char* scratch) = 0;

@@ -597,4 +597,4 @@ void SetBitCmd::DoCmd(PClient* client) {
   return;
 }
 
-} 
+}  // namespace pikiwidb

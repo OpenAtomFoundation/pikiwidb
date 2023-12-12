@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -32,7 +32,7 @@ void InitOnce(OnceType& once, F&& f, Args&&... args) {
 }
 
 class RefMutex : public pstd::noncopyable {
-public:
+ public:
   RefMutex() = default;
   ~RefMutex() = default;
 
@@ -45,14 +45,15 @@ public:
   void Unref();
   bool IsLastRef() { return refs_ == 1; }
 
-private:
+ private:
   std::mutex mu_;
   int refs_ = 0;
 };
 
 class RecordMutex : public pstd::noncopyable {
-public:
-  RecordMutex()= default;;
+ public:
+  RecordMutex() = default;
+  ;
   ~RecordMutex();
 
   void MultiLock(const std::vector<std::string>& keys);
@@ -60,18 +61,18 @@ public:
   void MultiUnlock(const std::vector<std::string>& keys);
   void Unlock(const std::string& key);
 
-private:
+ private:
   Mutex mutex_;
 
   std::unordered_map<std::string, RefMutex*> records_;
 };
 
 class RecordLock : public pstd::noncopyable {
-public:
-  RecordLock(RecordMutex* mu, std::string  key) : mu_(mu), key_(std::move(key)) { mu_->Lock(key_); }
+ public:
+  RecordLock(RecordMutex* mu, std::string key) : mu_(mu), key_(std::move(key)) { mu_->Lock(key_); }
   ~RecordLock() { mu_->Unlock(key_); }
 
-private:
+ private:
   RecordMutex* const mu_;
   std::string key_;
 };

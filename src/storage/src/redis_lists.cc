@@ -362,14 +362,14 @@ Status RedisLists::LPop(const Slice& key, int64_t count, std::vector<std::string
       auto size = static_cast<int64_t>(parsed_lists_meta_value.count());
       int32_t version = parsed_lists_meta_value.version();
       int32_t start_index = 0;
-      auto stop_index = static_cast<int32_t>(count<=size?count-1:size-1);
+      auto stop_index = static_cast<int32_t>(count <= size ? count - 1 : size - 1);
       int32_t cur_index = 0;
-      ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.left_index()+1);
+      ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.left_index() + 1);
       rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[1]);
       for (iter->Seek(lists_data_key.Encode()); iter->Valid() && cur_index <= stop_index; iter->Next(), ++cur_index) {
         statistic++;
         elements->push_back(iter->value().ToString());
-        batch.Delete(handles_[1],iter->key());
+        batch.Delete(handles_[1], iter->key());
 
         parsed_lists_meta_value.ModifyCount(-1);
         parsed_lists_meta_value.ModifyLeftIndex(-1);
@@ -734,14 +734,15 @@ Status RedisLists::RPop(const Slice& key, int64_t count, std::vector<std::string
       auto size = static_cast<int64_t>(parsed_lists_meta_value.count());
       int32_t version = parsed_lists_meta_value.version();
       int32_t start_index = 0;
-      auto stop_index = static_cast<int32_t>(count<=size?count-1:size-1);
+      auto stop_index = static_cast<int32_t>(count <= size ? count - 1 : size - 1);
       int32_t cur_index = 0;
-      ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.right_index()-1);
+      ListsDataKey lists_data_key(key, version, parsed_lists_meta_value.right_index() - 1);
       rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[1]);
-      for (iter->SeekForPrev(lists_data_key.Encode()); iter->Valid() && cur_index <= stop_index; iter->Prev(), ++cur_index) {
+      for (iter->SeekForPrev(lists_data_key.Encode()); iter->Valid() && cur_index <= stop_index;
+           iter->Prev(), ++cur_index) {
         statistic++;
         elements->push_back(iter->value().ToString());
-        batch.Delete(handles_[1],iter->key());
+        batch.Delete(handles_[1], iter->key());
 
         parsed_lists_meta_value.ModifyCount(-1);
         parsed_lists_meta_value.ModifyRightIndex(-1);
