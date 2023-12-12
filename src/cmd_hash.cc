@@ -251,17 +251,16 @@ void HDelCmd::DoCmd(PClient* client) {
     return;
   }
 
-  auto deleted_cnt = 0;
+  auto delCnt = 0;
   auto hash = value->CastHash();
   for (size_t i = 2; i < client->argv_.size(); ++i) {
-    auto field = client->argv_[i];
-    auto it = hash->find(field);
+    auto it = hash->find(client->argv_[i]);
     if (it != hash->end()) {
       hash->erase(it);
-      ++deleted_cnt;
+      ++delCnt;
     }
   }
-  FormatInt(deleted_cnt, &reply);
+  FormatInt(delCnt, &reply);
   client->AppendStringRaw(reply.ReadAddr());
 }
 
