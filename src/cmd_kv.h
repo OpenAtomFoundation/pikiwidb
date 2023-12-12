@@ -151,13 +151,13 @@ class BitCountCmd : public BaseCmd {
 
 class DecrCmd : public BaseCmd {
  public:
-  DecrCmd(const std::string& name, int16_t arity);
+  DecrCmd(const std::string &name, int16_t arity);
 
  protected:
-  bool DoInitial(PClient* client) override;
+  bool DoInitial(PClient *client) override;
 
  private:
-  void DoCmd(PClient* client) override;
+  void DoCmd(PClient *client) override;
 };
 
 class IncrbyCmd : public BaseCmd {
