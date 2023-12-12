@@ -239,10 +239,8 @@ bool HDelCmd::DoInitial(PClient* client) {
 
 void HDelCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
   if (err != PError_ok && err != PError_notExist) {
-    ReplyError(err, &reply);
     client->SetRes(CmdRes::kErrOther, "hdel cmd error");
     return;
   }
@@ -260,8 +258,7 @@ void HDelCmd::DoCmd(PClient* client) {
       ++delCnt;
     }
   }
-  FormatInt(delCnt, &reply);
-  client->AppendStringRaw(reply.ReadAddr());
+  client->AppendInteger(delCnt);
 }
 
 }  // namespace pikiwidb
