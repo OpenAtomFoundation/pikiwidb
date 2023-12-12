@@ -212,18 +212,19 @@ void OnMemoryInfoCollect(UnboundedBuffer& res) {
   auto minfo = getMemoryInfo();
 
   char buf[1024];
-  int n = snprintf(buf, sizeof buf - 1,
-                   "# Memory\r\n"
-                   "used_memory_peak:%lu\r\n"
-                   "used_memory:%lu\r\n"
-                   "used_memory_human:%sMB\r\n"
-                   "used_memory_rss_peak:%lu\r\n"
-                   "used_memory_rss:%lu\r\n"
-                   "used_memory_rss_human:%sMB\r\n"
-                   "used_memory_lock:%lu\r\n"
-                   "used_memory_swap:%lu\r\n",
-                   minfo[kVmPeak], minfo[kVmSize], std::to_string(minfo[kVmSize] / 1024.0f / 1024.0f).data(), minfo[kVmHWM],
-                   minfo[kVmRSS], std::to_string(minfo[kVmRSS] / 1024.0f / 1024.0f).data(), minfo[kVmLck], minfo[kVmSwap]);
+  int n =
+      snprintf(buf, sizeof buf - 1,
+               "# Memory\r\n"
+               "used_memory_peak:%lu\r\n"
+               "used_memory:%lu\r\n"
+               "used_memory_human:%sMB\r\n"
+               "used_memory_rss_peak:%lu\r\n"
+               "used_memory_rss:%lu\r\n"
+               "used_memory_rss_human:%sMB\r\n"
+               "used_memory_lock:%lu\r\n"
+               "used_memory_swap:%lu\r\n",
+               minfo[kVmPeak], minfo[kVmSize], std::to_string(minfo[kVmSize] / 1024.0f / 1024.0f).data(), minfo[kVmHWM],
+               minfo[kVmRSS], std::to_string(minfo[kVmRSS] / 1024.0f / 1024.0f).data(), minfo[kVmLck], minfo[kVmSwap]);
 
   if (!res.IsEmpty()) {
     res.PushData("\r\n", 2);
