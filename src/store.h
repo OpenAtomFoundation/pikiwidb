@@ -121,6 +121,7 @@ class PStore {
   PObject* SetValue(const PString& key, PObject&& value);
   // incr
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
+  PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {

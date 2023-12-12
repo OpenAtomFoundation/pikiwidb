@@ -35,6 +35,7 @@ const std::string kCmdNameSetex = "setex";
 const std::string kCmdNamePsetex = "psetex";
 const std::string kCmdNameSetnx = "setnx";
 const std::string kCmdNameSetBit = "setbit";
+const std::string kCmdNameIncrbyfloat = "incrbyfloat";
 const std::string kCmdNameGetBit = "getbit";
 
 // multi
@@ -46,6 +47,7 @@ const std::string kCmdNameDiscard = "discard";
 
 // admin
 const std::string kCmdNameConfig = "config";
+const std::string kCmdNameFlushdb = "flushdb";
 
 const std::string kCmdNameAppend = "append";
 const std::string kCmdNameGetset = "getset";
@@ -54,6 +56,14 @@ const std::string kCmdNameMset = "mset";
 const std::string kCmdNameBitCount = "bitcount";
 
 const std::string kCmdNameAuth = "auth";
+
+// hash cmd
+const std::string kCmdNameHSet = "hset";
+const std::string kCmdNameHGet = "hget";
+const std::string kCmdNameHMSet = "hmset";
+const std::string kCmdNameHMGet = "hmget";
+const std::string kCmdNameHGetAll = "hgetall";
+const std::string kCmdNameHKeys = "hkeys";
 
 enum CmdFlags {
   CmdFlagsWrite = (1 << 0),             // May modify the dataset

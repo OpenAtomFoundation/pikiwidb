@@ -6,7 +6,8 @@
  */
 
 #include "cmd_kv.h"
-#include "pstd/pstd_string.h"
+#include "common.h"
+#include "pstd_string.h"
 #include "pstd_util.h"
 #include "store.h"
 
@@ -413,10 +414,10 @@ bool IncrbyCmd::DoInitial(PClient* client) {
 }
 
 void IncrbyCmd::DoCmd(PClient* client) {
-  int64_t new_value_ = 0;
+  int64_t new_value = 0;
   int64_t by_ = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by_);
-  PError err = PSTORE.Incrby(client->Key(), by_, &new_value_);
+  PError err = PSTORE.Incrby(client->Key(), by_, &new_value);
   switch (err) {
     case PError_type:
       client->SetRes(CmdRes::kInvalidInt);
@@ -427,10 +428,44 @@ void IncrbyCmd::DoCmd(PClient* client) {
       client->AppendInteger(by_);
       break;
     case PError_ok:
-      client->AppendInteger(new_value_);
+      client->AppendInteger(new_value);
       break;
     default:
       client->SetRes(CmdRes::kErrOther, "incrby cmd error");
+      break;
+  }
+}
+
+IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+
+bool IncrbyfloatCmd::DoInitial(PClient* client) {
+  long double by_ = 0.00f;
+  if (StrToLongDouble(client->argv_[2].data(), client->argv_[2].size(), &by_)) {
+    client->SetRes(CmdRes::kInvalidFloat);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void IncrbyfloatCmd::DoCmd(PClient* client) {
+  std::string new_value;
+  PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value);
+  switch (err) {
+    case PError_type:
+      client->SetRes(CmdRes::kInvalidFloat);
+      break;
+    case PError_notExist:                 // key not exist, set a new value
+      PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+      PSTORE.SetValue(client->Key(), PObject::CreateString(client->argv_[2]));
+      client->AppendString(client->argv_[2]);
+      break;
+    case PError_ok:
+      client->AppendString(new_value);
+      break;
+    default:
+      client->SetRes(CmdRes::kErrOther, "incrbyfloat cmd error");
       break;
   }
 }
@@ -562,4 +597,4 @@ void SetBitCmd::DoCmd(PClient* client) {
   return;
 }
 
-}  // namespace pikiwidb
+} 

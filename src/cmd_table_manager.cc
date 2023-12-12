@@ -8,6 +8,7 @@
 #include "cmd_table_manager.h"
 #include <memory>
 #include "cmd_admin.h"
+#include "cmd_hash.h"
 #include "cmd_keys.h"
 #include "cmd_kv.h"
 
@@ -27,6 +28,9 @@ void CmdTableManager::InitCmdTable() {
   configPtr->AddSubCmd(std::make_unique<CmdConfigSet>("set", -4));
 
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
+
+  std::unique_ptr<BaseCmd> flushdbPtr = std::make_unique<FlushdbCmd>(kCmdNameFlushdb, 1);
+  cmds_->insert(std::make_pair(kCmdNameFlushdb, std::move(flushdbPtr)));
 
   // keyspace
   std::unique_ptr<BaseCmd> delPtr = std::make_unique<DelCmd>(kCmdNameDel, -2);
@@ -54,6 +58,8 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameBitCount, std::move(bitcountPtr)));
   std::unique_ptr<BaseCmd> incrbyPtr = std::make_unique<IncrbyCmd>(kCmdNameIncrby, 3);
   cmds_->insert(std::make_pair(kCmdNameIncrby, std::move(incrbyPtr)));
+  std::unique_ptr<BaseCmd> incrbyfloatPtr = std::make_unique<IncrbyfloatCmd>(kCmdNameIncrbyfloat, 3);
+  cmds_->insert(std::make_pair(kCmdNameIncrbyfloat, std::move(incrbyfloatPtr)));
   std::unique_ptr<BaseCmd> strlenPtr = std::make_unique<StrlenCmd>(kCmdNameStrlen, 2);
   cmds_->insert(std::make_pair(kCmdNameStrlen, std::move(strlenPtr)));
   std::unique_ptr<BaseCmd> setexPtr = std::make_unique<SetexCmd>(kCmdNameSetex, 4);
@@ -66,6 +72,20 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameSetBit, std::move(setbitPtr)));
   std::unique_ptr<BaseCmd> getbitPtr = std::make_unique<GetBitCmd>(kCmdNameGetBit, 3);
   cmds_->insert(std::make_pair(kCmdNameGetBit, std::move(getbitPtr)));
+
+  // hash
+  std::unique_ptr<BaseCmd> hsetPtr = std::make_unique<HSetCmd>(kCmdNameHSet, -4);
+  cmds_->insert(std::make_pair(kCmdNameHSet, std::move(hsetPtr)));
+  std::unique_ptr<BaseCmd> hgetPtr = std::make_unique<HGetCmd>(kCmdNameHGet, 3);
+  cmds_->insert(std::make_pair(kCmdNameHGet, std::move(hgetPtr)));
+  std::unique_ptr<BaseCmd> hmsetPtr = std::make_unique<HMSetCmd>(kCmdNameHMSet, -4);
+  cmds_->insert(std::make_pair(kCmdNameHMSet, std::move(hmsetPtr)));
+  std::unique_ptr<BaseCmd> hmgetPtr = std::make_unique<HMGetCmd>(kCmdNameHMGet, -3);
+  cmds_->insert(std::make_pair(kCmdNameHMGet, std::move(hmgetPtr)));
+  std::unique_ptr<BaseCmd> hgetallPtr = std::make_unique<HGetAllCmd>(kCmdNameHGetAll, 2);
+  cmds_->insert(std::make_pair(kCmdNameHGetAll, std::move(hgetallPtr)));
+  std::unique_ptr<BaseCmd> hkeysPtr = std::make_unique<HKeysCmd>(kCmdNameHKeys, 2);
+  cmds_->insert(std::make_pair(kCmdNameHKeys, std::move(hkeysPtr)));
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
