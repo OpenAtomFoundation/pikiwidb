@@ -42,4 +42,5 @@ void ExistsCmd::DoCmd(PClient* client) {
     client->AppendInteger(0);
   }
 }
+
 }  // namespace pikiwidb

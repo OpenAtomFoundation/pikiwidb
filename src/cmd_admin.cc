@@ -40,4 +40,27 @@ void FlushdbCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk);
 }
 
+FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsAdmin | CmdFlagsWrite, AclCategoryWrite | AclCategoryAdmin) {}
+
+bool FlushallCmd::DoInitial(PClient* client) { return true; }
+
+void FlushallCmd::DoCmd(PClient* client) {
+  int currentDB = PSTORE.GetDB();
+  std::vector<PString> param{"flushall"};
+  DEFER {
+    PSTORE.SelectDB(currentDB);
+    Propagate(-1, param);
+    PSTORE.ResetDB();
+  };
+
+  for (int dbno = 0; true; ++dbno) {
+    if (PSTORE.SelectDB(dbno) == -1) {
+      break;
+    }
+    PSTORE.dirty_ += PSTORE.DBSize();
+  }
+  client->SetRes(CmdRes::kOk);
+}
+
 }  // namespace pikiwidb
