@@ -228,7 +228,9 @@ void DecrCmd::DoCmd(pikiwidb::PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
   if (err == PError_notExist) {
-    value = PSTORE.SetValue(client->Key(), PObject::CreateString(0));
+    value = PSTORE.SetValue(client->Key(), PObject::CreateString(-1));
+    client->AppendInteger(-1);
+    return;
   }
 
   if (err != PError_ok) {
@@ -242,7 +244,7 @@ void DecrCmd::DoCmd(pikiwidb::PClient* client) {
   }
 
   intptr_t oldVal = static_cast<intptr_t>(reinterpret_cast<std::intptr_t>(value->value));
-  value->Reset(reinterpret_cast<void*>(static_cast<std::intptr_t>(oldVal - 1)));
+  value->Reset(reinterpret_cast<void*>(oldVal - 1));
 
   client->AppendInteger(oldVal - 1);
 }
