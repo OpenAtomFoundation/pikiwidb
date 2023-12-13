@@ -42,8 +42,6 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Exists, 2);
 
   // kv
-  std::unique_ptr<BaseCmd> incrbyPtr = std::make_unique<IncrbyCmd>(kCmdNameIncrby, 3);
-  cmds_->insert(std::make_pair(kCmdNameIncrby, std::move(incrbyPtr)));
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
   ADD_COMMAND(MGet, -2);
@@ -53,6 +51,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Append, 3);
   ADD_COMMAND(Strlen, 2);
   ADD_COMMAND(Incrby, 3);
+  ADD_COMMAND(IncrbyFloat, 3);
   ADD_COMMAND(SetEx, 4);
   ADD_COMMAND(PSetEx, 4);
   ADD_COMMAND(BitOp, -4);

@@ -171,9 +171,9 @@ class GetBitCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class IncrbyfloatCmd : public BaseCmd {
+class IncrbyFloatCmd : public BaseCmd {
  public:
-  IncrbyfloatCmd(const std::string &name, int16_t arity);
+  IncrbyFloatCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

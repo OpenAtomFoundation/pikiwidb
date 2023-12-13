@@ -436,10 +436,10 @@ void IncrbyCmd::DoCmd(PClient* client) {
   }
 }
 
-IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
+IncrbyFloatCmd::IncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool IncrbyfloatCmd::DoInitial(PClient* client) {
+bool IncrbyFloatCmd::DoInitial(PClient* client) {
   long double by_ = 0.00f;
   if (StrToLongDouble(client->argv_[2].data(), client->argv_[2].size(), &by_)) {
     client->SetRes(CmdRes::kInvalidFloat);
@@ -449,7 +449,7 @@ bool IncrbyfloatCmd::DoInitial(PClient* client) {
   return true;
 }
 
-void IncrbyfloatCmd::DoCmd(PClient* client) {
+void IncrbyFloatCmd::DoCmd(PClient* client) {
   std::string new_value;
   PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value);
   switch (err) {
