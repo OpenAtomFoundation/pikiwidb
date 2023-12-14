@@ -248,7 +248,40 @@ void HLenCmd::DoCmd(PClient* client) {
   }
 
   auto hash = value->CastHash();
-	FormatInt(hash->size(), &reply);
+  FormatInt(hash->size(), &reply);
+  client->AppendStringRaw(reply.ReadAddr());
+}
+
+HStrLenCmd::HStrLenCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+
+bool HStrLenCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HStrLenCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  UnboundedBuffer reply;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
+  if (err != PError_ok) {
+    ReplyError(err, &reply);
+    if (err == PError_notExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "hstrlen cmd error");
+    }
+    return;
+  }
+
+  auto hash = value->CastHash();
+  auto it = hash->find(client->argv_[2]);
+  if (it == hash->end()) {
+    Format0(&reply);
+  } else {
+    FormatInt(it->second.size(), &reply);
+  }
+
   client->AppendStringRaw(reply.ReadAddr());
 }
 
