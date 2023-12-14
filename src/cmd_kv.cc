@@ -456,8 +456,13 @@ void IncrbyCmd::DoCmd(PClient* client) {
   }
 }
 
+<<<<<<< HEAD
 IncrbyFloatCmd::IncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+=======
+IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+>>>>>>> edebe48 (style:variable format modification cmd_kv.cc)
 
 bool IncrbyFloatCmd::DoInitial(PClient* client) {
   long double by_ = 0.00f;
