@@ -77,4 +77,15 @@ class HKeysCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class HLenCmd : public BaseCmd {
+ public:
+  HLenCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

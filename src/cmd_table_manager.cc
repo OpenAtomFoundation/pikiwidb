@@ -65,6 +65,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HMGet, -3);
   ADD_COMMAND(HGetAll, 2);
   ADD_COMMAND(HKeys, 2);
+  ADD_COMMAND(HLen, 2);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
