@@ -79,15 +79,15 @@ void AppendCmd::DoCmd(PClient* client) {
   client->AppendInteger(static_cast<int64_t>(new_value.size()));
 }
 
-GetsetCmd::GetsetCmd(const std::string& name, int16_t arity)
+GetSetCmd::GetSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool GetsetCmd::DoInitial(PClient* client) {
+bool GetSetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void GetsetCmd::DoCmd(PClient* client) {
+void GetSetCmd::DoCmd(PClient* client) {
   PObject* old_value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), old_value, PType_string);
   if (err != PError_ok) {
@@ -106,17 +106,17 @@ void GetsetCmd::DoCmd(PClient* client) {
   client->AppendString(*str);
 }
 
-MgetCmd::MgetCmd(const std::string& name, int16_t arity)
+MGetCmd::MGetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
 
-bool MgetCmd::DoInitial(PClient* client) {
+bool MGetCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
   keys.erase(keys.begin());
   client->SetKey(keys);
   return true;
 }
 
-void MgetCmd::DoCmd(PClient* client) {
+void MGetCmd::DoCmd(PClient* client) {
   size_t valueSize = client->Keys().size();
   client->AppendArrayLen(static_cast<int64_t>(valueSize));
   for (const auto& k : client->Keys()) {
@@ -139,7 +139,7 @@ MSetCmd::MSetCmd(const std::string& name, int16_t arity)
 bool MSetCmd::DoInitial(PClient* client) {
   size_t argcSize = client->argv_.size();
   if (argcSize % 2 == 0) {
-    client->SetRes(CmdRes::kWrongNum, kCmdNameMset);
+    client->SetRes(CmdRes::kWrongNum, kCmdNameMSet);
     return false;
   }
   std::vector<std::string> keys;
@@ -358,10 +358,10 @@ void StrlenCmd::DoCmd(PClient* client) {
   }
 }
 
-SetexCmd::SetexCmd(const std::string& name, int16_t arity)
+SetExCmd::SetExCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool SetexCmd::DoInitial(PClient* client) {
+bool SetExCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   int64_t sec = 0;
   if (pstd::String2int(client->argv_[2], &sec) == 0) {
@@ -371,7 +371,7 @@ bool SetexCmd::DoInitial(PClient* client) {
   return true;
 }
 
-void SetexCmd::DoCmd(PClient* client) {
+void SetExCmd::DoCmd(PClient* client) {
   PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
   int64_t sec = 0;
   pstd::String2int(client->argv_[2], &sec);
@@ -379,10 +379,10 @@ void SetexCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOk);
 }
 
-PsetexCmd::PsetexCmd(const std::string& name, int16_t arity)
+PSetExCmd::PSetExCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool PsetexCmd::DoInitial(PClient* client) {
+bool PSetExCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   int64_t msec = 0;
   if (pstd::String2int(client->argv_[2], &msec) == 0) {
@@ -392,7 +392,7 @@ bool PsetexCmd::DoInitial(PClient* client) {
   return true;
 }
 
-void PsetexCmd::DoCmd(PClient* client) {
+void PSetExCmd::DoCmd(PClient* client) {
   PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[3]));
   int64_t msec = 0;
   pstd::String2int(client->argv_[2], &msec);
@@ -436,10 +436,10 @@ void IncrbyCmd::DoCmd(PClient* client) {
   }
 }
 
-IncrbyfloatCmd::IncrbyfloatCmd(const std::string& name, int16_t arity)
+IncrbyFloatCmd::IncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool IncrbyfloatCmd::DoInitial(PClient* client) {
+bool IncrbyFloatCmd::DoInitial(PClient* client) {
   long double by_ = 0.00f;
   if (StrToLongDouble(client->argv_[2].data(), client->argv_[2].size(), &by_)) {
     client->SetRes(CmdRes::kInvalidFloat);
@@ -449,7 +449,7 @@ bool IncrbyfloatCmd::DoInitial(PClient* client) {
   return true;
 }
 
-void IncrbyfloatCmd::DoCmd(PClient* client) {
+void IncrbyFloatCmd::DoCmd(PClient* client) {
   std::string new_value;
   PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value);
   switch (err) {
@@ -470,15 +470,15 @@ void IncrbyfloatCmd::DoCmd(PClient* client) {
   }
 }
 
-SetnxCmd::SetnxCmd(const std::string& name, int16_t arity)
+SetNXCmd::SetNXCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
 
-bool SetnxCmd::DoInitial(PClient* client) {
+bool SetNXCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void SetnxCmd::DoCmd(PClient* client) {
+void SetNXCmd::DoCmd(PClient* client) {
   int iSuccess = 1;
   PObject* value = nullptr;
   PError err = PSTORE.GetValue(client->argv_[1], value);

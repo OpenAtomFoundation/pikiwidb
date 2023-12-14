@@ -61,9 +61,9 @@ class StrlenCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class SetexCmd : public BaseCmd {
+class SetExCmd : public BaseCmd {
  public:
-  SetexCmd(const std::string &name, int16_t arity);
+  SetExCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -72,9 +72,9 @@ class SetexCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class PsetexCmd : public BaseCmd {
+class PSetExCmd : public BaseCmd {
  public:
-  PsetexCmd(const std::string &name, int16_t arity);
+  PSetExCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -83,9 +83,9 @@ class PsetexCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class SetnxCmd : public BaseCmd {
+class SetNXCmd : public BaseCmd {
  public:
-  SetnxCmd(const std::string &name, int16_t arity);
+  SetNXCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -105,9 +105,9 @@ class AppendCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class GetsetCmd : public BaseCmd {
+class GetSetCmd : public BaseCmd {
  public:
-  GetsetCmd(const std::string &name, int16_t arity);
+  GetSetCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -116,9 +116,9 @@ class GetsetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class MgetCmd : public BaseCmd {
+class MGetCmd : public BaseCmd {
  public:
-  MgetCmd(const std::string &name, int16_t arity);
+  MGetCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -171,9 +171,9 @@ class GetBitCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class IncrbyfloatCmd : public BaseCmd {
+class IncrbyFloatCmd : public BaseCmd {
  public:
-  IncrbyfloatCmd(const std::string &name, int16_t arity);
+  IncrbyFloatCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
