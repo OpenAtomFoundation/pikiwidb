@@ -458,7 +458,6 @@ static PError ChangeFloatValue(const PString& key, float delta, UnboundedBuffer*
 
   FormatBulk(newVal, len, reply);
   return kPErrorOK;
-  
 }
 
 PError incrbyfloat(const std::vector<PString>& params, UnboundedBuffer* reply) {
