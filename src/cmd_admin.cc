@@ -41,7 +41,7 @@ void FlushdbCmd::DoCmd(PClient* client) {
 }
 
 FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsAdmin | CmdFlagsWrite, AclCategoryWrite | AclCategoryAdmin) {}
+    : BaseCmd(name, arity, kCmdFlagsAdmin | kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryAdmin) {}
 
 bool FlushallCmd::DoInitial(PClient* client) { return true; }
 
