@@ -26,13 +26,13 @@ bool HSetCmd::DoInitial(PClient* client) {
 void HSetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok && err != PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk && err != kPErrorNotExist) {
     ReplyError(err, &reply);
     client->SetRes(CmdRes::kSyntaxErr, "hset cmd error");
     return;
   }
-  if (err == PError_notExist) {
+  if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(client->Key(), PObject::CreateHash());
   }
 
@@ -64,10 +64,10 @@ bool HGetCmd::DoInitial(PClient* client) {
 void HGetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hget cmd error");
@@ -101,13 +101,13 @@ bool HMSetCmd::DoInitial(PClient* client) {
 void HMSetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok && err != PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk && err != kPErrorNotExist) {
     ReplyError(err, &reply);
     client->SetRes(CmdRes::kSyntaxErr, "hmset cmd error");
     return;
   }
-  if (err == PError_notExist) {
+  if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(client->Key(), PObject::CreateHash());
   }
 
@@ -137,10 +137,10 @@ bool HMGetCmd::DoInitial(PClient* client) {
 void HMGetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hmget cmd error");
@@ -173,10 +173,10 @@ bool HGetAllCmd::DoInitial(PClient* client) {
 void HGetAllCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hgetall cmd error");
@@ -205,10 +205,10 @@ bool HKeysCmd::DoInitial(PClient* client) {
 void HKeysCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOk) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hkeys cmd error");

@@ -21,24 +21,24 @@ uint32_t PObject::lruclock = static_cast<uint32_t>(::time(nullptr));
 
 PObject::PObject(PType t) : type(t) {
   switch (type) {
-    case PType_list:
-      encoding = PEncode_list;
+    case kPTypeList:
+      encoding = kPTypeList;
       break;
 
-    case PType_set:
-      encoding = PEncode_set;
+    case kPTypeSet:
+      encoding = kPEncodeSet;
       break;
 
-    case PType_sortedSet:
-      encoding = PEncode_zset;
+    case kPTypeSortedSet:
+      encoding = kPTypeSortedSet;
       break;
 
-    case PType_hash:
-      encoding = PEncode_hash;
+    case kPTypeHash:
+      encoding = kPEncodeHash;
       break;
 
     default:
-      encoding = PEncode_invalid;
+      encoding = kPEncodeInvalid;
       break;
   }
 
@@ -51,8 +51,8 @@ PObject::~PObject() { freeValue(); }
 void PObject::Clear() {
   freeValue();
 
-  type = PType_invalid;
-  encoding = PEncode_invalid;
+  type = kPTypeInvalid;
+  encoding = kPEncodeInvalid;
   lru = 0;
   value = nullptr;
 }
@@ -77,31 +77,31 @@ void PObject::moveFrom(PObject&& obj) {
   this->value = obj.value;
   this->lru = obj.lru;
 
-  obj.encoding = PEncode_invalid;
-  obj.type = PType_invalid;
+  obj.encoding = kPEncodeInvalid;
+  obj.type = kPTypeInvalid;
   obj.value = nullptr;
   obj.lru = 0;
 }
 
 void PObject::freeValue() {
   switch (encoding) {
-    case PEncode_raw:
+    case kPEncodeRaw:
       delete CastString();
       break;
 
-    case PEncode_list:
+    case kPEncodeList:
       delete CastList();
       break;
 
-    case PEncode_set:
+    case kPEncodeSet:
       delete CastSet();
       break;
 
-    case PEncode_zset:
+    case kPEncodeZset:
       delete CastSortedSet();
       break;
 
-    case PEncode_hash:
+    case kPEncodeHash:
       delete CastHash();
       break;
 
@@ -259,9 +259,9 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
         INFO("{} is try lpush to target list {}", list->front(), target);
 
         // check target list
-        PError err = PSTORE.GetValueByType(target, dst, PType_list);
-        if (err != PError_ok) {
-          if (err != PError_notExist) {
+        PError err = PSTORE.GetValueByType(target, dst, kPTypeList);
+        if (err != kPErrorOk) {
+          if (err != kPErrorNotExist) {
             UnboundedBuffer reply;
             ReplyError(err, &reply);
             cli->SendPacket(reply);
@@ -409,7 +409,7 @@ const PObject* PStore::GetObject(const PString& key) const {
 
     // load from leveldb, if has, insert to pikiwidb cache
     PObject obj = backends_[dbno_]->Get(key);
-    if (obj.type != PType_invalid) {
+    if (obj.type != kPTypeInvalid) {
       DEBUG("GetKey from leveldb:{}", key);
 
       unsigned int remainTtlSecondsTemp = obj.lru;
@@ -457,7 +457,7 @@ bool PStore::ExistsKey(const PString& key) const {
 PType PStore::KeyType(const PString& key) const {
   const PObject* obj = GetObject(key);
   if (!obj) {
-    return PType_invalid;
+    return kPTypeInvalid;
   }
 
   return PType(obj->type);
@@ -520,16 +520,16 @@ PError PStore::GetValueByTypeNoTouch(const PString& key, PObject*& value, PType 
 
 PError PStore::getValueByType(const PString& key, PObject*& value, PType type, bool touch) {
   if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
-    return PError_notExist;
+    return kPErrorNotExist;
   }
 
   auto cobj = GetObject(key);
   if (!cobj) {
-    return PError_notExist;
+    return kPErrorNotExist;
   }
 
-  if (type != PType_invalid && type != PType(cobj->type)) {
-    return PError_type;
+  if (type != kPTypeInvalid && type != PType(cobj->type)) {
+    return kPErrorType;
   }
   value = const_cast<PObject*>(cobj);
   // Do not update if child process exists
@@ -538,7 +538,7 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
     value->lru = PObject::lruclock;
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
@@ -562,8 +562,8 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, PType_string);
-  if (err != PError_ok) {
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOk) {
     return err;
   }
   char* end = nullptr;
@@ -571,7 +571,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   int64_t ival = strtoll(str->c_str(), &end, 10);
   if (*end != 0) {
     // value is not a integer
-    return PError_type;
+    return kPErrorType;
   }
 
   PObject new_value;
@@ -586,7 +586,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
@@ -596,26 +596,26 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
   auto db = &dbs_[dbno_];
 
   if (StrToLongDouble(value.data(), value.size(), &long_double_by)) {
-    return PError_type;
+    return kPErrorType;
   }
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, PType_string);
-  if (err != PError_ok) {
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOk) {
     return err;
   }
 
   auto old_number_str = pikiwidb::GetDecodedString(old_value);
   // old number to long double
   if (StrToLongDouble(old_number_str->c_str(), old_number_str->size(), &old_number)) {
-    return PError_type;
+    return kPErrorType;
   }
 
   std::string total_string;
   long double total = old_number + long_double_by;
   if (LongDoubleToStr(total, &total_string)) {
-    return PError_overflow;
+    return kPErrorOverflow;
   }
 
   *ret = total_string;
@@ -630,7 +630,7 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }

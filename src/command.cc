@@ -232,18 +232,18 @@ bool PCommandTable::AddCommand(const PString& cmd, const PCommandInfo* info) {
 
 PError PCommandTable::ExecuteCmd(const std::vector<PString>& params, const PCommandInfo* info, UnboundedBuffer* reply) {
   if (params.empty()) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   if (!info) {
-    ReplyError(PError_unknowCmd, reply);
-    return PError_unknowCmd;
+    ReplyError(kPErrorUnknowCmd, reply);
+    return kPErrorUnknowCmd;
   }
 
   if (!info->CheckParamsCount(static_cast<int>(params.size()))) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   return info->handler(params, reply);
@@ -251,20 +251,20 @@ PError PCommandTable::ExecuteCmd(const std::vector<PString>& params, const PComm
 
 PError PCommandTable::ExecuteCmd(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.empty()) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   auto it(s_handlers.find(params[0]));
   if (it == s_handlers.end()) {
-    ReplyError(PError_unknowCmd, reply);
-    return PError_unknowCmd;
+    ReplyError(kPErrorUnknowCmd, reply);
+    return kPErrorUnknowCmd;
   }
 
   const PCommandInfo* info = it->second;
   if (!info->CheckParamsCount(static_cast<int>(params.size()))) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   return info->handler(params, reply);
@@ -284,7 +284,7 @@ PError cmdlist(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(kv.first, reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 }  // namespace pikiwidb

@@ -357,7 +357,7 @@ size_t Format0(UnboundedBuffer* reply) {
 
 PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
   if (nBytes < 3) {
-    return PParseResult::wait;
+    return PParseResult::kWait;
   }
 
   std::size_t i = 0;
@@ -376,11 +376,11 @@ PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
       value += ptr[i] - '0';
     } else {
       if (ptr[i] != '\r' || (i + 1 < nBytes && ptr[i + 1] != '\n')) {
-        return PParseResult::error;
+        return PParseResult::kError;
       }
 
       if (i + 1 == nBytes) {
-        return PParseResult::wait;
+        return PParseResult::kWait;
       }
 
       break;
@@ -394,7 +394,7 @@ PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
   ptr += i;
   ptr += 2;
   val = value;
-  return PParseResult::ok;
+  return PParseResult::kOk;
 }
 
 std::vector<PString> SplitString(const PString& str, char seperator) {

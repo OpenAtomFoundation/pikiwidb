@@ -222,7 +222,7 @@ static int ProcessMaster(const char* start, const char* end) {
       if (PREPL.GetRdbSize() == static_cast<std::size_t>(-1)) {
         ++ptr;  // skip $
         int s;
-        if (PParseResult::ok == GetIntUntilCRLF(ptr, end - ptr, s)) {
+        if (PParseResult::kOk == GetIntUntilCRLF(ptr, end - ptr, s)) {
           assert(s > 0);  // check error for your masterauth or master config
 
           PREPL.SetRdbSize(s);
@@ -268,7 +268,7 @@ int PClient::handlePacket(const char* start, int bytes) {
   }
 
   auto parseRet = parser_.ParseRequest(ptr, end);
-  if (parseRet == PParseResult::error) {
+  if (parseRet == PParseResult::kError) {
     if (!parser_.IsInitialState()) {
       conn->ActiveClose();
       return 0;
@@ -283,8 +283,8 @@ int PClient::handlePacket(const char* start, int bytes) {
 
     ptr += len;
     parser_.SetParams(params);
-    parseRet = PParseResult::ok;
-  } else if (parseRet != PParseResult::ok) {
+    parseRet = PParseResult::kOk;
+  } else if (parseRet != PParseResult::kOk) {
     return static_cast<int>(ptr - start);
   }
 

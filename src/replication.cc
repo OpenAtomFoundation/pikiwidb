@@ -334,16 +334,16 @@ std::size_t PReplication::GetRdbSize() const { return masterInfo_.rdbSize; }
 
 PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 == 0) {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
   for (size_t i = 1; i < params.size(); i += 2) {
     if (strncasecmp(params[i].c_str(), "listening-port", 14) == 0) {
       long port;
       if (!TryStr2Long(params[i + 1].c_str(), params[i + 1].size(), port)) {
-        ReplyError(PError_param, reply);
-        return PError_param;
+        ReplyError(kPErrorParam, reply);
+        return kPErrorParam;
       }
 
       auto client = PClient::Current();
@@ -360,7 +360,7 @@ PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 void PReplication::OnInfoCommand(UnboundedBuffer& res) {
@@ -444,7 +444,7 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -459,13 +459,13 @@ PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (slave->state == PSlaveState_wait_bgsave_end || slave->state == PSlaveState_online) {
     WARN("{} state is {}, ignore this sync request", cli->GetName(), int(slave->state));
 
-    return PError_ok;
+    return kPErrorOk;
   }
 
   slave->state = PSlaveState_wait_bgsave_start;
   PREPL.TryBgsave();
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 }  // namespace pikiwidb

@@ -106,22 +106,22 @@ void PMulti::NotifyDirtyAll(int dbno) {
 PError watch(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
   if (client->IsFlagOn(kClientFlagMulti)) {
-    ReplyError(PError_watch, reply);
-    return PError_watch;
+    ReplyError(kPErrorWatch, reply);
+    return kPErrorWatch;
   }
 
   std::for_each(++params.begin(), params.end(),
                 [client](const PString& s) { PMulti::Instance().Watch(client, PSTORE.GetDB(), s); });
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError unwatch(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
   client->ClearWatch();
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -132,20 +132,20 @@ PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
     reply->PushData("-ERR MULTI calls can not be nested\r\n", sizeof "-ERR MULTI calls can not be nested\r\n" - 1);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
   if (!client->IsFlagOn(kClientFlagMulti)) {
-    ReplyError(PError_noMulti, reply);
-    return PError_noMulti;
+    ReplyError(kPErrorNoMulti, reply);
+    return kPErrorNoMulti;
   }
   if (!PMulti::Instance().Exec(client)) {
-    ReplyError(PError_dirtyExec, reply);
-    return PError_dirtyExec;
+    ReplyError(kPErrorDirtyExec, reply);
+    return kPErrorDirtyExec;
   }
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -157,7 +157,7 @@ PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatOK(reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 }  // namespace pikiwidb

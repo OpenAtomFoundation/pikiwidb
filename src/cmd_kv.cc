@@ -23,9 +23,9 @@ bool GetCmd::DoInitial(PClient* client) {
 
 void GetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err != kPErrorOk) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "get key error");
@@ -61,9 +61,9 @@ bool AppendCmd::DoInitial(PClient* client) {
 
 void AppendCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {            // = set command
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err != kPErrorOk) {
+    if (err == kPErrorNotExist) {            // = set command
       PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendInteger(static_cast<int64_t>(client->argv_[2].size()));
@@ -94,9 +94,9 @@ bool GetSetCmd::DoInitial(PClient* client) {
 
 void GetSetCmd::DoCmd(PClient* client) {
   PObject* old_value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), old_value, PType_string);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {            // = set command
+  PError err = PSTORE.GetValueByType(client->Key(), old_value, kPTypeString);
+  if (err != kPErrorOk) {
+    if (err == kPErrorNotExist) {            // = set command
       PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
       PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
       client->AppendString("");
@@ -131,8 +131,8 @@ void MGetCmd::DoCmd(PClient* client) {
   client->AppendArrayLen(static_cast<int64_t>(valueSize));
   for (const auto& k : client->Keys()) {
     PObject* value = nullptr;
-    PError err = PSTORE.GetValueByType(k, value, PType_string);
-    if (err == PError_notExist) {
+    PError err = PSTORE.GetValueByType(k, value, kPTypeString);
+    if (err == kPErrorNotExist) {
       client->AppendStringLen(-1);
     } else {
       auto str = GetDecodedString(value);
@@ -185,9 +185,9 @@ bool BitCountCmd::DoInitial(PClient* client) {
 
 void BitCountCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->argv_[1], value, PType_string);
-  if (err != PError_ok) {
-    if (err == PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->argv_[1], value, kPTypeString);
+  if (err != kPErrorOk) {
+    if (err == kPErrorNotExist) {
       client->AppendInteger(0);
     } else {
       client->SetRes(CmdRes::kErrOther, "bitcount get key error");
@@ -250,7 +250,7 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
     case BitOpCmd::kBitOpXor:
       for (auto k : keys) {
         PObject* val = nullptr;
-        if (PSTORE.GetValueByType(k, val, PType_string) != PError_ok) {
+        if (PSTORE.GetValueByType(k, val, kPTypeString) != kPErrorOk) {
           continue;
         }
 
@@ -279,7 +279,7 @@ static std::string StringBitOp(const std::vector<std::string>& keys, BitOpCmd::B
     case BitOpCmd::kBitOpNot: {
       assert(keys.size() == 1);
       PObject* val = nullptr;
-      if (PSTORE.GetValueByType(keys[0], val, PType_string) != PError_ok) {
+      if (PSTORE.GetValueByType(keys[0], val, kPTypeString) != kPErrorOk) {
         break;
       }
 
@@ -306,30 +306,30 @@ void BitOpCmd::DoCmd(PClient* client) {
     keys.push_back(client->argv_[i]);
   }
 
-  PError err = PError_param;
+  PError err = kPErrorParam;
   PString res;
 
   if (client->Key().size() == 2) {
     if (pstd::StringEqualCaseInsensitive(client->argv_[1], "or")) {
-      err = PError_ok;
+      err = kPErrorOk;
       res = StringBitOp(keys, kBitOpOr);
     }
   } else if (client->Key().size() == 3) {
     if (pstd::StringEqualCaseInsensitive(client->argv_[1], "xor")) {
-      err = PError_ok;
+      err = kPErrorOk;
       res = StringBitOp(keys, kBitOpXor);
     } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "and")) {
-      err = PError_ok;
+      err = kPErrorOk;
       res = StringBitOp(keys, kBitOpAnd);
     } else if (pstd::StringEqualCaseInsensitive(client->argv_[1], "not")) {
       if (client->argv_.size() == 4) {
-        err = PError_ok;
+        err = kPErrorOk;
         res = StringBitOp(keys, kBitOpNot);
       }
     }
   }
 
-  if (err != PError_ok) {
+  if (err != kPErrorOk) {
     client->SetRes(CmdRes::kSyntaxErr);
   } else {
     PSTORE.SetValue(client->argv_[2], PObject::CreateString(res));
@@ -348,16 +348,16 @@ bool StrlenCmd::DoInitial(PClient* client) {
 
 void StrlenCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
 
   switch (err) {
-    case PError_ok: {
+    case kPErrorOk: {
       auto str = GetDecodedString(value);
       size_t len = str->size();
       client->AppendInteger(static_cast<int64_t>(len));
       break;
     }
-    case PError_notExist: {
+    case kPErrorNotExist: {
       client->AppendInteger(0);
       break;
     }
@@ -439,15 +439,15 @@ void IncrbyCmd::DoCmd(PClient* client) {
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by_);
   PError err = PSTORE.Incrby(client->Key(), by_, &new_value);
   switch (err) {
-    case PError_type:
+    case kPErrorType:
       client->SetRes(CmdRes::kInvalidInt);
       break;
-    case PError_notExist:                 // key not exist, set a new value
+    case kPErrorNotExist:                 // key not exist, set a new value
       PSTORE.ClearExpire(client->Key());  // clear key's old ttl
       PSTORE.SetValue(client->Key(), PObject::CreateString(by_));
       client->AppendInteger(by_);
       break;
-    case PError_ok:
+    case kPErrorOk:
       client->AppendInteger(new_value);
       break;
     default:
@@ -478,15 +478,15 @@ void IncrbyFloatCmd::DoCmd(PClient* client) {
   std::string new_value;
   PError err = PSTORE.Incrbyfloat(client->argv_[1], client->argv_[2], &new_value);
   switch (err) {
-    case PError_type:
+    case kPErrorType:
       client->SetRes(CmdRes::kInvalidFloat);
       break;
-    case PError_notExist:                 // key not exist, set a new value
+    case kPErrorNotExist:                 // key not exist, set a new value
       PSTORE.ClearExpire(client->Key());  // clear key's old ttl
       PSTORE.SetValue(client->Key(), PObject::CreateString(client->argv_[2]));
       client->AppendString(client->argv_[2]);
       break;
-    case PError_ok:
+    case kPErrorOk:
       client->AppendString(new_value);
       break;
     default:
@@ -512,7 +512,7 @@ void SetNXCmd::DoCmd(PClient* client) {
   int iSuccess = 1;
   PObject* value = nullptr;
   PError err = PSTORE.GetValue(client->argv_[1], value);
-  if (err == PError_notExist) {
+  if (err == kPErrorNotExist) {
     PSTORE.ClearExpire(client->argv_[1]);  // clear key's old ttl
     PSTORE.SetValue(client->argv_[1], PObject::CreateString(client->argv_[2]));
     client->AppendInteger(iSuccess);
@@ -531,8 +531,8 @@ bool GetBitCmd::DoInitial(PClient* client) {
 
 void GetBitCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err != kPErrorOk) {
     client->SetRes(CmdRes::kErrOther);
     return;
   }

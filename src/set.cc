@@ -13,7 +13,7 @@
 namespace pikiwidb {
 
 PObject PObject::CreateSet() {
-  PObject set(PType_set);
+  PObject set(kPTypeSet);
   set.Reset(new PSet);
 
   return set;
@@ -21,9 +21,9 @@ PObject PObject::CreateSet() {
 
 #define GET_SET(setname)                                         \
   PObject* value;                                                \
-  PError err = PSTORE.GetValueByType(setname, value, PType_set); \
-  if (err != PError_ok) {                                        \
-    if (err == PError_notExist) {                                \
+  PError err = PSTORE.GetValueByType(setname, value, kPTypeSet); \
+  if (err != kPErrorOk) {                                        \
+    if (err == kPErrorNotExist) {                                \
       FormatNull(reply);                                         \
     } else {                                                     \
       ReplyError(err, reply);                                    \
@@ -33,12 +33,12 @@ PObject PObject::CreateSet() {
 
 #define GET_OR_SET_SET(setname)                                  \
   PObject* value;                                                \
-  PError err = PSTORE.GetValueByType(setname, value, PType_set); \
-  if (err != PError_ok && err != PError_notExist) {              \
+  PError err = PSTORE.GetValueByType(setname, value, kPTypeSet); \
+  if (err != kPErrorOk && err != kPErrorNotExist) {              \
     ReplyError(err, reply);                                      \
     return err;                                                  \
   }                                                              \
-  if (err == PError_notExist) {                                  \
+  if (err == kPErrorNotExist) {                                  \
     value = PSTORE.SetValue(setname, PObject::CreateSet());      \
   }
 
@@ -73,10 +73,10 @@ PError spop(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PClient::Current()->RewriteCmd(translated);
   } else {
     FormatNull(reply);
-    return PError_notExist;
+    return kPErrorNotExist;
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError srandmember(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -90,7 +90,7 @@ PError srandmember(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatNull(reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sadd(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -105,7 +105,7 @@ PError sadd(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(res, reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError scard(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -115,7 +115,7 @@ PError scard(const std::vector<PString>& params, UnboundedBuffer* reply) {
   long size = static_cast<long>(set->size());
 
   FormatInt(size, reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError srem(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -134,7 +134,7 @@ PError srem(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(res, reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sismember(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -144,7 +144,7 @@ PError sismember(const std::vector<PString>& params, UnboundedBuffer* reply) {
   long res = static_cast<long>(set->count(params[2]));
 
   FormatInt(res, reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError smembers(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -156,7 +156,7 @@ PError smembers(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(member, reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError smove(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -166,14 +166,14 @@ PError smove(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = static_cast<int>(set->erase(params[3]));
   if (ret != 0) {
     PObject* dst;
-    err = PSTORE.GetValueByType(params[2], dst, PType_set);
-    if (err == PError_notExist) {
-      err = PError_ok;
+    err = PSTORE.GetValueByType(params[2], dst, kPTypeSet);
+    if (err == kPErrorNotExist) {
+      err = kPErrorOk;
       PObject val(PObject::CreateSet());
       dst = PSTORE.SetValue(params[2], std::move(val));
     }
 
-    if (err == PError_ok) {
+    if (err == kPErrorOk) {
       auto dset = dst->CastSet();
       dset->insert(params[3]);
     }
@@ -223,8 +223,8 @@ enum SetOperation {
 
 static void _set_operation(const std::vector<PString>& params, size_t offset, PSet& res, SetOperation oper) {
   PObject* value;
-  PError err = PSTORE.GetValueByType(params[offset], value, PType_set);
-  if (err != PError_ok && oper != kSetOperationUnion) {
+  PError err = PSTORE.GetValueByType(params[offset], value, kPTypeSet);
+  if (err != kPErrorOk && oper != kSetOperationUnion) {
     return;
   }
 
@@ -235,8 +235,8 @@ static void _set_operation(const std::vector<PString>& params, size_t offset, PS
 
   for (size_t i = offset + 1; i < params.size(); ++i) {
     PObject* val;
-    PError err = PSTORE.GetValueByType(params[i], val, PType_set);
-    if (err != PError_ok) {
+    PError err = PSTORE.GetValueByType(params[i], val, kPTypeSet);
+    if (err != kPErrorOk) {
       if (oper == kSetOperationInter) {
         res.clear();
         return;
@@ -270,7 +270,7 @@ PError sdiffstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   _set_operation(params, 2, *res, kSetOperationDiff);
 
   FormatInt(static_cast<long>(res->size()), reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sdiff(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -282,7 +282,7 @@ PError sdiff(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(elem, reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sinter(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -294,7 +294,7 @@ PError sinter(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(elem, reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sinterstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -305,7 +305,7 @@ PError sinterstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   _set_operation(params, 2, *res, kSetOperationInter);
 
   FormatInt(static_cast<long>(res->size()), reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sunion(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -317,7 +317,7 @@ PError sunion(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(elem, reply);
   }
 
-  return PError_ok;
+  return kPErrorOk;
 }
 
 PError sunionstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -328,7 +328,7 @@ PError sunionstore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   _set_operation(params, 2, *res, kSetOperationUnion);
 
   FormatInt(static_cast<long>(res->size()), reply);
-  return PError_ok;
+  return kPErrorOk;
 }
 
 size_t SScanKey(const PSet& qset, size_t cursor, size_t count, std::vector<PString>& res) {

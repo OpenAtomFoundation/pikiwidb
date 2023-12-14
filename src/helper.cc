@@ -324,7 +324,7 @@ std::vector<size_t> getMemoryInfo() {
    mach_vm_size_t  virtual_size;   virtual memory size (bytes)
    mach_vm_size_t  resident_size;      resident memory size (bytes)
    mach_vm_size_t  resident_size_max;  maximum resident memory size (bytes) */
-  std::vector<size_t> res(VmMax);
+  std::vector<size_t> res(kVmMax);
   task_t task = MACH_PORT_NULL;
   struct task_basic_info t_info;
   mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
@@ -335,14 +335,14 @@ std::vector<size_t> getMemoryInfo() {
 
   task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count);
 
-  res[VmSize] = t_info.virtual_size;
-  res[VmRSS] = t_info.resident_size;
+  res[kVmSize] = t_info.virtual_size;
+  res[kVmRSS] = t_info.resident_size;
 
   return res;
 }
 
 size_t getMemoryInfo(MemoryInfoType type) {
-  if (type != VmSize && type != VmRSS) {
+  if (type != VmSize && type != kVmRSS) {
     return 0;
   }
 
@@ -356,9 +356,9 @@ size_t getMemoryInfo(MemoryInfoType type) {
 
   task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count);
 
-  if (type == VmSize) {
+  if (type == kVmSize) {
     return t_info.virtual_size;
-  } else if (type == VmRSS) {
+  } else if (type == kVmRSS) {
     return t_info.resident_size;
   }
 
