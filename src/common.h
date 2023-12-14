@@ -75,7 +75,7 @@ inline const char* EncodingStringInfo(unsigned encode) {
 
 enum PError {
   kPErrorNop = -1,
-  kPErrorOk = 0,
+  kPErrorOK = 0,
   kPErrorType = 1,
   kPErrorExist = 2,
   kPErrorNotExist = 3,
@@ -204,7 +204,7 @@ struct NocaseComp {
 };
 
 enum class PParseResult : int8_t {
-  kOk,
+  kOK,
   kWait,
   kError,
 };

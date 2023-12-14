@@ -394,7 +394,7 @@ PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
   ptr += i;
   ptr += 2;
   val = value;
-  return PParseResult::kOk;
+  return PParseResult::kOK;
 }
 
 std::vector<PString> SplitString(const PString& str, char seperator) {

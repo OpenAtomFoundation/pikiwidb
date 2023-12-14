@@ -284,7 +284,7 @@ PError cmdlist(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(kv.first, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

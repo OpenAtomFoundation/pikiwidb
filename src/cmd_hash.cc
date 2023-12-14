@@ -27,7 +27,7 @@ void HSetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk && err != kPErrorNotExist) {
+  if (err != kPErrorOK && err != kPErrorNotExist) {
     ReplyError(err, &reply);
     client->SetRes(CmdRes::kSyntaxErr, "hset cmd error");
     return;
@@ -65,7 +65,7 @@ void HGetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
     if (err == kPErrorNotExist) {
       client->AppendString("");
@@ -102,7 +102,7 @@ void HMSetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk && err != kPErrorNotExist) {
+  if (err != kPErrorOK && err != kPErrorNotExist) {
     ReplyError(err, &reply);
     client->SetRes(CmdRes::kSyntaxErr, "hmset cmd error");
     return;
@@ -138,7 +138,7 @@ void HMGetCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
     if (err == kPErrorNotExist) {
       client->AppendString("");
@@ -174,7 +174,7 @@ void HGetAllCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
     if (err == kPErrorNotExist) {
       client->AppendString("");
@@ -206,7 +206,7 @@ void HKeysCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
     if (err == kPErrorNotExist) {
       client->AppendString("");

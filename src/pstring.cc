@@ -60,7 +60,7 @@ std::unique_ptr<PString, void (*)(PString*)> GetDecodedString(const PObject* val
 static bool SetValue(const PString& key, const PString& value, bool exclusive = false) {
   if (exclusive) {
     PObject* val;
-    if (PSTORE.GetValue(key, val) == kPErrorOk) {
+    if (PSTORE.GetValue(key, val) == kPErrorOK) {
       return false;
     }
   }
@@ -74,7 +74,7 @@ static bool SetValue(const PString& key, const PString& value, bool exclusive = 
 PError set(const std::vector<PString>& params, UnboundedBuffer* reply) {
   SetValue(params[1], params[2]);
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError setnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -84,7 +84,7 @@ PError setnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
     Format0(reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError mset(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -99,7 +99,7 @@ PError mset(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError msetnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -110,9 +110,9 @@ PError msetnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   for (size_t i = 1; i < params.size(); i += 2) {
     PObject* val;
-    if (PSTORE.GetValue(params[i], val) == kPErrorOk) {
+    if (PSTORE.GetValue(params[i], val) == kPErrorOK) {
       Format0(reply);
-      return kPErrorOk;
+      return kPErrorOK;
     }
   }
 
@@ -122,7 +122,7 @@ PError msetnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   Format1(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError setex(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -137,7 +137,7 @@ PError setex(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PSTORE.SetExpire(key, ::Now() + seconds * 1000);
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError psetex(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -152,7 +152,7 @@ PError psetex(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PSTORE.SetExpire(key, ::Now() + milliseconds);
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError setrange(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -164,7 +164,7 @@ PError setrange(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     if (err == kPErrorNotExist) {
       value = PSTORE.SetValue(params[1], PObject::CreateString(""));
     } else {
@@ -187,7 +187,7 @@ PError setrange(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(static_cast<long>(str->size()), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 static void AddReply(PObject* value, UnboundedBuffer* reply) {
@@ -198,7 +198,7 @@ static void AddReply(PObject* value, UnboundedBuffer* reply) {
 PError get(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     if (err == kPErrorNotExist) {
       FormatNull(reply);
     } else {
@@ -209,7 +209,7 @@ PError get(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   AddReply(value, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError mget(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -217,20 +217,20 @@ PError mget(const std::vector<PString>& params, UnboundedBuffer* reply) {
   for (size_t i = 1; i < params.size(); ++i) {
     PObject* value;
     PError err = PSTORE.GetValueByType(params[i], value, kPTypeString);
-    if (err != kPErrorOk) {
+    if (err != kPErrorOK) {
       FormatNull(reply);
     } else {
       AddReply(value, reply);
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError getrange(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     if (err == kPErrorNotExist) {
       FormatBulk("", 0, reply);
     } else {
@@ -255,7 +255,7 @@ PError getrange(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatEmptyBulk(reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError getset(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -266,7 +266,7 @@ PError getset(const std::vector<PString>& params, UnboundedBuffer* reply) {
     case kPErrorNotExist:
       // fall through
 
-    case kPErrorOk:
+    case kPErrorOK:
       if (!value) {
         FormatNull(reply);
       } else {
@@ -281,7 +281,7 @@ PError getset(const std::vector<PString>& params, UnboundedBuffer* reply) {
       return err;
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError append(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -289,7 +289,7 @@ PError append(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
 
   switch (err) {
-    case kPErrorOk: {
+    case kPErrorOK: {
       auto s = GetDecodedString(value);
       value = PSTORE.SetValue(params[1], PObject::CreateString(*s + params[2]));
     } break;
@@ -305,20 +305,20 @@ PError append(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   auto s = GetDecodedString(value);
   FormatInt(static_cast<long>(s->size()), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError bitcount(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     if (err == kPErrorType) {
       ReplyError(kPErrorType, reply);
     } else {
       Format0(reply);
     }
 
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   if (params.size() != 2 && params.size() != 4) {
@@ -344,15 +344,15 @@ PError bitcount(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(static_cast<long>(cnt), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError getbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     Format0(reply);
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   long offset = 0;
@@ -367,7 +367,7 @@ PError getbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   if (offset < 0 || offset >= static_cast<long>(size)) {
     Format0(reply);
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   size_t bytesOffset = offset / 8;
@@ -379,7 +379,7 @@ PError getbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
     Format0(reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError setbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -387,10 +387,10 @@ PError setbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeString);
   if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(params[1], PObject::CreateString(""));
-    err = kPErrorOk;
+    err = kPErrorOK;
   }
 
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     Format0(reply);
     return err;
   }
@@ -404,7 +404,7 @@ PError setbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   if (offset < 0 || offset > kStringMaxBytes) {
     Format0(reply);
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   PString newVal(*GetDecodedString(value));
@@ -428,7 +428,7 @@ PError setbit(const std::vector<PString>& params, UnboundedBuffer* reply) {
   value->encoding = kPEncodeRaw;
   FormatInt((oldByte & (0x1 << bits)) ? 1 : 0, reply);
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 static PError ChangeFloatValue(const PString& key, float delta, UnboundedBuffer* reply) {
@@ -436,10 +436,10 @@ static PError ChangeFloatValue(const PString& key, float delta, UnboundedBuffer*
   PError err = PSTORE.GetValueByType(key, value, kPTypeString);
   if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(key, PObject::CreateString("0"));
-    err = kPErrorOk;
+    err = kPErrorOK;
   }
 
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -457,7 +457,8 @@ static PError ChangeFloatValue(const PString& key, float delta, UnboundedBuffer*
   value->encoding = kPEncodeRaw;
 
   FormatBulk(newVal, len, reply);
-  return kPErrorOk;
+  return kPErrorOK;
+  
 }
 
 PError incrbyfloat(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -475,24 +476,24 @@ static PError ChangeIntValue(const PString& key, long delta, UnboundedBuffer* re
   PError err = PSTORE.GetValueByType(key, value, kPTypeString);
   if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(key, PObject::CreateString(0));
-    err = kPErrorOk;
+    err = kPErrorOK;
   }
 
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
 
   if (value->encoding != kPEncodeInt) {
     ReplyError(kPErrorNan, reply);
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   intptr_t oldVal = (intptr_t)value->value;
   value->Reset((void*)(oldVal + delta));
 
   FormatInt(oldVal + delta, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError incr(const std::vector<PString>& params, UnboundedBuffer* reply) { return ChangeIntValue(params[1], 1, reply); }
@@ -521,14 +522,14 @@ PError decrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
 PError strlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* val;
   PError err = PSTORE.GetValueByType(params[1], val, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     Format0(reply);
     return err;
   }
 
   auto str = GetDecodedString(val);
   FormatInt(static_cast<long>(str->size()), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 enum BitOp {
@@ -547,7 +548,7 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
     case kBitOpXor:
       for (auto k : keys) {
         PObject* val;
-        if (PSTORE.GetValueByType(*k, val, kPTypeString) != kPErrorOk) {
+        if (PSTORE.GetValueByType(*k, val, kPTypeString) != kPErrorOK) {
           continue;
         }
 
@@ -576,7 +577,7 @@ static PString StringBitOp(const std::vector<const PString*>& keys, BitOp op) {
     case kBitOpNot: {
       assert(keys.size() == 1);
       PObject* val;
-      if (PSTORE.GetValueByType(*keys[0], val, kPTypeString) != kPErrorOk) {
+      if (PSTORE.GetValueByType(*keys[0], val, kPTypeString) != kPErrorOK) {
         break;
       }
 
@@ -607,19 +608,19 @@ PError bitop(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PString res;
   if (params[1].size() == 2) {
     if (strncasecmp(params[1].c_str(), "or", 2) == 0) {
-      err = kPErrorOk;
+      err = kPErrorOK;
       res = StringBitOp(keys, kBitOpOr);
     }
   } else if (params[1].size() == 3) {
     if (strncasecmp(params[1].c_str(), "xor", 3) == 0) {
-      err = kPErrorOk;
+      err = kPErrorOK;
       res = StringBitOp(keys, kBitOpXor);
     } else if (strncasecmp(params[1].c_str(), "and", 3) == 0) {
-      err = kPErrorOk;
+      err = kPErrorOK;
       res = StringBitOp(keys, kBitOpAnd);
     } else if (strncasecmp(params[1].c_str(), "not", 3) == 0) {
       if (params.size() == 4) {
-        err = kPErrorOk;
+        err = kPErrorOK;
         res = StringBitOp(keys, kBitOpNot);
       }
     } else {
@@ -627,14 +628,14 @@ PError bitop(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
   } else {
     PSTORE.SetValue(params[2], PObject::CreateString(res));
     FormatInt(static_cast<long>(res.size()), reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

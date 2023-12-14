@@ -266,7 +266,7 @@ PError subscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError psubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -284,7 +284,7 @@ PError psubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError unsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -314,7 +314,7 @@ PError unsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError punsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -344,14 +344,14 @@ PError punsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) 
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError publish(const std::vector<PString>& params, UnboundedBuffer* reply) {
   size_t n = PPubsub::Instance().PublishMsg(params[1], params[2]);
   FormatInt(n, reply);
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 // neixing command
@@ -386,7 +386,7 @@ PError pubsub(const std::vector<PString>& params, UnboundedBuffer* reply) {
     ERROR("Unknown pubsub subcmd {}", params[1]);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

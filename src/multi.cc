@@ -114,14 +114,14 @@ PError watch(const std::vector<PString>& params, UnboundedBuffer* reply) {
                 [client](const PString& s) { PMulti::Instance().Watch(client, PSTORE.GetDB(), s); });
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError unwatch(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
   client->ClearWatch();
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -132,7 +132,7 @@ PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
     reply->PushData("-ERR MULTI calls can not be nested\r\n", sizeof "-ERR MULTI calls can not be nested\r\n" - 1);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -145,7 +145,7 @@ PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
     ReplyError(kPErrorDirtyExec, reply);
     return kPErrorDirtyExec;
   }
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -157,7 +157,7 @@ PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatOK(reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

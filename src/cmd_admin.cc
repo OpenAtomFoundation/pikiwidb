@@ -37,7 +37,7 @@ void FlushdbCmd::DoCmd(PClient* client) {
   PSTORE.dirty_ += PSTORE.DBSize();
   PSTORE.ClearCurrentDB();
   Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
-  client->SetRes(CmdRes::kOk);
+  client->SetRes(CmdRes::kOK);
 }
 
 FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
@@ -60,7 +60,7 @@ void FlushallCmd::DoCmd(PClient* client) {
     }
     PSTORE.dirty_ += PSTORE.DBSize();
   }
-  client->SetRes(CmdRes::kOk);
+  client->SetRes(CmdRes::kOK);
 }
 
 }  // namespace pikiwidb

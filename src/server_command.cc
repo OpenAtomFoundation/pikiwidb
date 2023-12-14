@@ -36,12 +36,12 @@ PError select(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PSTORE.SelectDB(newDB);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError dbsize(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatInt(static_cast<long>(PSTORE.DBSize()), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError flushdb(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -50,7 +50,7 @@ PError flushdb(const std::vector<PString>& params, UnboundedBuffer* reply) {
   Propagate(PSTORE.GetDB(), params);
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError flushall(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -71,7 +71,7 @@ PError flushall(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -79,7 +79,7 @@ PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
                reply);
 
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   int ret = fork();
@@ -96,7 +96,7 @@ PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatSingle("Background saving started", 25, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -104,7 +104,7 @@ PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
                reply);
 
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   PDBSaver qdb;
@@ -112,17 +112,17 @@ PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
   g_lastPDBSave = time(nullptr);
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError lastsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatInt(g_lastPDBSave, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError client(const std::vector<PString>& params, UnboundedBuffer* reply) {
   // getname   setname    kill  list
-  PError err = kPErrorOk;
+  PError err = kPErrorOK;
 
   if (params[1].size() == 7 && strncasecmp(params[1].c_str(), "getname", 7) == 0) {
     if (params.size() != 2) {
@@ -158,7 +158,7 @@ static int Suicide() {
 }
 
 PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
-  PError err = kPErrorOk;
+  PError err = kPErrorOK;
 
   if (strncasecmp(params[1].c_str(), "segfault", 8) == 0 && params.size() == 2) {
     Suicide();
@@ -167,7 +167,7 @@ PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PObject* obj = nullptr;
     err = PSTORE.GetValue(params[2], obj, false);
 
-    if (err != kPErrorOk) {
+    if (err != kPErrorOK) {
       ReplyError(err, reply);
     } else {
       // ref count,  encoding, idle time
@@ -194,17 +194,17 @@ PError shutdown(const std::vector<PString>& params, UnboundedBuffer* reply) {
     g_pikiwidb->Stop();
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError ping(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatSingle("PONG", 4, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError echo(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatBulk(params[1], reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 void OnMemoryInfoCollect(UnboundedBuffer& res) {
@@ -279,14 +279,14 @@ PError info(const std::vector<PString>& params, UnboundedBuffer* reply) {
   g_infoCollector(res);
 
   FormatBulk(res.ReadAddr(), res.ReadableSize(), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError monitor(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient::AddCurrentToMonitor();
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError auth(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -297,7 +297,7 @@ PError auth(const std::vector<PString>& params, UnboundedBuffer* reply) {
     ReplyError(kPErrorErrAuth, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -339,7 +339,7 @@ PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
     return kPErrorSyntax;
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 // Config options get/set
@@ -489,7 +489,7 @@ static PError SetConfig(const PString& option, const PString& value) {
       assert(!!!"invalid type");
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -507,7 +507,7 @@ PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
 
     auto err = SetConfig(params[2], params[3]);
-    if (err == kPErrorOk) {
+    if (err == kPErrorOK) {
       FormatOK(reply);
     } else {
       const char* format = "-ERR Invalid argument '%s' for CONFIG SET '%s'\r\n";
@@ -523,7 +523,7 @@ PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
     return kPErrorSyntax;
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

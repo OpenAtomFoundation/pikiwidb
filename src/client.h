@@ -23,7 +23,7 @@ class CmdRes {
  public:
   enum CmdRet {
     kNone = 0,
-    kOk,
+    kOK,
     kPong,
     kSyntaxErr,
     kInvalidInt,
@@ -53,7 +53,7 @@ class CmdRes {
 
   bool None() const { return ret_ == kNone && message_.empty(); }
 
-  bool Ok() const { return ret_ == kOk || ret_ == kNone; }
+  bool Ok() const { return ret_ == kOK || ret_ == kNone; }
 
   void Clear() {
     message_.clear();

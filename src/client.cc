@@ -49,7 +49,7 @@ void CmdRes::AppendString(const std::string& value) {
 void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
   ret_ = _ret;
   switch (ret_) {
-    case kOk:
+    case kOK:
       SetLineString("+OK");
       break;
     case kPong:
@@ -222,7 +222,7 @@ static int ProcessMaster(const char* start, const char* end) {
       if (PREPL.GetRdbSize() == static_cast<std::size_t>(-1)) {
         ++ptr;  // skip $
         int s;
-        if (PParseResult::kOk == GetIntUntilCRLF(ptr, end - ptr, s)) {
+        if (PParseResult::kOK == GetIntUntilCRLF(ptr, end - ptr, s)) {
           assert(s > 0);  // check error for your masterauth or master config
 
           PREPL.SetRdbSize(s);
@@ -283,8 +283,8 @@ int PClient::handlePacket(const char* start, int bytes) {
 
     ptr += len;
     parser_.SetParams(params);
-    parseRet = PParseResult::kOk;
-  } else if (parseRet != PParseResult::kOk) {
+    parseRet = PParseResult::kOK;
+  } else if (parseRet != PParseResult::kOK) {
     return static_cast<int>(ptr - start);
   }
 

@@ -53,7 +53,7 @@ PObject PLeveldb::Get(const PString& key) {
 bool PLeveldb::Put(const PString& key) {
   PObject* obj;
   PError ok = PSTORE.GetValue(key, obj, false);
-  if (ok != kPErrorOk) {
+  if (ok != kPErrorOK) {
     return false;
   }
 

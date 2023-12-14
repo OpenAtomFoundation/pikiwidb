@@ -36,7 +36,7 @@ PParseResult PProtoParser::ParseRequest(const char*& ptr, const char* end) {
       return PParseResult::kError;
     }
 
-    if (parseRet != PParseResult::kOk) {
+    if (parseRet != PParseResult::kOK) {
       return PParseResult::kWait;
     }
   }
@@ -66,7 +66,7 @@ PParseResult PProtoParser::parseStrlist(const char*& ptr, const char* end, std::
 
     auto parseRet = parseStr(ptr, end, results[numOfParam_]);
 
-    if (parseRet == PParseResult::kOk) {
+    if (parseRet == PParseResult::kOK) {
       ++numOfParam_;
     } else {
       return parseRet;
@@ -74,7 +74,7 @@ PParseResult PProtoParser::parseStrlist(const char*& ptr, const char* end, std::
   }
 
   results.resize(numOfParam_);
-  return PParseResult::kOk;
+  return PParseResult::kOK;
 }
 
 PParseResult PProtoParser::parseStr(const char*& ptr, const char* end, PString& result) {
@@ -84,7 +84,7 @@ PParseResult PProtoParser::parseStr(const char*& ptr, const char* end, PString& 
       return PParseResult::kError;
     }
 
-    if (parseRet != PParseResult::kOk) {
+    if (parseRet != PParseResult::kOK) {
       return PParseResult::kWait;
     }
   }
@@ -108,7 +108,7 @@ PParseResult PProtoParser::parseStrval(const char*& ptr, const char* end, PStrin
   ptr = tail + 2;
   paramLen_ = -1;
 
-  return PParseResult::kOk;
+  return PParseResult::kOK;
 }
 
 PParseResult PProtoParser::parseStrlen(const char*& ptr, const char* end, int& result) {
@@ -123,7 +123,7 @@ PParseResult PProtoParser::parseStrlen(const char*& ptr, const char* end, int& r
   ++ptr;
 
   const auto ret = GetIntUntilCRLF(ptr, end - ptr, result);
-  if (ret != PParseResult::kOk) {
+  if (ret != PParseResult::kOK) {
     --ptr;
   }
 

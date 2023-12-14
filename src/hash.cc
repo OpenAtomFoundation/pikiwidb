@@ -20,7 +20,7 @@ PObject PObject::CreateHash() {
 #define GET_HASH(hashname)                                         \
   PObject* value;                                                  \
   PError err = PSTORE.GetValueByType(hashname, value, kPTypeHash); \
-  if (err != kPErrorOk) {                                          \
+  if (err != kPErrorOK) {                                          \
     ReplyError(err, reply);                                        \
     return err;                                                    \
   }
@@ -28,7 +28,7 @@ PObject PObject::CreateHash() {
 #define GET_OR_SET_HASH(hashname)                                  \
   PObject* value;                                                  \
   PError err = PSTORE.GetValueByType(hashname, value, kPTypeHash); \
-  if (err != kPErrorOk && err != kPErrorNotExist) {                \
+  if (err != kPErrorOK && err != kPErrorNotExist) {                \
     ReplyError(err, reply);                                        \
     return err;                                                    \
   }                                                                \
@@ -58,7 +58,7 @@ PError hset(const std::vector<PString>& params, UnboundedBuffer* reply) {
   _set_hash_force(*hash, params[2], params[3]);
 
   FormatInt(1, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hmset(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -75,7 +75,7 @@ PError hmset(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hget(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -90,7 +90,7 @@ PError hget(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatNull(reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hmget(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -108,7 +108,7 @@ PError hmget(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hgetall(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -122,7 +122,7 @@ PError hgetall(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(kv.second, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hkeys(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -135,7 +135,7 @@ PError hkeys(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(kv.first, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hvals(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -148,13 +148,13 @@ PError hvals(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(kv.second, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hdel(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -171,7 +171,7 @@ PError hdel(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(del, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hexists(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -186,7 +186,7 @@ PError hexists(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatInt(0, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -194,7 +194,7 @@ PError hlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   auto hash = value->CastHash();
   FormatInt(hash->size(), reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hincrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -223,7 +223,7 @@ PError hincrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
   *str = tmp;
 
   FormatInt(val, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hincrbyfloat(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -252,7 +252,7 @@ PError hincrbyfloat(const std::vector<PString>& params, UnboundedBuffer* reply) 
   *str = tmp;
 
   FormatBulk(*str, reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hsetnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -265,13 +265,13 @@ PError hsetnx(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatInt(0, reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError hstrlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PObject* value;
   PError err = PSTORE.GetValueByType(params[1], value, kPTypeHash);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     Format0(reply);
     return err;
   }
@@ -284,7 +284,7 @@ PError hstrlen(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatInt(static_cast<long>(it->second.size()), reply);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 size_t HScanKey(const PHash& hash, size_t cursor, size_t count, std::vector<PString>& res) {

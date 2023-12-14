@@ -260,7 +260,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
 
         // check target list
         PError err = PSTORE.GetValueByType(target, dst, kPTypeList);
-        if (err != kPErrorOk) {
+        if (err != kPErrorOK) {
           if (err != kPErrorNotExist) {
             UnboundedBuffer reply;
             ReplyError(err, &reply);
@@ -289,7 +289,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
           FormatBulk(key, &reply);
         }
 
-        if (pos == ListPosition::khead) {
+        if (pos == ListPosition::kHead) {
           FormatBulk(list->front(), &reply);
           list->pop_front();
 
@@ -538,7 +538,7 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
     value->lru = PObject::lruclock;
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
@@ -563,7 +563,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
   PError err = getValueByType(key, old_value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     return err;
   }
   char* end = nullptr;
@@ -586,7 +586,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
@@ -602,7 +602,7 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
   PError err = getValueByType(key, old_value, kPTypeString);
-  if (err != kPErrorOk) {
+  if (err != kPErrorOK) {
     return err;
   }
 
@@ -630,7 +630,7 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }

@@ -360,7 +360,7 @@ PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 void PReplication::OnInfoCommand(UnboundedBuffer& res) {
@@ -444,7 +444,7 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -459,13 +459,13 @@ PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (slave->state == kPSlaveStateWaitBgsaveEnd || slave->state == kPSlaveStateOnline) {
     WARN("{} state is {}, ignore this sync request", cli->GetName(), int(slave->state));
 
-    return kPErrorOk;
+    return kPErrorOK;
   }
 
   slave->state = kPSlaveStateWaitBgsaveStart;
   PREPL.TryBgsave();
 
-  return kPErrorOk;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb
