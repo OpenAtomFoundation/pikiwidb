@@ -186,12 +186,12 @@ static int ProcessMaster(const char* start, const char* end) {
   auto state = PREPL.GetMasterState();
 
   switch (state) {
-    case PReplState_connected:
+    case kPReplStateConnected:
       // discard all requests before sync;
       // or continue serve with old data? TODO
       return static_cast<int>(end - start);
 
-    case PReplState_wait_auth:
+    case kPReplStateWaitAuth:
       if (end - start >= 5) {
         if (strncasecmp(start, "+OK\r\n", 5) == 0) {
           PClient::Current()->SetAuth();
@@ -204,7 +204,7 @@ static int ProcessMaster(const char* start, const char* end) {
       }
       break;
 
-    case PReplState_wait_replconf:
+    case kPReplStateWaitReplconf:
       if (end - start >= 5) {
         if (strncasecmp(start, "+OK\r\n", 5) == 0) {
           return 5;
@@ -216,7 +216,7 @@ static int ProcessMaster(const char* start, const char* end) {
       }
       break;
 
-    case PReplState_wait_rdb: {
+    case kPReplStateWaitRdb: {
       const char* ptr = start;
       // recv RDB file
       if (PREPL.GetRdbSize() == static_cast<std::size_t>(-1)) {
@@ -237,7 +237,7 @@ static int ProcessMaster(const char* start, const char* end) {
       return static_cast<int>(ptr - start);
     }
 
-    case PReplState_online:
+    case kPReplStateOnline:
       break;
 
     default:
@@ -429,7 +429,7 @@ int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int 
 
 void PClient::OnConnect() {
   if (isPeerMaster()) {
-    PREPL.SetMasterState(PReplState_connected);
+    PREPL.SetMasterState(kPReplStateConnected);
     PREPL.SetMaster(std::static_pointer_cast<PClient>(shared_from_this()));
 
     SetName("MasterConnection");
