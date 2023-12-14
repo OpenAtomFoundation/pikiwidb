@@ -342,7 +342,7 @@ std::vector<size_t> getMemoryInfo() {
 }
 
 size_t getMemoryInfo(MemoryInfoType type) {
-  if (type != VmSize && type != kVmRSS) {
+  if (type != kVmSize && type != kVmRSS) {
     return 0;
   }
 
