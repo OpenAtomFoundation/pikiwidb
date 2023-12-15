@@ -21,24 +21,24 @@ uint32_t PObject::lruclock = static_cast<uint32_t>(::time(nullptr));
 
 PObject::PObject(PType t) : type(t) {
   switch (type) {
-    case PType_list:
-      encoding = PEncode_list;
+    case kPTypeList:
+      encoding = kPTypeList;
       break;
 
-    case PType_set:
-      encoding = PEncode_set;
+    case kPTypeSet:
+      encoding = kPEncodeSet;
       break;
 
-    case PType_sortedSet:
-      encoding = PEncode_zset;
+    case kPTypeSortedSet:
+      encoding = kPTypeSortedSet;
       break;
 
-    case PType_hash:
-      encoding = PEncode_hash;
+    case kPTypeHash:
+      encoding = kPEncodeHash;
       break;
 
     default:
-      encoding = PEncode_invalid;
+      encoding = kPEncodeInvalid;
       break;
   }
 
@@ -51,8 +51,8 @@ PObject::~PObject() { freeValue(); }
 void PObject::Clear() {
   freeValue();
 
-  type = PType_invalid;
-  encoding = PEncode_invalid;
+  type = kPTypeInvalid;
+  encoding = kPEncodeInvalid;
   lru = 0;
   value = nullptr;
 }
@@ -77,31 +77,31 @@ void PObject::moveFrom(PObject&& obj) {
   this->value = obj.value;
   this->lru = obj.lru;
 
-  obj.encoding = PEncode_invalid;
-  obj.type = PType_invalid;
+  obj.encoding = kPEncodeInvalid;
+  obj.type = kPTypeInvalid;
   obj.value = nullptr;
   obj.lru = 0;
 }
 
 void PObject::freeValue() {
   switch (encoding) {
-    case PEncode_raw:
+    case kPEncodeRaw:
       delete CastString();
       break;
 
-    case PEncode_list:
+    case kPEncodeList:
       delete CastList();
       break;
 
-    case PEncode_set:
+    case kPEncodeSet:
       delete CastSet();
       break;
 
-    case PEncode_zset:
+    case kPEncodeZset:
       delete CastSortedSet();
       break;
 
-    case PEncode_hash:
+    case kPEncodeHash:
       delete CastHash();
       break;
 
@@ -116,13 +116,13 @@ void PStore::ExpiredDB::SetExpire(const PString& key, uint64_t when) { expireKey
 
 int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
   if (!PSTORE.ExistsKey(key)) {
-    return ExpireResult::notExist;
+    return ExpireResult::kNotExist;
   }
 
   ExpireResult ret = ExpireIfNeed(key, now);
   switch (ret) {
-    case ExpireResult::expired:
-    case ExpireResult::persist:
+    case ExpireResult::kExpired:
+    case ExpireResult::kPersist:
       return ret;
 
     default:
@@ -134,7 +134,7 @@ int64_t PStore::ExpiredDB::TTL(const PString& key, uint64_t now) {
 }
 
 bool PStore::ExpiredDB::ClearExpire(const PString& key) {
-  return ExpireResult::expired == ExpireIfNeed(key, std::numeric_limits<uint64_t>::max());
+  return ExpireResult::kExpired == ExpireIfNeed(key, std::numeric_limits<uint64_t>::max());
 }
 
 PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_t now) {
@@ -142,17 +142,17 @@ PStore::ExpireResult PStore::ExpiredDB::ExpireIfNeed(const PString& key, uint64_
 
   if (it != expireKeys_.end()) {
     if (it->second > now) {
-      return ExpireResult::notExpire;
+      return ExpireResult::kNotExpire;
     }
 
     WARN("Delete timeout key {}", it->first);
     PSTORE.DeleteKey(it->first);
     // XXX: may throw exception if hash function crash
     expireKeys_.erase(it);
-    return ExpireResult::expired;
+    return ExpireResult::kExpired;
   }
 
-  return ExpireResult::persist;
+  return ExpireResult::kPersist;
 }
 
 int PStore::ExpiredDB::LoopCheck(uint64_t now) {
@@ -259,9 +259,9 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
         INFO("{} is try lpush to target list {}", list->front(), target);
 
         // check target list
-        PError err = PSTORE.GetValueByType(target, dst, PType_list);
-        if (err != PError_ok) {
-          if (err != PError_notExist) {
+        PError err = PSTORE.GetValueByType(target, dst, kPTypeList);
+        if (err != kPErrorOK) {
+          if (err != kPErrorNotExist) {
             UnboundedBuffer reply;
             ReplyError(err, &reply);
             cli->SendPacket(reply);
@@ -289,7 +289,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
           FormatBulk(key, &reply);
         }
 
-        if (pos == ListPosition::head) {
+        if (pos == ListPosition::kHead) {
           FormatBulk(list->front(), &reply);
           list->pop_front();
 
@@ -409,7 +409,7 @@ const PObject* PStore::GetObject(const PString& key) const {
 
     // load from leveldb, if has, insert to pikiwidb cache
     PObject obj = backends_[dbno_]->Get(key);
-    if (obj.type != PType_invalid) {
+    if (obj.type != kPTypeInvalid) {
       DEBUG("GetKey from leveldb:{}", key);
 
       unsigned int remainTtlSecondsTemp = obj.lru;
@@ -457,7 +457,7 @@ bool PStore::ExistsKey(const PString& key) const {
 PType PStore::KeyType(const PString& key) const {
   const PObject* obj = GetObject(key);
   if (!obj) {
-    return PType_invalid;
+    return kPTypeInvalid;
   }
 
   return PType(obj->type);
@@ -519,17 +519,17 @@ PError PStore::GetValueByTypeNoTouch(const PString& key, PObject*& value, PType 
 }
 
 PError PStore::getValueByType(const PString& key, PObject*& value, PType type, bool touch) {
-  if (expireIfNeed(key, ::Now()) == ExpireResult::expired) {
-    return PError_notExist;
+  if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
+    return kPErrorNotExist;
   }
 
   auto cobj = GetObject(key);
   if (!cobj) {
-    return PError_notExist;
+    return kPErrorNotExist;
   }
 
-  if (type != PType_invalid && type != PType(cobj->type)) {
-    return PError_type;
+  if (type != kPTypeInvalid && type != PType(cobj->type)) {
+    return kPErrorType;
   }
   value = const_cast<PObject*>(cobj);
   // Do not update if child process exists
@@ -538,7 +538,7 @@ PError PStore::getValueByType(const PString& key, PObject*& value, PType type, b
     value->lru = PObject::lruclock;
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
@@ -562,8 +562,8 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, PType_string);
-  if (err != PError_ok) {
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOK) {
     return err;
   }
   char* end = nullptr;
@@ -571,7 +571,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   int64_t ival = strtoll(str->c_str(), &end, 10);
   if (*end != 0) {
     // value is not a integer
-    return PError_type;
+    return kPErrorType;
   }
 
   PObject new_value;
@@ -586,7 +586,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
@@ -596,26 +596,26 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
   auto db = &dbs_[dbno_];
 
   if (StrToLongDouble(value.data(), value.size(), &long_double_by)) {
-    return PError_type;
+    return kPErrorType;
   }
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, PType_string);
-  if (err != PError_ok) {
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOK) {
     return err;
   }
 
   auto old_number_str = pikiwidb::GetDecodedString(old_value);
   // old number to long double
   if (StrToLongDouble(old_number_str->c_str(), old_number_str->size(), &old_number)) {
-    return PError_type;
+    return kPErrorType;
   }
 
   std::string total_string;
   long double total = old_number + long_double_by;
   if (LongDoubleToStr(total, &total_string)) {
-    return PError_overflow;
+    return kPErrorOverflow;
   }
 
   *ret = total_string;
@@ -630,7 +630,7 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
     waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }
@@ -703,7 +703,7 @@ static void EvictItems() {
 
   int tryCnt = 0;
   size_t usedMem = 0;
-  while (tryCnt++ < 32 && (usedMem = getMemoryInfo(VmRSS)) > g_config.maxmemory) {
+  while (tryCnt++ < 32 && (usedMem = getMemoryInfo(kVmRSS)) > g_config.maxmemory) {
     if (g_config.noeviction) {
       WARN("noeviction policy, but memory usage exceeds: {}", usedMem);
       return;
@@ -760,11 +760,11 @@ void PStore::InitEvictionTimer() {
 void PStore::InitDumpBackends() {
   assert(waitSyncKeys_.empty());
 
-  if (g_config.backend == BackEndNone) {
+  if (g_config.backend == kBackEndNone) {
     return;
   }
 
-  if (g_config.backend == BackEndLeveldb) {
+  if (g_config.backend == kBackEndLeveldb) {
     waitSyncKeys_.resize(dbs_.size());
     for (size_t i = 0; i < dbs_.size(); ++i) {
       std::unique_ptr<PLeveldb> db(new PLeveldb);
@@ -806,8 +806,8 @@ void PStore::DumpToBackends(int dbno) {
     // check ttl
     int64_t when = PSTORE.TTL(it->first, now);
 
-    if (it->second && when != PStore::ExpireResult::expired) {
-      assert(when != PStore::ExpireResult::notExpire);
+    if (it->second && when != PStore::ExpireResult::kExpired) {
+      assert(when != PStore::ExpireResult::kNotExpire);
 
       if (when > 0) {
         when += now;

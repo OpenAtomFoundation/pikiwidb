@@ -32,12 +32,12 @@ void PProtoParser::Reset() {
 PParseResult PProtoParser::ParseRequest(const char*& ptr, const char* end) {
   if (multi_ == -1) {
     auto parseRet = parseMulti(ptr, end, multi_);
-    if (parseRet == PParseResult::error || multi_ < -1) {
-      return PParseResult::error;
+    if (parseRet == PParseResult::kError || multi_ < -1) {
+      return PParseResult::kError;
     }
 
-    if (parseRet != PParseResult::ok) {
-      return PParseResult::wait;
+    if (parseRet != PParseResult::kOK) {
+      return PParseResult::kWait;
     }
   }
 
@@ -46,11 +46,11 @@ PParseResult PProtoParser::ParseRequest(const char*& ptr, const char* end) {
 
 PParseResult PProtoParser::parseMulti(const char*& ptr, const char* end, int& result) {
   if (end - ptr < 3) {
-    return PParseResult::wait;
+    return PParseResult::kWait;
   }
 
   if (*ptr != '*') {
-    return PParseResult::error;
+    return PParseResult::kError;
   }
 
   ++ptr;
@@ -66,7 +66,7 @@ PParseResult PProtoParser::parseStrlist(const char*& ptr, const char* end, std::
 
     auto parseRet = parseStr(ptr, end, results[numOfParam_]);
 
-    if (parseRet == PParseResult::ok) {
+    if (parseRet == PParseResult::kOK) {
       ++numOfParam_;
     } else {
       return parseRet;
@@ -74,18 +74,18 @@ PParseResult PProtoParser::parseStrlist(const char*& ptr, const char* end, std::
   }
 
   results.resize(numOfParam_);
-  return PParseResult::ok;
+  return PParseResult::kOK;
 }
 
 PParseResult PProtoParser::parseStr(const char*& ptr, const char* end, PString& result) {
   if (paramLen_ == -1) {
     auto parseRet = parseStrlen(ptr, end, paramLen_);
-    if (parseRet == PParseResult::error || paramLen_ < -1) {
-      return PParseResult::error;
+    if (parseRet == PParseResult::kError || paramLen_ < -1) {
+      return PParseResult::kError;
     }
 
-    if (parseRet != PParseResult::ok) {
-      return PParseResult::wait;
+    if (parseRet != PParseResult::kOK) {
+      return PParseResult::kWait;
     }
   }
 
@@ -96,34 +96,34 @@ PParseResult PProtoParser::parseStrval(const char*& ptr, const char* end, PStrin
   assert(paramLen_ >= 0);
 
   if (static_cast<int>(end - ptr) < paramLen_ + 2) {
-    return PParseResult::wait;
+    return PParseResult::kWait;
   }
 
   auto tail = ptr + paramLen_;
   if (tail[0] != '\r' || tail[1] != '\n') {
-    return PParseResult::error;
+    return PParseResult::kError;
   }
 
   result.assign(ptr, tail - ptr);
   ptr = tail + 2;
   paramLen_ = -1;
 
-  return PParseResult::ok;
+  return PParseResult::kOK;
 }
 
 PParseResult PProtoParser::parseStrlen(const char*& ptr, const char* end, int& result) {
   if (end - ptr < 3) {
-    return PParseResult::wait;
+    return PParseResult::kWait;
   }
 
   if (*ptr != '$') {
-    return PParseResult::error;
+    return PParseResult::kError;
   }
 
   ++ptr;
 
   const auto ret = GetIntUntilCRLF(ptr, end - ptr, result);
-  if (ret != PParseResult::ok) {
+  if (ret != PParseResult::kOK) {
     --ptr;
   }
 

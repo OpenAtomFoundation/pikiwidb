@@ -65,7 +65,7 @@ bool PikiwiDB::ParseArgs(int ac, char* av[]) {
       cfg_file_ = av[i];
       continue;
     } else if (strncasecmp(av[i], "-v", 2) == 0 || strncasecmp(av[i], "--version", 9) == 0) {
-      std::cerr << "PikiwiDB Server v=" << PIKIWIDB_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
+      std::cerr << "PikiwiDB Server v=" << kPIKIWIDB_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
 
       exit(0);
       return true;
@@ -226,7 +226,7 @@ bool PikiwiDB::Init() {
   PPubsub::Instance().InitPubsubTimer();
 
   // Only if there is no backend, load rdb
-  if (g_config.backend == pikiwidb::BackEndNone) {
+  if (g_config.backend == pikiwidb::kBackEndNone) {
     LoadDBFromDisk();
   }
 
@@ -318,7 +318,7 @@ int main(int ac, char* av[]) {
 
   // output logo to console
   char logo[512] = "";
-  snprintf(logo, sizeof logo - 1, pikiwidbLogo, PIKIWIDB_VERSION, static_cast<int>(sizeof(void*)) * 8,
+  snprintf(logo, sizeof logo - 1, pikiwidbLogo, kPIKIWIDB_VERSION, static_cast<int>(sizeof(void*)) * 8,
            static_cast<int>(pikiwidb::g_config.port));
   std::cout << logo;
 

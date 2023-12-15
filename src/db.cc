@@ -91,7 +91,7 @@ void PDBSaver::Save(const char* qdbFile) {
 
         qdb_.Write(&kExpireMs, 1);
         qdb_.Write(&ttl, sizeof ttl);
-      } else if (ttl == PStore::ExpireResult::expired) {
+      } else if (ttl == PStore::ExpireResult::kExpired) {
         continue;
       }
 
@@ -121,24 +121,24 @@ void PDBSaver::Save(const char* qdbFile) {
 
 void PDBSaver::SaveType(const PObject& obj) {
   switch (obj.encoding) {
-    case PEncode_raw:
-    case PEncode_int:
+    case kPEncodeRaw:
+    case kPEncodeInt:
       qdb_.Write(&kTypeString, 1);
       break;
 
-    case PEncode_list:
+    case kPEncodeList:
       qdb_.Write(&kTypeList, 1);
       break;
 
-    case PEncode_hash:
+    case kPEncodeHash:
       qdb_.Write(&kTypeHash, 1);
       break;
 
-    case PEncode_set:
+    case kPEncodeSet:
       qdb_.Write(&kTypeSet, 1);
       break;
 
-    case PEncode_zset:
+    case kPEncodeZset:
       qdb_.Write(&kTypeZSet, 1);
       break;
 
@@ -152,24 +152,24 @@ void PDBSaver::SaveKey(const PString& key) { SaveString(key); }
 
 void PDBSaver::SaveObject(const PObject& obj) {
   switch (obj.encoding) {
-    case PEncode_raw:
-    case PEncode_int:
+    case kPEncodeRaw:
+    case kPEncodeInt:
       SaveString(*GetDecodedString(&obj));
       break;
 
-    case PEncode_list:
+    case kPEncodeList:
       saveList(obj.CastList());
       break;
 
-    case PEncode_set:
+    case kPEncodeSet:
       saveset(obj.CastSet());
       break;
 
-    case PEncode_hash:
+    case kPEncodeHash:
       saveHash(obj.CastHash());
       break;
 
-    case PEncode_zset:
+    case kPEncodeZset:
       saveZSet(obj.CastSortedSet());
       break;
 
@@ -612,7 +612,7 @@ PObject PDBLoader::LoadObject(int8_t type) {
   }
 
   assert(false);
-  return PObject(PType_invalid);
+  return PObject(kPTypeInvalid);
 }
 
 PString PDBLoader::loadGenericString() {
@@ -878,7 +878,7 @@ PObject PDBLoader::loadZipList(const PString& zl, int8_t type) {
       break;
   }
 
-  return PObject(PType_invalid);
+  return PObject(kPTypeInvalid);
 }
 
 PObject PDBLoader::loadIntset() {

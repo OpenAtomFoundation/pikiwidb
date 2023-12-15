@@ -49,7 +49,7 @@ void CmdRes::AppendString(const std::string& value) {
 void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
   ret_ = _ret;
   switch (ret_) {
-    case kOk:
+    case kOK:
       SetLineString("+OK");
       break;
     case kPong:
@@ -186,12 +186,12 @@ static int ProcessMaster(const char* start, const char* end) {
   auto state = PREPL.GetMasterState();
 
   switch (state) {
-    case PReplState_connected:
+    case kPReplStateConnected:
       // discard all requests before sync;
       // or continue serve with old data? TODO
       return static_cast<int>(end - start);
 
-    case PReplState_wait_auth:
+    case kPReplStateWaitAuth:
       if (end - start >= 5) {
         if (strncasecmp(start, "+OK\r\n", 5) == 0) {
           PClient::Current()->SetAuth();
@@ -204,7 +204,7 @@ static int ProcessMaster(const char* start, const char* end) {
       }
       break;
 
-    case PReplState_wait_replconf:
+    case kPReplStateWaitReplconf:
       if (end - start >= 5) {
         if (strncasecmp(start, "+OK\r\n", 5) == 0) {
           return 5;
@@ -216,13 +216,13 @@ static int ProcessMaster(const char* start, const char* end) {
       }
       break;
 
-    case PReplState_wait_rdb: {
+    case kPReplStateWaitRdb: {
       const char* ptr = start;
       // recv RDB file
       if (PREPL.GetRdbSize() == static_cast<std::size_t>(-1)) {
         ++ptr;  // skip $
         int s;
-        if (PParseResult::ok == GetIntUntilCRLF(ptr, end - ptr, s)) {
+        if (PParseResult::kOK == GetIntUntilCRLF(ptr, end - ptr, s)) {
           assert(s > 0);  // check error for your masterauth or master config
 
           PREPL.SetRdbSize(s);
@@ -237,7 +237,7 @@ static int ProcessMaster(const char* start, const char* end) {
       return static_cast<int>(ptr - start);
     }
 
-    case PReplState_online:
+    case kPReplStateOnline:
       break;
 
     default:
@@ -268,7 +268,7 @@ int PClient::handlePacket(const char* start, int bytes) {
   }
 
   auto parseRet = parser_.ParseRequest(ptr, end);
-  if (parseRet == PParseResult::error) {
+  if (parseRet == PParseResult::kError) {
     if (!parser_.IsInitialState()) {
       conn->ActiveClose();
       return 0;
@@ -283,8 +283,8 @@ int PClient::handlePacket(const char* start, int bytes) {
 
     ptr += len;
     parser_.SetParams(params);
-    parseRet = PParseResult::ok;
-  } else if (parseRet != PParseResult::ok) {
+    parseRet = PParseResult::kOK;
+  } else if (parseRet != PParseResult::kOK) {
     return static_cast<int>(ptr - start);
   }
 
@@ -429,11 +429,11 @@ int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int 
 
 void PClient::OnConnect() {
   if (isPeerMaster()) {
-    PREPL.SetMasterState(PReplState_connected);
+    PREPL.SetMasterState(kPReplStateConnected);
     PREPL.SetMaster(std::static_pointer_cast<PClient>(shared_from_this()));
 
     SetName("MasterConnection");
-    SetFlag(ClientFlagMaster);
+    SetFlag(kClientFlagMaster);
 
     if (g_config.masterauth.empty()) {
       SetAuth();
@@ -533,14 +533,14 @@ bool PClient::Watch(int dbno, const std::string& key) {
 }
 
 bool PClient::NotifyDirty(int dbno, const std::string& key) {
-  if (IsFlagOn(ClientFlagDirty)) {
+  if (IsFlagOn(kClientFlagDirty)) {
     INFO("client is already dirty {}", uniqueID());
     return true;
   }
 
   if (watch_keys_[dbno].contains(key)) {
     INFO("{} client become dirty because key {} in db {}", uniqueID(), key, dbno);
-    SetFlag(ClientFlagDirty);
+    SetFlag(kClientFlagDirty);
     return true;
   } else {
     INFO("Dirty key is not exist: {}, because client unwatch before dirty", key);
@@ -555,11 +555,11 @@ bool PClient::Exec() {
     this->ClearWatch();
   };
 
-  if (IsFlagOn(ClientFlagWrongExec)) {
+  if (IsFlagOn(kClientFlagWrongExec)) {
     return false;
   }
 
-  if (IsFlagOn(ClientFlagDirty)) {
+  if (IsFlagOn(kClientFlagDirty)) {
     //    FormatNullArray(&reply_);
     AppendString("");
     return true;
@@ -582,13 +582,13 @@ bool PClient::Exec() {
 
 void PClient::ClearMulti() {
   queue_cmds_.clear();
-  ClearFlag(ClientFlagMulti);
-  ClearFlag(ClientFlagWrongExec);
+  ClearFlag(kClientFlagMulti);
+  ClearFlag(kClientFlagWrongExec);
 }
 
 void PClient::ClearWatch() {
   watch_keys_.clear();
-  ClearFlag(ClientFlagDirty);
+  ClearFlag(kClientFlagDirty);
 }
 
 bool PClient::WaitFor(const std::string& key, const std::string* target) {

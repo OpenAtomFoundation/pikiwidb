@@ -59,29 +59,29 @@ inline void SaveCommand(const std::vector<PString>& params, DEST& dst) {
 
 // master side
 enum PSlaveState {
-  PSlaveState_none,
-  PSlaveState_wait_bgsave_start,  // 有非sync的bgsave进行 要等待
-  PSlaveState_wait_bgsave_end,    // sync bgsave正在进行
+  kPSlaveStateNone,
+  kPSlaveStateWaitBgsaveStart,  // 有非sync的bgsave进行 要等待
+  kPSlaveStateWaitBgsaveEnd,    // sync bgsave正在进行
   // PSlaveState_send_rdb, // 这个slave在接受rdb文件
-  PSlaveState_online,
+  kPSlaveStateOnline,
 };
 
 struct PSlaveInfo {
   PSlaveState state;
   unsigned short listenPort;  // slave listening port
 
-  PSlaveInfo() : state(PSlaveState_none), listenPort(0) {}
+  PSlaveInfo() : state(kPSlaveStateNone), listenPort(0) {}
 };
 
 // slave side
 enum PReplState {
-  PReplState_none,
-  PReplState_connecting,
-  PReplState_connected,
-  PReplState_wait_auth,      // wait auth to be confirmed
-  PReplState_wait_replconf,  // wait replconf to be confirmed
-  PReplState_wait_rdb,       // wait to recv rdb file
-  PReplState_online,
+  kPReplStateNone,
+  kPReplStateConnecting,
+  kPReplStateConnected,
+  kPReplStateWaitAuth,      // wait auth to be confirmed
+  kPReplStateWaitReplconf,  // wait replconf to be confirmed
+  kPReplStateWaitRdb,       // wait to recv rdb file
+  kPReplStateOnline,
 };
 
 struct PMasterInfo {
@@ -94,7 +94,7 @@ struct PMasterInfo {
   std::size_t rdbRecved;
 
   PMasterInfo() {
-    state = PReplState_none;
+    state = kPReplStateNone;
     downSince = 0;
     rdbSize = std::size_t(-1);
     rdbRecved = 0;
