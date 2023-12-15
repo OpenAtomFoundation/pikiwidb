@@ -388,7 +388,7 @@ void PClient::executeCommand() {
   }
 
   if (!cmdPtr->CheckArg(params_.size())) {
-    SetRes(CmdRes::kSyntaxErr, "wrong number of arguments for '" + CmdName() + "' command");
+    SetRes(CmdRes::kWrongNum, CmdName());
     return;
   }
 
