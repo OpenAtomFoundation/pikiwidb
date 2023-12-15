@@ -699,9 +699,7 @@ rocksdb::Status RedisSets::SMembers(const Slice& key, std::vector<std::string>* 
   return s;
 }
 
-Status RedisSets::SMembersWithTTL(const Slice& key,
-                                  std::vector<std::string>* members,
-                                  int64_t* ttl) {
+Status RedisSets::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t* ttl) {
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -731,12 +729,10 @@ Status RedisSets::SMembersWithTTL(const Slice& key,
       SetsMemberKey sets_member_key(key, version, Slice());
       Slice prefix = sets_member_key.Encode();
       auto iter = db_->NewIterator(read_options, handles_[1]);
-      for (iter->Seek(prefix);
-           iter->Valid() && iter->key().starts_with(prefix);
-           iter->Next()) {
+      for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
         ParsedSetsMemberKey parsed_sets_member_key(iter->key());
         members->push_back(parsed_sets_member_key.member().ToString());
-           }
+      }
       delete iter;
     }
   }

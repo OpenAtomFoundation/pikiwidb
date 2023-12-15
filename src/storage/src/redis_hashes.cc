@@ -339,13 +339,10 @@ Status RedisHashes::HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fv
       HashesDataKey hashes_data_key(key, version, "");
       Slice prefix = hashes_data_key.Encode();
       auto iter = db_->NewIterator(read_options, handles_[1]);
-      for (iter->Seek(prefix);
-           iter->Valid() && iter->key().starts_with(prefix);
-           iter->Next()) {
+      for (iter->Seek(prefix); iter->Valid() && iter->key().starts_with(prefix); iter->Next()) {
         ParsedHashesDataKey parsed_hashes_data_key(iter->key());
-        fvs->push_back({parsed_hashes_data_key.field().ToString(),
-                        iter->value().ToString()});
-           }
+        fvs->push_back({parsed_hashes_data_key.field().ToString(), iter->value().ToString()});
+      }
       delete iter;
     }
   }

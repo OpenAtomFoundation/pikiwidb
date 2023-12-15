@@ -476,8 +476,8 @@ Status RedisStrings::Getrange(const Slice& key, int64_t start_offset, int64_t en
   }
 }
 
-Status RedisStrings::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset,
-                                       std::string* ret, std::string* value, int64_t* ttl) {
+Status RedisStrings::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret,
+                                       std::string* value, int64_t* ttl) {
   *ret = "";
   Status s = db_->Get(default_read_options_, key, value);
   if (s.ok()) {
@@ -501,14 +501,11 @@ Status RedisStrings::GetrangeWithValue(const Slice& key, int64_t start_offset, i
       int64_t size = value->size();
       int64_t start_t = start_offset >= 0 ? start_offset : size + start_offset;
       int64_t end_t = end_offset >= 0 ? end_offset : size + end_offset;
-      if (start_t > size - 1 ||
-          (start_t != 0 && start_t > end_t) ||
-          (start_t != 0 && end_t < 0)
-      ) {
+      if (start_t > size - 1 || (start_t != 0 && start_t > end_t) || (start_t != 0 && end_t < 0)) {
         return Status::OK();
       }
       if (start_t < 0) {
-        start_t  = 0;
+        start_t = 0;
       }
       if (end_t >= size) {
         end_t = size - 1;
@@ -516,7 +513,7 @@ Status RedisStrings::GetrangeWithValue(const Slice& key, int64_t start_offset, i
       if (start_t == 0 && end_t < 0) {
         end_t = 0;
       }
-      *ret = value->substr(start_t, end_t-start_t+1);
+      *ret = value->substr(start_t, end_t - start_t + 1);
       return Status::OK();
     }
   } else if (s.IsNotFound()) {

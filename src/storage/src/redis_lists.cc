@@ -510,7 +510,8 @@ Status RedisLists::LRange(const Slice& key, int64_t start, int64_t stop, std::ve
   }
 }
 
-Status RedisLists::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret, int64_t* ttl) {
+Status RedisLists::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret,
+                                 int64_t* ttl) {
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -539,16 +540,11 @@ Status RedisLists::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, 
       int32_t version = parsed_lists_meta_value.version();
       uint64_t origin_left_index = parsed_lists_meta_value.left_index() + 1;
       uint64_t origin_right_index = parsed_lists_meta_value.right_index() - 1;
-      uint64_t sublist_left_index  = start >= 0 ?
-                                               origin_left_index + start :
-                                               origin_right_index + start + 1;
-      uint64_t sublist_right_index = stop >= 0 ?
-                                               origin_left_index + stop :
-                                               origin_right_index + stop + 1;
+      uint64_t sublist_left_index = start >= 0 ? origin_left_index + start : origin_right_index + start + 1;
+      uint64_t sublist_right_index = stop >= 0 ? origin_left_index + stop : origin_right_index + stop + 1;
 
-      if (sublist_left_index > sublist_right_index
-          || sublist_left_index > origin_right_index
-          || sublist_right_index < origin_left_index) {
+      if (sublist_left_index > sublist_right_index || sublist_left_index > origin_right_index ||
+          sublist_right_index < origin_left_index) {
         return Status::OK();
       } else {
         if (sublist_left_index < origin_left_index) {
@@ -557,12 +553,10 @@ Status RedisLists::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, 
         if (sublist_right_index > origin_right_index) {
           sublist_right_index = origin_right_index;
         }
-        rocksdb::Iterator* iter = db_->NewIterator(read_options,
-                                                   handles_[1]);
+        rocksdb::Iterator* iter = db_->NewIterator(read_options, handles_[1]);
         uint64_t current_index = sublist_left_index;
         ListsDataKey start_data_key(key, version, current_index);
-        for (iter->Seek(start_data_key.Encode());
-             iter->Valid() && current_index <= sublist_right_index;
+        for (iter->Seek(start_data_key.Encode()); iter->Valid() && current_index <= sublist_right_index;
              iter->Next(), current_index++) {
           ret->push_back(iter->value().ToString());
         }

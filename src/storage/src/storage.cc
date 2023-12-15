@@ -182,8 +182,8 @@ Status Storage::Getrange(const Slice& key, int64_t start_offset, int64_t end_off
   return strings_db_->Getrange(key, start_offset, end_offset, ret);
 }
 
-Status Storage::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset,
-                                     std::string* ret, std::string* value, int64_t* ttl) {
+Status Storage::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret,
+                                  std::string* value, int64_t* ttl) {
   return strings_db_->GetrangeWithValue(key, start_offset, end_offset, ret, value, ttl);
 }
 
@@ -330,7 +330,7 @@ Status Storage::SMembers(const Slice& key, std::vector<std::string>* members) {
   return sets_db_->SMembers(key, members);
 }
 
-Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t *ttl) {
+Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t* ttl) {
   return sets_db_->SMembersWithTTL(key, members, ttl);
 }
 
@@ -381,7 +381,8 @@ Status Storage::LRange(const Slice& key, int64_t start, int64_t stop, std::vecto
   return lists_db_->LRange(key, start, stop, ret);
 }
 
-Status Storage::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret, int64_t *ttl) {
+Status Storage::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret,
+                              int64_t* ttl) {
   return lists_db_->LRangeWithTTL(key, start, stop, ret, ttl);
 }
 
@@ -451,7 +452,7 @@ Status Storage::ZRange(const Slice& key, int32_t start, int32_t stop, std::vecto
 }
 
 Status Storage::ZRangeWithTTL(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members,
-                                 int64_t *ttl) {
+                              int64_t* ttl) {
   return zsets_db_->ZRangeWithTTL(key, start, stop, score_members, ttl);
 }
 
