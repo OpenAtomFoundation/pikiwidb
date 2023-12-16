@@ -15,6 +15,7 @@
 #include "list.h"
 #include "set.h"
 #include "sorted_set.h"
+#include "storage/storage.h"
 
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
@@ -100,6 +101,13 @@ class PStore {
   int SelectDB(int dbno);
   int GetDB() const;
 
+  bool LoadKV(const PString& key) const;
+  bool LoadHash(const PString& key) const;
+  bool LoadList(const PString& key) const;
+  bool LoadSet(const PString& key) const;
+  bool LoadZset(const PString& key) const;
+  bool LoadKey(const PString& key, PType type = kPTypeInvalid) const;
+
   // Key operation
   bool DeleteKey(const PString& key);
   bool ExistsKey(const PString& key) const;
@@ -112,13 +120,15 @@ class PStore {
   PDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
   PDB::const_iterator end() const { return dbs_[dbno_].end(); }
 
-  const PObject* GetObject(const PString& key) const;
+  const PObject* GetObject(const PString& key, PType type) const;
   PError GetValue(const PString& key, PObject*& value, bool touch = true);
   PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
   // do not update lru time
   PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
+
+  // @todo内存中可能暂时不需要这个，Incrby和Incrbyfloat两个命令的实现可以直接通过bw的接口实现
   // incr
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
   PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
@@ -156,7 +166,10 @@ class PStore {
   void InitEvictionTimer();
   // for backends
   void InitDumpBackends();
-  void DumpToBackends(int dbno);
+  // @todo似乎并没有轮寻落盘的逻辑了，直接是走的bw的接口落盘
+  void DumpToBackends(int dbno); 
+
+  // @todo应该是没有添加dirtykey的概念了
   void AddDirtyKey(const PString& key);
   void AddDirtyKey(const PString& key, const PObject* value);
 
@@ -206,10 +219,10 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface>> backends_;
+  std::vector<std::unique_ptr<storage::Storage>> backends_;
 
   using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
-  std::vector<ToSyncDB> waitSyncKeys_;
+  std::vector<ToSyncDB> waitSyncKeys_; // @todo 似乎并不需要了
   int dbno_ = -1;
 };
 
