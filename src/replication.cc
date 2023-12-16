@@ -41,7 +41,7 @@ void PReplication::AddSlave(pikiwidb::PClient* cli) {
 bool PReplication::HasAnyWaitingBgsave() const {
   for (const auto& c : slaves_) {
     auto cli = c.lock();
-    if (cli && cli->GetSlaveInfo()->state == PSlaveState_wait_bgsave_start) {
+    if (cli && cli->GetSlaveInfo()->state == kPSlaveStateWaitBgsaveStart) {
       return true;
     }
   }
@@ -61,8 +61,8 @@ void PReplication::OnRdbSaveDone() {
       continue;
     }
 
-    if (cli->GetSlaveInfo()->state == PSlaveState_wait_bgsave_end) {
-      cli->GetSlaveInfo()->state = PSlaveState_online;
+    if (cli->GetSlaveInfo()->state == kPSlaveStateWaitBgsaveEnd) {
+      cli->GetSlaveInfo()->state = kPSlaveStateOnline;
 
       if (!rdb.IsOpen() && !rdb.Open(g_config.rdbfullname.c_str())) {
         ERROR("can not open rdb when replication\n");
@@ -124,10 +124,10 @@ void PReplication::onStartBgsave(bool succ) {
       continue;
     }
 
-    if (cli->GetSlaveInfo()->state == PSlaveState_wait_bgsave_start) {
+    if (cli->GetSlaveInfo()->state == kPSlaveStateWaitBgsaveStart) {
       if (succ) {
         INFO("onStartBgsave set cli wait bgsave end {}", cli->GetName());
-        cli->GetSlaveInfo()->state = PSlaveState_wait_bgsave_end;
+        cli->GetSlaveInfo()->state = kPSlaveStateWaitBgsaveEnd;
       } else {
         cli->Close();  // release slave
       }
@@ -145,7 +145,7 @@ void PReplication::SendToSlaves(const std::vector<PString>& params) {
 
   for (const auto& wptr : slaves_) {
     auto cli = wptr.lock();
-    if (!cli || cli->GetSlaveInfo()->state != PSlaveState_online) {
+    if (!cli || cli->GetSlaveInfo()->state != kPSlaveStateOnline) {
       continue;
     }
 
@@ -168,7 +168,7 @@ void PReplication::Cron() {
       } else {
         ++it;
 
-        if (cli->GetSlaveInfo()->state == PSlaveState_online) {
+        if (cli->GetSlaveInfo()->state == kPSlaveStateOnline) {
           cli->SendPacket("PING\r\n", 6);
         }
       }
@@ -177,7 +177,7 @@ void PReplication::Cron() {
 
   if (masterInfo_.addr.IsValid()) {
     switch (masterInfo_.state) {
-      case PReplState_none: {
+      case kPReplStateNone: {
         if (masterInfo_.addr.GetIP() == g_config.ip && masterInfo_.addr.GetPort() == g_config.port) {
           ERROR("Fix config, master addr is self addr!");
           assert(!!!"wrong config for master addr");
@@ -198,7 +198,7 @@ void PReplication::Cron() {
         auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
           WARN("OnCallback: Connect master {}:{} failed", peer_ip, port);
 
-          PREPL.SetMasterState(PReplState_none);
+          PREPL.SetMasterState(kPReplStateNone);
           if (!masterInfo_.downSince) {
             masterInfo_.downSince = ::time(nullptr);
           }
@@ -207,10 +207,10 @@ void PReplication::Cron() {
         auto loop = EventLoop::Self();
         loop->Connect(masterInfo_.addr.GetIP().c_str(), masterInfo_.addr.GetPort(), on_new_conn, fail_cb);
 
-        masterInfo_.state = PReplState_connecting;
+        masterInfo_.state = kPReplStateConnecting;
       } break;
 
-      case PReplState_connected:
+      case kPReplStateConnected:
         if (!g_config.masterauth.empty()) {
           if (auto master = master_.lock()) {
             UnboundedBuffer req;
@@ -220,16 +220,16 @@ void PReplication::Cron() {
             master->SendPacket(req);
             INFO("send auth with password {}", g_config.masterauth);
 
-            masterInfo_.state = PReplState_wait_auth;
+            masterInfo_.state = kPReplStateWaitAuth;
             break;
           }
         }
         // fall through to next case.
 
-      case PReplState_wait_auth: {
+      case kPReplStateWaitAuth: {
         auto master = master_.lock();
         if (!master) {
-          masterInfo_.state = PReplState_none;
+          masterInfo_.state = kPReplStateNone;
           masterInfo_.downSince = ::time(nullptr);
           WARN("Master is down from wait_auth to none");
         } else if (master->GetAuth()) {
@@ -237,7 +237,7 @@ void PReplication::Cron() {
           char req[128];
           auto len = snprintf(req, sizeof req - 1, "replconf listening-port %hu\r\n", g_config.port);
           master->SendPacket(req, len);
-          masterInfo_.state = PReplState_wait_replconf;
+          masterInfo_.state = kPReplStateWaitReplconf;
 
           INFO("Send replconf listening-port {}", g_config.port);
         } else {
@@ -245,10 +245,10 @@ void PReplication::Cron() {
         }
       } break;
 
-      case PReplState_wait_replconf: {
+      case kPReplStateWaitReplconf: {
         auto master = master_.lock();
         if (!master) {
-          masterInfo_.state = PReplState_none;
+          masterInfo_.state = kPReplStateNone;
           masterInfo_.downSince = ::time(nullptr);
           WARN("Master is down from wait_replconf to none");
         } else {
@@ -259,17 +259,17 @@ void PReplication::Cron() {
           rdb_.Open(slaveRdbFile, false);
           masterInfo_.rdbRecved = 0;
           masterInfo_.rdbSize = std::size_t(-1);
-          masterInfo_.state = PReplState_wait_rdb;
+          masterInfo_.state = kPReplStateWaitRdb;
         }
       } break;
 
-      case PReplState_wait_rdb:
+      case kPReplStateWaitRdb:
         break;
 
-      case PReplState_online:
+      case kPReplStateOnline:
         if (auto master = master_.lock()) {
         } else {
-          masterInfo_.state = PReplState_none;
+          masterInfo_.state = kPReplStateNone;
           masterInfo_.downSince = ::time(nullptr);
           WARN("Master is down");
         }
@@ -279,13 +279,13 @@ void PReplication::Cron() {
         break;
     }
   } else {
-    if (masterInfo_.state != PReplState_none) {
+    if (masterInfo_.state != kPReplStateNone) {
       if (auto master = master_.lock(); master) {
         INFO("{} disconnect with Master {}", master->GetName(), master->PeerIP());
         master->Close();
       }
 
-      masterInfo_.state = PReplState_none;
+      masterInfo_.state = kPReplStateNone;
       masterInfo_.downSince = ::time(nullptr);
       WARN("Master is down from connected to none");
     }
@@ -307,7 +307,7 @@ void PReplication::SaveTmpRdb(const char* data, std::size_t& len) {
 
     PDBLoader loader;
     loader.Load(slaveRdbFile);
-    masterInfo_.state = PReplState_online;
+    masterInfo_.state = kPReplStateOnline;
     masterInfo_.downSince = 0;
   }
 }
@@ -334,16 +334,16 @@ std::size_t PReplication::GetRdbSize() const { return masterInfo_.rdbSize; }
 
 PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 == 0) {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
   for (size_t i = 1; i < params.size(); i += 2) {
     if (strncasecmp(params[i].c_str(), "listening-port", 14) == 0) {
       long port;
       if (!TryStr2Long(params[i + 1].c_str(), params[i + 1].size(), port)) {
-        ReplyError(PError_param, reply);
-        return PError_param;
+        ReplyError(kPErrorParam, reply);
+        return kPErrorParam;
       }
 
       auto client = PClient::Current();
@@ -360,7 +360,7 @@ PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 void PReplication::OnInfoCommand(UnboundedBuffer& res) {
@@ -439,12 +439,12 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
     if (port > 0 && PREPL.GetMasterAddr() != reqMaster) {
       PREPL.SetMasterAddr(params[1].c_str(), port);
-      PREPL.SetMasterState(PReplState_none);
+      PREPL.SetMasterState(kPReplStateNone);
     }
   }
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -456,16 +456,16 @@ PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PREPL.AddSlave(cli);
   }
 
-  if (slave->state == PSlaveState_wait_bgsave_end || slave->state == PSlaveState_online) {
+  if (slave->state == kPSlaveStateWaitBgsaveEnd || slave->state == kPSlaveStateOnline) {
     WARN("{} state is {}, ignore this sync request", cli->GetName(), int(slave->state));
 
-    return PError_ok;
+    return kPErrorOK;
   }
 
-  slave->state = PSlaveState_wait_bgsave_start;
+  slave->state = kPSlaveStateWaitBgsaveStart;
   PREPL.TryBgsave();
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

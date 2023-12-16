@@ -30,18 +30,18 @@ PError select(const std::vector<PString>& params, UnboundedBuffer* reply) {
     if (client->SelectDB(newDB)) {
       FormatOK(reply);
     } else {
-      ReplyError(PError_invalidDB, reply);
+      ReplyError(kPErrorInvalidDB, reply);
     }
   } else {
     PSTORE.SelectDB(newDB);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError dbsize(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatInt(static_cast<long>(PSTORE.DBSize()), reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError flushdb(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -50,7 +50,7 @@ PError flushdb(const std::vector<PString>& params, UnboundedBuffer* reply) {
   Propagate(PSTORE.GetDB(), params);
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError flushall(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -71,7 +71,7 @@ PError flushall(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -79,7 +79,7 @@ PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
                reply);
 
-    return PError_ok;
+    return kPErrorOK;
   }
 
   int ret = fork();
@@ -96,7 +96,7 @@ PError bgsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatSingle("Background saving started", 25, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -104,7 +104,7 @@ PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk("-ERR Background save already in progress", sizeof "-ERR Background save already in progress" - 1,
                reply);
 
-    return PError_ok;
+    return kPErrorOK;
   }
 
   PDBSaver qdb;
@@ -112,27 +112,27 @@ PError save(const std::vector<PString>& params, UnboundedBuffer* reply) {
   g_lastPDBSave = time(nullptr);
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError lastsave(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatInt(g_lastPDBSave, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError client(const std::vector<PString>& params, UnboundedBuffer* reply) {
   // getname   setname    kill  list
-  PError err = PError_ok;
+  PError err = kPErrorOK;
 
   if (params[1].size() == 7 && strncasecmp(params[1].c_str(), "getname", 7) == 0) {
     if (params.size() != 2) {
-      ReplyError(err = PError_param, reply);
+      ReplyError(err = kPErrorParam, reply);
     } else {
       FormatBulk(PClient::Current()->GetName(), reply);
     }
   } else if (params[1].size() == 7 && strncasecmp(params[1].c_str(), "setname", 7) == 0) {
     if (params.size() != 3) {
-      ReplyError(err = PError_param, reply);
+      ReplyError(err = kPErrorParam, reply);
     } else {
       PClient::Current()->SetName(params[2]);
       FormatOK(reply);
@@ -144,7 +144,7 @@ PError client(const std::vector<PString>& params, UnboundedBuffer* reply) {
   } else if (params[1].size() == 4 && strncasecmp(params[1].c_str(), "list", 4) == 0) {
     FormatOK(reply);
   } else {
-    ReplyError(err = PError_param, reply);
+    ReplyError(err = kPErrorParam, reply);
   }
 
   return err;
@@ -158,7 +158,7 @@ static int Suicide() {
 }
 
 PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
-  PError err = PError_ok;
+  PError err = kPErrorOK;
 
   if (strncasecmp(params[1].c_str(), "segfault", 8) == 0 && params.size() == 2) {
     Suicide();
@@ -167,7 +167,7 @@ PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PObject* obj = nullptr;
     err = PSTORE.GetValue(params[2], obj, false);
 
-    if (err != PError_ok) {
+    if (err != kPErrorOK) {
       ReplyError(err, reply);
     } else {
       // ref count,  encoding, idle time
@@ -178,7 +178,7 @@ PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
       FormatBulk(buf, len, reply);
     }
   } else {
-    ReplyError(err = PError_param, reply);
+    ReplyError(err = kPErrorParam, reply);
   }
 
   return err;
@@ -194,17 +194,17 @@ PError shutdown(const std::vector<PString>& params, UnboundedBuffer* reply) {
     g_pikiwidb->Stop();
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError ping(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatSingle("PONG", 4, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError echo(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatBulk(params[1], reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 void OnMemoryInfoCollect(UnboundedBuffer& res) {
@@ -212,18 +212,19 @@ void OnMemoryInfoCollect(UnboundedBuffer& res) {
   auto minfo = getMemoryInfo();
 
   char buf[1024];
-  int n = snprintf(buf, sizeof buf - 1,
-                   "# Memory\r\n"
-                   "used_memory_peak:%lu\r\n"
-                   "used_memory:%lu\r\n"
-                   "used_memory_human:%sMB\r\n"
-                   "used_memory_rss_peak:%lu\r\n"
-                   "used_memory_rss:%lu\r\n"
-                   "used_memory_rss_human:%sMB\r\n"
-                   "used_memory_lock:%lu\r\n"
-                   "used_memory_swap:%lu\r\n",
-                   minfo[VmPeak], minfo[VmSize], std::to_string(minfo[VmSize] / 1024.0f / 1024.0f).data(), minfo[VmHWM],
-                   minfo[VmRSS], std::to_string(minfo[VmRSS] / 1024.0f / 1024.0f).data(), minfo[VmLck], minfo[VmSwap]);
+  int n =
+      snprintf(buf, sizeof buf - 1,
+               "# Memory\r\n"
+               "used_memory_peak:%lu\r\n"
+               "used_memory:%lu\r\n"
+               "used_memory_human:%sMB\r\n"
+               "used_memory_rss_peak:%lu\r\n"
+               "used_memory_rss:%lu\r\n"
+               "used_memory_rss_human:%sMB\r\n"
+               "used_memory_lock:%lu\r\n"
+               "used_memory_swap:%lu\r\n",
+               minfo[kVmPeak], minfo[kVmSize], std::to_string(minfo[kVmSize] / 1024.0f / 1024.0f).data(), minfo[kVmHWM],
+               minfo[kVmRSS], std::to_string(minfo[kVmRSS] / 1024.0f / 1024.0f).data(), minfo[kVmLck], minfo[kVmSwap]);
 
   if (!res.IsEmpty()) {
     res.PushData("\r\n", 2);
@@ -278,14 +279,14 @@ PError info(const std::vector<PString>& params, UnboundedBuffer* reply) {
   g_infoCollector(res);
 
   FormatBulk(res.ReadAddr(), res.ReadableSize(), reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError monitor(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient::AddCurrentToMonitor();
 
   FormatOK(reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError auth(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -293,10 +294,10 @@ PError auth(const std::vector<PString>& params, UnboundedBuffer* reply) {
     PClient::Current()->SetAuth();
     FormatOK(reply);
   } else {
-    ReplyError(PError_errAuth, reply);
+    ReplyError(kPErrorErrAuth, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -310,8 +311,8 @@ PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
     long realCnt = limit;
     if (params.size() == 3) {
       if (!Strtol(params[2].c_str(), params[2].size(), &realCnt)) {
-        ReplyError(PError_syntax, reply);
-        return PError_syntax;
+        ReplyError(kPErrorSyntax, reply);
+        return kPErrorSyntax;
       }
     }
 
@@ -334,20 +335,20 @@ PError slowlog(const std::vector<PString>& params, UnboundedBuffer* reply) {
       }
     }
   } else {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 // Config options get/set
 //
 enum ConfigType {
-  Config_string,
-  Config_bool,
-  Config_int,
-  Config_int64,
+  kConfigString,
+  kConfigBool,
+  kConfigInt,
+  kConfigInt64,
 };
 
 struct ConfigInfo {
@@ -358,27 +359,27 @@ struct ConfigInfo {
 
 // TODO sanity check: use function setter
 std::map<PString, ConfigInfo> configOptions = {
-    {"bind", {Config_string, false, &g_config.ip}},
-    {"dbfilename", {Config_string, true, &g_config.rdbfullname}},
-    {"databases", {Config_int, false, &g_config.databases}},
-    {"daemonize", {Config_bool, false, &g_config.daemonize}},
-    {"hz", {Config_int, false, &g_config.hz}},
-    {"logfile", {Config_string, false, &g_config.logdir}},
-    {"loglevel", {Config_string, true, &g_config.loglevel}},
-    {"masterauth", {Config_string, true, &g_config.masterauth}},
-    {"maxclients", {Config_int, true, &g_config.maxclients}},
-    {"port", {Config_int, false, &g_config.port}},
-    {"requirepass", {Config_string, true, &g_config.password}},
-    {"rdbchecksum", {Config_bool, false, &g_config.rdbchecksum}},
-    {"rdbcompression", {Config_bool, false, &g_config.rdbcompression}},
-    {"slowlog-log-slower-than", {Config_int, true, &g_config.slowlogtime}},
-    {"slowlog-max-len", {Config_int, true, &g_config.slowlogmaxlen}},
-    {"slaveof", {Config_string, false, &g_config.masterIp}},
-    {"maxmemory", {Config_int64, true, &g_config.maxmemory}},
-    {"maxmemorySamples", {Config_int, true, &g_config.maxmemorySamples}},
-    {"maxmemory-noevict", {Config_bool, true, &g_config.noeviction}},
-    {"backend", {Config_int, false, &g_config.backend}},
-    {"backendhz", {Config_int, false, &g_config.backendHz}},
+    {"bind", {kConfigString, false, &g_config.ip}},
+    {"dbfilename", {kConfigString, true, &g_config.rdbfullname}},
+    {"databases", {kConfigInt, false, &g_config.databases}},
+    {"daemonize", {kConfigBool, false, &g_config.daemonize}},
+    {"hz", {kConfigInt, false, &g_config.hz}},
+    {"logfile", {kConfigString, false, &g_config.logdir}},
+    {"loglevel", {kConfigString, true, &g_config.loglevel}},
+    {"masterauth", {kConfigString, true, &g_config.masterauth}},
+    {"maxclients", {kConfigInt, true, &g_config.maxclients}},
+    {"port", {kConfigInt, false, &g_config.port}},
+    {"requirepass", {kConfigString, true, &g_config.password}},
+    {"rdbchecksum", {kConfigBool, false, &g_config.rdbchecksum}},
+    {"rdbcompression", {kConfigBool, false, &g_config.rdbcompression}},
+    {"slowlog-log-slower-than", {kConfigInt, true, &g_config.slowlogtime}},
+    {"slowlog-max-len", {kConfigInt, true, &g_config.slowlogmaxlen}},
+    {"slaveof", {kConfigString, false, &g_config.masterIp}},
+    {"maxmemory", {kConfigInt64, true, &g_config.maxmemory}},
+    {"maxmemorySamples", {kConfigInt, true, &g_config.maxmemorySamples}},
+    {"maxmemory-noevict", {kConfigBool, true, &g_config.noeviction}},
+    {"backend", {kConfigInt, false, &g_config.backend}},
+    {"backendhz", {kConfigInt, false, &g_config.backendHz}},
 };
 
 static std::vector<PString> GetConfig(const PString& option) {
@@ -406,7 +407,7 @@ static std::vector<PString> GetConfig(const PString& option) {
 
     // push value
     switch (it->second.type) {
-      case Config_bool:
+      case kConfigBool:
         if (*(bool*)(it->second.value)) {
           res.push_back("true");
         } else {
@@ -414,14 +415,14 @@ static std::vector<PString> GetConfig(const PString& option) {
         }
         break;
 
-      case Config_string:
+      case kConfigString:
         res.push_back(*(const PString*)it->second.value);
         break;
 
-      case Config_int:
-      case Config_int64: {
+      case kConfigInt:
+      case kConfigInt64: {
         int64_t val = 0;
-        if (it->second.type == Config_int) {
+        if (it->second.type == kConfigInt) {
           val = *(int*)it->second.value;
         } else {
           val = *(int64_t*)it->second.value;
@@ -445,28 +446,28 @@ static std::vector<PString> GetConfig(const PString& option) {
 static PError SetConfig(const PString& option, const PString& value) {
   auto it = configOptions.find(option);
   if (it == configOptions.end()) {
-    return PError_syntax;
+    return kPErrorSyntax;
   }
 
   if (!it->second.canModify) {
-    return PError_syntax;
+    return kPErrorSyntax;
   }
 
   // set option value
   switch (it->second.type) {
-    case Config_bool:
+    case kConfigBool:
       *(bool*)(it->second.value) = (value == "true");
       break;
 
-    case Config_string:
+    case kConfigString:
       *(PString*)it->second.value = value;
       break;
 
-    case Config_int:
-    case Config_int64: {
+    case kConfigInt:
+    case kConfigInt64: {
       long val = 0;
       if (Strtol(value.data(), value.size(), &val)) {
-        if (it->second.type == Config_int) {
+        if (it->second.type == kConfigInt) {
           *(int*)it->second.value = static_cast<int>(val);
         } else {
           *(int64_t*)it->second.value = static_cast<int64_t>(val);
@@ -478,7 +479,7 @@ static PError SetConfig(const PString& option, const PString& value) {
           PSlowLog::Instance().SetLogLimit(static_cast<std::size_t>(g_config.slowlogmaxlen));
         }
       } else {
-        return PError_syntax;
+        return kPErrorSyntax;
       }
     }
 
@@ -488,7 +489,7 @@ static PError SetConfig(const PString& option, const PString& value) {
       assert(!!!"invalid type");
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -501,12 +502,12 @@ PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   } else if (strncasecmp(params[1].c_str(), "set", 3) == 0) {
     if (params.size() != 4) {
-      ReplyError(PError_param, reply);
-      return PError_param;
+      ReplyError(kPErrorParam, reply);
+      return kPErrorParam;
     }
 
     auto err = SetConfig(params[2], params[3]);
-    if (err == PError_ok) {
+    if (err == kPErrorOK) {
       FormatOK(reply);
     } else {
       const char* format = "-ERR Invalid argument '%s' for CONFIG SET '%s'\r\n";
@@ -518,11 +519,11 @@ PError config(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
     return err;
   } else {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

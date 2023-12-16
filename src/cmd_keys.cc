@@ -11,7 +11,7 @@
 namespace pikiwidb {
 
 DelCmd::DelCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryKeyspace) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
 
 bool DelCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -28,7 +28,7 @@ void DelCmd::DoCmd(PClient* client) {
 }
 
 ExistsCmd::ExistsCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryKeyspace) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
 
 bool ExistsCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -42,4 +42,5 @@ void ExistsCmd::DoCmd(PClient* client) {
     client->AppendInteger(0);
   }
 }
+
 }  // namespace pikiwidb

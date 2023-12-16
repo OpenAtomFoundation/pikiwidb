@@ -17,8 +17,8 @@
 namespace pikiwidb {
 
 enum PCommandAttr {
-  PAttr_read = 0x1,
-  PAttr_write = 0x1 << 1,
+  kPAttrRead = 0x1,
+  kPAttrWrite = 0x1 << 1,
 };
 
 class UnboundedBuffer;

@@ -151,14 +151,14 @@ inline size_t ScanHashMember(const HASH& container, size_t cursor, size_t count,
 extern void getRandomHexChars(char* p, unsigned int len);
 
 enum MemoryInfoType {
-  VmPeak = 0,
-  VmSize = 1,
-  VmLck = 2,
-  VmHWM = 3,
-  VmRSS = 4,
-  VmSwap = 5,
+  kVmPeak = 0,
+  kVmSize = 1,
+  kVmLck = 2,
+  kVmHWM = 3,
+  kVmRSS = 4,
+  kVmSwap = 5,
 
-  VmMax = VmSwap + 1,
+  kVmMax = kVmSwap + 1,
 };
 
 extern std::vector<size_t> getMemoryInfo();
