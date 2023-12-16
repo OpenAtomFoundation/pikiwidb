@@ -226,7 +226,7 @@ void HKeysCmd::DoCmd(PClient* client) {
 }
 
 HLenCmd::HLenCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HLenCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -236,10 +236,10 @@ bool HLenCmd::DoInitial(PClient* client) {
 void HLenCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hlen cmd error");
@@ -253,7 +253,7 @@ void HLenCmd::DoCmd(PClient* client) {
 }
 
 HStrLenCmd::HStrLenCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryHash) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HStrLenCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -263,10 +263,10 @@ bool HStrLenCmd::DoInitial(PClient* client) {
 void HStrLenCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   UnboundedBuffer reply;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOK) {
     ReplyError(err, &reply);
-    if (err == PError_notExist) {
+    if (err == kPErrorNotExist) {
       client->AppendString("");
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "hstrlen cmd error");
