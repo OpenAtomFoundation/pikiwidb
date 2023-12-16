@@ -1,0 +1,74 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+jobs:
+  build:
+    name: Build binary
+    strategy:
+      matrix:
+        include:
+          - arch: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            file_name: ${{ github.event.repository.name }}-${{ github.ref_name }}-linux-amd64
+            file_ext: .tar.gz
+          - arch: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            file_name: ${{ github.event.repository.name }}-${{ github.ref_name }}-linux-arm64
+            file_ext: .tar.gz
+          - arch: x86_64-apple-darwin
+            os: macos-latest
+            file_name: ${{ github.event.repository.name }}-${{ github.ref_name }}-darwin-amd64
+            file_ext: .tar.gz
+          - arch: aarch64-apple-darwin
+            os: macos-latest
+            file_name: ${{ github.event.repository.name }}-${{ github.ref_name }}-darwin-arm64
+            file_ext: .tar.gz
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          bash build.sh
+
+      - name: Calculate checksum and rename binary
+        working-directory: ${{ github.workspace }}/bin
+        shell: bash
+        run: |
+          chmod +x ${{ github.event.repository.name }}
+          tar -zcvf ${{ matrix.file_name }}${{ matrix.file_ext }} ${{ github.event.repository.name }}
+          echo $(shasum -a 256 ${{ matrix.file_name }}${{ matrix.file_ext }} | cut -f1 -d' ') > ${{ matrix.file_name }}${{ matrix.file_ext }}.sha256sum
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.file_name }}${{ matrix.file_ext }}
+          path: bin/${{ matrix.file_name }}${{ matrix.file_ext }}
+
+      - name: Upload checksum of artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.file_name }}${{ matrix.file_ext }}.sha256sum
+          path: bin/${{ matrix.file_name }}${{ matrix.file_ext }}.sha256sum
+
+  release:
+    name: Release artifacts
+    needs: [ build ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v3
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Release ${{ github.ref_name }}"
+          generate_release_notes: true
+          files: |
+            **/${{ github.event.repository.name }}-*
