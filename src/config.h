@@ -13,9 +13,9 @@
 namespace pikiwidb {
 
 enum BackEndType {
-  BackEndNone = 0,
-  BackEndLeveldb = 1,
-  BackEndMax = 2,
+  kBackEndNone = 0,
+  kBackEndLeveldb = 1,
+  kBackEndMax = 2,
 };
 
 struct PConfig {

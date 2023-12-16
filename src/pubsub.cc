@@ -266,7 +266,7 @@ PError subscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError psubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -284,7 +284,7 @@ PError psubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError unsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -314,7 +314,7 @@ PError unsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError punsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -344,22 +344,22 @@ PError punsubscribe(const std::vector<PString>& params, UnboundedBuffer* reply) 
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError publish(const std::vector<PString>& params, UnboundedBuffer* reply) {
   size_t n = PPubsub::Instance().PublishMsg(params[1], params[2]);
   FormatInt(n, reply);
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 // neixing command
 PError pubsub(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params[1] == "channels") {
     if (params.size() > 3) {
-      ReplyError(PError_param, reply);
-      return PError_param;
+      ReplyError(kPErrorParam, reply);
+      return kPErrorParam;
     }
 
     std::vector<PString> res;
@@ -377,8 +377,8 @@ PError pubsub(const std::vector<PString>& params, UnboundedBuffer* reply) {
     }
   } else if (params[1] == "numpat") {
     if (params.size() != 2) {
-      ReplyError(PError_param, reply);
-      return PError_param;
+      ReplyError(kPErrorParam, reply);
+      return kPErrorParam;
     }
 
     FormatInt(PPubsub::Instance().PubsubNumpat(), reply);
@@ -386,7 +386,7 @@ PError pubsub(const std::vector<PString>& params, UnboundedBuffer* reply) {
     ERROR("Unknown pubsub subcmd {}", params[1]);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

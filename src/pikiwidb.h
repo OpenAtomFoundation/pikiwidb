@@ -11,7 +11,7 @@
 #include "pstring.h"
 #include "tcp_connection.h"
 
-#define PIKIWIDB_VERSION "4.0.0"
+#define kPIKIWIDB_VERSION "4.0.0"
 
 class PikiwiDB final {
  public:

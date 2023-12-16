@@ -6,7 +6,7 @@
 #pragma once
 
 #include <string>
-#include "slice.h"
+#include "pstd_slice.h"
 
 namespace pstd {
 

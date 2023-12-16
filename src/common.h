@@ -23,47 +23,47 @@ namespace pikiwidb {
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
 
 enum PType {
-  PType_invalid,
-  PType_string,
-  PType_list,
-  PType_set,
-  PType_sortedSet,
-  PType_hash,
+  kPTypeInvalid,
+  kPTypeString,
+  kPTypeList,
+  kPTypeSet,
+  kPTypeSortedSet,
+  kPTypeHash,
   // < 16
 };
 
 enum PEncode {
-  PEncode_invalid,
+  kPEncodeInvalid,
 
-  PEncode_raw,  // string
-  PEncode_int,  // string as int
+  kPEncodeRaw,  // string
+  kPEncodeInt,  // string as int
 
-  PEncode_list,
+  kPEncodeList,
 
-  PEncode_set,
-  PEncode_hash,
+  kPEncodeSet,
+  kPEncodeHash,
 
-  PEncode_zset,
+  kPEncodeZset,
 };
 
 inline const char* EncodingStringInfo(unsigned encode) {
   switch (encode) {
-    case PEncode_raw:
+    case kPEncodeRaw:
       return "raw";
 
-    case PEncode_int:
+    case kPEncodeInt:
       return "int";
 
-    case PEncode_list:
+    case kPEncodeList:
       return "list";
 
-    case PEncode_set:
+    case kPEncodeSet:
       return "set";
 
-    case PEncode_hash:
+    case kPEncodeHash:
       return "hash";
 
-    case PEncode_zset:
+    case kPEncodeZset:
       return "zset";
 
     default:
@@ -74,27 +74,28 @@ inline const char* EncodingStringInfo(unsigned encode) {
 }
 
 enum PError {
-  PError_nop = -1,
-  PError_ok = 0,
-  PError_type = 1,
-  PError_exist = 2,
-  PError_notExist = 3,
-  PError_param = 4,
-  PError_unknowCmd = 5,
-  PError_nan = 6,
-  PError_syntax = 7,
-  PError_dirtyExec = 8,
-  PError_watch = 9,
-  PError_noMulti = 10,
-  PError_invalidDB = 11,
-  PError_readonlySlave = 12,
-  PError_needAuth = 13,
-  PError_errAuth = 14,
-  PError_nomodule = 15,
-  PError_moduleinit = 16,
-  PError_moduleuninit = 17,
-  PError_modulerepeat = 18,
-  PError_max,
+  kPErrorNop = -1,
+  kPErrorOK = 0,
+  kPErrorType = 1,
+  kPErrorExist = 2,
+  kPErrorNotExist = 3,
+  kPErrorParam = 4,
+  kPErrorUnknowCmd = 5,
+  kPErrorNan = 6,
+  kPErrorSyntax = 7,
+  kPErrorDirtyExec = 8,
+  kPErrorWatch = 9,
+  kPErrorNoMulti = 10,
+  kPErrorInvalidDB = 11,
+  kPErrorReadonlySlave = 12,
+  kPErrorNeedAuth = 13,
+  kPErrorErrAuth = 14,
+  kPErrorNomodule = 15,
+  kPErrorModuleinit = 16,
+  kPErrorModuleuninit = 17,
+  kPErrorModulerepeat = 18,
+  kPErrorOverflow = 19,
+  kPErrorMax,
 };
 
 extern struct PErrorInfo {
@@ -145,6 +146,8 @@ inline std::size_t Number2Str(char* ptr, std::size_t nBytes, T val) {
 }
 
 int Double2Str(char* ptr, std::size_t nBytes, double val);
+int StrToLongDouble(const char* s, size_t slen, long double* ldval);
+int LongDoubleToStr(long double ldval, std::string* value);
 bool TryStr2Long(const char* ptr, std::size_t nBytes, long& val);  // only for decimal
 bool Strtol(const char* ptr, std::size_t nBytes, long* outVal);
 bool Strtoll(const char* ptr, std::size_t nBytes, long long* outVal);
@@ -201,9 +204,9 @@ struct NocaseComp {
 };
 
 enum class PParseResult : int8_t {
-  ok,
-  wait,
-  error,
+  kOK,
+  kWait,
+  kError,
 };
 
 PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val);

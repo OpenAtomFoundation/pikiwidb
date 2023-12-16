@@ -82,8 +82,8 @@ cmake -DCMAKE_BUILD_TYPE=${BUILD_TYPE} -DBUILD_TIME=$BUILD_TIME -DGIT_COMMIT_ID=
 cmake --build ${PREFIX} -- ${MAKE_FLAGS} -j ${CPU_CORE}
 
 if [ $? -eq 0 ]; then
-    echo -e "pika compile complete, output file ${C_GREEN} ${BUILD_DIR}/pika ${C_END}"
+    echo -e "pikiwidb compile complete, output file ${C_GREEN} ${BUILD_DIR}/pikiwidb ${C_END}"
 else
-    echo -e "${C_RED} pika compile fail ${C_END}"
+    echo -e "${C_RED} pikiwidb compile fail ${C_END}"
     exit 1
 fi
