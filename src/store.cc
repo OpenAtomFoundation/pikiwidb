@@ -535,40 +535,16 @@ bool PStore::LoadKey(const PString& key, PType type) const {
   }
 }
 
-std::tuple<PString, PError> PStore::GetCachePrefixKey(const PString& key, PType type) { 
-  PString cachePrefixKey;
-  switch (type) {
-    case kPTypeString:
-      return std::make_tuple(PCacheKeyPrefixK + key, kPErrorOK);
-    case kPTypeHash:
-      return std::make_tuple(PCacheKeyPrefixH + key, kPErrorOK);
-    case kPTypeList:
-      return std::make_tuple(PCacheKeyPrefixL + key, kPErrorOK);
-    case kPTypeSet:
-      return std::make_tuple(PCacheKeyPrefixS + key, kPErrorOK);
-    case kPTypeSortedSet:
-      return std::make_tuple(PCacheKeyPrefixZ + key, kPErrorOK);
-    default:
-      LOG(WARNING) << "Invalid key type : " << type;
-      return std::make_tuple(cachePrefixKey, kPErrorType);
-  }
-}
-
 const PObject* PStore::GetObject(const PString& key, PType type) const {
   auto db = &dbs_[dbno_];
-  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
-  if (!s) {
-    return nullptr;
-  }
-
-  PDB::const_iterator it(db->find(cachePrefixKey));
+  PDB::const_iterator it(db->find(key));
   if (it != db->end()) {
     return &it->second;
   }
 
   // @todo 可能需要补充获取的key对应的value类型，缓存中没有获取到就从磁盘中获取
   if (LoadKey(key, type)) {
-    it = db->find(cachePrefixKey);
+    it = db->find(key);
     if (it != db->end()) {
       return &it->second;
     }
@@ -577,17 +553,12 @@ const PObject* PStore::GetObject(const PString& key, PType type) const {
   return nullptr;
 }
 
-bool PStore::DeleteKey(const PString& key, PType type) {
+bool PStore::DeleteKey(const PString& key) {
   auto db = &dbs_[dbno_];
   size_t ret = 0;
-  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
-  if (!s) {
-    return false;
-  }
-
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
   try {
-    ret = db->erase(cachePrefixKey);
+    ret = db->erase(key);
   } catch (const std::exception& e) {
     return false;
   }
@@ -752,12 +723,7 @@ std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType ty
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
   auto db = &dbs_[dbno_];
   value.lru = PObject::lruclock;
-  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
-  if (!s) {
-    return nullptr;
-  }
-
-  auto [realObj, status] = db->insert_or_assign(cachePrefixKey, std::move(value));
+  auto [realObj, status] = db->insert_or_assign(key, std::move(value));
   const PObject& obj = realObj->second;
 
   // XXX: any better solution without const_cast?

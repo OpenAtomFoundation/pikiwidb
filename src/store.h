@@ -110,8 +110,7 @@ class PStore {
   bool LoadKey(const PString& key, PType type = kPTypeInvalid) const;
 
   // Key operation
-  std::tuple<PString, PError> GetCachePrefixKey(const PString& key, PType type = kPTypeInvalid);
-  bool DeleteKey(const PString& key, PType type = kPTypeInvalid);
+  bool DeleteKey(const PString& key);
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;
