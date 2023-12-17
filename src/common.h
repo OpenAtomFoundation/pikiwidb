@@ -20,8 +20,34 @@
 
 namespace pikiwidb {
 
+#define COMMA ','
+
+/*
+ * cache size
+ */
+#define PIKA_CACHE_SIZE_MIN       536870912    // 512M
+#define PIKA_CACHE_SIZE_DEFAULT   10737418240  // 10G
+
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
 const int64_t CACHE_VALUE_ITEM_MAX_SIZE = 2048;
+
+/*
+ * cache model
+ */
+constexpr int PIKA_CACHE_NONE = 0;
+constexpr int PIKA_CACHE_READ = 1;
+
+/*
+ * cache status
+ */
+const int PIKIWIDB_CACHE_STATUS_NONE = 0;
+const int PIKIWIDB_CACHE_STATUS_INIT = 1;
+const int PIKIWIDB_CACHE_STATUS_OK = 2;
+const int PIKIWIDB_CACHE_STATUS_RESET = 3;
+const int PIKIWIDB_CACHE_STATUS_DESTROY = 4;
+const int PIKIWIDB_CACHE_STATUS_CLEAR = 5;
+const int CACHE_START_FROM_BEGIN = 0;
+const int CACHE_START_FROM_END = -1;
 
 enum PType {
   kPTypeInvalid,
@@ -96,6 +122,7 @@ enum PError {
   kPErrorModuleuninit = 17,
   kPErrorModulerepeat = 18,
   kPErrorOverflow = 19,
+  kPErrorCacheMiss = 20,
   kPErrorMax,
 };
 

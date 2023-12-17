@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "client.h"
+#include "config.h"
 
 namespace pikiwidb {
 
@@ -65,6 +66,13 @@ const std::string kCmdNameHKeys = "hkeys";
 const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 
+enum CmdFlagsMask {
+  kCmdFlagsMaskRW = 3,
+  kCmdFlagsMaskDoThrouhDB = (1 << 21),
+  kCmdFlagsMaskReadCache = (1 << 22),
+  kCmdFlagsMaskUpdateCache = (1 << 23),
+};
+
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
@@ -81,6 +89,15 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsKv = (1 << 15),
+  kCmdFlagsHash = (1 << 16),
+  kCmdFlagsList = (1 << 17),
+  kCmdFlagsSet = (1 << 18),
+  kCmdFlagsZset = (1 << 19),
+  kCmdFlagsBit = (1 << 20),
+  kCmdFlagsReadCache = (1 << 21),
+  kCmdFlagsUpdateCache = (1 << 22),
+  kCmdFlagsDoThroughDB = (1 << 23),
 };
 
 enum AclCategory {
@@ -221,7 +238,13 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   virtual void DoCmd(PClient* client) = 0;
   virtual void DoThroughDB(PClient* client) {}
   virtual void DoUpdateCache(PClient* client) {}
-  virtual void ReadCache(PClient* client) {}
+  virtual PError ReadCache(PClient* client) {}
+
+  bool IsNeedCacheDo() const;
+  bool IsNeedReadCache() const { return ((flag_ & kCmdFlagsMaskReadCache) == kCmdFlagsReadCache); }
+  bool IsRead() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsReadonly); }
+  bool IsWrite() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsWrite); }
+  bool IsNeedUpdateCache() const { return ((flag_ & kCmdFlagsMaskUpdateCache) == kCmdFlagsUpdateCache);  }
 
   std::string name_;
   int16_t arity_ = 0;
@@ -235,6 +258,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
 
   uint32_t cmdId_ = 0;
   uint32_t aclCategory_ = 0;
+
+  PObject* value_;
 
  private:
   // The function to be executed first before executing `DoCmd`

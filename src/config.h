@@ -8,6 +8,7 @@
 #pragma once
 
 #include <map>
+#include <vector>
 #include "pstring.h"
 
 namespace pikiwidb {
@@ -77,10 +78,38 @@ struct PConfig {
   PString backendPath;
   int backendHz;  // the frequency of dump to backend
 
+  // cache
+  int cache_num;
+  int cache_model;
+  bool tmp_cache_disable_flag{false};
+  int cache_string;
+  int cache_set;
+  int cache_zset;
+  int cache_hash;
+  int cache_list;
+  int cache_bit;
+  int zset_cache_field_num_per_key;
+  int zset_cache_start_pos;
+  int64_t cache_maxmemory;
+  int cache_maxmemory_policy;
+  int cache_maxmemory_samples;
+  int cache_lfu_decay_time;
+
   PConfig();
 
   bool CheckArgs() const;
   bool CheckPassword(const PString& pwd) const;
+  bool IsCacheDisabledTemporarily() { return tmp_cache_disable_flag; }
+  void UnsetCacheDisableFlag() { tmp_cache_disable_flag = false; }
+  void SetCacheDisableFlag() { tmp_cache_disable_flag = true; }
+  int GetCacheString() { return cache_string; }
+  int GetCacheSet() { return cache_set; }
+  int GetCacheZset() { return cache_zset; }
+  int GetCacheHash() { return cache_hash; }
+  int GetCacheList() { return cache_list; }
+  int GetCacheBit() { return cache_bit; }
+  int GetCacheNum() { return cache_num; }
+  int GetCacheModel() { return cache_model; }
 };
 
 extern PConfig g_config;

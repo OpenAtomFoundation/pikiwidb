@@ -32,7 +32,26 @@ void BaseCmd::Execute(PClient* client) {
   if (!DoInitial(client)) {
     return;
   }
-  DoCmd(client);
+
+  if (IsNeedCacheDo() && PIKA_CACHE_NONE != g_config.GetCacheModel()) {
+    PError res = kPErrorOK;
+    if (IsNeedReadCache()) {
+      res = ReadCache(client);
+    }
+    if (IsRead() && res == kPErrorCacheMiss) {
+      DoThroughDB(client);
+      if (IsNeedUpdateCache()) {
+        DoUpdateCache(client);
+      }
+    } else if (IsWrite()) {
+      DoThroughDB(client);
+      if (IsNeedUpdateCache()) {
+        DoUpdateCache(client);
+      }
+    }
+  } else {
+    DoCmd(client);
+  }
 }
 
 std::string BaseCmd::ToBinlog(uint32_t exec_time, uint32_t term_id, uint64_t logic_id, uint32_t filenum,
@@ -53,6 +72,39 @@ std::string BaseCmd::Name() const { return name_; }
 // void BaseCommand::SetResp(const std::shared_ptr<std::string>& resp) { resp_ = resp; }
 // std::shared_ptr<std::string> BaseCommand::GetResp() { return resp_.lock(); }
 uint32_t BaseCmd::GetCmdId() const { return cmdId_; }
+
+bool BaseCmd::IsNeedCacheDo() const {
+  if (g_config.IsCacheDisabledTemporarily()) {
+    return false;
+  }
+
+  if ((flag_ & kCmdFlagsKv) == kCmdFlagsKv) {
+    if (!g_config.GetCacheString()) {
+      return false;
+    }
+  } else if ((flag_ & kCmdFlagsSet) == kCmdFlagsSet) {
+    if (!g_config.GetCacheSet()) {
+      return false;
+    }
+  } else if ((flag_ & kCmdFlagsZset) == kCmdFlagsZset) {
+    if (!g_config.GetCacheZset()) {
+      return false;
+    }
+  } else if ((flag_ & kCmdFlagsHash) == kCmdFlagsHash) {
+    if (!g_config.GetCacheHash()) {
+      return false;
+    }
+  } else if ((flag_ & kCmdFlagsList) == kCmdFlagsList) {
+    if (!g_config.GetCacheList()) {
+      return false;
+    }
+  } else if ((flag_ & kCmdFlagsBit) == kCmdFlagsBit) {
+    if (!g_config.GetCacheBit()) {
+      return false;
+    }
+  }
+  return ((flag_ & kCmdFlagsMaskDoThrouhDB) == kCmdFlagsDoThroughDB);
+}
 
 // BaseCmdGroup
 BaseCmdGroup::BaseCmdGroup(const std::string& name, uint32_t flag) : BaseCmdGroup(name, -2, flag) {}

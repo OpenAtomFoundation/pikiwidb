@@ -7,9 +7,13 @@
 
 #include <iostream>
 #include <vector>
+#include <set>
+#include <algorithm>
 
 #include "config.h"
+#include "common.h"
 #include "config_parser.h"
+#include "pstd_string.h"
 
 namespace pikiwidb {
 
@@ -170,6 +174,62 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   EraseQuotes(cfg.backendPath);
   cfg.backendHz = parser.GetData<int>("backendhz", 10);
 
+  // cache-num
+  cfg.cache_num = parser.GetData<int>("cache-num", 16);
+  if (cfg.cache_num <= 0 || cfg.cache_num > 48) {
+    cfg.cache_num = 16;
+  }
+
+  // cache-model
+  cfg.cache_model = parser.GetData<int>("cache-model", 0);
+
+  // cache-type
+  auto cacheTypeValue = parser.GetData<PString>("cache-type");
+  pstd::StringToLower(cacheTypeValue);
+  std::set<std::string> available_types = {"string", "set", "zset", "list", "hash", "bit"};
+  std::string type_str = cacheTypeValue;
+  std::vector<std::string> types;
+  type_str.erase(remove_if(type_str.begin(), type_str.end(), isspace), type_str.end());
+  pstd::StringSplit(type_str, COMMA, types);
+  for (auto& type : types) {
+    if (available_types.find(type) == available_types.end()) {
+      std::cerr << "-ERR Invalid cache type: " << type << std::endl;
+      return false;
+    }
+
+    if (type == "string") {
+      cfg.cache_string = 1;
+    } else if (type == "set") {
+      cfg.cache_set = 1;
+    } else if (type == "zset") {
+      cfg.cache_zset = 1;
+    } else if (type == "hash") {
+      cfg.cache_hash = 1;
+    } else if (type == "list") {
+      cfg.cache_list = 1;
+    } else if (type == "bit") {
+      cfg.cache_bit = 1;
+    }
+  }
+
+  // zset-cache-field-num-per-key
+  cfg.zset_cache_field_num_per_key = parser.GetData<int>("zset-cache-field-num-per-key", 512);
+
+  // zset-cache-start-direction
+  cfg.zset_cache_start_pos = parser.GetData<int>("zset-cache-start-direction", 0);
+
+  // cache-maxmemory
+  cfg.cache_maxmemory = parser.GetData<int64_t>("cache-maxmemory", PIKA_CACHE_SIZE_DEFAULT);
+
+  // cache-maxmemory-policy
+  cfg.cache_maxmemory_policy = parser.GetData<int>("cache-maxmemory-policy", 1);
+
+  // cache-maxmemory-samples
+  cfg.cache_maxmemory_samples = parser.GetData<int>("cache-maxmemory-samples", 5);
+
+  // cache-lfu-decay-time
+  cfg.cache_lfu_decay_time = parser.GetData<int>("cache-lfu-decay-time", 1);
+
   return cfg.CheckArgs();
 }
 
@@ -186,9 +246,23 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(hz > 0 && hz < 500);
   RETURN_IF_FAIL(maxmemory >= 512 * 1024 * 1024UL);
   RETURN_IF_FAIL(maxmemorySamples > 0 && maxmemorySamples < 10);
-  RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129);  // as redis
+  RETURN_IF_FAIL(worker_threads_num > 0 && slave_threads_num > 0 && (worker_threads_num + slave_threads_num) < 129);  // as redis
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
+  RETURN_IF_FAIL(cache_num > 0 && cache_num <= 48);
+  RETURN_IF_FAIL(cache_model == PIKA_CACHE_NONE || cache_model == PIKA_CACHE_READ);
+  RETURN_IF_FAIL(cache_string == 0 || cache_string == 1);
+  RETURN_IF_FAIL(cache_set == 0 || cache_set == 1);
+  RETURN_IF_FAIL(cache_zset == 0 || cache_zset == 1);
+  RETURN_IF_FAIL(cache_hash == 0 || cache_hash == 1);
+  RETURN_IF_FAIL(cache_list == 0 || cache_list == 1);
+  RETURN_IF_FAIL(cache_bit == 0 || cache_bit == 1);
+  RETURN_IF_FAIL(zset_cache_field_num_per_key >= 0);
+  RETURN_IF_FAIL(zset_cache_start_pos == CACHE_START_FROM_BEGIN || zset_cache_start_pos == CACHE_START_FROM_END);
+  RETURN_IF_FAIL(cache_maxmemory >= PIKA_CACHE_SIZE_MIN);
+  RETURN_IF_FAIL(cache_maxmemory_policy >= 0 || cache_maxmemory_policy <= 5);
+  RETURN_IF_FAIL(cache_maxmemory_samples > 0);
+  RETURN_IF_FAIL(cache_lfu_decay_time > 0);
 
 #undef RETURN_IF_FAIL
 
