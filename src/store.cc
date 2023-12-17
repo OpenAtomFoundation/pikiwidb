@@ -259,7 +259,8 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
         INFO("{} is try lpush to target list {}", list->front(), target);
 
         // check target list
-        PError err = PSTORE.GetValueByType(target, dst, kPTypeList);
+        PError err;
+        std::tie(dst, err) = PSTORE.GetValueByType(target, kPTypeList);
         if (err != kPErrorOK) {
           if (err != kPErrorNotExist) {
             UnboundedBuffer reply;
@@ -437,7 +438,7 @@ bool PStore::LoadHash(const PString& key) const {
 }
 
 bool PStore::LoadList(const PString& key) const {
-  int32_t len = 0;
+  uint64_t len = 0;
   backends_[dbno_]->LLen(key, &len);
   if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
     LOG(WARNING) << "can not load key, because item size:" << len
@@ -704,11 +705,11 @@ std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType ty
 
   auto cobj = GetObject(key, type);
   if (!cobj) {
-    return std::make_tuple<nullptr, kPErrorNotExist>;
+    return std::make_tuple(nullptr, kPErrorNotExist);
   }
 
   if (type != kPTypeInvalid && type != PType(cobj->type)) {
-    return std::make_tuple<nullptr, kPErrorType>;
+    return std::make_tuple(nullptr, kPErrorType);
   }
   auto value = const_cast<PObject*>(cobj);
   // Do not update if child process exists
@@ -717,7 +718,7 @@ std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType ty
     value->lru = PObject::lruclock;
   }
 
-  return std::make_tuple<value, kPErrorOK>;
+  return std::make_tuple(value, kPErrorOK);
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
@@ -736,7 +737,8 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, kPTypeString);
+  PError err;
+  std::tie(old_value, err) = getValueByType(key, kPTypeString);
   if (err != kPErrorOK) {
     return err;
   }
@@ -775,7 +777,8 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, kPTypeString);
+  PError err;
+  std::tie(old_value, err) = getValueByType(key, kPTypeString);
   if (err != kPErrorOK) {
     return err;
   }
