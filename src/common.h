@@ -25,8 +25,8 @@ namespace pikiwidb {
 /*
  * cache size
  */
-#define PIKA_CACHE_SIZE_MIN       536870912    // 512M
-#define PIKA_CACHE_SIZE_DEFAULT   10737418240  // 10G
+#define PIKIWIDB_CACHE_SIZE_MIN       536870912    // 512M
+#define PIKIWIDB_CACHE_SIZE_DEFAULT   10737418240  // 10G
 
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
 const int64_t CACHE_VALUE_ITEM_MAX_SIZE = 2048;
@@ -34,8 +34,8 @@ const int64_t CACHE_VALUE_ITEM_MAX_SIZE = 2048;
 /*
  * cache model
  */
-constexpr int PIKA_CACHE_NONE = 0;
-constexpr int PIKA_CACHE_READ = 1;
+constexpr int PIKIWIDB_CACHE_NONE = 0;
+constexpr int PIKIWIDB_CACHE_READ = 1;
 
 /*
  * cache status
