@@ -22,6 +22,7 @@
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <tuple>
 #include <vector>
 
 namespace pikiwidb {
@@ -109,7 +110,8 @@ class PStore {
   bool LoadKey(const PString& key, PType type = kPTypeInvalid) const;
 
   // Key operation
-  bool DeleteKey(const PString& key);
+  std::tuple<PString, PError> GetCachePrefixKey(const PString& key, PType type = kPTypeInvalid);
+  bool DeleteKey(const PString& key, PType type = kPTypeInvalid);
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;
@@ -121,10 +123,10 @@ class PStore {
   PDB::const_iterator end() const { return dbs_[dbno_].end(); }
 
   const PObject* GetObject(const PString& key, PType type) const;
-  PError GetValue(const PString& key, PObject*& value, bool touch = true);
-  PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
+  std::tuple<PObject*, PError> GetValue(const PString& key, bool touch = true);
+  std::tuple<PObject*, PError> GetValueByType(const PString& key, PType type = kPTypeInvalid);
   // do not update lru time
-  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
+  std::tuple<PObject*, PError> GetValueByTypeNoTouch(const PString& key, PType type = kPTypeInvalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
 
@@ -167,7 +169,7 @@ class PStore {
   // for backends
   void InitDumpBackends();
   // @todo似乎并没有轮寻落盘的逻辑了，直接是走的bw的接口落盘
-  void DumpToBackends(int dbno); 
+  void DumpToBackends(int dbno);
 
   // @todo应该是没有添加dirtykey的概念了
   void AddDirtyKey(const PString& key);
@@ -178,7 +180,7 @@ class PStore {
   // mutex
   mutable std::shared_mutex mutex_;
 
-  PError getValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid, bool touch = true);
+  std::tuple<PObject*, PError> getValueByType(const PString& key, PType type = kPTypeInvalid, bool touch = true);
 
   ExpireResult expireIfNeed(const PString& key, uint64_t now);
 
@@ -222,7 +224,7 @@ class PStore {
   std::vector<std::unique_ptr<storage::Storage>> backends_;
 
   using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
-  std::vector<ToSyncDB> waitSyncKeys_; // @todo 似乎并不需要了
+  std::vector<ToSyncDB> waitSyncKeys_;  // @todo 似乎并不需要了
   int dbno_ = -1;
 };
 

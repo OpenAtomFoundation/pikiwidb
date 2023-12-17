@@ -219,6 +219,9 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
  protected:
   // Execute a specific command
   virtual void DoCmd(PClient* client) = 0;
+  virtual void DoThroughDB(PClient* client) {}
+  virtual void DoUpdateCache(PClient* client) {}
+  virtual void ReadCache(PClient* client) {}
 
   std::string name_;
   int16_t arity_ = 0;

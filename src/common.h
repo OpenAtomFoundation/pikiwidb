@@ -21,6 +21,16 @@
 namespace pikiwidb {
 
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
+const int64_t CACHE_VALUE_ITEM_MAX_SIZE = 2048; 
+
+/*
+  The prefix of the key in the cache
+*/
+const std::string PCacheKeyPrefixK = "K";
+const std::string PCacheKeyPrefixH = "H";
+const std::string PCacheKeyPrefixS = "S";
+const std::string PCacheKeyPrefixZ = "Z";
+const std::string PCacheKeyPrefixL = "L";
 
 enum PType {
   kPTypeInvalid,

@@ -410,6 +410,14 @@ bool PStore::LoadKV(const PString& key) const {
 }
 
 bool PStore::LoadHash(const PString& key) const {
+  int32_t len = 0;
+  backends_[dbno_]->HLen(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
   std::vector<storage::FieldValue> fvs;
   int64_t ttl = -1;
   rocksdb::Status s = backends_[dbno_]->HGetallWithTTL(key, &fvs, &ttl);
@@ -429,6 +437,14 @@ bool PStore::LoadHash(const PString& key) const {
 }
 
 bool PStore::LoadList(const PString& key) const {
+  int32_t len = 0;
+  backends_[dbno_]->LLen(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
   std::vector<std::string> values;
   int64_t ttl = -1;
   rocksdb::Status s = backends_[dbno_]->LRangeWithTTL(key, 0, -1, &values, &ttl);
@@ -448,6 +464,14 @@ bool PStore::LoadList(const PString& key) const {
 }
 
 bool PStore::LoadSet(const PString& key) const {
+  int32_t len = 0;
+  backends_[dbno_]->SCard(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
   std::vector<std::string> values;
   int64_t ttl = -1;
   rocksdb::Status s = backends_[dbno_]->SMembersWithTTL(key, &values, &ttl);
@@ -468,10 +492,16 @@ bool PStore::LoadSet(const PString& key) const {
 
 bool PStore::LoadZset(const PString& key) const {
   std::vector<storage::ScoreMember> score_members;
+  int32_t len = 0;
   int64_t ttl = -1;
-  int start_index = 0;
-  int stop_index = -1;
-  rocksdb::Status s = backends_[dbno_]->ZRangeWithTTL(key, start_index, stop_index, &score_members, &ttl);
+  int startIndex = 0;
+  int stopIndex = -1;
+  backends_[dbno_]->ZCard(key, &len);
+  if (len <= 0) {
+    return false;
+  }
+
+  rocksdb::Status s = backends_[dbno_]->ZRangeWithTTL(key, startIndex, stopIndex, &score_members, &ttl);
   if (!s.ok()) {
     LOG(WARNING) << "load hash failed, key=" << key;
     return false;
@@ -484,7 +514,7 @@ bool PStore::LoadZset(const PString& key) const {
     value->AddMember(score_member.member, score_member.score);
   }
   dbs_[dbno_].insert_or_assign(key, std::move(obj));
-  return true;  
+  return true;
 }
 
 bool PStore::LoadKey(const PString& key, PType type) const {
@@ -505,16 +535,40 @@ bool PStore::LoadKey(const PString& key, PType type) const {
   }
 }
 
+std::tuple<PString, PError> PStore::GetCachePrefixKey(const PString& key, PType type) { 
+  PString cachePrefixKey;
+  switch (type) {
+    case kPTypeString:
+      return std::make_tuple(PCacheKeyPrefixK + key, kPErrorOK);
+    case kPTypeHash:
+      return std::make_tuple(PCacheKeyPrefixH + key, kPErrorOK);
+    case kPTypeList:
+      return std::make_tuple(PCacheKeyPrefixL + key, kPErrorOK);
+    case kPTypeSet:
+      return std::make_tuple(PCacheKeyPrefixS + key, kPErrorOK);
+    case kPTypeSortedSet:
+      return std::make_tuple(PCacheKeyPrefixZ + key, kPErrorOK);
+    default:
+      LOG(WARNING) << "Invalid key type : " << type;
+      return std::make_tuple(cachePrefixKey, kPErrorType);
+  }
+}
+
 const PObject* PStore::GetObject(const PString& key, PType type) const {
   auto db = &dbs_[dbno_];
-  PDB::const_iterator it(db->find(key));
+  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
+  if (!s) {
+    return nullptr;
+  }
+
+  PDB::const_iterator it(db->find(cachePrefixKey));
   if (it != db->end()) {
     return &it->second;
   }
 
   // @todo 可能需要补充获取的key对应的value类型，缓存中没有获取到就从磁盘中获取
   if (LoadKey(key, type)) {
-    it = db->find(key);
+    it = db->find(cachePrefixKey);
     if (it != db->end()) {
       return &it->second;
     }
@@ -523,12 +577,17 @@ const PObject* PStore::GetObject(const PString& key, PType type) const {
   return nullptr;
 }
 
-bool PStore::DeleteKey(const PString& key) {
+bool PStore::DeleteKey(const PString& key, PType type) {
   auto db = &dbs_[dbno_];
   size_t ret = 0;
+  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
+  if (!s) {
+    return false;
+  }
+
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
   try {
-    ret = db->erase(key);
+    ret = db->erase(cachePrefixKey);
   } catch (const std::exception& e) {
     return false;
   }
@@ -539,35 +598,34 @@ bool PStore::DeleteKey(const PString& key) {
 bool PStore::ExistsKey(const PString& key) const {
   const PObject* obj = nullptr;
   PType type = kPTypeString;
-  switch (type)
-  {
-  case kPTypeString:
-    obj = GetObject(key, kPTypeString);
-    if (obj) {
+  switch (type) {
+    case kPTypeString:
+      obj = GetObject(key, kPTypeString);
+      if (obj) {
+        break;
+      }
+    case kPTypeHash:
+      obj = GetObject(key, kPTypeHash);
+      if (obj) {
+        break;
+      }
+    case kPTypeList:
+      obj = GetObject(key, kPTypeList);
+      if (obj) {
+        break;
+      }
+    case kPTypeSet:
+      obj = GetObject(key, kPTypeSet);
+      if (obj) {
+        break;
+      }
+    case kPTypeSortedSet:
+      obj = GetObject(key, kPTypeSortedSet);
+      if (obj) {
+        break;
+      }
+    default:
       break;
-    }
-  case kPTypeHash:
-    obj = GetObject(key, kPTypeHash);
-    if (obj) {
-      break;
-    }
-  case kPTypeList:
-    obj = GetObject(key, kPTypeList);
-    if (obj) {
-      break;
-    }
-  case kPTypeSet:
-    obj = GetObject(key, kPTypeSet);
-    if (obj) {
-      break;
-    }
-  case kPTypeSortedSet:
-    obj = GetObject(key, kPTypeSortedSet);
-    if (obj) {
-      break;
-    }
-  default:
-    break;
   }
 
   return obj != nullptr;
@@ -576,35 +634,34 @@ bool PStore::ExistsKey(const PString& key) const {
 PType PStore::KeyType(const PString& key) const {
   const PObject* obj = nullptr;
   PType type = kPTypeString;
-  switch (type)
-  {
-  case kPTypeString:
-    obj = GetObject(key, kPTypeString);
-    if (obj) {
+  switch (type) {
+    case kPTypeString:
+      obj = GetObject(key, kPTypeString);
+      if (obj) {
+        break;
+      }
+    case kPTypeHash:
+      obj = GetObject(key, kPTypeHash);
+      if (obj) {
+        break;
+      }
+    case kPTypeList:
+      obj = GetObject(key, kPTypeList);
+      if (obj) {
+        break;
+      }
+    case kPTypeSet:
+      obj = GetObject(key, kPTypeSet);
+      if (obj) {
+        break;
+      }
+    case kPTypeSortedSet:
+      obj = GetObject(key, kPTypeSortedSet);
+      if (obj) {
+        break;
+      }
+    default:
       break;
-    }
-  case kPTypeHash:
-    obj = GetObject(key, kPTypeHash);
-    if (obj) {
-      break;
-    }
-  case kPTypeList:
-    obj = GetObject(key, kPTypeList);
-    if (obj) {
-      break;
-    }
-  case kPTypeSet:
-    obj = GetObject(key, kPTypeSet);
-    if (obj) {
-      break;
-    }
-  case kPTypeSortedSet:
-    obj = GetObject(key, kPTypeSortedSet);
-    if (obj) {
-      break;
-    }
-  default:
-    break;
   }
 
   if (!obj) {
@@ -653,49 +710,54 @@ size_t PStore::ScanKey(size_t cursor, size_t count, std::vector<PString>& res) c
   return newCursor;
 }
 
-PError PStore::GetValue(const PString& key, PObject*& value, bool touch) {
+std::tuple<PObject*, PError> PStore::GetValue(const PString& key, bool touch) {
   if (touch) {
-    return GetValueByType(key, value);
+    return GetValueByType(key);
   }
 
-  return GetValueByTypeNoTouch(key, value);
+  return GetValueByTypeNoTouch(key);
 }
 
-PError PStore::GetValueByType(const PString& key, PObject*& value, PType type) {
-  return getValueByType(key, value, type, true);
+std::tuple<PObject*, PError> PStore::GetValueByType(const PString& key, PType type) {
+  return getValueByType(key, type, true);
 }
 
-PError PStore::GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type) {
-  return getValueByType(key, value, type, false);
+std::tuple<PObject*, PError> PStore::GetValueByTypeNoTouch(const PString& key, PType type) {
+  return getValueByType(key, type, false);
 }
 
-PError PStore::getValueByType(const PString& key, PObject*& value, PType type, bool touch) {
+std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType type, bool touch) {
   if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
     return kPErrorNotExist;
   }
 
   auto cobj = GetObject(key, type);
   if (!cobj) {
-    return kPErrorNotExist;
+    return std::make_tuple<nullptr, kPErrorNotExist>;
   }
 
   if (type != kPTypeInvalid && type != PType(cobj->type)) {
-    return kPErrorType;
+    return std::make_tuple<nullptr, kPErrorType>;
   }
-  value = const_cast<PObject*>(cobj);
+  auto value = const_cast<PObject*>(cobj);
   // Do not update if child process exists
   extern pid_t g_qdbPid;
   if (touch && g_qdbPid == -1) {
     value->lru = PObject::lruclock;
   }
 
-  return kPErrorOK;
+  return std::make_tuple<value, kPErrorOK>;
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
   auto db = &dbs_[dbno_];
   value.lru = PObject::lruclock;
-  auto [realObj, status] = db->insert_or_assign(key, std::move(value));
+  auto [cachePrefixKey, s] = GetCachePrefixKey(key, type);
+  if (!s) {
+    return nullptr;
+  }
+
+  auto [realObj, status] = db->insert_or_assign(cachePrefixKey, std::move(value));
   const PObject& obj = realObj->second;
 
   // XXX: any better solution without const_cast?
