@@ -34,6 +34,7 @@ const std::string kCmdNameGetSet = "getset";
 const std::string kCmdNameSetNX = "setnx";
 const std::string kCmdNameAppend = "append";
 const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameDecrby = "decrby";
 const std::string kCmdNameIncrbyFloat = "incrbyfloat";
 const std::string kCmdNameStrlen = "strlen";
 const std::string kCmdNameSetEx = "setex";

@@ -51,6 +51,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Append, 3);
   ADD_COMMAND(Strlen, 2);
   ADD_COMMAND(Incrby, 3);
+  ADD_COMMAND(Decrby, 3);
   ADD_COMMAND(IncrbyFloat, 3);
   ADD_COMMAND(SetEx, 4);
   ADD_COMMAND(PSetEx, 4);

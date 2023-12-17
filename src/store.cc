@@ -589,6 +589,39 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   return kPErrorOK;
 }
 
+PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
+  PObject* old_value = nullptr;
+  auto db = &dbs_[dbno_];
+
+  // shared when reading
+  std::unique_lock<std::shared_mutex> lock(mutex_);
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOK) {
+    return err;
+  }
+  char* end = nullptr;
+  auto str = pikiwidb::GetDecodedString(old_value);
+  int64_t ival = strtoll(str->c_str(), &end, 10);
+  if (*end != 0) {
+    // value is not a integer
+    return kPErrorType;
+  }
+
+  PObject new_value;
+  *ret = ival - value;
+  new_value = PObject::CreateString(static_cast<long>(*ret));
+  new_value.lru = PObject::lruclock;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
+  const PObject& obj = realObj->second;
+
+  // put this key to sync list
+  if (!waitSyncKeys_.empty()) {
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
+  }
+
+  return kPErrorOK;
+}
+
 PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* ret) {
   PObject* old_value = nullptr;
   long double old_number = 0.00f;
