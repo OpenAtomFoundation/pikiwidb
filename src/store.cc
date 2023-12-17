@@ -8,6 +8,7 @@
 #include "store.h"
 #include <cassert>
 #include <limits>
+#include <string>
 #include "client.h"
 #include "common.h"
 #include "config.h"
@@ -599,10 +600,19 @@ PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
   if (err != kPErrorOK) {
     return err;
   }
-  char* end = nullptr;
   auto str = pikiwidb::GetDecodedString(old_value);
-  int64_t ival = strtoll(str->c_str(), &end, 10);
-  if (*end != 0) {
+
+  std::string::size_type end = 0;  // alias of size_t
+  int64_t ival = 0;
+  try {
+    ival = std::stoll(str->c_str(), &end, 0);
+  } catch (const std::out_of_range& e) {
+    return kPErrorOverflow;
+  } catch (...) {
+    return kPErrorType;
+  }
+
+  if (end == 0) {
     // value is not a integer
     return kPErrorType;
   }
