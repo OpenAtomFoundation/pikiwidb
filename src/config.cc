@@ -219,7 +219,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.zset_cache_start_pos = parser.GetData<int>("zset-cache-start-direction", 0);
 
   // cache-maxmemory
-  cfg.cache_maxmemory = parser.GetData<int64_t>("cache-maxmemory", PIKA_CACHE_SIZE_DEFAULT);
+  cfg.cache_maxmemory = parser.GetData<int64_t>("cache-maxmemory", PIKIWIDB_CACHE_SIZE_DEFAULT);
 
   // cache-maxmemory-policy
   cfg.cache_maxmemory_policy = parser.GetData<int>("cache-maxmemory-policy", 1);
@@ -250,7 +250,7 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
   RETURN_IF_FAIL(cache_num > 0 && cache_num <= 48);
-  RETURN_IF_FAIL(cache_model == PIKA_CACHE_NONE || cache_model == PIKA_CACHE_READ);
+  RETURN_IF_FAIL(cache_model == PIKIWIDB_CACHE_NONE || cache_model == PIKIWIDB_CACHE_READ);
   RETURN_IF_FAIL(cache_string == 0 || cache_string == 1);
   RETURN_IF_FAIL(cache_set == 0 || cache_set == 1);
   RETURN_IF_FAIL(cache_zset == 0 || cache_zset == 1);
@@ -259,7 +259,7 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(cache_bit == 0 || cache_bit == 1);
   RETURN_IF_FAIL(zset_cache_field_num_per_key >= 0);
   RETURN_IF_FAIL(zset_cache_start_pos == CACHE_START_FROM_BEGIN || zset_cache_start_pos == CACHE_START_FROM_END);
-  RETURN_IF_FAIL(cache_maxmemory >= PIKA_CACHE_SIZE_MIN);
+  RETURN_IF_FAIL(cache_maxmemory >= PIKIWIDB_CACHE_SIZE_MIN);
   RETURN_IF_FAIL(cache_maxmemory_policy >= 0 || cache_maxmemory_policy <= 5);
   RETURN_IF_FAIL(cache_maxmemory_samples > 0);
   RETURN_IF_FAIL(cache_lfu_decay_time > 0);

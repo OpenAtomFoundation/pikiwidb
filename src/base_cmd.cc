@@ -33,7 +33,7 @@ void BaseCmd::Execute(PClient* client) {
     return;
   }
 
-  if (IsNeedCacheDo() && PIKA_CACHE_NONE != g_config.GetCacheModel()) {
+  if (IsNeedCacheDo() && PIKIWIDB_CACHE_NONE != g_config.GetCacheModel()) {
     PError res = kPErrorOK;
     if (IsNeedReadCache()) {
       res = ReadCache(client);

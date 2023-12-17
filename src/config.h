@@ -99,17 +99,17 @@ struct PConfig {
 
   bool CheckArgs() const;
   bool CheckPassword(const PString& pwd) const;
-  bool IsCacheDisabledTemporarily() { return tmp_cache_disable_flag; }
+  bool IsCacheDisabledTemporarily() const { return tmp_cache_disable_flag; }
   void UnsetCacheDisableFlag() { tmp_cache_disable_flag = false; }
   void SetCacheDisableFlag() { tmp_cache_disable_flag = true; }
-  int GetCacheString() { return cache_string; }
-  int GetCacheSet() { return cache_set; }
-  int GetCacheZset() { return cache_zset; }
-  int GetCacheHash() { return cache_hash; }
-  int GetCacheList() { return cache_list; }
-  int GetCacheBit() { return cache_bit; }
-  int GetCacheNum() { return cache_num; }
-  int GetCacheModel() { return cache_model; }
+  int GetCacheString() const { return cache_string; }
+  int GetCacheSet() const { return cache_set; }
+  int GetCacheZset() const { return cache_zset; }
+  int GetCacheHash() const { return cache_hash; }
+  int GetCacheList() const { return cache_list; }
+  int GetCacheBit() const { return cache_bit; }
+  int GetCacheNum() const { return cache_num; }
+  int GetCacheModel() const { return cache_model; }
 };
 
 extern PConfig g_config;
