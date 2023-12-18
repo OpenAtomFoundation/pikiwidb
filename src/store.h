@@ -68,10 +68,10 @@ struct PObject {
 
   static PObject CreateString(const PString& value);
   static PObject CreateString(long value);
-  static PObject CreateList();
-  static PObject CreateSet();
-  static PObject CreateZSet();
-  static PObject CreateHash();
+  static PObject CreateHash(std::vector<storage::FieldValue>* fvs);
+  static PObject CreateList(std::vector<std::string>* values);
+  static PObject CreateSet(std::vector<std::string> values);
+  static PObject CreateZSet(std::vector<storage::ScoreMember>* score_members);
 
   PSTRING CastString() const { return reinterpret_cast<PSTRING>(value); }
   PLIST CastList() const { return reinterpret_cast<PLIST>(value); }
@@ -101,6 +101,7 @@ class PStore {
 
   int SelectDB(int dbno);
   int GetDB() const;
+  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_]; }
 
   bool LoadKV(const PString& key) const;
   bool LoadHash(const PString& key) const;

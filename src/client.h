@@ -46,6 +46,7 @@ class CmdRes {
     kInconsistentHashTag,
     kErrOther,
     KIncrByOverFlow,
+    kCacheMiss,
   };
 
   CmdRes() = default;

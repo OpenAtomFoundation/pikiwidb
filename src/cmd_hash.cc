@@ -11,6 +11,7 @@
 
 namespace pikiwidb {
 
+/*
 HSetCmd::HSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
@@ -284,5 +285,5 @@ void HStrLenCmd::DoCmd(PClient* client) {
 
   client->AppendStringRaw(reply.ReadAddr());
 }
-
+*/
 }  // namespace pikiwidb

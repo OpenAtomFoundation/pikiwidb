@@ -16,13 +16,20 @@ using std::vector;
 
 namespace pikiwidb {
 
-PObject PObject::CreateList() {
+PObject PObject::CreateList(std::vector<std::string>* values) {
   PObject list(kPTypeList);
   list.Reset(new PList);
 
+  if (values) {
+    auto value = list.CastList();
+    for (auto it = values->begin(); it != values->end(); it++) {
+      value->push_back(std::move(*it));
+    }
+  }
+
   return list;
 }
-
+/*
 static PError push(const vector<PString>& params, UnboundedBuffer* reply, ListPosition pos,
                    bool createIfNotExist = true) {
   PObject* value;
@@ -587,5 +594,5 @@ PError brpoplpush(const vector<PString>& params, UnboundedBuffer* reply) {
   auto dstKeyIter = --(--params.end());
   return genericBlockedPop(++params.begin(), dstKeyIter, reply, ListPosition::kTail, timeout, &*dstKeyIter, false);
 }
-
+*/
 }  // namespace pikiwidb

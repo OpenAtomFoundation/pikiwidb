@@ -154,12 +154,21 @@ std::vector<PSortedSet::Member2Score::value_type> PSortedSet::RangeByScore(doubl
   return res;
 }
 
-PObject PObject::CreateZSet() {
+PObject PObject::CreateZSet(std::vector<storage::ScoreMember>* score_members) {
   PObject obj(kPTypeSortedSet);
   obj.Reset(new PSortedSet);
+
+  if (score_members) {
+    value = obj.CastSortedSet();
+    for (auto it = score_members->begin(); it != score_members->end(); it++) {
+      value->AddMember(it->member, it->score);
+    }
+  }
+
   return obj;
 }
 
+/*
 // commands
 #define GET_SORTEDSET(name)                                         \
   PObject* value;                                                   \
@@ -468,5 +477,5 @@ PError zremrangebyrank(const std::vector<PString>& params, UnboundedBuffer* repl
 PError zremrangebyscore(const std::vector<PString>& params, UnboundedBuffer* reply) {
   return GenericRemRange(params, reply, false);
 }
-
+*/
 }  // namespace pikiwidb

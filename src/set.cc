@@ -12,13 +12,20 @@
 
 namespace pikiwidb {
 
-PObject PObject::CreateSet() {
+PObject PObject::CreateSet(std::vector<std::string> values) {
   PObject set(kPTypeSet);
   set.Reset(new PSet);
 
+  if (values) {
+    auto value = set.CastSet();
+    for (auto it = values->begin(); it = values->end(); it++) {
+      value->insert(std::move(*it));
+    }
+  }
+
   return set;
 }
-
+/*
 #define GET_SET(setname)                                         \
   PObject* value;                                                \
   PError err = PSTORE.GetValueByType(setname, value, kPTypeSet); \
@@ -346,5 +353,6 @@ size_t SScanKey(const PSet& qset, size_t cursor, size_t count, std::vector<PStri
 
   return newCursor;
 }
+*/
 
 }  // namespace pikiwidb

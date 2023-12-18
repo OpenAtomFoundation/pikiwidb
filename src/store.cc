@@ -426,12 +426,8 @@ bool PStore::LoadHash(const PString& key) const {
     return false;
   }
 
-  PObject obj = PObject::CreateHash();
+  PObject obj = PObject::CreateHash(&fvs);
   obj.lru = PObject::lruclock;
-  auto value = obj.CastHash();
-  for (auto fv : fvs) {
-    value->insert(std::make_pair(fv.field, fv.value));
-  }
   dbs_[dbno_].insert_or_assign(key, std::move(obj));
   return true;
 }
@@ -453,12 +449,8 @@ bool PStore::LoadList(const PString& key) const {
     return false;
   }
 
-  PObject obj = PObject::CreateList();
+  PObject obj = PObject::CreateList(&values);
   obj.lru = PObject::lruclock;
-  auto value = obj.CastList();
-  for (auto v : values) {
-    value->push_back(std::move(v));
-  }
   dbs_[dbno_].insert_or_assign(key, std::move(obj));
   return true;
 }
@@ -480,12 +472,8 @@ bool PStore::LoadSet(const PString& key) const {
     return false;
   }
 
-  PObject obj = PObject::CreateSet();
+  PObject obj = PObject::CreateSet(&values);
   obj.lru = PObject::lruclock;
-  auto value = obj.CastSet();
-  for (auto v : values) {
-    value->insert(std::move(v));
-  }
   dbs_[dbno_].insert_or_assign(key, std::move(obj));
   return true;
 }
@@ -507,12 +495,8 @@ bool PStore::LoadZset(const PString& key) const {
     return false;
   }
 
-  PObject obj = PObject::CreateZSet();
+  PObject obj = PObject::CreateZSet(&score_members);
   obj.lru = PObject::lruclock;
-  auto value = obj.CastSortedSet();
-  for (auto score_member : score_members) {
-    value->AddMember(score_member.member, score_member.score);
-  }
   dbs_[dbno_].insert_or_assign(key, std::move(obj));
   return true;
 }
@@ -540,14 +524,6 @@ const PObject* PStore::GetObject(const PString& key, PType type) const {
   PDB::const_iterator it(db->find(key));
   if (it != db->end()) {
     return &it->second;
-  }
-
-  // @todo 可能需要补充获取的key对应的value类型，缓存中没有获取到就从磁盘中获取
-  if (LoadKey(key, type)) {
-    it = db->find(key);
-    if (it != db->end()) {
-      return &it->second;
-    }
   }
 
   return nullptr;

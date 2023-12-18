@@ -17,6 +17,7 @@
 
 #include "client.h"
 #include "config.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -259,7 +260,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   uint32_t cmdId_ = 0;
   uint32_t aclCategory_ = 0;
 
-  PObject* value_;
+  PObject value_; 
+  storage::Status s_;
 
  private:
   // The function to be executed first before executing `DoCmd`

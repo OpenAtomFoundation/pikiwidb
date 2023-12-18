@@ -22,21 +22,41 @@ bool GetCmd::DoInitial(PClient* client) {
 }
 
 void GetCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
-  if (err != kPErrorOK) {
-    if (err == kPErrorNotExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kSyntaxErr, "get key error");
-    }
-    return;
+  PString value;
+  int64_t ttl = -1;
+  s_ = PSTORE.GetBackend()->GetWithTTL(client->Key(), &value, &ttl);
+  if (s_.ok()) {
+    value_ = PObject::CreateString(value);
+    client->AppendString(value);
+  } else if (s_.IsNotFound()) {
+    client->AppendString("");
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "get key error");
   }
-  auto str = GetDecodedString(value);
-  std::string reply(str->c_str(), str->size());
-  client->AppendString(reply);
 }
 
+void GetCmd::DoThroughDB(PClient* client) {
+  client->Clear();
+  DoCmd(client);
+}
+
+void GetCmd::DoUpdateCache(PClient* client) {
+  if (s_.ok()) {
+    PSTORE.SetValue(client->Key(), std::move(value_));
+  }
+}
+
+PError GetCmd::ReadCache(PClient* client) {
+  PObject* obj = PSTORE.GetObject(client->Key(), kPTypeString);
+  if (obj) {
+    auto value = obj->CastString();
+    client->AppendString(*value);
+  } else {
+    client->SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+/*
 SetCmd::SetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
@@ -533,5 +553,6 @@ void GetBitCmd::DoCmd(PClient* client) {
 
   return;
 }
+*/
 
 }  // namespace pikiwidb
