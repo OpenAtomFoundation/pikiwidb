@@ -80,6 +80,28 @@ class HKeysCmd : public BaseCmd {
 class HDelCmd : public BaseCmd {
  public:
   HDelCmd(const std::string &name, int16_t arity);
+  
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class HLenCmd : public BaseCmd {
+ public:
+  HLenCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class HStrLenCmd : public BaseCmd {
+ public:
+  HStrLenCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

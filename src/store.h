@@ -52,7 +52,7 @@ struct PObject {
 
   void* value = nullptr;
 
-  explicit PObject(PType = PType_invalid);
+  explicit PObject(PType = kPTypeInvalid);
   ~PObject();
 
   PObject(const PObject& obj) = delete;
@@ -114,21 +114,22 @@ class PStore {
 
   const PObject* GetObject(const PString& key) const;
   PError GetValue(const PString& key, PObject*& value, bool touch = true);
-  PError GetValueByType(const PString& key, PObject*& value, PType type = PType_invalid);
+  PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
   // do not update lru time
-  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = PType_invalid);
+  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
   // incr
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
+  PError Decrby(const PString& key, int64_t value, int64_t* ret);
   PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {
-    notExpire = 0,
-    persist = -1,
-    expired = -2,
-    notExist = -2,
+    kNotExpire = 0,
+    kPersist = -1,
+    kExpired = -2,
+    kNotExist = -2,
   };
   void SetExpire(const PString& key, uint64_t when) const;
   int64_t TTL(const PString& key, uint64_t now);
@@ -165,7 +166,7 @@ class PStore {
   // mutex
   mutable std::shared_mutex mutex_;
 
-  PError getValueByType(const PString& key, PObject*& value, PType type = PType_invalid, bool touch = true);
+  PError getValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid, bool touch = true);
 
   ExpireResult expireIfNeed(const PString& key, uint64_t now);
 

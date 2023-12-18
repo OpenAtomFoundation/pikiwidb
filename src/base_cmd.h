@@ -28,14 +28,20 @@ const std::string kCmdNameExists = "exists";
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
-const std::string kCmdNameBitOp = "bitop";
+const std::string kCmdNameMGet = "mget";
+const std::string kCmdNameMSet = "mset";
+const std::string kCmdNameGetSet = "getset";
+const std::string kCmdNameSetNX = "setnx";
+const std::string kCmdNameAppend = "append";
 const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameDecrby = "decrby";
+const std::string kCmdNameIncrbyFloat = "incrbyfloat";
 const std::string kCmdNameStrlen = "strlen";
-const std::string kCmdNameSetex = "setex";
-const std::string kCmdNamePsetex = "psetex";
-const std::string kCmdNameSetnx = "setnx";
-const std::string kCmdNameIncrbyfloat = "incrbyfloat";
+const std::string kCmdNameSetEx = "setex";
+const std::string kCmdNamePSetEx = "psetex";
+const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
+const std::string kCmdNameBitCount = "bitcount";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -48,13 +54,6 @@ const std::string kCmdNameDiscard = "discard";
 const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
-
-const std::string kCmdNameAppend = "append";
-const std::string kCmdNameGetset = "getset";
-const std::string kCmdNameMget = "mget";
-const std::string kCmdNameMset = "mset";
-const std::string kCmdNameBitCount = "bitcount";
-
 const std::string kCmdNameAuth = "auth";
 
 // hash cmd
@@ -65,47 +64,49 @@ const std::string kCmdNameHMGet = "hmget";
 const std::string kCmdNameHGetAll = "hgetall";
 const std::string kCmdNameHKeys = "hkeys";
 const std::string kCmdNameHDel = "hdel";
+const std::string kCmdNameHLen = "hlen";
+const std::string kCmdNameHStrLen = "hstrlen";
 
 enum CmdFlags {
-  CmdFlagsWrite = (1 << 0),             // May modify the dataset
-  CmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
-  CmdFlagsModule = (1 << 2),            // Implemented by a module
-  CmdFlagsAdmin = (1 << 3),             // Administrative command
-  CmdFlagsPubsub = (1 << 4),            // Pub/Sub related command
-  CmdFlagsNoscript = (1 << 5),          // Not allowed in Lua scripts
-  CmdFlagsBlocking = (1 << 6),          // May block the server
-  CmdFlagsSkipMonitor = (1 << 7),       // Don't propagate to MONITOR
-  CmdFlagsSkipSlowlog = (1 << 8),       // Don't log to slowlog
-  CmdFlagsFast = (1 << 9),              // Tagged as fast by developer
-  CmdFlagsNoAuth = (1 << 10),           // Skip ACL checks
-  CmdFlagsMayReplicate = (1 << 11),     // May replicate even if writes are disabled
-  CmdFlagsProtected = (1 << 12),        // Don't accept in scripts
-  CmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
-  CmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsWrite = (1 << 0),             // May modify the dataset
+  kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
+  kCmdFlagsModule = (1 << 2),            // Implemented by a module
+  kCmdFlagsAdmin = (1 << 3),             // Administrative command
+  kCmdFlagsPubsub = (1 << 4),            // Pub/Sub related command
+  kCmdFlagsNoscript = (1 << 5),          // Not allowed in Lua scripts
+  kCmdFlagsBlocking = (1 << 6),          // May block the server
+  kCmdFlagsSkipMonitor = (1 << 7),       // Don't propagate to MONITOR
+  kCmdFlagsSkipSlowlog = (1 << 8),       // Don't log to slowlog
+  kCmdFlagsFast = (1 << 9),              // Tagged as fast by developer
+  kCmdFlagsNoAuth = (1 << 10),           // Skip ACL checks
+  kCmdFlagsMayReplicate = (1 << 11),     // May replicate even if writes are disabled
+  kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
+  kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
+  kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
 };
 
 enum AclCategory {
-  AclCategoryKeyspace = (1 << 0),
-  AclCategoryRead = (1 << 1),
-  AclCategoryWrite = (1 << 2),
-  AclCategorySet = (1 << 3),
-  AclCategorySortedSet = (1 << 4),
-  AclCategoryList = (1 << 5),
-  AclCategoryHash = (1 << 6),
-  AclCategoryString = (1 << 7),
-  AclCategoryBitmap = (1 << 8),
-  AclCategoryHyperloglog = (1 << 9),
-  AclCategoryGeo = (1 << 10),
-  AclCategoryStream = (1 << 11),
-  AclCategoryPubsub = (1 << 12),
-  AclCategoryAdmin = (1 << 13),
-  AclCategoryFast = (1 << 14),
-  AclCategorySlow = (1 << 15),
-  AclCategoryBlocking = (1 << 16),
-  AclCategoryDangerous = (1 << 17),
-  AclCategoryConnection = (1 << 18),
-  AclCategoryTransaction = (1 << 19),
-  AclCategoryScripting = (1 << 20)
+  kAclCategoryKeyspace = (1 << 0),
+  kAclCategoryRead = (1 << 1),
+  kAclCategoryWrite = (1 << 2),
+  kAclCategorySet = (1 << 3),
+  kAclCategorySortedSet = (1 << 4),
+  kAclCategoryList = (1 << 5),
+  kAclCategoryHash = (1 << 6),
+  kAclCategoryString = (1 << 7),
+  kAclCategoryBitmap = (1 << 8),
+  kAclCategoryHyperloglog = (1 << 9),
+  kAclCategoryGeo = (1 << 10),
+  kAclCategoryStream = (1 << 11),
+  kAclCategoryPubsub = (1 << 12),
+  kAclCategoryAdmin = (1 << 13),
+  kAclCategoryFast = (1 << 14),
+  kAclCategorySlow = (1 << 15),
+  kAclCategoryBlocking = (1 << 16),
+  kAclCategoryDangerous = (1 << 17),
+  kAclCategoryConnection = (1 << 18),
+  kAclCategoryTransaction = (1 << 19),
+  kAclCategoryScripting = (1 << 20)
 };
 
 /**
