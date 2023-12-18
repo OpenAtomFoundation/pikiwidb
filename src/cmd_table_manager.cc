@@ -58,7 +58,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(BitOp, -4);
   ADD_COMMAND(BitCount, -2);
   ADD_COMMAND(GetBit, 3);
-  ADD_COMMAND(Decr,2);
+  ADD_COMMAND(Decr, 2);
 
   // hash
   ADD_COMMAND(HSet, -4);
