@@ -25,6 +25,7 @@ class UnboundedBuffer;
 using PCommandHandler = PError(const std::vector<PString>& params, UnboundedBuffer* reply);
 
 // key commands
+/*
 PCommandHandler type;
 PCommandHandler exists;
 PCommandHandler del;
@@ -64,7 +65,9 @@ PCommandHandler config;
 
 // string commands
 PCommandHandler set;
+*/
 PCommandHandler get;
+/*
 PCommandHandler getrange;
 PCommandHandler setrange;
 PCommandHandler getset;
@@ -179,6 +182,7 @@ PCommandHandler module;
 
 // help
 PCommandHandler cmdlist;
+*/
 
 extern Delegate<void(UnboundedBuffer&)> g_infoCollector;
 extern void OnMemoryInfoCollect(UnboundedBuffer&);

@@ -159,7 +159,7 @@ PObject PObject::CreateZSet(std::vector<storage::ScoreMember>* score_members) {
   obj.Reset(new PSortedSet);
 
   if (score_members) {
-    value = obj.CastSortedSet();
+    auto value = obj.CastSortedSet();
     for (auto it = score_members->begin(); it != score_members->end(); it++) {
       value->AddMember(it->member, it->score);
     }

@@ -11,7 +11,7 @@
 #include "unbounded_buffer.h"
 
 namespace pikiwidb {
-
+/*
 PLeveldb::PLeveldb() : db_(nullptr) {}
 
 PLeveldb::~PLeveldb() { delete db_; }
@@ -326,5 +326,6 @@ PObject PLeveldb::decodeZSet(const char* data, size_t len) {
 
   return obj;
 }
+*/
 
 }  // namespace pikiwidb

@@ -16,6 +16,8 @@
 #include "proto_parser.h"
 #include "replication.h"
 #include "tcp_connection.h"
+#include "storage/storage.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -76,6 +78,9 @@ class CmdRes {
 
   void SetRes(CmdRet _ret, const std::string& content = "");
 
+  void SetStatus(storage::Status s) { s_ = s; }
+  storage::Status GetStatus() { return s_; }
+
  protected:
   inline void RedisAppendContent(std::string& str, const std::string& value) {
     str.append(value.data(), value.size());
@@ -87,6 +92,7 @@ class CmdRes {
  private:
   std::string message_;
   CmdRet ret_ = kNone;
+  storage::Status s_;
 };
 
 enum ClientFlag {
@@ -171,6 +177,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void SetKey(std::vector<std::string>& names);
   const std::string& Key() const { return keys_.at(0); }
   const std::vector<std::string>& Keys() const { return keys_; }
+  void SetValue(PObject&& value) { value_ = std::move(value); }
+  PObject& Value() { return value_; }
 
   void SetSlaveInfo();
   PSlaveInfo* GetSlaveInfo() const { return slave_info_.get(); }
@@ -222,6 +230,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   std::string subCmdName_;  // suchAs config set|get|rewrite
   std::string cmdName_;     // suchAs config
   std::vector<std::string> keys_;
+  PObject value_;
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]

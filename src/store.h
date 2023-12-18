@@ -70,7 +70,7 @@ struct PObject {
   static PObject CreateString(long value);
   static PObject CreateHash(std::vector<storage::FieldValue>* fvs);
   static PObject CreateList(std::vector<std::string>* values);
-  static PObject CreateSet(std::vector<std::string> values);
+  static PObject CreateSet(std::vector<std::string>* values);
   static PObject CreateZSet(std::vector<storage::ScoreMember>* score_members);
 
   PSTRING CastString() const { return reinterpret_cast<PSTRING>(value); }

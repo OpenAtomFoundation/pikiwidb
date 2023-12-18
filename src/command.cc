@@ -14,6 +14,7 @@ namespace pikiwidb {
 
 const PCommandInfo PCommandTable::s_info[] = {
     // key
+    /*
     {"type", kPAttrRead, 2, &type},
     {"exists", kPAttrRead, 2, &exists},
     {"del", kPAttrWrite, -2, &del},
@@ -164,6 +165,7 @@ const PCommandInfo PCommandTable::s_info[] = {
 
     // help
     {"cmdlist", kPAttrRead, 1, &cmdlist},
+    */
 };
 
 Delegate<void(UnboundedBuffer&)> g_infoCollector;

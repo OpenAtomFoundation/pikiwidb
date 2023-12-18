@@ -165,7 +165,7 @@ PError debug(const std::vector<PString>& params, UnboundedBuffer* reply) {
     assert(false);
   } else if (strncasecmp(params[1].c_str(), "object", 6) == 0 && params.size() == 3) {
     PObject* obj = nullptr;
-    err = PSTORE.GetValue(params[2], obj, false);
+    std::tie(obj, err) = PSTORE.GetValue(params[2], false);
 
     if (err != kPErrorOK) {
       ReplyError(err, reply);

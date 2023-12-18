@@ -129,6 +129,9 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
       AppendStringRaw(content);
       AppendStringRaw(CRLF);
       break;
+    case kCacheMiss:
+      AppendStringRaw("kCacheMiss");
+      break;
     default:
       break;
   }

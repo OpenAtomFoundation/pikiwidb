@@ -13,6 +13,7 @@
 
 namespace pikiwidb {
 
+/*
 PError type(const std::vector<PString>& params, UnboundedBuffer* reply) {
   const char* info = 0;
   PType type = PSTORE.KeyType(params[1]);
@@ -568,5 +569,6 @@ PError sort(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   return kPErrorOK;
 }
+*/
 
 }  // namespace pikiwidb

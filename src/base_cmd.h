@@ -239,7 +239,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   virtual void DoCmd(PClient* client) = 0;
   virtual void DoThroughDB(PClient* client) {}
   virtual void DoUpdateCache(PClient* client) {}
-  virtual PError ReadCache(PClient* client) {}
+  virtual void ReadCache(PClient* client) {}
 
   bool IsNeedCacheDo() const;
   bool IsNeedReadCache() const { return ((flag_ & kCmdFlagsMaskReadCache) == kCmdFlagsReadCache); }
@@ -259,9 +259,6 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
 
   uint32_t cmdId_ = 0;
   uint32_t aclCategory_ = 0;
-
-  PObject value_; 
-  storage::Status s_;
 
  private:
   // The function to be executed first before executing `DoCmd`

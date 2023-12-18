@@ -38,11 +38,14 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Flushdb, 1);
 
   // keyspace
+  /*
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, 2);
+  */
 
   // kv
   ADD_COMMAND(Get, 2);
+  /*
   ADD_COMMAND(Set, -3);
   ADD_COMMAND(MGet, -2);
   ADD_COMMAND(MSet, -3);
@@ -67,6 +70,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HKeys, 2);
   ADD_COMMAND(HLen, 2);
   ADD_COMMAND(HStrLen, 3);
+  */
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

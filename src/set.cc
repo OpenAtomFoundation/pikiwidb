@@ -12,13 +12,13 @@
 
 namespace pikiwidb {
 
-PObject PObject::CreateSet(std::vector<std::string> values) {
+PObject PObject::CreateSet(std::vector<std::string>* values) {
   PObject set(kPTypeSet);
   set.Reset(new PSet);
 
   if (values) {
     auto value = set.CastSet();
-    for (auto it = values->begin(); it = values->end(); it++) {
+    for (auto it = values->begin(); it != values->end(); it++) {
       value->insert(std::move(*it));
     }
   }

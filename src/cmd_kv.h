@@ -22,7 +22,7 @@ class GetCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
   virtual void DoThroughDB(PClient* client) override;
   virtual void DoUpdateCache(PClient* client) override;
-  virtual PError ReadCache(PClient* client) override;
+  virtual void ReadCache(PClient* client) override;
 };
 
 class SetCmd : public BaseCmd {

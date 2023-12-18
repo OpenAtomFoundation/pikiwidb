@@ -268,7 +268,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
             cli->SendPacket(reply);
             errorTarget = true;
           } else {
-            dst = PSTORE.SetValue(target, PObject::CreateList());
+            dst = PSTORE.SetValue(target, PObject::CreateList(nullptr));
           }
         }
       }
@@ -676,7 +676,7 @@ std::tuple<PObject*, PError> PStore::GetValueByTypeNoTouch(const PString& key, P
 
 std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType type, bool touch) {
   if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
-    return kPErrorNotExist;
+    return std::make_tuple(nullptr, kPErrorNotExist);
   }
 
   auto cobj = GetObject(key, type);

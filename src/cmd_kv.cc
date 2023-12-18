@@ -24,15 +24,16 @@ bool GetCmd::DoInitial(PClient* client) {
 void GetCmd::DoCmd(PClient* client) {
   PString value;
   int64_t ttl = -1;
-  s_ = PSTORE.GetBackend()->GetWithTTL(client->Key(), &value, &ttl);
-  if (s_.ok()) {
-    value_ = PObject::CreateString(value);
+  storage::Status s = PSTORE.GetBackend()->GetWithTTL(client->Key(), &value, &ttl);
+  if (s.ok()) {
     client->AppendString(value);
-  } else if (s_.IsNotFound()) {
+    client->SetValue(PObject::CreateString(value));
+  } else if (s.IsNotFound()) {
     client->AppendString("");
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "get key error");
   }
+  client->SetStatus(s);
 }
 
 void GetCmd::DoThroughDB(PClient* client) {
@@ -41,13 +42,13 @@ void GetCmd::DoThroughDB(PClient* client) {
 }
 
 void GetCmd::DoUpdateCache(PClient* client) {
-  if (s_.ok()) {
-    PSTORE.SetValue(client->Key(), std::move(value_));
+  if (client->GetStatus().ok()) {
+    PSTORE.SetValue(client->Key(), std::move(client->Value()));
   }
 }
 
-PError GetCmd::ReadCache(PClient* client) {
-  PObject* obj = PSTORE.GetObject(client->Key(), kPTypeString);
+void GetCmd::ReadCache(PClient* client) {
+  auto obj = PSTORE.GetObject(client->Key(), kPTypeString);
   if (obj) {
     auto value = obj->CastString();
     client->AppendString(*value);

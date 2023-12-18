@@ -34,11 +34,10 @@ void BaseCmd::Execute(PClient* client) {
   }
 
   if (IsNeedCacheDo() && PIKIWIDB_CACHE_NONE != g_config.GetCacheModel()) {
-    PError res = kPErrorOK;
     if (IsNeedReadCache()) {
-      res = ReadCache(client);
+      ReadCache(client);
     }
-    if (IsRead() && res == kPErrorCacheMiss) {
+    if (IsRead() && client->Message().find("kCacheMiss") != std::string::npos) {
       DoThroughDB(client);
       if (IsNeedUpdateCache()) {
         DoUpdateCache(client);
