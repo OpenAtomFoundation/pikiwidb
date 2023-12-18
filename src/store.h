@@ -111,7 +111,7 @@ class PStore {
   bool LoadKey(const PString& key, PType type = kPTypeInvalid) const;
 
   // Key operation
-  bool DeleteKey(const PString& key);
+  bool DeleteKey(const PString& key) const;
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;

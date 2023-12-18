@@ -39,6 +39,7 @@ PConfig::PConfig() {
   ip = "127.0.0.1";
   port = 9221;
   timeout = 0;
+  dbpath = "./db";
 
   loglevel = "notice";
   logdir = "stdout";
@@ -66,7 +67,7 @@ PConfig::PConfig() {
   maxmemorySamples = 5;
   noeviction = true;
 
-  backend = kBackEndNone;
+  backend = kBackEndRocksdb;
   backendPath = "dump";
   backendHz = 10;
 }
@@ -88,6 +89,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.ip = parser.GetData<PString>("bind", cfg.ip);
   cfg.port = parser.GetData<unsigned short>("port");
   cfg.timeout = parser.GetData<int>("timeout");
+  cfg.dbpath = parser.GetData<PString>("db-path");
 
   cfg.loglevel = parser.GetData<PString>("loglevel", cfg.loglevel);
   cfg.logdir = parser.GetData<PString>("logfile", cfg.logdir);

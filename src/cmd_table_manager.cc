@@ -14,9 +14,9 @@
 
 namespace pikiwidb {
 
-#define ADD_COMMAND(cmd, argc)                                                      \
+#define ADD_COMMAND(cmd, argc, flag)                                                      \
   do {                                                                              \
-    std::unique_ptr<BaseCmd> ptr = std::make_unique<cmd##Cmd>(kCmdName##cmd, argc); \
+    std::unique_ptr<BaseCmd> ptr = std::make_unique<cmd##Cmd>(kCmdName##cmd, argc, flag); \
     cmds_->insert(std::make_pair(kCmdName##cmd, std::move(ptr)));                   \
   } while (0)
 
@@ -35,7 +35,7 @@ void CmdTableManager::InitCmdTable() {
   cmds_->insert(std::make_pair(kCmdNameConfig, std::move(configPtr)));
 
   // server
-  ADD_COMMAND(Flushdb, 1);
+  // ADD_COMMAND(Flushdb, 1);
 
   // keyspace
   /*
@@ -44,7 +44,7 @@ void CmdTableManager::InitCmdTable() {
   */
 
   // kv
-  ADD_COMMAND(Get, 2);
+  ADD_COMMAND(Get, 2, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
   /*
   ADD_COMMAND(Set, -3);
   ADD_COMMAND(MGet, -2);

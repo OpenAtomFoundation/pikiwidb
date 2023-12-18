@@ -13,8 +13,8 @@
 
 namespace pikiwidb {
 
-GetCmd::GetCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+GetCmd::GetCmd(const std::string& name, const int16_t arity, const uint32_t flag)
+    : BaseCmd(name, arity, flag, kAclCategoryRead | kAclCategoryString) {}
 
 bool GetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);

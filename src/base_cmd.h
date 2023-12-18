@@ -69,9 +69,9 @@ const std::string kCmdNameHStrLen = "hstrlen";
 
 enum CmdFlagsMask {
   kCmdFlagsMaskRW = 3,
-  kCmdFlagsMaskDoThrouhDB = (1 << 21),
-  kCmdFlagsMaskReadCache = (1 << 22),
-  kCmdFlagsMaskUpdateCache = (1 << 23),
+  kCmdFlagsMaskReadCache = (1 << 21),
+  kCmdFlagsMaskUpdateCache = (1 << 22),
+  kCmdFlagsMaskDoThrouhDB = (1 << 23),
 };
 
 enum CmdFlags {

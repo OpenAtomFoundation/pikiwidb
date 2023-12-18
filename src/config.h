@@ -28,6 +28,8 @@ struct PConfig {
 
   int timeout;
 
+  PString dbpath;
+
   PString loglevel;
   PString logdir;  // the log directory, differ from redis
 

@@ -13,7 +13,7 @@ namespace pikiwidb {
 
 class GetCmd : public BaseCmd {
  public:
-  GetCmd(const std::string &name, int16_t arity);
+  GetCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;

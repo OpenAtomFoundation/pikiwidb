@@ -530,7 +530,7 @@ const PObject* PStore::GetObject(const PString& key, PType type) const {
   return nullptr;
 }
 
-bool PStore::DeleteKey(const PString& key) {
+bool PStore::DeleteKey(const PString& key) const {
   auto db = &dbs_[dbno_];
   size_t ret = 0;
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
@@ -918,10 +918,10 @@ void PStore::InitDumpBackends() {
 
   if (g_config.backend == kBackEndRocksdb) {
     for (size_t i = 0; i < dbs_.size(); ++i) {
-      std::unique_ptr<storage::Storage> db(new storage::Storage);
+      std::unique_ptr<storage::Storage> db = std::make_unique<storage::Storage>();
       storage::StorageOptions storage_options;
       storage_options.options.create_if_missing = true;
-      PString dbpath = g_config.backendPath + std::to_string(i);
+      PString dbpath = g_config.dbpath + std::to_string(i) + '/';
       storage::Status s = db->Open(storage_options, dbpath.data());
       if (!s.ok()) {
         assert(false);
