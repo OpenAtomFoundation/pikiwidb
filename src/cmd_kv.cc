@@ -218,7 +218,7 @@ void BitCountCmd::DoCmd(PClient* client) {
 }
 
 IncrCmd::IncrCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsReadonly, AclCategoryRead | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
 
 bool IncrCmd::DoInitial(pikiwidb::PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -227,19 +227,19 @@ bool IncrCmd::DoInitial(pikiwidb::PClient* client) {
 
 void IncrCmd::DoCmd(pikiwidb::PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
-  if (err == PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(client->Key(), PObject::CreateString(1));
     client->AppendInteger(1);
     return;
   }
 
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     client->SetRes(CmdRes::kErrOther);
     return;
   }
 
-  if (value->encoding != PEncode_int) {
+  if (value->encoding != kPEncodeInt) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
   }

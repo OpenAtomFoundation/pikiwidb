@@ -54,11 +54,6 @@ const std::string kCmdNameDiscard = "discard";
 // admin
 const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
-const std::string kCmdNameAppend = "append";
-const std::string kCmdNameGetset = "getset";
-const std::string kCmdNameMget = "mget";
-const std::string kCmdNameMset = "mset";
-const std::string kCmdNameBitCount = "bitcount";
 const std::string kCmdNameFlushall = "flushall";
 const std::string kCmdNameAuth = "auth";
 
