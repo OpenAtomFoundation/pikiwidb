@@ -469,6 +469,43 @@ void IncrbyCmd::DoCmd(PClient* client) {
   }
 }
 
+DecrbyCmd::DecrbyCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+
+bool DecrbyCmd::DoInitial(PClient* client) {
+  int64_t by = 0;
+  if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by))) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void DecrbyCmd::DoCmd(PClient* client) {
+  int64_t new_value = 0;
+  int64_t by = 0;
+  pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by);
+  PError err = PSTORE.Decrby(client->Key(), by, &new_value);
+  switch (err) {
+    case kPErrorType:
+      client->SetRes(CmdRes::kInvalidInt);
+      break;
+    case kPErrorNotExist:  // key not exist, set a new value
+      by *= -1;
+      PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+      PSTORE.SetValue(client->Key(), PObject::CreateString(by));
+      client->AppendInteger(by);
+      break;
+    case kPErrorOK:
+      client->AppendInteger(new_value);
+      break;
+    default:
+      client->SetRes(CmdRes::kErrOther, "decrby cmd error");
+      break;
+  }
+}
+
 IncrbyFloatCmd::IncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
