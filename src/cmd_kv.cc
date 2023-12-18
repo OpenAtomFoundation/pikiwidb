@@ -572,7 +572,7 @@ void GetBitCmd::DoCmd(PClient* client) {
 }
 
 SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool SetBitCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -581,13 +581,13 @@ bool SetBitCmd::DoInitial(PClient* client) {
 
 void SetBitCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, PType_string);
-  if (err == PError_notExist) {
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err == kPErrorNotExist) {
     value = PSTORE.SetValue(client->Key(), PObject::CreateString(""));
-    err = PError_ok;
+    err = kPErrorOK;
   }
 
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     client->AppendInteger(0);
     return;
   }
@@ -629,7 +629,7 @@ void SetBitCmd::DoCmd(PClient* client) {
   }
 
   value->Reset(new PString(newVal));
-  value->encoding = PEncode_raw;
+  value->encoding = kPEncodeRaw;
   client->AppendInteger((oldByte & (0x1 << bits)) ? 1 : 0);
   return;
 }
