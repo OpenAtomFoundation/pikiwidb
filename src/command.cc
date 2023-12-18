@@ -62,7 +62,7 @@ const PCommandInfo PCommandTable::s_info[] = {
     {"mget", kPAttrRead, -2, &mget},
     {"append", kPAttrWrite, 3, &append},
     {"bitcount", kPAttrRead, -2, &bitcount},
-//        {"bitop", PAttr_write, -4, &bitop},
+    // {"bitop", PAttr_write, -4, &bitop},
     {"getbit", kPAttrRead, 3, &getbit},
     {"setbit", kPAttrWrite, 4, &setbit},
     {"incr", kPAttrWrite, 2, &incr},
