@@ -7,6 +7,7 @@
 
 #include "cmd_hash.h"
 
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -289,6 +290,11 @@ HIncrByCmd::HIncrByCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kCmdFlagsWrite | kAclCategoryHash) {}
 
 bool HIncrByCmd::DoInitial(PClient* client) {
+  int64_t by_ = 0;
+  if (!(pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &by_))) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
   client->SetKey(client->argv_[1]);
   return true;
 }
@@ -318,18 +324,11 @@ void HIncrByCmd::DoCmd(PClient* client) {
     }
   } else {
     val = atoi(client->argv_[3].c_str());
-    auto it(hash->find(client->argv_[2]));
-    if (it != hash->end()) {
-      it->second = "";
-    } else {
-      it = hash->insert(PHash::value_type(client->argv_[2], "")).first;
-    }
+    it = hash->insert(PHash::value_type(client->argv_[2], "")).first;
     str = &it->second;
   }
 
-  char tmp[32];
-  snprintf(tmp, sizeof tmp - 1, "%ld", val);
-  *str = tmp;
+  *str = std::to_string(val);
 
   client->AppendInteger(val);
   return;
