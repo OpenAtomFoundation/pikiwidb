@@ -149,6 +149,17 @@ class BitCountCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class IncrCmd : public BaseCmd {
+ public:
+  IncrCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 class IncrbyCmd : public BaseCmd {
  public:
   IncrbyCmd(const std::string &name, int16_t arity);
@@ -162,6 +173,17 @@ class IncrbyCmd : public BaseCmd {
 class DecrbyCmd : public BaseCmd {
  public:
   DecrbyCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SetBitCmd : public BaseCmd {
+ public:
+  SetBitCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
