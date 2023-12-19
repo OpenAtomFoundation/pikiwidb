@@ -50,6 +50,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SetNX, 3);
   ADD_COMMAND(Append, 3);
   ADD_COMMAND(Strlen, 2);
+  ADD_COMMAND(Incr, 2);
   ADD_COMMAND(Incrby, 3);
   ADD_COMMAND(Decrby, 3);
   ADD_COMMAND(IncrbyFloat, 3);
