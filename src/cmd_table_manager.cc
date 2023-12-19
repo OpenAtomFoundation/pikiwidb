@@ -50,6 +50,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SetNX, 3);
   ADD_COMMAND(Append, 3);
   ADD_COMMAND(Strlen, 2);
+  ADD_COMMAND(Incr, 2);
   ADD_COMMAND(Incrby, 3);
   ADD_COMMAND(Decrby, 3);
   ADD_COMMAND(IncrbyFloat, 3);
@@ -59,6 +60,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(BitCount, -2);
   ADD_COMMAND(GetBit, 3);
   ADD_COMMAND(Decr, 2);
+  ADD_COMMAND(SetBit, 4);
 
   // hash
   ADD_COMMAND(HSet, -4);

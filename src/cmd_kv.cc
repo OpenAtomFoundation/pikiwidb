@@ -250,6 +250,39 @@ void DecrCmd::DoCmd(pikiwidb::PClient* client) {
   client->AppendInteger(oldVal - 1);
 }
 
+IncrCmd::IncrCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+
+bool IncrCmd::DoInitial(pikiwidb::PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void IncrCmd::DoCmd(pikiwidb::PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err == kPErrorNotExist) {
+    value = PSTORE.SetValue(client->Key(), PObject::CreateString(1));
+    client->AppendInteger(1);
+    return;
+  }
+
+  if (err != kPErrorOK) {
+    client->SetRes(CmdRes::kErrOther);
+    return;
+  }
+
+  if (value->encoding != kPEncodeInt) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  intptr_t oldVal = static_cast<intptr_t>(reinterpret_cast<std::intptr_t>(value->value));
+  value->Reset(reinterpret_cast<void*>(oldVal + 1));
+
+  client->AppendInteger(oldVal + 1);
+}
+
 BitOpCmd::BitOpCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
@@ -601,6 +634,69 @@ void GetBitCmd::DoCmd(PClient* client) {
     client->AppendInteger(0);
   }
 
+  return;
+}
+
+SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+
+bool SetBitCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SetBitCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
+  if (err == kPErrorNotExist) {
+    value = PSTORE.SetValue(client->Key(), PObject::CreateString(""));
+    err = kPErrorOK;
+  }
+
+  if (err != kPErrorOK) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  long offset = 0;
+  long on = 0;
+  if (!Strtol(client->argv_[2].c_str(), client->argv_[2].size(), &offset) ||
+      !Strtol(client->argv_[3].c_str(), client->argv_[3].size(), &on)) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  if (offset < 0 || offset > kStringMaxBytes) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  PString* pStringPtr = value->CastString();
+  if (!pStringPtr) {
+    client->AppendInteger(0);
+    return;
+  }
+
+  PString& newVal = *pStringPtr;
+
+  size_t bytes = offset / 8;
+  size_t bits = offset % 8;
+
+  if (bytes + 1 > newVal.size()) {
+    newVal.resize(bytes + 1, '\0');
+  }
+
+  const char oldByte = newVal[bytes];
+  char& byte = newVal[bytes];
+  if (on) {
+    byte |= (0x1 << bits);
+  } else {
+    byte &= ~(0x1 << bits);
+  }
+
+  value->Reset(new PString(newVal));
+  value->encoding = kPEncodeRaw;
+  client->AppendInteger((oldByte & (0x1 << bits)) ? 1 : 0);
   return;
 }
 
