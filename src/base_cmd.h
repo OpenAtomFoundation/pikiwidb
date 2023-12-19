@@ -37,6 +37,7 @@ const std::string kCmdNameIncrby = "incrby";
 const std::string kCmdNameDecrby = "decrby";
 const std::string kCmdNameIncrbyFloat = "incrbyfloat";
 const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetBit = "setbit";
 const std::string kCmdNameSetEx = "setex";
 const std::string kCmdNamePSetEx = "psetex";
 const std::string kCmdNameBitOp = "bitop";
