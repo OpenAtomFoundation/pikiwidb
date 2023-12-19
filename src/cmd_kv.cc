@@ -602,7 +602,7 @@ void GetRangeCmd::DoCmd(PClient* client) {
   int64_t start = 0, end = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start);
   pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end);
-  
+
   auto str = GetDecodedString(value);
   size_t len = str->size();
   // calculate the offset
