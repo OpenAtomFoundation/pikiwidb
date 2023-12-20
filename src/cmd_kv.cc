@@ -653,14 +653,6 @@ bool GetRangeCmd::DoInitial(PClient* client) {
   return true;
 }
 
-SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
-
-bool SetBitCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
-  return true;
-}
-
 void GetRangeCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
@@ -703,6 +695,14 @@ void GetRangeCmd::DoCmd(PClient* client) {
     return;
   }
   client->AppendString(str->substr(start, end - start + 1));
+}
+
+SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+
+bool SetBitCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
 }
 
 void SetBitCmd::DoCmd(PClient* client) {
