@@ -569,7 +569,7 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   }
 
   auto str = pikiwidb::GetDecodedString(old_value);
-  if (!IsValidNumber(str->c_str(), str->size())) {
+  if (!IsValidNumber(str->c_str())) {
     // value is not a integer
     return kPErrorType;
   }
@@ -611,7 +611,7 @@ PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
   }
   auto str = pikiwidb::GetDecodedString(old_value);
 
-  if (!IsValidNumber(str->c_str(), str->size())) {
+  if (!IsValidNumber(str->c_str())) {
     // value is not a integer
     return kPErrorType;
   }

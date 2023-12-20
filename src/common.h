@@ -145,7 +145,7 @@ inline std::size_t Number2Str(char* ptr, std::size_t nBytes, T val) {
   return off;
 }
 
-bool IsValidNumber(const std::string& str, std::size_t slen);
+bool IsValidNumber(const std::string& str);
 
 int Double2Str(char* ptr, std::size_t nBytes, double val);
 int StrToLongDouble(const char* s, size_t slen, long double* ldval);

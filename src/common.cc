@@ -45,8 +45,9 @@ struct PErrorInfo g_errorInfo[] = {
     {sizeof "-ERR module already loaded\r\n" - 1, "-ERR module already loaded\r\n"},
 };
 
-bool IsValidNumber(const std::string& str, std::size_t slen) {
-  if (slen == 0) {
+bool IsValidNumber(const std::string& str) {
+  size_t slen = str.size();
+  if (slen == 0 || slen > 20) {
     return false;
   }
 
