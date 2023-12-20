@@ -225,6 +225,40 @@ void HKeysCmd::DoCmd(PClient* client) {
   client->AppendStringRaw(reply.ReadAddr());
 }
 
+HDelCmd::HDelCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, CmdFlagsWrite, AclCategoryWrite | AclCategoryHash) {}
+
+bool HDelCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() < 3) {
+    client->SetRes(CmdRes::kWrongNum, kCmdNameHDel);
+    return false;
+  }
+}
+  
+void HDelCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, PType_hash);
+  if (err != PError_ok && err != PError_notExist) {
+    client->SetRes(CmdRes::kErrOther, "hdel cmd error");
+    return;
+  }
+  if (err == PError_notExist) {
+    client->SetRes(CmdRes::kSyntaxErr, "hash does not exist");
+    return;
+  }
+
+  auto delCnt = 0;
+  auto hash = value->CastHash();
+  for (size_t i = 2; i < client->argv_.size(); ++i) {
+    auto it = hash->find(client->argv_[i]);
+    if (it != hash->end()) {
+      hash->erase(it);
+      ++delCnt;
+    }
+  }
+  client->AppendInteger(delCnt);
+}
+  
 HLenCmd::HLenCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
