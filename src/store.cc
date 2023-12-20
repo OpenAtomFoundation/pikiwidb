@@ -567,11 +567,20 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   if (err != kPErrorOK) {
     return err;
   }
-  char* end = nullptr;
+
   auto str = pikiwidb::GetDecodedString(old_value);
-  int64_t ival = strtoll(str->c_str(), &end, 10);
-  if (*end != 0) {
+  if (!IsValidNumber(str->c_str(), str->size())) {
     // value is not a integer
+    return kPErrorType;
+  }
+
+  int64_t ival = 0;
+  std::string::size_type end = 0;  // alias of size_t
+  try {
+    ival = std::stoll(str->c_str(), &end, 0);
+  } catch (const std::out_of_range& e) {
+    return kPErrorOverflow;
+  } catch (...) {
     return kPErrorType;
   }
 
@@ -602,8 +611,13 @@ PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
   }
   auto str = pikiwidb::GetDecodedString(old_value);
 
-  std::string::size_type end = 0;  // alias of size_t
+  if (!IsValidNumber(str->c_str(), str->size())) {
+    // value is not a integer
+    return kPErrorType;
+  }
+
   int64_t ival = 0;
+  std::string::size_type end = 0;  // alias of size_t
   try {
     ival = std::stoll(str->c_str(), &end, 0);
   } catch (const std::out_of_range& e) {

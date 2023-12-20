@@ -45,6 +45,33 @@ struct PErrorInfo g_errorInfo[] = {
     {sizeof "-ERR module already loaded\r\n" - 1, "-ERR module already loaded\r\n"},
 };
 
+bool IsValidNumber(const std::string& str, std::size_t slen) {
+  if (slen == 0) {
+    return false;
+  }
+
+  size_t pos = 0;
+  if (str[0] == '-') {
+    if (slen == 1) {
+      return false;  // "-" is not a valid number
+    }
+    pos = 1;  // skip the sign
+  }
+
+  // "0", "-0" is a valid number, but "01", "001", etc. are not
+  if (str[pos] == '0' && slen > pos + 1) {
+    return false;
+  }
+
+  for (; pos < slen; ++pos) {
+    if (!isdigit(str[pos])) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 int Double2Str(char* ptr, std::size_t nBytes, double val) { return snprintf(ptr, nBytes - 1, "%.6g", val); }
 
 int StrToLongDouble(const char* s, size_t slen, long double* ldval) {
@@ -148,14 +175,20 @@ bool Strtol(const char* ptr, size_t nBytes, long* outVal) {
   }
 
   errno = 0;
-  char* pEnd = 0;
-  *outVal = strtol(ptr, &pEnd, 0);
+
+  size_t pEnd = 0;
+  std::string str(ptr, nBytes);
+  try {
+    *outVal = std::stol(str, &pEnd, 10);
+  } catch (...) {
+    return false;
+  }
 
   if (errno == ERANGE || errno == EINVAL) {
     return false;
   }
 
-  return pEnd == ptr + nBytes;
+  return pEnd == nBytes;
 }
 
 bool Strtoll(const char* ptr, size_t nBytes, long long* outVal) {
