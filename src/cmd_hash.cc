@@ -7,6 +7,7 @@
 
 #include "cmd_hash.h"
 
+#include "common.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -284,5 +285,50 @@ void HStrLenCmd::DoCmd(PClient* client) {
 
   client->AppendStringRaw(reply.ReadAddr());
 }
+
+HDelCmd::HDelCmd(const std::string& name, int16_t arity) :
+    BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+
+bool HDelCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() <= 2) {
+    client->SetRes(CmdRes::kWrongNum, kCmdNameHSet);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HDelCmd::DoCmd(PClient *client){
+  PObject* value = nullptr;
+  UnboundedBuffer reply;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+
+  if(err == kPErrorNotExist){
+    FormatInt(0, &reply);
+    client->AppendStringRaw(reply.ReadAddr());
+    return;
+  }
+  else if (err != kPErrorOK) {
+    ReplyError(err, &reply);
+    client->SetRes(CmdRes::kSyntaxErr, "hdel cmd error");
+    return;
+  }
+
+  auto del_cnt = 0;
+  auto hash = value->CastHash();
+  for (size_t i = 2; i < client->argv_.size(); i += 1) {
+    auto field = client->argv_[i];
+    auto it = hash->find(field);
+    if (it != hash->end()) {
+      hash->erase(field);
+      ++del_cnt;
+    }
+  }
+  FormatInt(del_cnt, &reply);
+  client->AppendStringRaw(reply.ReadAddr());
+}
+
+
 
 }  // namespace pikiwidb
