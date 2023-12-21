@@ -7,6 +7,7 @@
 
 #include "cmd_hash.h"
 
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -283,6 +284,69 @@ void HStrLenCmd::DoCmd(PClient* client) {
   }
 
   client->AppendStringRaw(reply.ReadAddr());
+}
+
+HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HRandFieldCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() > 4) {
+    client->SetRes(CmdRes::kSyntaxErr);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HRandFieldCmd::DoCmd(PClient* client) {
+  // parse arguments
+  std::optional<int32_t> count{std::nullopt};
+  bool with_values{false};
+  bool allow_repeat{false};
+  if (client->argv_.size() > 2) {
+    int32_t cnt{};
+    if (pstd::String2int(client->argv_[2], &cnt) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (cnt < 0) {
+      allow_repeat = true;
+      cnt = -cnt;
+    }
+    count = std::make_optional(cnt);
+
+    if (client->argv_.size() > 3) {
+      if (kWithValueString != pstd::StringToLower(client->argv_[3])) {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      with_values = true;
+    }
+  }
+
+  // get hash
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "hrandfield cmd error");
+    }
+    return;
+  }
+  auto hash = value->CastHash();
+  if (hash->empty()) {
+    client->AppendString("");
+    return;
+  }
+
+  // fetch field(s) and reply
+  if (count) {
+  } else {
+    auto it = std::next(hash->begin(), rand() % hash->size());
+    client->AppendString(it->first);
+  }
 }
 
 }  // namespace pikiwidb

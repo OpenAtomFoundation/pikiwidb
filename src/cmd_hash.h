@@ -99,4 +99,18 @@ class HStrLenCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class HRandFieldCmd : public BaseCmd {
+ public:
+  HRandFieldCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  auto ParseOptions(PClient *client, int32_t *count, bool *with_value) -> bool;
+
+  static const inline std::string kWithValueString{"withvalues"};
+};
+
 }  // namespace pikiwidb
