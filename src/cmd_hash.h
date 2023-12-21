@@ -9,6 +9,7 @@
 
 #include <string_view>
 #include "base_cmd.h"
+#include "hash.h"
 
 namespace pikiwidb {
 
