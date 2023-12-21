@@ -285,7 +285,7 @@ void HStrLenCmd::DoCmd(PClient* client) {
   client->AppendStringRaw(reply.ReadAddr());
 }
 
-HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string &name, int16_t arity)
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
 bool HIncrbyFloatCmd::DoInitial(PClient* client) {
@@ -308,7 +308,7 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   }
 
   long double long_double_by = 0;
-  if(-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)){
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
     client->SetRes(CmdRes::kInvalidFloat);
     return;
   }
@@ -322,12 +322,12 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   if (it != hash->end()) {
     old_value_str = it->second;
     if (-1 == StrToLongDouble(old_value_str.c_str(), static_cast<int>(old_value_str.size()), &old_value)) {
-      client->SetRes(CmdRes::kErrOther,"");
+      client->SetRes(CmdRes::kErrOther, "");
       return;
     } else {
       long double total = old_value + long_double_by;
       if (-1 == LongDoubleToStr(total, &new_value_str)) {
-        client->SetRes(CmdRes::kErrOther,"");
+        client->SetRes(CmdRes::kErrOther, "");
         return;
       }
       it->second = new_value_str;
