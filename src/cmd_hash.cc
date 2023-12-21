@@ -7,6 +7,7 @@
 
 #include "cmd_hash.h"
 
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -283,6 +284,54 @@ void HStrLenCmd::DoCmd(PClient* client) {
   }
 
   client->AppendStringRaw(reply.ReadAddr());
+}
+
+HIncrByCmd::HIncrByCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kCmdFlagsWrite | kAclCategoryHash) {}
+
+bool HIncrByCmd::DoInitial(PClient* client) {
+  int64_t by_ = 0;
+  if (!(pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &by_))) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HIncrByCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOK && err != kPErrorNotExist) {
+    client->SetRes(CmdRes::kErrOther);
+    return;
+  }
+  if (err == kPErrorNotExist) {
+    value = PSTORE.SetValue(client->Key(), PObject::CreateHash());
+  }
+
+  auto hash = value->CastHash();
+  long val = 0;
+  PString* str = nullptr;
+  auto it(hash->find(client->argv_[2]));
+  if (it != hash->end()) {
+    str = &it->second;
+    if (Strtol(str->c_str(), static_cast<int>(str->size()), &val)) {
+      val += atoi(client->argv_[3].c_str());
+    } else {
+      client->SetRes(CmdRes::kErrOther);
+      return;
+    }
+  } else {
+    val = atoi(client->argv_[3].c_str());
+    it = hash->insert(PHash::value_type(client->argv_[2], "")).first;
+    str = &it->second;
+  }
+
+  *str = std::to_string(val);
+
+  client->AppendInteger(val);
+  return;
 }
 
 }  // namespace pikiwidb
