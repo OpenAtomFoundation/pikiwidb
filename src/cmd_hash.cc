@@ -409,10 +409,14 @@ HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HRandFieldCmd::DoInitial(PClient* client) {
-  if (client->argv_.size() > 4) {
-    client->SetRes(CmdRes::kSyntaxErr);
-    return false;
-  }
+  /*
+   * There should not be quantity detection here,
+   * because the quantity detection of redis is after the COUNT integer detection.
+   */
+  // if (client->argv_.size() > 4) {
+  //   client->SetRes(CmdRes::kSyntaxErr);
+  //   return false;
+  // }
   client->SetKey(client->argv_[1]);
   return true;
 }
@@ -425,6 +429,11 @@ void HRandFieldCmd::DoCmd(PClient* client) {
     if (pstd::String2int(client->argv_[2], &count) == 0) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
+    }
+
+    if (client->argv_.size() > 4) {
+      client->SetRes(CmdRes::kSyntaxErr);
+      return false;
     }
 
     if (client->argv_.size() > 3) {
@@ -455,37 +464,51 @@ void HRandFieldCmd::DoCmd(PClient* client) {
 
   // fetch field(s) and reply
   if (client->argv_.size() > 2) {
-    DoWithCount(client, hash, count, with_values);
+    if (count >= 0) {
+      DoWithPositiveCount(client, hash, count, with_values);
+    } else {
+      DoWithNegativeCount(client, hash, count, with_values);
+    }
   } else {
     auto it = std::next(hash->begin(), rand() % hash->size());
     client->AppendString(it->first);
   }
 }
 
-void HRandFieldCmd::DoWithCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
-  if (count >= 0) {
-    if (hash->size() <= count) {  // reply all fields
-      client->AppendArrayLen(with_value ? hash->size() * 2 : hash->size());
-      for (auto&& kv : *hash) {
-        client->AppendString(kv.first);
-        if (with_value) {
-          client->AppendString(kv.second);
-        }
+void HRandFieldCmd::DoWithPositiveCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
+  if (hash->size() <= count) {  // reply all fields
+    client->AppendArrayLen(with_value ? hash->size() * 2 : hash->size());
+    for (auto&& kv : *hash) {
+      client->AppendString(kv.first);
+      if (with_value) {
+        client->AppendString(kv.second);
       }
-    } else {  // reply [count] fields
-      std::vector<std::pair<PString, PString>> kvs;
-      for (auto&& kv : *hash) {
-        kvs.push_back(kv);
-      }
-      std::random_shuffle(kvs.begin(), kvs.end());
+    }
+  } else {  // reply [count] fields
+    std::vector<std::pair<PString, PString>> kvs;
+    for (auto&& kv : *hash) {
+      kvs.push_back(kv);
+    }
+    std::random_shuffle(kvs.begin(), kvs.end());
 
-      client->AppendArrayLen(with_value ? count * 2 : count);
-      for (size_t i = 0; i < count; i++) {
-        client->AppendString(kvs[i].first);
-        if (with_value) {
-          client->AppendString(kvs[i].second);
-        }
+    client->AppendArrayLen(with_value ? count * 2 : count);
+    for (size_t i = 0; i < count; i++) {
+      client->AppendString(kvs[i].first);
+      if (with_value) {
+        client->AppendString(kvs[i].second);
       }
+    }
+  }
+}
+
+void HRandFieldCmd::DoWithNegativeCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
+  count = -count;
+  client->AppendArrayLen(with_value ? count * 2 : count);
+  while (count--) {
+    auto it = std::next(hash->begin(), rand() % hash->size());
+    client->AppendString(it->first);
+    if (with_value) {
+      client->AppendString(it->second);
     }
   }
 }
