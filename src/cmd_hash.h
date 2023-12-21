@@ -8,6 +8,7 @@
 #pragma once
 
 #include "base_cmd.h"
+#include "hash.h"
 
 namespace pikiwidb {
 
@@ -108,7 +109,7 @@ class HRandFieldCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
-  auto ParseOptions(PClient *client, int32_t *count, bool *with_value) -> bool;
+  void DoWithCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
 
   static const inline std::string kWithValueString{"withvalues"};
 };

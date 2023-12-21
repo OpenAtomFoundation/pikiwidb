@@ -300,20 +300,13 @@ bool HRandFieldCmd::DoInitial(PClient* client) {
 
 void HRandFieldCmd::DoCmd(PClient* client) {
   // parse arguments
-  std::optional<int32_t> count{std::nullopt};
+  int64_t count{};
   bool with_values{false};
-  bool allow_repeat{false};
   if (client->argv_.size() > 2) {
-    int32_t cnt{};
-    if (pstd::String2int(client->argv_[2], &cnt) == 0) {
+    if (pstd::String2int(client->argv_[2], &count) == 0) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
-    if (cnt < 0) {
-      allow_repeat = true;
-      cnt = -cnt;
-    }
-    count = std::make_optional(cnt);
 
     if (client->argv_.size() > 3) {
       if (kWithValueString != pstd::StringToLower(client->argv_[3])) {
@@ -342,10 +335,39 @@ void HRandFieldCmd::DoCmd(PClient* client) {
   }
 
   // fetch field(s) and reply
-  if (count) {
+  if (client->argv_.size() > 2) {
+    DoWithCount(client, hash, count, with_values);
   } else {
     auto it = std::next(hash->begin(), rand() % hash->size());
     client->AppendString(it->first);
+  }
+}
+
+void HRandFieldCmd::DoWithCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
+  if (count >= 0) {
+    if (hash->size() <= count) {  // reply all fields
+      client->AppendArrayLen(with_value ? hash->size() * 2 : hash->size());
+      for (auto&& kv : *hash) {
+        client->AppendString(kv.first);
+        if (with_value) {
+          client->AppendString(kv.second);
+        }
+      }
+    } else {  // reply [count] fields
+      std::vector<std::pair<PString, PString>> kvs;
+      for (auto&& kv : *hash) {
+        kvs.push_back(kv);
+      }
+      std::random_shuffle(kvs.begin(), kvs.end());
+
+      client->AppendArrayLen(with_value ? count * 2 : count);
+      for (size_t i = 0; i < count; i++) {
+        client->AppendString(kvs[i].first);
+        if (with_value) {
+          client->AppendString(kvs[i].second);
+        }
+      }
+    }
   }
 }
 
