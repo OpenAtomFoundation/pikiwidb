@@ -109,7 +109,8 @@ class HRandFieldCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
-  void DoWithCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
+  void DoWithPositiveCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
+  void DoWithNegativeCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
 
   static const inline std::string kWithValueString{"withvalues"};
 };
