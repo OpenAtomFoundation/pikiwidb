@@ -16,7 +16,7 @@ PObject PObject::CreateString(const PString& value) {
   PObject obj(kPTypeString);
 
   long val;
-  if (IsValidNumber(value.c_str())) {
+  if (IsValidNumber(value)) {
     Strtol(value.c_str(), value.size(), &val);
     obj.encoding = kPEncodeInt;
     obj.value = (void*)val;

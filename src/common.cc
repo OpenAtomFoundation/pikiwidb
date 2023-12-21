@@ -45,9 +45,9 @@ struct PErrorInfo g_errorInfo[] = {
     {sizeof "-ERR module already loaded\r\n" - 1, "-ERR module already loaded\r\n"},
 };
 
-bool IsValidNumber(const std::string& str) {
+bool IsValidNumber(const PString& str) {
   size_t slen = str.size();
-  if (slen == 0 || slen > 20) {
+  if (slen == 0 || slen >= 20 || (str[0] != '-' && !isdigit(str[0]))) {
     return false;
   }
 
@@ -69,6 +69,12 @@ bool IsValidNumber(const std::string& str) {
       return false;
     }
   }
+
+  // TODO:
+  // @jettcc
+  // If this method is used to determine whether a numeric string is valid,
+  // it should consider whether the string exceeds the range of int64,
+  // that is, the string should be a valid long long number.
 
   return true;
 }
@@ -176,20 +182,14 @@ bool Strtol(const char* ptr, size_t nBytes, long* outVal) {
   }
 
   errno = 0;
-
-  size_t pEnd = 0;
-  std::string str(ptr, nBytes);
-  try {
-    *outVal = std::stol(str, &pEnd, 10);
-  } catch (...) {
-    return false;
-  }
+  char* pEnd = 0;
+  *outVal = strtol(ptr, &pEnd, 0);
 
   if (errno == ERANGE || errno == EINVAL) {
     return false;
   }
 
-  return pEnd == nBytes;
+  return pEnd == ptr + nBytes;
 }
 
 bool Strtoll(const char* ptr, size_t nBytes, long long* outVal) {
