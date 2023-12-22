@@ -314,7 +314,7 @@ void HRandFieldCmd::DoCmd(PClient* client) {
 
     if (client->argv_.size() > 4) {
       client->SetRes(CmdRes::kSyntaxErr);
-      return false;
+      return;
     }
 
     if (client->argv_.size() > 3) {
