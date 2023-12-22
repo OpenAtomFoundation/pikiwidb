@@ -15,9 +15,9 @@
 #include "common.h"
 #include "proto_parser.h"
 #include "replication.h"
-#include "tcp_connection.h"
 #include "storage/storage.h"
 #include "store.h"
+#include "tcp_connection.h"
 
 namespace pikiwidb {
 
@@ -188,7 +188,9 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void ClearFvs() { fvs_.clear(); }
   std::vector<std::string>& Fields() { return fields_; }
   void ClearFields() { fields_.clear(); }
-  void SetDBValueStatusArray(std::vector<storage::ValueStatus>& db_value_status_array) { db_value_status_array_ = std::move(db_value_status_array); }
+  void SetDBValueStatusArray(std::vector<storage::ValueStatus>& db_value_status_array) {
+    db_value_status_array_ = std::move(db_value_status_array);
+  }
   std::vector<storage::ValueStatus>& GetDBValueStatusArray() { return db_value_status_array_; }
 
   void SetSlaveInfo();

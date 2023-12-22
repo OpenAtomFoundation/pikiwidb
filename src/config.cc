@@ -5,13 +5,13 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include <iostream>
-#include <vector>
-#include <set>
 #include <algorithm>
+#include <iostream>
+#include <set>
+#include <vector>
 
-#include "config.h"
 #include "common.h"
+#include "config.h"
 #include "config_parser.h"
 #include "pstd_string.h"
 
@@ -252,7 +252,8 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(hz > 0 && hz < 500);
   RETURN_IF_FAIL(maxmemory >= 512 * 1024 * 1024UL);
   RETURN_IF_FAIL(maxmemorySamples > 0 && maxmemorySamples < 10);
-  RETURN_IF_FAIL(worker_threads_num > 0 && slave_threads_num > 0 && (worker_threads_num + slave_threads_num) < 129);  // as redis
+  RETURN_IF_FAIL(worker_threads_num > 0 && slave_threads_num > 0 &&
+                 (worker_threads_num + slave_threads_num) < 129);  // as redis
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
   RETURN_IF_FAIL(cache_num > 0 && cache_num <= 48);

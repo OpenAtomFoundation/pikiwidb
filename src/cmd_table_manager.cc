@@ -71,13 +71,19 @@ void CmdTableManager::InitCmdTable() {
 
   // hash
   ADD_COMMAND(HSet, -4, kCmdFlagsWrite | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB);
-  ADD_COMMAND(HGet, 3, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HGet, 3,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
   ADD_COMMAND(HMSet, -4, kCmdFlagsWrite | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB);
-  ADD_COMMAND(HMGet, -3, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
-  ADD_COMMAND(HGetAll, 2, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
-  ADD_COMMAND(HKeys, 2, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
-  ADD_COMMAND(HLen, 2, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
-  ADD_COMMAND(HStrLen, 3, kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HMGet, -3,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HGetAll, 2,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HKeys, 2,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HLen, 2,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
+  ADD_COMMAND(HStrLen, 3,
+              kCmdFlagsReadonly | kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

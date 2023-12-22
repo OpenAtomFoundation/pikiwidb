@@ -11,7 +11,6 @@
 
 namespace pikiwidb {
 
-
 HSetCmd::HSetCmd(const std::string& name, const int16_t arity, const uint32_t flag)
     : BaseCmd(name, arity, flag, kAclCategoryWrite | kAclCategoryHash) {}
 
@@ -197,7 +196,6 @@ void HMSetCmd::DoUpdateCache(PClient* client) {
   }
 }
 
-
 HMGetCmd::HMGetCmd(const std::string& name, const int16_t arity, const uint32_t flag)
     : BaseCmd(name, arity, flag, kAclCategoryRead | kAclCategoryHash) {}
 
@@ -266,10 +264,10 @@ void HMGetCmd::ReadCache(PClient* client) {
   bool cacheMiss = false;
   auto hash = obj->CastHash();
   for (const auto& field : client->Fields()) {
-      if (!hash->contains(field)) {
-        cacheMiss = true;
-        break;
-      }
+    if (!hash->contains(field)) {
+      cacheMiss = true;
+      break;
+    }
   }
 
   if (cacheMiss) {
