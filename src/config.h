@@ -80,6 +80,8 @@ struct PConfig {
   PString backendPath;
   int backendHz;  // the frequency of dump to backend
 
+  int64_t max_client_response_size;
+
   // cache
   int cache_num;
   int cache_model;

@@ -22,6 +22,8 @@ namespace pikiwidb {
 
 #define COMMA ','
 
+#define PIKA_SCAN_STEP_LENGTH 1000
+
 /*
  * cache size
  */

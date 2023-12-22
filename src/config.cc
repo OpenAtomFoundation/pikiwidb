@@ -70,6 +70,8 @@ PConfig::PConfig() {
   backend = kBackEndRocksdb;
   backendPath = "dump";
   backendHz = 10;
+
+  max_client_response_size = 1073741824;
 }
 
 bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
@@ -145,6 +147,8 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.slowlogmaxlen = parser.GetData<int>("slowlog-max-len", cfg.slowlogmaxlen);
 
   cfg.hz = parser.GetData<int>("hz", 10);
+
+  cfg.max_client_response_size = parser.GetData<int64_t>("max-client-response-size");
 
   // load master ip port
   std::vector<PString> master(SplitString(parser.GetData<PString>("slaveof"), ' '));
