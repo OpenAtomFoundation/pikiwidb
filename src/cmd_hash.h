@@ -7,6 +7,8 @@
 
 #pragma once
 
+#include <random>
+
 #include "base_cmd.h"
 #include "hash.h"
 
@@ -111,6 +113,8 @@ class HRandFieldCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
   void DoWithPositiveCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
   void DoWithNegativeCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
+
+  std::random_device rd_;
 
   static const inline std::string kWithValueString{"withvalues"};
 };
