@@ -217,46 +217,54 @@ class IncrbyFloatCmd : public BaseCmd {
 
 class SetBitCmd : public BaseCmd {
  public:
-  SetBitCmd(const std::string &name, int16_t arity);
+  SetBitCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class DecrbyCmd : public BaseCmd {
  public:
-  DecrbyCmd(const std::string &name, int16_t arity);
+  DecrbyCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class DecrCmd : public BaseCmd {
  public:
-  DecrCmd(const std::string &name, int16_t arity);
+  DecrCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class IncrCmd : public BaseCmd {
  public:
-  IncrCmd(const std::string &name, int16_t arity);
+  IncrCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 }  // namespace pikiwidb

@@ -713,9 +713,8 @@ void IncrbyFloatCmd::DoUpdateCache(PClient* client) {
   }
 }
 
-/*
-SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+SetBitCmd::SetBitCmd(const std::string& name, int16_t arity, uint32_t flag)
+    : BaseCmd(name, arity, flag, kAclCategoryWrite | kAclCategoryString) {}
 
 bool SetBitCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -723,18 +722,6 @@ bool SetBitCmd::DoInitial(PClient* client) {
 }
 
 void SetBitCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
-  if (err == kPErrorNotExist) {
-    value = PSTORE.SetValue(client->Key(), PObject::CreateString(""));
-    err = kPErrorOK;
-  }
-
-  if (err != kPErrorOK) {
-    client->AppendInteger(0);
-    return;
-  }
-
   long offset = 0;
   long on = 0;
   if (!Strtol(client->argv_[2].c_str(), client->argv_[2].size(), &offset) ||
@@ -748,37 +735,34 @@ void SetBitCmd::DoCmd(PClient* client) {
     return;
   }
 
-  PString* pStringPtr = value->CastString();
-  if (!pStringPtr) {
-    client->AppendInteger(0);
+  if ((on & ~1) != 0) {
+    client->SetRes(CmdRes::kInvalidBitInt);
     return;
   }
 
-  PString& newVal = *pStringPtr;
-
-  size_t bytes = offset / 8;
-  size_t bits = offset % 8;
-
-  if (bytes + 1 > newVal.size()) {
-    newVal.resize(bytes + 1, '\0');
-  }
-
-  const char oldByte = newVal[bytes];
-  char& byte = newVal[bytes];
-  if (on) {
-    byte |= (0x1 << bits);
+  PString value;
+  int32_t bit_val = 0;
+  storage::Status s = PSTORE.GetBackend()->SetBit(client->Key(), offset, static_cast<int32_t>(on), &bit_val);
+  if (s.ok()) {
+    client->AppendInteger(static_cast<int>(bit_val));
+    client->SetValue(PObject::CreateString(static_cast<long>(bit_val)));
   } else {
-    byte &= ~(0x1 << bits);
+    client->SetRes(CmdRes::kErrOther, s.ToString());
   }
-
-  value->Reset(new PString(newVal));
-  value->encoding = kPEncodeRaw;
-  client->AppendInteger((oldByte & (0x1 << bits)) ? 1 : 0);
-  return;
+  client->SetStatus(s);
 }
 
-DecrbyCmd::DecrbyCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+void SetBitCmd::DoThroughDB(PClient* client) { DoCmd(client); }
+
+void SetBitCmd::DoUpdateCache(PClient* client) {
+  if (client->GetStatus().ok() && client->Ok()) {
+    PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+    PSTORE.SetValue(client->Key(), std::move(client->Value()));
+  }
+}
+
+DecrbyCmd::DecrbyCmd(const std::string& name, int16_t arity, uint32_t flag)
+    : BaseCmd(name, arity, flag, kAclCategoryWrite | kAclCategoryString) {}
 
 bool DecrbyCmd::DoInitial(PClient* client) {
   int64_t by = 0;
@@ -791,31 +775,37 @@ bool DecrbyCmd::DoInitial(PClient* client) {
 }
 
 void DecrbyCmd::DoCmd(PClient* client) {
-  int64_t new_value = 0;
+  int64_t ret = 0;
   int64_t by = 0;
-  pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by);
-  PError err = PSTORE.Decrby(client->Key(), by, &new_value);
-  switch (err) {
-    case kPErrorType:
-      client->SetRes(CmdRes::kInvalidInt);
-      break;
-    case kPErrorNotExist:  // key not exist, set a new value
-      by *= -1;
-      PSTORE.ClearExpire(client->Key());  // clear key's old ttl
-      PSTORE.SetValue(client->Key(), PObject::CreateString(by));
-      client->AppendInteger(by);
-      break;
-    case kPErrorOK:
-      client->AppendInteger(new_value);
-      break;
-    default:
-      client->SetRes(CmdRes::kErrOther, "decrby cmd error");
-      break;
+  if (pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &by) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  storage::Status s = PSTORE.GetBackend()->Decrby(client->Key(), by, &ret);
+  if (s.ok()) {
+    client->AppendContent(":" + std::to_string(ret));
+    client->SetValue(PObject::CreateString(ret));
+  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
+    client->SetRes(CmdRes::kInvalidInt);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kOverFlow);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+  client->SetStatus(s);
+}
+
+void DecrbyCmd::DoThroughDB(PClient* client) { DoCmd(client); }
+
+void DecrbyCmd::DoUpdateCache(PClient* client) {
+  if (client->GetStatus().ok() && client->Ok()) {
+    PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+    PSTORE.SetValue(client->Key(), std::move(client->Value()));
   }
 }
 
-DecrCmd::DecrCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+DecrCmd::DecrCmd(const std::string& name, int16_t arity, uint32_t flag)
+    : BaseCmd(name, arity, flag, kAclCategoryRead | kAclCategoryString) {}
 
 bool DecrCmd::DoInitial(pikiwidb::PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -823,32 +813,32 @@ bool DecrCmd::DoInitial(pikiwidb::PClient* client) {
 }
 
 void DecrCmd::DoCmd(pikiwidb::PClient* client) {
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
-  if (err == kPErrorNotExist) {
-    value = PSTORE.SetValue(client->Key(), PObject::CreateString(-1));
-    client->AppendInteger(-1);
-    return;
-  }
-
-  if (err != kPErrorOK) {
-    client->SetRes(CmdRes::kErrOther);
-    return;
-  }
-
-  if (value->encoding != kPEncodeInt) {
+  int64_t ret = 0;
+  storage::Status s = PSTORE.GetBackend()->Decrby(client->Key(), 1, &ret);
+  if (s.ok()) {
+    client->AppendContent(":" + std::to_string(ret));
+    client->SetValue(PObject::CreateString(ret));
+  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
     client->SetRes(CmdRes::kInvalidInt);
-    return;
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kOverFlow);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
   }
-
-  intptr_t oldVal = static_cast<intptr_t>(reinterpret_cast<std::intptr_t>(value->value));
-  value->Reset(reinterpret_cast<void*>(oldVal - 1));
-
-  client->AppendInteger(oldVal - 1);
+  client->SetStatus(s);
 }
 
-IncrCmd::IncrCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+void DecrCmd::DoThroughDB(PClient* client) { DoCmd(client); }
+
+void DecrCmd::DoUpdateCache(PClient* client) {
+  if (client->GetStatus().ok() && client->Ok()) {
+    PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+    PSTORE.SetValue(client->Key(), std::move(client->Value()));
+  }
+}
+
+IncrCmd::IncrCmd(const std::string& name, int16_t arity, uint32_t flag)
+    : BaseCmd(name, arity, flag, kAclCategoryRead | kAclCategoryString) {}
 
 bool IncrCmd::DoInitial(pikiwidb::PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -856,29 +846,28 @@ bool IncrCmd::DoInitial(pikiwidb::PClient* client) {
 }
 
 void IncrCmd::DoCmd(pikiwidb::PClient* client) {
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
-  if (err == kPErrorNotExist) {
-    value = PSTORE.SetValue(client->Key(), PObject::CreateString(1));
-    client->AppendInteger(1);
-    return;
-  }
-
-  if (err != kPErrorOK) {
-    client->SetRes(CmdRes::kErrOther);
-    return;
-  }
-
-  if (value->encoding != kPEncodeInt) {
+  int64_t ret = 0;
+  storage::Status s = PSTORE.GetBackend()->Incrby(client->Key(), 1, &ret);
+  if (s.ok()) {
+    client->AppendContent(":" + std::to_string(ret));
+    client->SetValue(PObject::CreateString(ret));
+  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
     client->SetRes(CmdRes::kInvalidInt);
-    return;
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kOverFlow);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
   }
-
-  intptr_t oldVal = static_cast<intptr_t>(reinterpret_cast<std::intptr_t>(value->value));
-  value->Reset(reinterpret_cast<void*>(oldVal + 1));
-
-  client->AppendInteger(oldVal + 1);
+  client->SetStatus(s);
 }
-*/
+
+void IncrCmd::DoThroughDB(PClient* client) { DoCmd(client); }
+
+void IncrCmd::DoUpdateCache(PClient* client) {
+  if (client->GetStatus().ok() && client->Ok()) {
+    PSTORE.ClearExpire(client->Key());  // clear key's old ttl
+    PSTORE.SetValue(client->Key(), std::move(client->Value()));
+  }
+}
 
 }  // namespace pikiwidb
