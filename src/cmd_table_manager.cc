@@ -45,22 +45,22 @@ void CmdTableManager::InitCmdTable() {
 
   // kv
   ADD_COMMAND(Get, 2, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
-  /*
-  ADD_COMMAND(Set, -3);
-  ADD_COMMAND(MGet, -2);
-  ADD_COMMAND(MSet, -3);
-  ADD_COMMAND(GetSet, 3);
-  ADD_COMMAND(SetNX, 3);
-  ADD_COMMAND(Append, 3);
-  ADD_COMMAND(Strlen, 2);
-  ADD_COMMAND(Incrby, 3);
-  ADD_COMMAND(IncrbyFloat, 3);
-  ADD_COMMAND(SetEx, 4);
-  ADD_COMMAND(PSetEx, 4);
-  ADD_COMMAND(BitOp, -4);
-  ADD_COMMAND(BitCount, -2);
-  ADD_COMMAND(GetBit, 3);
+  ADD_COMMAND(Set, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache);
+  ADD_COMMAND(BitOp, -4, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache);
+  ADD_COMMAND(Strlen, 2, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
+  ADD_COMMAND(SetEx, 4, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(PSetEx, 4, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(SetNX, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB);
+  ADD_COMMAND(Append, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(GetSet, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(MGet, -2, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
+  ADD_COMMAND(MSet, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(BitCount, -2, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
+  ADD_COMMAND(Incrby, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
+  ADD_COMMAND(GetBit, 3, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
+  ADD_COMMAND(IncrbyFloat, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
 
+  /*
   // hash
   ADD_COMMAND(HSet, -4);
   ADD_COMMAND(HGet, 3);

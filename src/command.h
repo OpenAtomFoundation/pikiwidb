@@ -63,11 +63,11 @@ PCommandHandler auth;
 PCommandHandler slowlog;
 PCommandHandler config;
 
+
 // string commands
 PCommandHandler set;
-*/
 PCommandHandler get;
-/*
+
 PCommandHandler getrange;
 PCommandHandler setrange;
 PCommandHandler getset;

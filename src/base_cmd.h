@@ -245,7 +245,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   bool IsNeedReadCache() const { return ((flag_ & kCmdFlagsMaskReadCache) == kCmdFlagsReadCache); }
   bool IsRead() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsReadonly); }
   bool IsWrite() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsWrite); }
-  bool IsNeedUpdateCache() const { return ((flag_ & kCmdFlagsMaskUpdateCache) == kCmdFlagsUpdateCache);  }
+  bool IsNeedUpdateCache() const { return ((flag_ & kCmdFlagsMaskUpdateCache) == kCmdFlagsUpdateCache); }
 
   std::string name_;
   int16_t arity_ = 0;
