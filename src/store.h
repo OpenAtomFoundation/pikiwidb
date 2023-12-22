@@ -133,6 +133,7 @@ class PStore {
   // @todo内存中可能暂时不需要这个，Incrby和Incrbyfloat两个命令的实现可以直接通过bw的接口实现
   // incr
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
+  PError Decrby(const PString& key, int64_t value, int64_t* ret);
   PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
 
   // for expire key
