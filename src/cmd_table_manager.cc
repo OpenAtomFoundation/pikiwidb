@@ -60,6 +60,10 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(GetBit, 3, kCmdFlagsReadonly | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache);
   ADD_COMMAND(IncrbyFloat, 3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB |kCmdFlagsUpdateCache);
 
+  // ADD_COMMAND(Decr, 2);
+  // ADD_COMMAND(SetBit, 4)
+  // ADD_COMMAND(Incr, 2);
+  // ADD_COMMAND(Decrby, 3);
   /*
   // hash
   ADD_COMMAND(HSet, -4);

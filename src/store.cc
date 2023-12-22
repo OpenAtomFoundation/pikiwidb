@@ -8,6 +8,7 @@
 #include "store.h"
 #include <cassert>
 #include <limits>
+#include <string>
 #include "client.h"
 #include "common.h"
 #include "config.h"
@@ -729,6 +730,47 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   PObject new_value;
   *ret = ival + value;
   new_value = PObject::CreateString((long)(*ret));
+  new_value.lru = PObject::lruclock;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
+  const PObject& obj = realObj->second;
+
+  // put this key to sync list
+  if (!waitSyncKeys_.empty()) {
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
+  }
+
+  return kPErrorOK;
+}
+
+PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
+  auto db = &dbs_[dbno_];
+
+  // shared when reading
+  std::unique_lock<std::shared_mutex> lock(mutex_);
+  auto [old_value, err] = getValueByType(key, kPTypeString);
+  if (err != kPErrorOK) {
+    return err;
+  }
+  auto str = pikiwidb::GetDecodedString(old_value);
+
+  std::string::size_type end = 0;  // alias of size_t
+  int64_t ival = 0;
+  try {
+    ival = std::stoll(str->c_str(), &end, 0);
+  } catch (const std::out_of_range& e) {
+    return kPErrorOverflow;
+  } catch (...) {
+    return kPErrorType;
+  }
+
+  if (end == 0) {
+    // value is not a integer
+    return kPErrorType;
+  }
+
+  PObject new_value;
+  *ret = ival - value;
+  new_value = PObject::CreateString(static_cast<long>(*ret));
   new_value.lru = PObject::lruclock;
   auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
   const PObject& obj = realObj->second;
