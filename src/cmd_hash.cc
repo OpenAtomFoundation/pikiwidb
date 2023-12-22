@@ -489,7 +489,7 @@ void HRandFieldCmd::DoWithPositiveCount(PClient* client, const PHash* hash, int6
     for (auto&& kv : *hash) {
       kvs.push_back(kv);
     }
-    std::random_shuffle(kvs.begin(), kvs.end());
+    std::shuffle(kvs.begin(), kvs.end(), std::mt19937(rd_()));
 
     client->AppendArrayLen(with_value ? count * 2 : count);
     for (size_t i = 0; i < count; i++) {
