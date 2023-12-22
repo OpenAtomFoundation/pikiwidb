@@ -9,6 +9,7 @@
 #include <memory>
 #include "cmd_admin.h"
 #include "cmd_hash.h"
+#include "cmd_set.h"
 #include "cmd_keys.h"
 #include "cmd_kv.h"
 
@@ -71,6 +72,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HKeys, 2);
   ADD_COMMAND(HLen, 2);
   ADD_COMMAND(HStrLen, 3);
+
+  // set
+  ADD_COMMAND(SIsMember,3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
