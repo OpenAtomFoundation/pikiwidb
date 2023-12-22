@@ -8,13 +8,14 @@
 #pragma once
 
 #include <map>
+#include <vector>
 #include "pstring.h"
 
 namespace pikiwidb {
 
 enum BackEndType {
   kBackEndNone = 0,
-  kBackEndLeveldb = 1,
+  kBackEndRocksdb = 1,
   kBackEndMax = 2,
 };
 
@@ -26,6 +27,8 @@ struct PConfig {
   unsigned short port;
 
   int timeout;
+
+  PString dbpath;
 
   PString loglevel;
   PString logdir;  // the log directory, differ from redis
@@ -77,10 +80,40 @@ struct PConfig {
   PString backendPath;
   int backendHz;  // the frequency of dump to backend
 
+  int64_t max_client_response_size;
+
+  // cache
+  int cache_num;
+  int cache_model;
+  bool tmp_cache_disable_flag{false};
+  int cache_string;
+  int cache_set;
+  int cache_zset;
+  int cache_hash;
+  int cache_list;
+  int cache_bit;
+  int zset_cache_field_num_per_key;
+  int zset_cache_start_pos;
+  int64_t cache_maxmemory;
+  int cache_maxmemory_policy;
+  int cache_maxmemory_samples;
+  int cache_lfu_decay_time;
+
   PConfig();
 
   bool CheckArgs() const;
   bool CheckPassword(const PString& pwd) const;
+  bool IsCacheDisabledTemporarily() const { return tmp_cache_disable_flag; }
+  void UnsetCacheDisableFlag() { tmp_cache_disable_flag = false; }
+  void SetCacheDisableFlag() { tmp_cache_disable_flag = true; }
+  int GetCacheString() const { return cache_string; }
+  int GetCacheSet() const { return cache_set; }
+  int GetCacheZset() const { return cache_zset; }
+  int GetCacheHash() const { return cache_hash; }
+  int GetCacheList() const { return cache_list; }
+  int GetCacheBit() const { return cache_bit; }
+  int GetCacheNum() const { return cache_num; }
+  int GetCacheModel() const { return cache_model; }
 };
 
 extern PConfig g_config;

@@ -633,7 +633,7 @@ PObject PDBLoader::loadList() {
   assert(!special);
   DEBUG("list length = {}", len);
 
-  PObject obj(PObject::CreateList());
+  PObject obj(PObject::CreateList(nullptr));
   PLIST list(obj.CastList());
   for (size_t i = 0; i < len; ++i) {
     const auto elemLen = LoadLength(special);
@@ -658,7 +658,7 @@ PObject PDBLoader::loadSet() {
   assert(!special);
   DEBUG("set length = {}", len);
 
-  PObject obj(PObject::CreateSet());
+  PObject obj(PObject::CreateSet(nullptr));
   PSET set(obj.CastSet());
   for (size_t i = 0; i < len; ++i) {
     const auto elemLen = LoadLength(special);
@@ -683,7 +683,7 @@ PObject PDBLoader::loadHash() {
   assert(!special);
   DEBUG("hash length = {}", len);
 
-  PObject obj(PObject::CreateHash());
+  PObject obj(PObject::CreateHash(nullptr));
   PHASH hash(obj.CastHash());
   for (size_t i = 0; i < len; ++i) {
     const auto keyLen = LoadLength(special);
@@ -717,7 +717,7 @@ PObject PDBLoader::loadZSet() {
   assert(!special);
   DEBUG("zset length = {}", len);
 
-  PObject obj(PObject::CreateZSet());
+  PObject obj(PObject::CreateZSet(nullptr));
   PZSET zset(obj.CastSortedSet());
   for (size_t i = 0; i < len; ++i) {
     const auto memberLen = LoadLength(special);
@@ -823,7 +823,7 @@ PObject PDBLoader::loadZipList(const PString& zl, int8_t type) {
 
   switch (type) {
     case kTypeZipList: {
-      PObject obj(PObject::CreateList());
+      PObject obj(PObject::CreateList(nullptr));
       PLIST list(obj.CastList());
 
       for (const auto& elem : elements) {
@@ -834,7 +834,7 @@ PObject PDBLoader::loadZipList(const PString& zl, int8_t type) {
     }
 
     case kTypeHashZipList: {
-      PObject obj(PObject::CreateHash());
+      PObject obj(PObject::CreateHash(nullptr));
       PHASH hash(obj.CastHash());
 
       assert(elements.size() % 2 == 0);
@@ -850,7 +850,7 @@ PObject PDBLoader::loadZipList(const PString& zl, int8_t type) {
     }
 
     case kTypeZSetZipList: {
-      PObject obj(PObject::CreateZSet());
+      PObject obj(PObject::CreateZSet(nullptr));
       PZSET zset(obj.CastSortedSet());
 
       assert(elements.size() % 2 == 0);
@@ -894,7 +894,7 @@ PObject PDBLoader::loadIntset() {
     intsetGet(iset, i, &elements[i]);
   }
 
-  PObject obj(PObject::CreateSet());
+  PObject obj(PObject::CreateSet(nullptr));
   PSET set(obj.CastSet());
 
   for (auto v : elements) {
@@ -910,7 +910,7 @@ PObject PDBLoader::loadQuickList() {
   bool special = true;
   auto nElem = LoadLength(special);
 
-  PObject obj(PObject::CreateList());
+  PObject obj(PObject::CreateList(nullptr));
   PLIST list(obj.CastList());
   while (nElem-- > 0) {
     PString zl = loadGenericString();

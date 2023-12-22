@@ -11,12 +11,20 @@
 
 namespace pikiwidb {
 
-PObject PObject::CreateHash() {
+PObject PObject::CreateHash(std::vector<storage::FieldValue>* fvs) {
   PObject obj(kPTypeHash);
   obj.Reset(new PHash);
+
+  if (fvs) {
+    auto value = obj.CastHash();
+    for (auto it = fvs->begin(); it != fvs->end(); it++) {
+      value->insert(std::make_pair(it->field, it->value));
+    }
+  }
+
   return obj;
 }
-
+/*
 #define GET_HASH(hashname)                                         \
   PObject* value;                                                  \
   PError err = PSTORE.GetValueByType(hashname, value, kPTypeHash); \
@@ -302,5 +310,5 @@ size_t HScanKey(const PHash& hash, size_t cursor, size_t count, std::vector<PStr
 
   return newCursor;
 }
-
+*/
 }  // namespace pikiwidb

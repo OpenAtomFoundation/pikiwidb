@@ -15,12 +15,14 @@
 #include "list.h"
 #include "set.h"
 #include "sorted_set.h"
+#include "storage/storage.h"
 
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
+#include <tuple>
 #include <vector>
 
 namespace pikiwidb {
@@ -66,10 +68,10 @@ struct PObject {
 
   static PObject CreateString(const PString& value);
   static PObject CreateString(long value);
-  static PObject CreateList();
-  static PObject CreateSet();
-  static PObject CreateZSet();
-  static PObject CreateHash();
+  static PObject CreateHash(std::vector<storage::FieldValue>* fvs);
+  static PObject CreateList(std::vector<std::string>* values);
+  static PObject CreateSet(std::vector<std::string>* values);
+  static PObject CreateZSet(std::vector<storage::ScoreMember>* score_members);
 
   PSTRING CastString() const { return reinterpret_cast<PSTRING>(value); }
   PLIST CastList() const { return reinterpret_cast<PLIST>(value); }
@@ -99,9 +101,17 @@ class PStore {
 
   int SelectDB(int dbno);
   int GetDB() const;
+  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_]; }
+
+  bool LoadKV(const PString& key) const;
+  bool LoadHash(const PString& key) const;
+  bool LoadList(const PString& key) const;
+  bool LoadSet(const PString& key) const;
+  bool LoadZset(const PString& key) const;
+  bool LoadKey(const PString& key, PType type = kPTypeInvalid) const;
 
   // Key operation
-  bool DeleteKey(const PString& key);
+  bool DeleteKey(const PString& key) const;
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;
@@ -112,13 +122,15 @@ class PStore {
   PDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
   PDB::const_iterator end() const { return dbs_[dbno_].end(); }
 
-  const PObject* GetObject(const PString& key) const;
-  PError GetValue(const PString& key, PObject*& value, bool touch = true);
-  PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
+  const PObject* GetObject(const PString& key, PType type) const;
+  std::tuple<PObject*, PError> GetValue(const PString& key, bool touch = true);
+  std::tuple<PObject*, PError> GetValueByType(const PString& key, PType type = kPTypeInvalid);
   // do not update lru time
-  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
+  std::tuple<PObject*, PError> GetValueByTypeNoTouch(const PString& key, PType type = kPTypeInvalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
+
+  // @todo内存中可能暂时不需要这个，Incrby和Incrbyfloat两个命令的实现可以直接通过bw的接口实现
   // incr
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
   PError Decrby(const PString& key, int64_t value, int64_t* ret);
@@ -157,7 +169,10 @@ class PStore {
   void InitEvictionTimer();
   // for backends
   void InitDumpBackends();
+  // @todo似乎并没有轮寻落盘的逻辑了，直接是走的bw的接口落盘
   void DumpToBackends(int dbno);
+
+  // @todo应该是没有添加dirtykey的概念了
   void AddDirtyKey(const PString& key);
   void AddDirtyKey(const PString& key, const PObject* value);
 
@@ -166,7 +181,7 @@ class PStore {
   // mutex
   mutable std::shared_mutex mutex_;
 
-  PError getValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid, bool touch = true);
+  std::tuple<PObject*, PError> getValueByType(const PString& key, PType type = kPTypeInvalid, bool touch = true);
 
   ExpireResult expireIfNeed(const PString& key, uint64_t now);
 
@@ -207,10 +222,10 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface>> backends_;
+  std::vector<std::unique_ptr<storage::Storage>> backends_;
 
   using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
-  std::vector<ToSyncDB> waitSyncKeys_;
+  std::vector<ToSyncDB> waitSyncKeys_;  // @todo 似乎并不需要了
   int dbno_ = -1;
 };
 

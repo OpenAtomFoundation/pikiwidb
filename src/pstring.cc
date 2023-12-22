@@ -57,6 +57,7 @@ std::unique_ptr<PString, void (*)(PString*)> GetDecodedString(const PObject* val
   return std::unique_ptr<PString, void (*)(PString*)>(nullptr, NotDeleteString);
 }
 
+/*
 static bool SetValue(const PString& key, const PString& value, bool exclusive = false) {
   if (exclusive) {
     PObject* val;
@@ -636,5 +637,6 @@ PError bitop(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   return kPErrorOK;
 }
+*/
 
 }  // namespace pikiwidb

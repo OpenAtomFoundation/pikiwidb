@@ -260,7 +260,8 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
         INFO("{} is try lpush to target list {}", list->front(), target);
 
         // check target list
-        PError err = PSTORE.GetValueByType(target, dst, kPTypeList);
+        PError err;
+        std::tie(dst, err) = PSTORE.GetValueByType(target, kPTypeList);
         if (err != kPErrorOK) {
           if (err != kPErrorNotExist) {
             UnboundedBuffer reply;
@@ -268,7 +269,7 @@ size_t PStore::BlockedClients::ServeClient(const PString& key, const PLIST& list
             cli->SendPacket(reply);
             errorTarget = true;
           } else {
-            dst = PSTORE.SetValue(target, PObject::CreateList());
+            dst = PSTORE.SetValue(target, PObject::CreateList(nullptr));
           }
         }
       }
@@ -395,50 +396,143 @@ int PStore::SelectDB(int dbno) {
 
 int PStore::GetDB() const { return dbno_; }
 
-const PObject* PStore::GetObject(const PString& key) const {
+bool PStore::LoadKV(const PString& key) const {
+  PString value;
+  int64_t ttl = -1;
+  rocksdb::Status s = backends_[dbno_]->GetWithTTL(key, &value, &ttl);
+  if (!s.ok()) {
+    LOG(WARNING) << "load kv failed, key=" << key;
+    return false;
+  }
+
+  PObject obj = PObject::CreateString(value);
+  obj.lru = PObject::lruclock;
+  dbs_[dbno_].insert_or_assign(key, std::move(obj));
+  return true;
+}
+
+bool PStore::LoadHash(const PString& key) const {
+  int32_t len = 0;
+  backends_[dbno_]->HLen(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
+  std::vector<storage::FieldValue> fvs;
+  int64_t ttl = -1;
+  rocksdb::Status s = backends_[dbno_]->HGetallWithTTL(key, &fvs, &ttl);
+  if (!s.ok()) {
+    LOG(WARNING) << "load hash failed, key=" << key;
+    return false;
+  }
+
+  PObject obj = PObject::CreateHash(&fvs);
+  obj.lru = PObject::lruclock;
+  dbs_[dbno_].insert_or_assign(key, std::move(obj));
+  return true;
+}
+
+bool PStore::LoadList(const PString& key) const {
+  uint64_t len = 0;
+  backends_[dbno_]->LLen(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
+  std::vector<std::string> values;
+  int64_t ttl = -1;
+  rocksdb::Status s = backends_[dbno_]->LRangeWithTTL(key, 0, -1, &values, &ttl);
+  if (!s.ok()) {
+    LOG(WARNING) << "load hash failed, key=" << key;
+    return false;
+  }
+
+  PObject obj = PObject::CreateList(&values);
+  obj.lru = PObject::lruclock;
+  dbs_[dbno_].insert_or_assign(key, std::move(obj));
+  return true;
+}
+
+bool PStore::LoadSet(const PString& key) const {
+  int32_t len = 0;
+  backends_[dbno_]->SCard(key, &len);
+  if (0 >= len || CACHE_VALUE_ITEM_MAX_SIZE < len) {
+    LOG(WARNING) << "can not load key, because item size:" << len
+                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+    return false;
+  }
+
+  std::vector<std::string> values;
+  int64_t ttl = -1;
+  rocksdb::Status s = backends_[dbno_]->SMembersWithTTL(key, &values, &ttl);
+  if (!s.ok()) {
+    LOG(WARNING) << "load hash failed, key=" << key;
+    return false;
+  }
+
+  PObject obj = PObject::CreateSet(&values);
+  obj.lru = PObject::lruclock;
+  dbs_[dbno_].insert_or_assign(key, std::move(obj));
+  return true;
+}
+
+bool PStore::LoadZset(const PString& key) const {
+  std::vector<storage::ScoreMember> score_members;
+  int32_t len = 0;
+  int64_t ttl = -1;
+  int startIndex = 0;
+  int stopIndex = -1;
+  backends_[dbno_]->ZCard(key, &len);
+  if (len <= 0) {
+    return false;
+  }
+
+  rocksdb::Status s = backends_[dbno_]->ZRangeWithTTL(key, startIndex, stopIndex, &score_members, &ttl);
+  if (!s.ok()) {
+    LOG(WARNING) << "load hash failed, key=" << key;
+    return false;
+  }
+
+  PObject obj = PObject::CreateZSet(&score_members);
+  obj.lru = PObject::lruclock;
+  dbs_[dbno_].insert_or_assign(key, std::move(obj));
+  return true;
+}
+
+bool PStore::LoadKey(const PString& key, PType type) const {
+  switch (type) {
+    case kPTypeString:
+      return LoadKV(key);
+    case kPTypeHash:
+      return LoadHash(key);
+    case kPTypeList:
+      return LoadList(key);
+    case kPTypeSet:
+      return LoadSet(key);
+    case kPTypeSortedSet:
+      return LoadZset(key);
+    default:
+      LOG(WARNING) << "LoadKey invalid key type : " << type;
+      return false;
+  }
+}
+
+const PObject* PStore::GetObject(const PString& key, PType type) const {
   auto db = &dbs_[dbno_];
   PDB::const_iterator it(db->find(key));
   if (it != db->end()) {
     return &it->second;
   }
 
-  if (!backends_.empty()) {
-    // if it's in dirty list, it must be deleted, wait sync to backend
-    if (waitSyncKeys_[dbno_].find(key) != waitSyncKeys_[dbno_].end()) {
-      return nullptr;
-    }
-
-    // load from leveldb, if has, insert to pikiwidb cache
-    PObject obj = backends_[dbno_]->Get(key);
-    if (obj.type != kPTypeInvalid) {
-      DEBUG("GetKey from leveldb:{}", key);
-
-      unsigned int remainTtlSecondsTemp = obj.lru;
-      // XXX: assign lru here cause everything get from db is immutable
-      obj.lru = PObject::lruclock;
-      db->try_emplace(key, std::move(obj));
-      const PObject& realobj = db->find(key)->second;
-
-      // trick: use lru field to store the remain seconds to be expired.
-      unsigned int remainTtlSeconds = remainTtlSecondsTemp;
-      if (remainTtlSeconds > 0) {
-        SetExpire(key, ::Now() + remainTtlSeconds * 1000);
-      }
-
-      return &realobj;
-    }
-  }
-
   return nullptr;
 }
 
-bool PStore::DeleteKey(const PString& key) {
+bool PStore::DeleteKey(const PString& key) const {
   auto db = &dbs_[dbno_];
-  // add to dirty queue
-  if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_].insert_or_assign(key, nullptr);  // null implies delete data
-  }
-
   size_t ret = 0;
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
   try {
@@ -451,12 +545,74 @@ bool PStore::DeleteKey(const PString& key) {
 }
 
 bool PStore::ExistsKey(const PString& key) const {
-  const PObject* obj = GetObject(key);
+  const PObject* obj = nullptr;
+  PType type = kPTypeString;
+  switch (type) {
+    case kPTypeString:
+      obj = GetObject(key, kPTypeString);
+      if (obj) {
+        break;
+      }
+    case kPTypeHash:
+      obj = GetObject(key, kPTypeHash);
+      if (obj) {
+        break;
+      }
+    case kPTypeList:
+      obj = GetObject(key, kPTypeList);
+      if (obj) {
+        break;
+      }
+    case kPTypeSet:
+      obj = GetObject(key, kPTypeSet);
+      if (obj) {
+        break;
+      }
+    case kPTypeSortedSet:
+      obj = GetObject(key, kPTypeSortedSet);
+      if (obj) {
+        break;
+      }
+    default:
+      break;
+  }
+
   return obj != nullptr;
 }
 
 PType PStore::KeyType(const PString& key) const {
-  const PObject* obj = GetObject(key);
+  const PObject* obj = nullptr;
+  PType type = kPTypeString;
+  switch (type) {
+    case kPTypeString:
+      obj = GetObject(key, kPTypeString);
+      if (obj) {
+        break;
+      }
+    case kPTypeHash:
+      obj = GetObject(key, kPTypeHash);
+      if (obj) {
+        break;
+      }
+    case kPTypeList:
+      obj = GetObject(key, kPTypeList);
+      if (obj) {
+        break;
+      }
+    case kPTypeSet:
+      obj = GetObject(key, kPTypeSet);
+      if (obj) {
+        break;
+      }
+    case kPTypeSortedSet:
+      obj = GetObject(key, kPTypeSortedSet);
+      if (obj) {
+        break;
+      }
+    default:
+      break;
+  }
+
   if (!obj) {
     return kPTypeInvalid;
   }
@@ -503,43 +659,43 @@ size_t PStore::ScanKey(size_t cursor, size_t count, std::vector<PString>& res) c
   return newCursor;
 }
 
-PError PStore::GetValue(const PString& key, PObject*& value, bool touch) {
+std::tuple<PObject*, PError> PStore::GetValue(const PString& key, bool touch) {
   if (touch) {
-    return GetValueByType(key, value);
+    return GetValueByType(key);
   }
 
-  return GetValueByTypeNoTouch(key, value);
+  return GetValueByTypeNoTouch(key);
 }
 
-PError PStore::GetValueByType(const PString& key, PObject*& value, PType type) {
-  return getValueByType(key, value, type, true);
+std::tuple<PObject*, PError> PStore::GetValueByType(const PString& key, PType type) {
+  return getValueByType(key, type, true);
 }
 
-PError PStore::GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type) {
-  return getValueByType(key, value, type, false);
+std::tuple<PObject*, PError> PStore::GetValueByTypeNoTouch(const PString& key, PType type) {
+  return getValueByType(key, type, false);
 }
 
-PError PStore::getValueByType(const PString& key, PObject*& value, PType type, bool touch) {
+std::tuple<PObject*, PError> PStore::getValueByType(const PString& key, PType type, bool touch) {
   if (expireIfNeed(key, ::Now()) == ExpireResult::kExpired) {
-    return kPErrorNotExist;
+    return std::make_tuple(nullptr, kPErrorNotExist);
   }
 
-  auto cobj = GetObject(key);
+  auto cobj = GetObject(key, type);
   if (!cobj) {
-    return kPErrorNotExist;
+    return std::make_tuple(nullptr, kPErrorNotExist);
   }
 
   if (type != kPTypeInvalid && type != PType(cobj->type)) {
-    return kPErrorType;
+    return std::make_tuple(nullptr, kPErrorType);
   }
-  value = const_cast<PObject*>(cobj);
+  auto value = const_cast<PObject*>(cobj);
   // Do not update if child process exists
   extern pid_t g_qdbPid;
   if (touch && g_qdbPid == -1) {
     value->lru = PObject::lruclock;
   }
 
-  return kPErrorOK;
+  return std::make_tuple(value, kPErrorOK);
 }
 
 PObject* PStore::SetValue(const PString& key, PObject&& value) {
@@ -547,11 +703,6 @@ PObject* PStore::SetValue(const PString& key, PObject&& value) {
   value.lru = PObject::lruclock;
   auto [realObj, status] = db->insert_or_assign(key, std::move(value));
   const PObject& obj = realObj->second;
-
-  // put this key to sync list
-  if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
-  }
 
   // XXX: any better solution without const_cast?
   return const_cast<PObject*>(&obj);
@@ -563,7 +714,8 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, kPTypeString);
+  PError err;
+  std::tie(old_value, err) = getValueByType(key, kPTypeString);
   if (err != kPErrorOK) {
     return err;
   }
@@ -591,12 +743,11 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
 }
 
 PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
-  PObject* old_value = nullptr;
   auto db = &dbs_[dbno_];
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, kPTypeString);
+  auto [old_value, err] = getValueByType(key, kPTypeString);
   if (err != kPErrorOK) {
     return err;
   }
@@ -644,7 +795,8 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
 
   // shared when reading
   std::unique_lock<std::shared_mutex> lock(mutex_);
-  PError err = getValueByType(key, old_value, kPTypeString);
+  PError err;
+  std::tie(old_value, err) = getValueByType(key, kPTypeString);
   if (err != kPErrorOK) {
     return err;
   }
@@ -800,22 +952,23 @@ void PStore::InitEvictionTimer() {
   loop->ScheduleRepeatedly(1000, EvictItems);
 }
 
+// @todo 改成rocksdb的
 void PStore::InitDumpBackends() {
-  assert(waitSyncKeys_.empty());
-
   if (g_config.backend == kBackEndNone) {
     return;
   }
 
-  if (g_config.backend == kBackEndLeveldb) {
-    waitSyncKeys_.resize(dbs_.size());
+  if (g_config.backend == kBackEndRocksdb) {
     for (size_t i = 0; i < dbs_.size(); ++i) {
-      std::unique_ptr<PLeveldb> db(new PLeveldb);
-      PString dbpath = g_config.backendPath + std::to_string(i);
-      if (!db->Open(dbpath.data())) {
+      std::unique_ptr<storage::Storage> db = std::make_unique<storage::Storage>();
+      storage::StorageOptions storage_options;
+      storage_options.options.create_if_missing = true;
+      PString dbpath = g_config.dbpath + std::to_string(i) + '/';
+      storage::Status s = db->Open(storage_options, dbpath.data());
+      if (!s.ok()) {
         assert(false);
       } else {
-        INFO("Open leveldb {}", dbpath);
+        INFO("Open rocksdb {}", dbpath);
       }
 
       backends_.push_back(std::move(db));
@@ -824,48 +977,39 @@ void PStore::InitDumpBackends() {
     // ERROR: unsupport backend
     return;
   }
-
-  auto loop = EventLoop::Self();
-  for (int i = 0; i < static_cast<int>(backends_.size()); ++i) {
-    loop->ScheduleRepeatedly(1000 / g_config.backendHz, [&, i]() {
-      int old_db = PSTORE.SelectDB(i);
-      PSTORE.DumpToBackends(i);
-      PSTORE.SelectDB(old_db);
-    });
-  }
 }
 
-void PStore::DumpToBackends(int dbno) {
-  if (static_cast<int>(waitSyncKeys_.size()) <= dbno) {
-    return;
-  }
+// void PStore::DumpToBackends(int dbno) {
+//   if (static_cast<int>(waitSyncKeys_.size()) <= dbno) {
+//     return;
+//   }
 
-  const int kMaxSync = 100;
-  int processed = 0;
-  auto& dirtyKeys = waitSyncKeys_[dbno];
+//   const int kMaxSync = 100;
+//   int processed = 0;
+//   auto& dirtyKeys = waitSyncKeys_[dbno];
 
-  uint64_t now = ::Now();
-  for (auto it = dirtyKeys.begin(); processed++ < kMaxSync && it != dirtyKeys.end();) {
-    // check ttl
-    int64_t when = PSTORE.TTL(it->first, now);
+//   uint64_t now = ::Now();
+//   for (auto it = dirtyKeys.begin(); processed++ < kMaxSync && it != dirtyKeys.end();) {
+//     // check ttl
+//     int64_t when = PSTORE.TTL(it->first, now);
 
-    if (it->second && when != PStore::ExpireResult::kExpired) {
-      assert(when != PStore::ExpireResult::kNotExpire);
+//     if (it->second && when != PStore::ExpireResult::kExpired) {
+//       assert(when != PStore::ExpireResult::kNotExpire);
 
-      if (when > 0) {
-        when += now;
-      }
+//       if (when > 0) {
+//         when += now;
+//       }
 
-      backends_[dbno]->Put(it->first, *it->second, when);
-      DEBUG("UPDATE leveldb key {}, when = {}", it->first, when);
-    } else {
-      backends_[dbno]->Delete(it->first);
-      DEBUG("DELETE leveldb key {}", it->first);
-    }
+//       backends_[dbno]->Put(it->first, *it->second, when);
+//       DEBUG("UPDATE leveldb key {}, when = {}", it->first, when);
+//     } else {
+//       backends_[dbno]->Delete(it->first);
+//       DEBUG("DELETE leveldb key {}", it->first);
+//     }
 
-    it = dirtyKeys.erase(it);
-  }
-}
+//     it = dirtyKeys.erase(it);
+//   }
+// }
 
 void PStore::AddDirtyKey(const PString& key) {
   // put this key to sync list

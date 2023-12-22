@@ -13,90 +13,112 @@ namespace pikiwidb {
 
 class HSetCmd : public BaseCmd {
  public:
-  HSetCmd(const std::string &name, int16_t arity);
+  HSetCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HGetCmd : public BaseCmd {
  public:
-  HGetCmd(const std::string &name, int16_t arity);
+  HGetCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HMSetCmd : public BaseCmd {
  public:
-  HMSetCmd(const std::string &name, int16_t arity);
+  HMSetCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HMGetCmd : public BaseCmd {
  public:
-  HMGetCmd(const std::string &name, int16_t arity);
+  HMGetCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HGetAllCmd : public BaseCmd {
  public:
-  HGetAllCmd(const std::string &name, int16_t arity);
+  HGetAllCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HKeysCmd : public BaseCmd {
  public:
-  HKeysCmd(const std::string &name, int16_t arity);
+  HKeysCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HLenCmd : public BaseCmd {
  public:
-  HLenCmd(const std::string &name, int16_t arity);
+  HLenCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 class HStrLenCmd : public BaseCmd {
  public:
-  HStrLenCmd(const std::string &name, int16_t arity);
+  HStrLenCmd(const std::string& name, const int16_t arity, const uint32_t flag);
+  void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient* client) override;
+  void DoUpdateCache(PClient* client) override;
 
  protected:
-  bool DoInitial(PClient *client) override;
+  bool DoInitial(PClient* client) override;
 
  private:
-  void DoCmd(PClient *client) override;
+  void DoCmd(PClient* client) override;
 };
 
 }  // namespace pikiwidb
