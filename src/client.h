@@ -83,7 +83,7 @@ class CmdRes {
 
   void SetRes(CmdRet _ret, const std::string& content = "");
 
-  void SetStatus(storage::Status s) { s_ = s; }
+  void SetStatus(storage::Status& s) { s_ = std::move(s); }
   storage::Status GetStatus() { return s_; }
 
  protected:
@@ -188,6 +188,9 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void ClearFvs() { fvs_.clear(); }
   std::vector<std::string>& Fields() { return fields_; }
   void ClearFields() { fields_.clear(); }
+  void SetDBValueStatusArray(std::vector<storage::ValueStatus>& db_value_status_array) { db_value_status_array_ = std::move(db_value_status_array); }
+  std::vector<storage::ValueStatus>& GetDBValueStatusArray() { return db_value_status_array_; }
+
   void SetSlaveInfo();
   PSlaveInfo* GetSlaveInfo() const { return slave_info_.get(); }
   void TransferToSlaveThreads();
@@ -241,6 +244,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   PObject value_;
   std::vector<storage::FieldValue> fvs_;
   std::vector<std::string> fields_;
+  std::vector<storage::ValueStatus> db_value_status_array_;
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]

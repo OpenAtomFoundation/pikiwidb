@@ -36,13 +36,17 @@ const std::string kCmdNameGetSet = "getset";
 const std::string kCmdNameSetNX = "setnx";
 const std::string kCmdNameAppend = "append";
 const std::string kCmdNameIncrby = "incrby";
+const std::string kCmdNameDecrby = "decrby";
 const std::string kCmdNameIncrbyFloat = "incrbyfloat";
 const std::string kCmdNameStrlen = "strlen";
+const std::string kCmdNameSetBit = "setbit";
 const std::string kCmdNameSetEx = "setex";
 const std::string kCmdNamePSetEx = "psetex";
 const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
 const std::string kCmdNameBitCount = "bitcount";
+const std::string kCmdNameDecr = "decr";
+const std::string kCmdNameIncr = "incr";
 
 // multi
 const std::string kCmdNameMulti = "multi";
@@ -245,7 +249,7 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   bool IsNeedReadCache() const { return ((flag_ & kCmdFlagsMaskReadCache) == kCmdFlagsReadCache); }
   bool IsRead() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsReadonly); }
   bool IsWrite() const { return ((flag_ & kCmdFlagsMaskRW) == kCmdFlagsWrite); }
-  bool IsNeedUpdateCache() const { return ((flag_ & kCmdFlagsMaskUpdateCache) == kCmdFlagsUpdateCache);  }
+  bool IsNeedUpdateCache() const { return ((flag_ & kCmdFlagsMaskUpdateCache) == kCmdFlagsUpdateCache); }
 
   std::string name_;
   int16_t arity_ = 0;

@@ -20,20 +20,22 @@ class GetCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
-  virtual void DoThroughDB(PClient* client) override;
-  virtual void DoUpdateCache(PClient* client) override;
-  virtual void ReadCache(PClient* client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+  void ReadCache(PClient *client) override;
 };
 
 class SetCmd : public BaseCmd {
  public:
-  SetCmd(const std::string &name, int16_t arity);
+  SetCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class BitOpCmd : public BaseCmd {
@@ -44,51 +46,60 @@ class BitOpCmd : public BaseCmd {
     kBitOpNot,
     kBitOpXor,
   };
-  BitOpCmd(const std::string &name, int16_t arity);
+  BitOpCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class StrlenCmd : public BaseCmd {
  public:
-  StrlenCmd(const std::string &name, int16_t arity);
+  StrlenCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+  void ReadCache(PClient *client) override;
 };
 
 class SetExCmd : public BaseCmd {
  public:
-  SetExCmd(const std::string &name, int16_t arity);
+  SetExCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class PSetExCmd : public BaseCmd {
  public:
-  PSetExCmd(const std::string &name, int16_t arity);
+  PSetExCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class SetNXCmd : public BaseCmd {
  public:
-  SetNXCmd(const std::string &name, int16_t arity);
+  SetNXCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -99,90 +110,161 @@ class SetNXCmd : public BaseCmd {
 
 class AppendCmd : public BaseCmd {
  public:
-  AppendCmd(const std::string &name, int16_t arity);
+  AppendCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class GetSetCmd : public BaseCmd {
  public:
-  GetSetCmd(const std::string &name, int16_t arity);
+  GetSetCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class MGetCmd : public BaseCmd {
  public:
-  MGetCmd(const std::string &name, int16_t arity);
+  MGetCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+  void ReadCache(PClient *client) override;
 };
 
 class MSetCmd : public BaseCmd {
  public:
-  MSetCmd(const std::string &name, int16_t arity);
+  MSetCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class BitCountCmd : public BaseCmd {
  public:
-  BitCountCmd(const std::string &name, int16_t arity);
+  BitCountCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+  void ReadCache(PClient *client) override;
 };
 
 class IncrbyCmd : public BaseCmd {
  public:
-  IncrbyCmd(const std::string &name, int16_t arity);
+  IncrbyCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 class GetBitCmd : public BaseCmd {
  public:
-  GetBitCmd(const std::string &name, int16_t arity);
+  GetBitCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+  void ReadCache(PClient *client) override;
 };
 
 class IncrbyFloatCmd : public BaseCmd {
  public:
-  IncrbyFloatCmd(const std::string &name, int16_t arity);
+  IncrbyFloatCmd(const std::string &name, int16_t arity, uint32_t flag);
 
  protected:
   bool DoInitial(PClient *client) override;
 
  private:
   void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+};
+
+class SetBitCmd : public BaseCmd {
+ public:
+  SetBitCmd(const std::string &name, int16_t arity, uint32_t flag);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+};
+
+class DecrbyCmd : public BaseCmd {
+ public:
+  DecrbyCmd(const std::string &name, int16_t arity, uint32_t flag);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+};
+
+class DecrCmd : public BaseCmd {
+ public:
+  DecrCmd(const std::string &name, int16_t arity, uint32_t flag);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
+};
+
+class IncrCmd : public BaseCmd {
+ public:
+  IncrCmd(const std::string &name, int16_t arity, uint32_t flag);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  void DoThroughDB(PClient *client) override;
+  void DoUpdateCache(PClient *client) override;
 };
 
 }  // namespace pikiwidb
