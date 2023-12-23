@@ -22,6 +22,8 @@ namespace pikiwidb {
 
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
 
+#define PIKIWIDB_SCAN_STEP_LENGTH 1000
+
 enum PType {
   kPTypeInvalid,
   kPTypeString,

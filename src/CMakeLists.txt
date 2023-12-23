@@ -7,6 +7,12 @@ INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/src/net)
 ADD_EXECUTABLE(pikiwidb ${PIKIWIDB_SRC})
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
-TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE ${rocksdb_SOURCE_DIR}/include)
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; rocksdb)
+TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
+        PRIVATE ${PROJECT_SOURCE_DIR}/src
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/pstd
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/storage/include
+        PRIVATE ${rocksdb_SOURCE_DIR}/
+        PRIVATE ${rocksdb_SOURCE_DIR}/include
+)
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb)
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)
