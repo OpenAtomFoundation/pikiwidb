@@ -231,6 +231,8 @@ class GetRangeCmd : public BaseCmd {
 
  protected:
   bool DoInitial(PClient *client) override;
+
+ private:
   void DoCmd(PClient *client) override;
 };
 
