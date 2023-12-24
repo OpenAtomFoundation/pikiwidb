@@ -180,10 +180,6 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void ClearFvs() { fvs_.clear(); }
   std::vector<std::string>& Fields() { return fields_; }
   void ClearFields() { fields_.clear(); }
-  void SetDBValueStatusArray(std::vector<storage::ValueStatus>& db_value_status_array) {
-    db_value_status_array_ = std::move(db_value_status_array);
-  }
-  std::vector<storage::ValueStatus>& GetDBValueStatusArray() { return db_value_status_array_; }
 
   void SetSlaveInfo();
   PSlaveInfo* GetSlaveInfo() const { return slave_info_.get(); }
@@ -237,7 +233,6 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   std::vector<std::string> keys_;
   std::vector<storage::FieldValue> fvs_;
   std::vector<std::string> fields_;
-  std::vector<storage::ValueStatus> db_value_status_array_;
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]
