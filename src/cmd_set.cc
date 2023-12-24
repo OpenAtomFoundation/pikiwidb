@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
  * This source code is licensed under the BSD-style license found in the
  * LICENSE file in the root directory of this source tree. An additional grant
  * of patent rights can be found in the PATENTS file in the same directory.
@@ -19,18 +19,16 @@ bool SIsMemberCmd::DoInitial(PClient* client) {
   return true;
 }
 void SIsMemberCmd::DoCmd(PClient* client) {
-
   PObject* value = nullptr;
-  auto replyNum = 0; //only change to 1 if ismember . key not exist it is 0
-  UnboundedBuffer reply;
+  auto replyNum = 0;  // only change to 1 if ismember . key not exist it is 0
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
   if (err == kPErrorOK && value->CastSet()->contains(client->argv_[2])) {
-    //only key exist and set has key , set 1
+    // only key exist and set has key , set 1
+
     replyNum = 1;
   }
 
-  FormatInt(replyNum, &reply);
-  client->AppendStringRaw(reply.ReadAddr());
+  client->AppendInteger(replyNum);
 }
 
 }  // namespace pikiwidb
