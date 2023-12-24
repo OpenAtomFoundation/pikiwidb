@@ -167,7 +167,6 @@ void HGetAllCmd::DoCmd(PClient* client) {
       cursor = next_cursor;
     }
   } while (cursor != 0);
-
 }
 
 HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)

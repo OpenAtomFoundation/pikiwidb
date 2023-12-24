@@ -796,7 +796,6 @@ void PStore::InitDumpBackends() {
   }
 }
 
-
 void PStore::AddDirtyKey(const PString& key) {
   // put this key to sync list
   if (!waitSyncKeys_.empty()) {

@@ -14,7 +14,7 @@ namespace pikiwidb {
 
 enum BackEndType {
   kBackEndNone = 0,
-  kBackEndRocksDB= 1,
+  kBackEndRocksDB = 1,
   kBackEndMax = 2,
 };
 

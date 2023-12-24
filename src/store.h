@@ -100,7 +100,7 @@ class PStore {
 
   int SelectDB(int dbno);
   int GetDB() const;
-  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_];};
+  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_]; };
 
   // Key operation
   bool DeleteKey(const PString& key) const;
