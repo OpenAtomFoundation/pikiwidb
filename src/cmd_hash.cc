@@ -34,7 +34,6 @@ void HSetCmd::DoCmd(PClient* client) {
   for (size_t i = 2; i < client->argv_.size(); i += 2) {
     auto field = client->argv_[i];
     auto value = client->argv_[i + 1];
-    fvs.push_back({field, value});
     int32_t temp = 0;
     // TODO(century): current bw doesn't support multiple fvs, fix it when necessary
     s = PSTORE.GetBackend()->HSet(client->Key(), field, value, &temp);
