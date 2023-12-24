@@ -642,7 +642,8 @@ GetRangeCmd::GetRangeCmd(const std::string& name, int16_t arity)
 
 bool GetRangeCmd::DoInitial(PClient* client) {
   // > range key start end
-  int64_t start = 0, end = 0;
+  int64_t start = 0;
+  int64_t end = 0;
   // ERR value is not an integer or out of range
   if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start)) ||
       !(pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end))) {
@@ -665,12 +666,20 @@ void GetRangeCmd::DoCmd(PClient* client) {
     return;
   }
 
-  int64_t start = 0, end = 0;
+  int64_t start = 0;
+  int64_t end = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start);
   pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end);
 
   auto str = GetDecodedString(value);
   size_t len = str->size();
+
+  // if the start offset is greater than the end offset, return an empty string
+  if (end < start) {
+    client->AppendString("");
+    return;
+  }
+
   // calculate the offset
   // if it is a negative number, start from the end
   if (start < 0) {
@@ -689,11 +698,7 @@ void GetRangeCmd::DoCmd(PClient* client) {
   if (end >= len) {
     end = len - 1;
   }
-  // if the start offset is greater than the end offset, return an empty string
-  if (end < start) {
-    client->AppendString("");
-    return;
-  }
+
   client->AppendString(str->substr(start, end - start + 1));
 }
 
