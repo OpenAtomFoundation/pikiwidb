@@ -67,7 +67,7 @@ class CmdRes {
   inline void AppendStringLen(int64_t ori) { RedisAppendLen(message_, ori, "$"); }
   inline void AppendStringLenUint64(uint64_t ori) { RedisAppendLenUint64(message_, ori, "$"); }
   inline void AppendArrayLen(int64_t ori) { RedisAppendLen(message_, ori, "*"); }
-  inline void AppendArrayLenUint64(int64_t ori) { RedisAppendLenUint64(message_, ori, "*"); }
+  inline void AppendArrayLenUint64(uint64_t ori) { RedisAppendLenUint64(message_, ori, "*"); }
   inline void AppendInteger(int64_t ori) { RedisAppendLen(message_, ori, ":"); }
   inline void AppendContent(const std::string& value) { RedisAppendContent(message_, value); }
   inline void AppendStringRaw(const std::string& value) { message_.append(value); }
@@ -75,7 +75,7 @@ class CmdRes {
 
   void AppendString(const std::string& value);
   void AppendStringVector(const std::vector<std::string>& strArray);
-  void RedisAppendLenUint64(std::string& str, int64_t ori, const std::string& prefix) {
+  void RedisAppendLenUint64(std::string& str, uint64_t ori, const std::string& prefix) {
     RedisAppendLen(str, static_cast<int64_t>(ori), prefix);
   }
 
