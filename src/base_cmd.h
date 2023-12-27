@@ -70,6 +70,9 @@ const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHIncrbyFloat = "hincrbyfloat";
 
+// set cmd
+const std::string kCmdNameSIsMember = "sismember";
+
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
