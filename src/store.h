@@ -123,6 +123,8 @@ class PStore {
   PError Incrby(const PString& key, int64_t value, int64_t* ret);
   PError Decrby(const PString& key, int64_t value, int64_t* ret);
   PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
+  
+  PError SetRange(const PString& key, int64_t offset, std::string value, std::string* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {

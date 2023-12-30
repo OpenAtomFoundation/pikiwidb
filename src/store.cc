@@ -690,6 +690,48 @@ PError PStore::Incrbyfloat(const PString& key, std::string value, std::string* r
   return kPErrorOK;
 }
 
+PError PStore::SetRange(const PString& key, int64_t offset, std::string value, std::string* ret) {
+  PObject* old_value = nullptr;
+  auto db = &dbs_[dbno_];
+
+  std::unique_lock<std::shared_mutex> lock(mutex_);
+  PError err = getValueByType(key, old_value, kPTypeString);
+  if (err != kPErrorOK && err != kPErrorNotExist) {
+    return err;
+  }
+  
+  // use streams to manipulate strings and avoid frequent memory copying
+  std::stringstream new_value_stream;
+  if (err == kPErrorNotExist) {
+    new_value_stream << std::string(offset, '\0') << value;
+  } else {
+    auto old_value_str = pikiwidb::GetDecodedString(old_value);
+    if (static_cast<size_t>(offset) > old_value_str->length()) {
+      old_value_str->resize(offset, ' ');
+      new_value_stream << *old_value_str << value;
+    } else {
+      std::string head = old_value_str->substr(0, offset);
+      std::string tail = old_value_str->substr(offset + value.size());
+      new_value_stream << head << value << tail;
+    }
+  }
+  std::string new_value_str = new_value_stream.str();
+
+  *ret = std::to_string(new_value_str.length());
+
+  PObject new_value = PObject::CreateString(new_value_str);
+  new_value.lru = PObject::lruclock;
+  auto [realObj, status] = db->insert_or_assign(key, std::move(new_value));
+  const PObject& obj = realObj->second;
+
+  // put this key to sync list
+  if (!waitSyncKeys_.empty()) {
+    waitSyncKeys_[dbno_].insert_or_assign(key, &obj);
+  }
+
+  return kPErrorOK;
+}
+
 void PStore::SetExpire(const PString& key, uint64_t when) const { expiredDBs_[dbno_].SetExpire(key, when); }
 
 int64_t PStore::TTL(const PString& key, uint64_t now) { return expiredDBs_[dbno_].TTL(key, now); }
