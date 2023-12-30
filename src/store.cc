@@ -699,7 +699,7 @@ PError PStore::SetRange(const PString& key, int64_t offset, std::string value, s
   if (err != kPErrorOK && err != kPErrorNotExist) {
     return err;
   }
-  
+
   // use streams to manipulate strings and avoid frequent memory copying
   std::stringstream new_value_stream;
   if (err == kPErrorNotExist) {
