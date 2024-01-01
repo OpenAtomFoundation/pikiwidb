@@ -785,6 +785,7 @@ void SetRangeCmd::DoCmd(PClient* client) {
   PError err = PSTORE.SetRange(client->Key(), offset, client->argv_[3], &ret);
   if (err != kPErrorOK) {
     client->SetRes(CmdRes::kErrOther, "setrange cmd error");
+    return;
   }
   client->AppendString(ret);
 }
