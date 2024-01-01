@@ -6,7 +6,7 @@
  */
 
 #include "cmd_set.h"
-
+#include <memory>
 #include "store.h"
 #include <utility>
 
@@ -42,13 +42,13 @@ bool SAddCmd::DoInitial(PClient* client) {
 void SAddCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  if(err!=kPErrorOK){
+  if(err != kPErrorOK){
     if (err == kPErrorNotExist) {
-      client->AppendString("");
+      value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
+      return;
     }
-    return;
   }
   auto set = value->CastSet();
   auto resPair = set->emplace(client->argv_[2]);
@@ -56,6 +56,7 @@ void SAddCmd::DoCmd(PClient* client) {
     client->AppendInteger(1);
   }else{
     client->AppendInteger(0);
+
   }
   
 
