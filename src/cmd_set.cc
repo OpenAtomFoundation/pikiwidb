@@ -8,8 +8,8 @@
 #include "cmd_set.h"
 #include <memory>
 #include <utility>
-#include "store.h"
 #include <utility>
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -485,7 +485,7 @@ bool SAddCmd::DoInitial(PClient* client) {
 void SAddCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  if(err != kPErrorOK){
+  if (err != kPErrorOK) {
     if (err == kPErrorNotExist) {
       value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
     } else {
@@ -495,14 +495,11 @@ void SAddCmd::DoCmd(PClient* client) {
   }
   auto set = value->CastSet();
   auto resPair = set->emplace(client->argv_[2]);
-  if(resPair.second){
+  if (resPair.second) {
     client->AppendInteger(1);
-  }else{
+  } else {
     client->AppendInteger(0);
-
   }
-  
-
 }
 }  // namespace pikiwidb
 >>>>>>> 903857d (feat:add set cmd sadd)
