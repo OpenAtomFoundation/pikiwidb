@@ -47,7 +47,7 @@ struct PErrorInfo g_errorInfo[] = {
 
 bool IsValidNumber(const PString& str) {
   size_t slen = str.size();
-  if (slen == 0 || slen >= 20 || (str[0] != '-' && !isdigit(str[0]))) {
+  if (slen == 0 || slen > 20 || (str[0] != '-' && !isdigit(str[0]))) {
     return false;
   }
 
