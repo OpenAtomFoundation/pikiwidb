@@ -110,10 +110,9 @@ void HMGetCmd::DoCmd(PClient* client) {
     client->AppendArrayLenUint64(vss.size());
     for (size_t i = 0; i < vss.size(); ++i) {
       if (vss[i].status.ok()) {
-        client->AppendStringLenUint64(vss[i].value.size());
-        client->AppendContent(vss[i].value);
+        client->AppendString(vss[i].value);
       } else {
-        client->AppendContent("$-1");
+        client->AppendString("");
       }
     }
   } else {
