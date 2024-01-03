@@ -51,7 +51,7 @@ void SAddCmd::DoCmd(PClient* client) {
     }
   }
   auto set = value->CastSet();
-  for(int i = 2;i<client->argv_.size();++i) {
+  for (int i = 2; i < client->argv_.size(); ++i) {
     set->insert(client->argv_[i]);
   }
   client->AppendInteger(set->size());
