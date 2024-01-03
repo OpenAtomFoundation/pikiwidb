@@ -51,11 +51,9 @@ void SAddCmd::DoCmd(PClient* client) {
     }
   }
   auto set = value->CastSet();
-  auto resPair = set->emplace(client->argv_[2]);
-  if (resPair.second) {
-    client->AppendInteger(1);
-  } else {
-    client->AppendInteger(0);
+  for(int i = 2;i<client->argv_.size();++i) {
+    set->insert(client->argv_[i]);
   }
+  client->AppendInteger(set->size());
 }
 }  // namespace pikiwidb
