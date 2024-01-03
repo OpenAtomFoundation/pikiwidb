@@ -15,6 +15,7 @@
 #include "list.h"
 #include "set.h"
 #include "sorted_set.h"
+#include "storage/storage.h"
 
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
@@ -99,9 +100,10 @@ class PStore {
 
   int SelectDB(int dbno);
   int GetDB() const;
+  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_]; };
 
   // Key operation
-  bool DeleteKey(const PString& key);
+  bool DeleteKey(const PString& key) const;
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;
@@ -157,7 +159,6 @@ class PStore {
   void InitEvictionTimer();
   // for backends
   void InitDumpBackends();
-  void DumpToBackends(int dbno);
   void AddDirtyKey(const PString& key);
   void AddDirtyKey(const PString& key, const PObject* value);
 
@@ -207,7 +208,7 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface>> backends_;
+  std::vector<std::unique_ptr<storage::Storage>> backends_;
 
   using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
   std::vector<ToSyncDB> waitSyncKeys_;
