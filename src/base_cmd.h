@@ -72,6 +72,8 @@ const std::string kCmdNameHStrLen = "hstrlen";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
+const std::string kCmdNameSInter = "sinter";
+
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
