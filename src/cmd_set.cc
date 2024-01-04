@@ -39,6 +39,8 @@ bool SAddCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
+// Integer reply: the number of elements that were added to the set,
+// not including all the elements already present in the set.
 void SAddCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
@@ -51,9 +53,11 @@ void SAddCmd::DoCmd(PClient* client) {
     }
   }
   auto set = value->CastSet();
+  const auto oldSize = set->size();
   for (int i = 2; i < client->argv_.size(); ++i) {
     set->insert(client->argv_[i]);
   }
-  client->AppendInteger(set->size());
+  // new size is bigger than old size , avoid the risk
+  client->AppendInteger(set->size() - oldSize);
 }
 }  // namespace pikiwidb
