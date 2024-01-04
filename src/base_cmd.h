@@ -72,6 +72,7 @@ const std::string kCmdNameHStrLen = "hstrlen";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
+const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSInter = "sinter";
 
 

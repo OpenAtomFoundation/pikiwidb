@@ -6,7 +6,8 @@
  */
 
 #include "cmd_set.h"
-
+#include <memory>
+#include <utility>
 #include "store.h"
 
 namespace pikiwidb {
@@ -31,6 +32,32 @@ void SIsMemberCmd::DoCmd(PClient* client) {
   client->AppendInteger(replyNum);
 }
 
+SAddCmd::SAddCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SAddCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SAddCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
+      return;
+    }
+  }
+  auto set = value->CastSet();
+  auto resPair = set->emplace(client->argv_[2]);
+  if (resPair.second) {
+    client->AppendInteger(1);
+  } else {
+    client->AppendInteger(0);
+  }
+}
 SInterCmd::SInterCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 

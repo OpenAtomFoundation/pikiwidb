@@ -35,6 +35,7 @@ PConfig::PConfig() {
   ip = "127.0.0.1";
   port = 9221;
   timeout = 0;
+  dbpath = "./db";
 
   loglevel = "notice";
   logdir = "stdout";
@@ -62,9 +63,11 @@ PConfig::PConfig() {
   maxmemorySamples = 5;
   noeviction = true;
 
-  backend = kBackEndNone;
+  backend = kBackEndRocksDB;
   backendPath = "dump";
   backendHz = 10;
+
+  max_client_response_size = 1073741824;
 }
 
 bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
@@ -84,6 +87,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.ip = parser.GetData<PString>("bind", cfg.ip);
   cfg.port = parser.GetData<unsigned short>("port");
   cfg.timeout = parser.GetData<int>("timeout");
+  cfg.dbpath = parser.GetData<PString>("db-path");
 
   cfg.loglevel = parser.GetData<PString>("loglevel", cfg.loglevel);
   cfg.logdir = parser.GetData<PString>("logfile", cfg.logdir);
@@ -169,6 +173,8 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.backendPath = parser.GetData<PString>("backendpath", cfg.backendPath);
   EraseQuotes(cfg.backendPath);
   cfg.backendHz = parser.GetData<int>("backendhz", 10);
+
+  cfg.max_client_response_size = parser.GetData<int64_t>("max_client_response_size");
 
   return cfg.CheckArgs();
 }

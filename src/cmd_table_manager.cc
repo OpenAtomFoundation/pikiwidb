@@ -76,6 +76,7 @@ void CmdTableManager::InitCmdTable() {
 
   // set
   ADD_COMMAND(SIsMember, 3);
+  ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SInter,-2);
 }
 
