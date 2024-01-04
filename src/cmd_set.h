@@ -21,9 +21,9 @@ class SIsMemberCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class SInter:public BaseCmd {
+class SInterCmd:public BaseCmd {
 public:
-  SInter(const std::string &name, int16_t arity);
+  SInterCmd(const std::string &name, int16_t arity);
 
 protected:
   bool DoInitial(PClient *client) override;
