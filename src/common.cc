@@ -45,6 +45,40 @@ struct PErrorInfo g_errorInfo[] = {
     {sizeof "-ERR module already loaded\r\n" - 1, "-ERR module already loaded\r\n"},
 };
 
+bool IsValidNumber(const PString& str) {
+  size_t slen = str.size();
+  if (slen == 0 || slen > 20 || (str[0] != '-' && !isdigit(str[0]))) {
+    return false;
+  }
+
+  size_t pos = 0;
+  if (str[0] == '-') {
+    if (slen == 1) {
+      return false;  // "-" is not a valid number
+    }
+    pos = 1;  // skip the sign
+  }
+
+  // "0", "-0" is a valid number, but "01", "001", etc. are not
+  if (str[pos] == '0' && slen > pos + 1) {
+    return false;
+  }
+
+  for (; pos < slen; ++pos) {
+    if (!isdigit(str[pos])) {
+      return false;
+    }
+  }
+
+  // TODO:
+  // @jettcc
+  // If this method is used to determine whether a numeric string is valid,
+  // it should consider whether the string exceeds the range of int64,
+  // that is, the string should be a valid long long number.
+
+  return true;
+}
+
 int Double2Str(char* ptr, std::size_t nBytes, double val) { return snprintf(ptr, nBytes - 1, "%.6g", val); }
 
 int StrToLongDouble(const char* s, size_t slen, long double* ldval) {

@@ -15,6 +15,7 @@
 #include "common.h"
 #include "proto_parser.h"
 #include "replication.h"
+#include "storage/storage.h"
 #include "tcp_connection.h"
 
 namespace pikiwidb {
@@ -64,7 +65,9 @@ class CmdRes {
 
   // Inline functions for Create Redis protocol
   inline void AppendStringLen(int64_t ori) { RedisAppendLen(message_, ori, "$"); }
+  inline void AppendStringLenUint64(uint64_t ori) { RedisAppendLenUint64(message_, ori, "$"); }
   inline void AppendArrayLen(int64_t ori) { RedisAppendLen(message_, ori, "*"); }
+  inline void AppendArrayLenUint64(uint64_t ori) { RedisAppendLenUint64(message_, ori, "*"); }
   inline void AppendInteger(int64_t ori) { RedisAppendLen(message_, ori, ":"); }
   inline void AppendContent(const std::string& value) { RedisAppendContent(message_, value); }
   inline void AppendStringRaw(const std::string& value) { message_.append(value); }
@@ -72,6 +75,9 @@ class CmdRes {
 
   void AppendString(const std::string& value);
   void AppendStringVector(const std::vector<std::string>& strArray);
+  void RedisAppendLenUint64(std::string& str, uint64_t ori, const std::string& prefix) {
+    RedisAppendLen(str, static_cast<int64_t>(ori), prefix);
+  }
 
   void SetRes(CmdRet _ret, const std::string& content = "");
 
@@ -170,6 +176,10 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void SetKey(std::vector<std::string>& names);
   const std::string& Key() const { return keys_.at(0); }
   const std::vector<std::string>& Keys() const { return keys_; }
+  std::vector<storage::FieldValue>& Fvs() { return fvs_; }
+  void ClearFvs() { fvs_.clear(); }
+  std::vector<std::string>& Fields() { return fields_; }
+  void ClearFields() { fields_.clear(); }
 
   void SetSlaveInfo();
   PSlaveInfo* GetSlaveInfo() const { return slave_info_.get(); }
@@ -221,6 +231,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   std::string subCmdName_;  // suchAs config set|get|rewrite
   std::string cmdName_;     // suchAs config
   std::vector<std::string> keys_;
+  std::vector<storage::FieldValue> fvs_;
+  std::vector<std::string> fields_;
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]

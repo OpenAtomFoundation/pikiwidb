@@ -22,6 +22,8 @@ namespace pikiwidb {
 
 const int kStringMaxBytes = 1 * 1024 * 1024 * 1024;
 
+#define PIKIWIDB_SCAN_STEP_LENGTH 1000
+
 enum PType {
   kPTypeInvalid,
   kPTypeString,
@@ -144,6 +146,8 @@ inline std::size_t Number2Str(char* ptr, std::size_t nBytes, T val) {
 
   return off;
 }
+
+bool IsValidNumber(const PString& str);
 
 int Double2Str(char* ptr, std::size_t nBytes, double val);
 int StrToLongDouble(const char* s, size_t slen, long double* ldval);

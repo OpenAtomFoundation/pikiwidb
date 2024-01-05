@@ -43,6 +43,7 @@ const std::string kCmdNamePSetEx = "psetex";
 const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
 const std::string kCmdNameBitCount = "bitcount";
+const std::string kCmdNameGetRange = "getrange";
 const std::string kCmdNameDecr = "decr";
 const std::string kCmdNameIncr = "incr";
 
@@ -72,6 +73,7 @@ const std::string kCmdNameHRandField = "hrandfield";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
+const std::string kCmdNameSAdd = "sadd";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

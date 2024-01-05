@@ -60,6 +60,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(BitOp, -4);
   ADD_COMMAND(BitCount, -2);
   ADD_COMMAND(GetBit, 3);
+  ADD_COMMAND(GetRange, 4);
   ADD_COMMAND(Decr, 2);
   ADD_COMMAND(SetBit, 4);
 
@@ -76,6 +77,7 @@ void CmdTableManager::InitCmdTable() {
 
   // set
   ADD_COMMAND(SIsMember, 3);
+  ADD_COMMAND(SAdd, -3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

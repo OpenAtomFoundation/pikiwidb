@@ -402,43 +402,11 @@ const PObject* PStore::GetObject(const PString& key) const {
     return &it->second;
   }
 
-  if (!backends_.empty()) {
-    // if it's in dirty list, it must be deleted, wait sync to backend
-    if (waitSyncKeys_[dbno_].find(key) != waitSyncKeys_[dbno_].end()) {
-      return nullptr;
-    }
-
-    // load from leveldb, if has, insert to pikiwidb cache
-    PObject obj = backends_[dbno_]->Get(key);
-    if (obj.type != kPTypeInvalid) {
-      DEBUG("GetKey from leveldb:{}", key);
-
-      unsigned int remainTtlSecondsTemp = obj.lru;
-      // XXX: assign lru here cause everything get from db is immutable
-      obj.lru = PObject::lruclock;
-      db->try_emplace(key, std::move(obj));
-      const PObject& realobj = db->find(key)->second;
-
-      // trick: use lru field to store the remain seconds to be expired.
-      unsigned int remainTtlSeconds = remainTtlSecondsTemp;
-      if (remainTtlSeconds > 0) {
-        SetExpire(key, ::Now() + remainTtlSeconds * 1000);
-      }
-
-      return &realobj;
-    }
-  }
-
   return nullptr;
 }
 
-bool PStore::DeleteKey(const PString& key) {
+bool PStore::DeleteKey(const PString& key) const {
   auto db = &dbs_[dbno_];
-  // add to dirty queue
-  if (!waitSyncKeys_.empty()) {
-    waitSyncKeys_[dbno_].insert_or_assign(key, nullptr);  // null implies delete data
-  }
-
   size_t ret = 0;
   // erase() from folly ConcurrentHashmap will throw an exception if hash function crashes
   try {
@@ -567,11 +535,20 @@ PError PStore::Incrby(const PString& key, int64_t value, int64_t* ret) {
   if (err != kPErrorOK) {
     return err;
   }
-  char* end = nullptr;
+
   auto str = pikiwidb::GetDecodedString(old_value);
-  int64_t ival = strtoll(str->c_str(), &end, 10);
-  if (*end != 0) {
+  if (!IsValidNumber(*str)) {
     // value is not a integer
+    return kPErrorType;
+  }
+
+  int64_t ival = 0;
+  std::string::size_type end = 0;  // alias of size_t
+  try {
+    ival = std::stoll(str->c_str(), &end, 0);
+  } catch (const std::out_of_range& e) {
+    return kPErrorOverflow;
+  } catch (...) {
     return kPErrorType;
   }
 
@@ -602,8 +579,13 @@ PError PStore::Decrby(const PString& key, int64_t value, int64_t* ret) {
   }
   auto str = pikiwidb::GetDecodedString(old_value);
 
-  std::string::size_type end = 0;  // alias of size_t
+  if (!IsValidNumber(*str)) {
+    // value is not a integer
+    return kPErrorType;
+  }
+
   int64_t ival = 0;
+  std::string::size_type end = 0;  // alias of size_t
   try {
     ival = std::stoll(str->c_str(), &end, 0);
   } catch (const std::out_of_range& e) {
@@ -807,15 +789,17 @@ void PStore::InitDumpBackends() {
     return;
   }
 
-  if (g_config.backend == kBackEndLeveldb) {
-    waitSyncKeys_.resize(dbs_.size());
+  if (g_config.backend == kBackEndRocksDB) {
     for (size_t i = 0; i < dbs_.size(); ++i) {
-      std::unique_ptr<PLeveldb> db(new PLeveldb);
-      PString dbpath = g_config.backendPath + std::to_string(i);
-      if (!db->Open(dbpath.data())) {
+      std::unique_ptr<storage::Storage> db = std::make_unique<storage::Storage>();
+      storage::StorageOptions storage_options;
+      storage_options.options.create_if_missing = true;
+      PString dbpath = g_config.dbpath + std::to_string(i) + '/';
+      storage::Status s = db->Open(storage_options, dbpath.data());
+      if (!s.ok()) {
         assert(false);
       } else {
-        INFO("Open leveldb {}", dbpath);
+        INFO("Open RocksDB {}", dbpath);
       }
 
       backends_.push_back(std::move(db));
@@ -823,47 +807,6 @@ void PStore::InitDumpBackends() {
   } else {
     // ERROR: unsupport backend
     return;
-  }
-
-  auto loop = EventLoop::Self();
-  for (int i = 0; i < static_cast<int>(backends_.size()); ++i) {
-    loop->ScheduleRepeatedly(1000 / g_config.backendHz, [&, i]() {
-      int old_db = PSTORE.SelectDB(i);
-      PSTORE.DumpToBackends(i);
-      PSTORE.SelectDB(old_db);
-    });
-  }
-}
-
-void PStore::DumpToBackends(int dbno) {
-  if (static_cast<int>(waitSyncKeys_.size()) <= dbno) {
-    return;
-  }
-
-  const int kMaxSync = 100;
-  int processed = 0;
-  auto& dirtyKeys = waitSyncKeys_[dbno];
-
-  uint64_t now = ::Now();
-  for (auto it = dirtyKeys.begin(); processed++ < kMaxSync && it != dirtyKeys.end();) {
-    // check ttl
-    int64_t when = PSTORE.TTL(it->first, now);
-
-    if (it->second && when != PStore::ExpireResult::kExpired) {
-      assert(when != PStore::ExpireResult::kNotExpire);
-
-      if (when > 0) {
-        when += now;
-      }
-
-      backends_[dbno]->Put(it->first, *it->second, when);
-      DEBUG("UPDATE leveldb key {}, when = {}", it->first, when);
-    } else {
-      backends_[dbno]->Delete(it->first);
-      DEBUG("DELETE leveldb key {}", it->first);
-    }
-
-    it = dirtyKeys.erase(it);
   }
 }
 
