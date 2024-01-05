@@ -6,12 +6,15 @@
  */
 
 #include "common.h"
+#include <math.h>
 #include <algorithm>
 #include <cerrno>
 #include <chrono>
 #include <cstdlib>
+#include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 #include "unbounded_buffer.h"
 
 namespace pikiwidb {
@@ -42,7 +45,85 @@ struct PErrorInfo g_errorInfo[] = {
     {sizeof "-ERR module already loaded\r\n" - 1, "-ERR module already loaded\r\n"},
 };
 
+bool IsValidNumber(const PString& str) {
+  size_t slen = str.size();
+  if (slen == 0 || slen > 20 || (str[0] != '-' && !isdigit(str[0]))) {
+    return false;
+  }
+
+  size_t pos = 0;
+  if (str[0] == '-') {
+    if (slen == 1) {
+      return false;  // "-" is not a valid number
+    }
+    pos = 1;  // skip the sign
+  }
+
+  // "0", "-0" is a valid number, but "01", "001", etc. are not
+  if (str[pos] == '0' && slen > pos + 1) {
+    return false;
+  }
+
+  for (; pos < slen; ++pos) {
+    if (!isdigit(str[pos])) {
+      return false;
+    }
+  }
+
+  // TODO:
+  // @jettcc
+  // If this method is used to determine whether a numeric string is valid,
+  // it should consider whether the string exceeds the range of int64,
+  // that is, the string should be a valid long long number.
+
+  return true;
+}
+
 int Double2Str(char* ptr, std::size_t nBytes, double val) { return snprintf(ptr, nBytes - 1, "%.6g", val); }
+
+int StrToLongDouble(const char* s, size_t slen, long double* ldval) {
+  char* pEnd;
+  std::string t(s, slen);
+  if (t.find(' ') != std::string::npos) {
+    return -1;
+  }
+  long double d = strtold(s, &pEnd);
+  if (pEnd != s + slen) {
+    return -1;
+  }
+
+  if (ldval) {
+    *ldval = d;
+  }
+  return 0;
+}
+
+int LongDoubleToStr(long double ldval, std::string* value) {
+  if (isnan(ldval)) {
+    return -1;
+  } else if (isinf(ldval)) {
+    if (ldval > 0) {
+      *value = "inf";
+    } else {
+      *value = "-inf";
+    }
+    return -1;
+  } else {
+    std::ostringstream oss;
+    oss << std::setprecision(15) << ldval;
+    *value = oss.str();
+
+    // Remove trailing zeroes after the '.'
+    size_t dotPos = value->find('.');
+    if (dotPos != std::string::npos) {
+      value->erase(value->find_last_not_of('0') + 1, std::string::npos);
+      if (value->back() == '.') {
+        value->pop_back();
+      }
+    }
+    return 0;
+  }
+}
 
 bool TryStr2Long(const char* ptr, size_t nBytes, long& val) {
   bool negtive = false;
@@ -310,7 +391,7 @@ size_t Format0(UnboundedBuffer* reply) {
 
 PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
   if (nBytes < 3) {
-    return PParseResult::wait;
+    return PParseResult::kWait;
   }
 
   std::size_t i = 0;
@@ -329,11 +410,11 @@ PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
       value += ptr[i] - '0';
     } else {
       if (ptr[i] != '\r' || (i + 1 < nBytes && ptr[i + 1] != '\n')) {
-        return PParseResult::error;
+        return PParseResult::kError;
       }
 
       if (i + 1 == nBytes) {
-        return PParseResult::wait;
+        return PParseResult::kWait;
       }
 
       break;
@@ -347,7 +428,7 @@ PParseResult GetIntUntilCRLF(const char*& ptr, std::size_t nBytes, int& val) {
   ptr += i;
   ptr += 2;
   val = value;
-  return PParseResult::ok;
+  return PParseResult::kOK;
 }
 
 std::vector<PString> SplitString(const PString& str, char seperator) {

@@ -26,9 +26,7 @@ bool BaseCmd::CheckArg(size_t num) const {
   return num >= -arity_;
 }
 
-std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const {
-  return std::vector<std::string>{client->Key()};
-}
+std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const { return std::vector<std::string>{client->Key()}; }
 
 void BaseCmd::Execute(PClient* client) {
   if (!DoInitial(client)) {

@@ -5,13 +5,9 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "io_thread_pool.h"
-
-#include <csignal>
-
 #include <cassert>
-#include <cstring>
 
+#include "io_thread_pool.h"
 #include "pstd/log.h"
 #include "util.h"
 
@@ -41,11 +37,12 @@ bool IOThreadPool::SetWorkerNum(size_t num) {
   return true;
 }
 
-bool IOThreadPool::Init(const char* ip, int port, NewTcpConnectionCallback cb) {
-  auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
+bool IOThreadPool::Init(const char* ip, int port, const NewTcpConnectionCallback& cb) {
+  auto f = [this] { return ChooseNextWorkerEventLoop(); };
 
   base_.Init();
-  printf("base loop %s %p, g_baseLoop %p\n", base_.GetName().c_str(), &base_, base_.Self());
+  INFO("base loop {} {}, g_baseLoop {}", base_.GetName(), static_cast<void*>(&base_),
+       static_cast<void*>(pikiwidb::EventLoop::Self()));
   if (!base_.Listen(ip, port, cb, f)) {
     ERROR("can not bind socket on addr {}:{}", ip, port);
     return false;
@@ -56,7 +53,7 @@ bool IOThreadPool::Init(const char* ip, int port, NewTcpConnectionCallback cb) {
 
 void IOThreadPool::Run(int ac, char* av[]) {
   assert(state_ == State::kNone);
-  INFO("Process starting...");
+  INFO("Process {} starting...", name_);
 
   // start loops in thread pool
   StartWorkers();
@@ -65,18 +62,18 @@ void IOThreadPool::Run(int ac, char* av[]) {
   for (auto& w : worker_threads_) {
     w.join();
   }
-  
+
   worker_threads_.clear();
 
-  INFO("Process stopped, goodbye...");
+  INFO("Process {} stopped, goodbye...", name_);
 }
 
 void IOThreadPool::Exit() {
   state_ = State::kStopped;
 
   BaseLoop()->Stop();
-  for (size_t index = 0; index < worker_loops_.size(); ++index) {
-    EventLoop* loop = worker_loops_[index].get();
+  for (const auto& worker_loop : worker_loops_) {
+    EventLoop* loop = worker_loop.get();
     loop->Stop();
   }
 }
@@ -100,7 +97,7 @@ void IOThreadPool::StartWorkers() {
 
   size_t index = 1;
   while (worker_loops_.size() < worker_num_) {
-    std::unique_ptr<EventLoop> loop(new EventLoop);
+    std::unique_ptr<EventLoop> loop = std::make_unique<EventLoop>();
     if (!name_.empty()) {
       loop->SetName(name_ + "_" + std::to_string(index++));
       INFO("loop {}, name {}", static_cast<void*>(loop.get()), loop->GetName().c_str());
@@ -114,7 +111,7 @@ void IOThreadPool::StartWorkers() {
       loop->Init();
       loop->Run();
     });
-    printf("thread %lu, thread loop %p, loop name %s \n", index, loop, loop->GetName().c_str());
+    INFO("thread {}, thread loop {}, loop name {}", index, static_cast<void*>(loop), loop->GetName().c_str());
     worker_threads_.push_back(std::move(t));
   }
 
@@ -123,21 +120,20 @@ void IOThreadPool::StartWorkers() {
 
 void IOThreadPool::SetName(const std::string& name) { name_ = name; }
 
-bool IOThreadPool::Listen(const char* ip, int port, NewTcpConnectionCallback ccb) {
-  auto f = std::bind(&IOThreadPool::ChooseNextWorkerEventLoop, this);
+bool IOThreadPool::Listen(const char* ip, int port, const NewTcpConnectionCallback& ccb) {
+  auto f = [this] { return ChooseNextWorkerEventLoop(); };
   auto loop = BaseLoop();
-  return loop->Execute([loop, ip, port, ccb, f]() { return loop->Listen(ip, port, std::move(ccb), f); }).get();
+  return loop->Execute([loop, ip, port, ccb, f]() { return loop->Listen(ip, port, ccb, f); }).get();
 }
 
-void IOThreadPool::Connect(const char* ip, int port, NewTcpConnectionCallback ccb, TcpConnectionFailCallback fcb,
-                           EventLoop* loop) {
+void IOThreadPool::Connect(const char* ip, int port, const NewTcpConnectionCallback& ccb,
+                           const TcpConnectionFailCallback& fcb, EventLoop* loop) {
   if (!loop) {
     loop = ChooseNextWorkerEventLoop();
   }
 
-  std::string ipstr(ip);
-  loop->Execute(
-      [loop, ipstr, port, ccb, fcb]() { loop->Connect(ipstr.c_str(), port, std::move(ccb), std::move(fcb)); });
+  std::string ipStr(ip);
+  loop->Execute([loop, ipStr, port, ccb, fcb]() { loop->Connect(ipStr.c_str(), port, ccb, fcb); });
 }
 
 std::shared_ptr<HttpServer> IOThreadPool::ListenHTTP(const char* ip, int port, HttpServer::OnNewClient cb) {

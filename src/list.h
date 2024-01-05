@@ -13,10 +13,9 @@
 namespace pikiwidb {
 
 enum class ListPosition {
-  head,
-  tail,
+  kHead,
+  kTail,
 };
 
 using PList = std::list<PString>;
 }  // namespace pikiwidb
-

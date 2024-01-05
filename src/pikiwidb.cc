@@ -8,10 +8,9 @@
 //
 //  PikiwiDB.cc
 
-#include <spawn.h>
+#include <sys/fcntl.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <csignal>
 #include <iostream>
 #include <thread>
 
@@ -33,25 +32,20 @@
 
 std::unique_ptr<PikiwiDB> g_pikiwidb;
 
-static void SignalHandler(int) {
-  if (g_pikiwidb) {
-    g_pikiwidb->Stop();
-  }
+static void IntSigHandle(const int sig) {
+  INFO("Catch Signal {}, cleanup...", sig);
+  g_pikiwidb->Stop();
 }
 
-static void InitSignal() {
-  struct sigaction sig;
-  ::memset(&sig, 0, sizeof(sig));
-
-  sig.sa_handler = SignalHandler;
-  sigaction(SIGINT, &sig, NULL);
-
-  // ignore sigpipe
-  sig.sa_handler = SIG_IGN;
-  sigaction(SIGPIPE, &sig, NULL);
+static void SignalSetup() {
+  signal(SIGHUP, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
+  signal(SIGINT, &IntSigHandle);
+  signal(SIGQUIT, &IntSigHandle);
+  signal(SIGTERM, &IntSigHandle);
 }
 
-const unsigned PikiwiDB::kRunidSize = 40;
+const uint32_t PikiwiDB::kRunidSize = 40;
 
 static void Usage() {
   std::cerr << "Usage:  ./pikiwidb-server [/path/to/redis.conf] [options]\n\
@@ -71,7 +65,7 @@ bool PikiwiDB::ParseArgs(int ac, char* av[]) {
       cfg_file_ = av[i];
       continue;
     } else if (strncasecmp(av[i], "-v", 2) == 0 || strncasecmp(av[i], "--version", 9) == 0) {
-      std::cerr << "PikiwiDB Server v=" << PIKIWIDB_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
+      std::cerr << "PikiwiDB Server v=" << kPIKIWIDB_VERSION << " bits=" << (sizeof(void*) == 8 ? 64 : 32) << std::endl;
 
       exit(0);
       return true;
@@ -83,7 +77,7 @@ bool PikiwiDB::ParseArgs(int ac, char* av[]) {
       if (++i == ac) {
         return false;
       }
-      port_ = static_cast<unsigned short>(std::atoi(av[i]));
+      port_ = static_cast<int16_t>(std::atoi(av[i]));
     } else if (strncasecmp(av[i], "--loglevel", 10) == 0) {
       if (++i == ac) {
         return false;
@@ -95,7 +89,7 @@ bool PikiwiDB::ParseArgs(int ac, char* av[]) {
       }
 
       master_ = std::string(av[++i]);
-      master_port_ = static_cast<unsigned short>(std::atoi(av[++i]));
+      master_port_ = static_cast<int16_t>(std::atoi(av[++i]));
     } else {
       std::cerr << "Unknow option " << av[i] << std::endl;
       return false;
@@ -112,7 +106,8 @@ static void PdbCron() {
     return;
   }
 
-  if (Now() > (g_lastPDBSave + unsigned(g_config.saveseconds)) * 1000UL && PStore::dirty_ >= g_config.savechanges) {
+  if (Now() > (g_lastPDBSave + static_cast<unsigned>(g_config.saveseconds)) * 1000UL &&
+      PStore::dirty_ >= g_config.savechanges) {
     int ret = fork();
     if (ret == 0) {
       {
@@ -218,8 +213,8 @@ bool PikiwiDB::Init() {
     ERROR("number of threads can't exceeds {}, now is {}", kMaxWorkerNum, num);
     return false;
   }
-  worker_threads_.SetWorkerNum((size_t)(g_config.worker_threads_num));
-  slave_threads_.SetWorkerNum((size_t)(g_config.slave_threads_num));
+  worker_threads_.SetWorkerNum(static_cast<size_t>(g_config.worker_threads_num));
+  slave_threads_.SetWorkerNum(static_cast<size_t>(g_config.slave_threads_num));
 
   PCommandTable::Init();
   PCommandTable::AliasCommand(g_config.aliases);
@@ -231,7 +226,7 @@ bool PikiwiDB::Init() {
   PPubsub::Instance().InitPubsubTimer();
 
   // Only if there is no backend, load rdb
-  if (g_config.backend == pikiwidb::BackEndNone) {
+  if (g_config.backend == pikiwidb::kBackEndNone) {
     LoadDBFromDisk();
   }
 
@@ -248,12 +243,6 @@ bool PikiwiDB::Init() {
   if (!g_config.masterIp.empty()) {
     PREPL.SetMasterAddr(g_config.masterIp.c_str(), g_config.masterPort);
   }
-
-  // output logo to console
-  char logo[512] = "";
-  snprintf(logo, sizeof logo - 1, pikiwidbLogo, PIKIWIDB_VERSION, static_cast<int>(sizeof(void*)) * 8,
-           static_cast<int>(g_config.port));
-  std::cout << logo;
 
   cmd_table_manager_.InitCmdTable();
 
@@ -272,6 +261,7 @@ void PikiwiDB::Run() {
 
   worker_threads_.Run(0, nullptr);
 
+  t.join();  // wait for slave thread exit
   INFO("server exit running");
 }
 
@@ -292,12 +282,28 @@ static void InitLogs() {
 #endif
 }
 
+static void daemonize() {
+  if (fork()) {
+    exit(0); /* parent exits */
+  }
+  setsid(); /* create a new session */
+}
+
+static void closeStd() {
+  int fd;
+  fd = open("/dev/null", O_RDWR, 0);
+  if (fd != -1) {
+    dup2(fd, STDIN_FILENO);
+    dup2(fd, STDOUT_FILENO);
+    dup2(fd, STDERR_FILENO);
+    close(fd);
+  }
+}
+
 int main(int ac, char* av[]) {
   [[maybe_unused]] rocksdb::DB* db;
   g_pikiwidb = std::make_unique<PikiwiDB>();
-  pstd::InitRandom();
-  InitSignal();
-  InitLogs();
+
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();
     return -1;
@@ -310,14 +316,29 @@ int main(int ac, char* av[]) {
     }
   }
 
+  // output logo to console
+  char logo[512] = "";
+  snprintf(logo, sizeof logo - 1, pikiwidbLogo, kPIKIWIDB_VERSION, static_cast<int>(sizeof(void*)) * 8,
+           static_cast<int>(pikiwidb::g_config.port));
+  std::cout << logo;
+
   if (pikiwidb::g_config.daemonize) {
-    pid_t pid;
-    ::posix_spawn(&pid, av[0], nullptr, nullptr, av, nullptr);
+    daemonize();
+  }
+
+  pstd::InitRandom();
+  SignalSetup();
+  InitLogs();
+
+  if (pikiwidb::g_config.daemonize) {
+    closeStd();
   }
 
   if (g_pikiwidb->Init()) {
     g_pikiwidb->Run();
   }
 
+  // when process exit, flush log
+  spdlog::get(logger::Logger::Instance().Name())->flush();
   return 0;
 }

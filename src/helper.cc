@@ -149,7 +149,7 @@ void getRandomHexChars(char* p, unsigned int len) {
      * time() at startup. */
     for (j = 0; j < len; j++) {
       p[j] ^= rand();
-    } 
+    }
   }
   /* Turn it into hex digits taking just 4 bits out of 8 for every byte. */
   for (j = 0; j < len; j++) {
@@ -203,7 +203,7 @@ std::vector<size_t> getMemoryInfo() {
   VmHWM = 3,
   VmRSS = 4,
   VmSwap = 5, */
-  std::vector<size_t> res(VmMax);
+  std::vector<size_t> res(kVmMax);
   // int page = sysconf(_SC_PAGESIZE);
 
   char filename[64];
@@ -211,26 +211,26 @@ std::vector<size_t> getMemoryInfo() {
   std::ifstream ifs(filename);
   std::string line;
   int count = 0;
-  while (count < VmMax && std::getline(ifs, line)) {
+  while (count < kVmMax && std::getline(ifs, line)) {
     auto it(res.begin());
     if (line.find("VmPeak") == 0) {
       ++count;
-      std::advance(it, VmPeak);
+      std::advance(it, kVmPeak);
     } else if (line.find("VmSize") == 0) {
       ++count;
-      std::advance(it, VmSize);
+      std::advance(it, kVmSize);
     } else if (line.find("VmLck") == 0) {
       ++count;
-      std::advance(it, VmLck);
+      std::advance(it, kVmLck);
     } else if (line.find("VmHWM") == 0) {
       ++count;
-      std::advance(it, VmHWM);
+      std::advance(it, kVmHWM);
     } else if (line.find("VmRSS") == 0) {
       ++count;
-      std::advance(it, VmRSS);
+      std::advance(it, kVmRSS);
     } else if (line.find("VmSwap") == 0) {
       ++count;
-      std::advance(it, VmSwap);
+      std::advance(it, kVmSwap);
     } else {
       continue;
     }
@@ -260,38 +260,38 @@ size_t getMemoryInfo(MemoryInfoType type) {
   bool found = false;
   while (!found && std::getline(ifs, line)) {
     switch (type) {
-      case VmPeak:
-        if (line.find("VmPeak") == 0)  {
+      case kVmPeak:
+        if (line.find("VmPeak") == 0) {
           found = true;
         }
         break;
 
-      case VmSize:
-        if (line.find("VmSize") == 0)  {
+      case kVmSize:
+        if (line.find("VmSize") == 0) {
           found = true;
         }
         break;
 
-      case VmLck:
-        if (line.find("VmLck") == 0)  {
+      case kVmLck:
+        if (line.find("VmLck") == 0) {
           found = true;
         }
         break;
 
-      case VmHWM:
+      case kVmHWM:
         if (line.find("VmHWM") == 0) {
           found = true;
         }
         break;
 
-      case VmRSS:
-        if (line.find("VmRSS") == 0)  {
+      case kVmRSS:
+        if (line.find("VmRSS") == 0) {
           found = true;
         }
         break;
 
-      case VmSwap:
-        if (line.find("VmSwap") == 0)  {
+      case kVmSwap:
+        if (line.find("VmSwap") == 0) {
           found = true;
         }
         break;
@@ -324,7 +324,7 @@ std::vector<size_t> getMemoryInfo() {
    mach_vm_size_t  virtual_size;   virtual memory size (bytes)
    mach_vm_size_t  resident_size;      resident memory size (bytes)
    mach_vm_size_t  resident_size_max;  maximum resident memory size (bytes) */
-  std::vector<size_t> res(VmMax);
+  std::vector<size_t> res(kVmMax);
   task_t task = MACH_PORT_NULL;
   struct task_basic_info t_info;
   mach_msg_type_number_t t_info_count = TASK_BASIC_INFO_COUNT;
@@ -335,14 +335,14 @@ std::vector<size_t> getMemoryInfo() {
 
   task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count);
 
-  res[VmSize] = t_info.virtual_size;
-  res[VmRSS] = t_info.resident_size;
+  res[kVmSize] = t_info.virtual_size;
+  res[kVmRSS] = t_info.resident_size;
 
   return res;
 }
 
 size_t getMemoryInfo(MemoryInfoType type) {
-  if (type != VmSize && type != VmRSS) {
+  if (type != kVmSize && type != kVmRSS) {
     return 0;
   }
 
@@ -356,9 +356,9 @@ size_t getMemoryInfo(MemoryInfoType type) {
 
   task_info(task, TASK_BASIC_INFO, (task_info_t)&t_info, &t_info_count);
 
-  if (type == VmSize) {
+  if (type == kVmSize) {
     return t_info.virtual_size;
-  } else if (type == VmRSS) {
+  } else if (type == kVmRSS) {
     return t_info.resident_size;
   }
 

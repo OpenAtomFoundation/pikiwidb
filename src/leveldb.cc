@@ -5,7 +5,6 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-
 #include "leveldb.h"
 #include "leveldb/db.h"
 #include "log.h"
@@ -36,7 +35,7 @@ PObject PLeveldb::Get(const PString& key) {
   std::string value;
   auto status = db_->Get(leveldb::ReadOptions(), leveldb::Slice(key.data(), key.size()), &value);
   if (!status.ok()) {
-    return PObject(PType_invalid);
+    return PObject(kPTypeInvalid);
   }
 
   int64_t remainTtlSeconds = 0;
@@ -54,7 +53,7 @@ PObject PLeveldb::Get(const PString& key) {
 bool PLeveldb::Put(const PString& key) {
   PObject* obj;
   PError ok = PSTORE.GetValue(key, obj, false);
-  if (ok != PError_ok) {
+  if (ok != kPErrorOK) {
     return false;
   }
 
@@ -62,7 +61,7 @@ bool PLeveldb::Put(const PString& key) {
   int64_t ttl = PSTORE.TTL(key, now);
   if (ttl > 0) {
     ttl += now;
-  } else if (ttl == PStore::ExpireResult::expired) {
+  } else if (ttl == PStore::ExpireResult::kExpired) {
     return false;
   }
 
@@ -101,25 +100,25 @@ void PLeveldb::encodeObject(const PObject& obj, int64_t absttl, UnboundedBuffer&
   v.Write(&type, sizeof type);
 
   switch (obj.encoding) {
-    case PEncode_raw:
-    case PEncode_int: {
+    case kPEncodeRaw:
+    case kPEncodeInt: {
       auto str = GetDecodedString(&obj);
       encodeString(*str, v);
     } break;
 
-    case PEncode_list:
+    case kPEncodeList:
       encodeList(obj.CastList(), v);
       break;
 
-    case PEncode_set:
+    case kPEncodeSet:
       encodeSet(obj.CastSet(), v);
       break;
 
-    case PEncode_hash:
+    case kPEncodeHash:
       encodeHash(obj.CastHash(), v);
       break;
 
-    case PEncode_zset:
+    case kPEncodeZset:
       encodeZSet(obj.CastSortedSet(), v);
       break;
 
@@ -198,7 +197,7 @@ PObject PLeveldb::decodeObject(const char* data, size_t len, int64_t& remainTtl)
     int64_t now = static_cast<int64_t>(::Now());
     if (absttl <= now) {
       DEBUG("Load from leveldb is timeout {}", absttl);
-      return PObject(PType_invalid);
+      return PObject(kPTypeInvalid);
     } else {
       // Only support seconds, because lru is 24bits, too short.
       remainTtl = (absttl - now) / 1000;
@@ -210,19 +209,19 @@ PObject PLeveldb::decodeObject(const char* data, size_t len, int64_t& remainTtl)
   offset += sizeof type;
 
   switch (type) {
-    case PType_string: {
+    case kPTypeString: {
       return PObject::CreateString(decodeString(data + offset, len - offset));
     }
-    case PType_list: {
+    case kPTypeList: {
       return decodeList(data + offset, len - offset);
     }
-    case PType_set: {
+    case kPTypeSet: {
       return decodeSet(data + offset, len - offset);
     }
-    case PType_sortedSet: {
+    case kPTypeSortedSet: {
       return decodeZSet(data + offset, len - offset);
     }
-    case PType_hash: {
+    case kPTypeHash: {
       return decodeHash(data + offset, len - offset);
     }
 
@@ -231,7 +230,7 @@ PObject PLeveldb::decodeObject(const char* data, size_t len, int64_t& remainTtl)
   }
 
   assert(false);
-  return PObject(PType_invalid);
+  return PObject(kPTypeInvalid);
 }
 
 PString PLeveldb::decodeString(const char* data, size_t len) {

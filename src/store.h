@@ -15,10 +15,13 @@
 #include "list.h"
 #include "set.h"
 #include "sorted_set.h"
+#include "storage/storage.h"
 
 #include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <shared_mutex>
 #include <vector>
 
 namespace pikiwidb {
@@ -50,7 +53,7 @@ struct PObject {
 
   void* value = nullptr;
 
-  explicit PObject(PType = PType_invalid);
+  explicit PObject(PType = kPTypeInvalid);
   ~PObject();
 
   PObject(const PObject& obj) = delete;
@@ -97,9 +100,10 @@ class PStore {
 
   int SelectDB(int dbno);
   int GetDB() const;
+  std::unique_ptr<storage::Storage>& GetBackend() { return backends_[dbno_]; };
 
   // Key operation
-  bool DeleteKey(const PString& key);
+  bool DeleteKey(const PString& key) const;
   bool ExistsKey(const PString& key) const;
   PType KeyType(const PString& key) const;
   PString RandomKey(PObject** val = nullptr) const;
@@ -112,18 +116,22 @@ class PStore {
 
   const PObject* GetObject(const PString& key) const;
   PError GetValue(const PString& key, PObject*& value, bool touch = true);
-  PError GetValueByType(const PString& key, PObject*& value, PType type = PType_invalid);
+  PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
   // do not update lru time
-  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = PType_invalid);
+  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
 
   PObject* SetValue(const PString& key, PObject&& value);
+  // incr
+  PError Incrby(const PString& key, int64_t value, int64_t* ret);
+  PError Decrby(const PString& key, int64_t value, int64_t* ret);
+  PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
 
   // for expire key
   enum ExpireResult : std::int8_t {
-    notExpire = 0,
-    persist = -1,
-    expired = -2,
-    notExist = -2,
+    kNotExpire = 0,
+    kPersist = -1,
+    kExpired = -2,
+    kNotExist = -2,
   };
   void SetExpire(const PString& key, uint64_t when) const;
   int64_t TTL(const PString& key, uint64_t now);
@@ -151,14 +159,15 @@ class PStore {
   void InitEvictionTimer();
   // for backends
   void InitDumpBackends();
-  void DumpToBackends(int dbno);
   void AddDirtyKey(const PString& key);
   void AddDirtyKey(const PString& key, const PObject* value);
 
  private:
   PStore() : dbno_(0) {}
+  // mutex
+  mutable std::shared_mutex mutex_;
 
-  PError getValueByType(const PString& key, PObject*& value, PType type = PType_invalid, bool touch = true);
+  PError getValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid, bool touch = true);
 
   ExpireResult expireIfNeed(const PString& key, uint64_t now);
 
@@ -187,7 +196,7 @@ class PStore {
     size_t Size() const { return blockedClients_.size(); }
 
    private:
-    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition> >;
+    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition>>;
     using WaitingList = folly::ConcurrentHashMap<PString, Clients, my_hash, std::equal_to<PString>>;
 
     WaitingList blockedClients_;
@@ -199,9 +208,9 @@ class PStore {
   mutable std::vector<PDB> dbs_;
   mutable std::vector<ExpiredDB> expiredDBs_;
   std::vector<BlockedClients> blockedClients_;
-  std::vector<std::unique_ptr<PDumpInterface> > backends_;
+  std::vector<std::unique_ptr<storage::Storage>> backends_;
 
-  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString> >;
+  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
   std::vector<ToSyncDB> waitSyncKeys_;
   int dbno_ = -1;
 };

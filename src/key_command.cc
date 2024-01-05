@@ -5,8 +5,9 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include <cassert>
 #include <fnmatch.h>
+#include <cassert>
+
 #include "log.h"
 #include "store.h"
 
@@ -16,23 +17,23 @@ PError type(const std::vector<PString>& params, UnboundedBuffer* reply) {
   const char* info = 0;
   PType type = PSTORE.KeyType(params[1]);
   switch (type) {
-    case PType_hash:
+    case kPTypeHash:
       info = "hash";
       break;
 
-    case PType_set:
+    case kPTypeSet:
       info = "set";
       break;
 
-    case PType_string:
+    case kPTypeString:
       info = "string";
       break;
 
-    case PType_list:
+    case kPTypeList:
       info = "list";
       break;
 
-    case PType_sortedSet:
+    case kPTypeSortedSet:
       info = "sortedSet";
       break;
 
@@ -42,7 +43,7 @@ PError type(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatSingle(info, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError exists(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -52,7 +53,7 @@ PError exists(const std::vector<PString>& params, UnboundedBuffer* reply) {
     Format0(reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError del(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -67,7 +68,7 @@ PError del(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(nDel, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 static int setExpireByMs(const PString& key, uint64_t absTimeout) {
@@ -89,7 +90,7 @@ PError expire(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = setExpireByMs(key, ::Now() + timeout * 1000);
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError pexpire(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -99,7 +100,7 @@ PError pexpire(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = setExpireByMs(key, ::Now() + timeout);
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError expireat(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -109,7 +110,7 @@ PError expireat(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = setExpireByMs(key, timeout * 1000);
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError pexpireat(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -119,15 +120,15 @@ PError pexpireat(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = setExpireByMs(key, timeout);
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 static int64_t _ttl(const PString& key) {
-  int64_t ret = PStore::ExpireResult::notExist;
+  int64_t ret = PStore::ExpireResult::kNotExist;
   if (PSTORE.ExistsKey(key)) {
     int64_t ttl = PSTORE.TTL(key, ::Now());
     if (ttl < 0) {
-      ret = PStore::ExpireResult::persist;
+      ret = PStore::ExpireResult::kPersist;
     } else {
       ret = ttl;
     }
@@ -147,7 +148,7 @@ PError ttl(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError pttl(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -156,7 +157,7 @@ PError pttl(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int64_t ret = _ttl(key);  // by milliseconds
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError persist(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -165,7 +166,7 @@ PError persist(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = PSTORE.ClearExpire(key) ? 1 : 0;
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError move(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -175,7 +176,7 @@ PError move(const std::vector<PString>& params, UnboundedBuffer* reply) {
   int ret = 0;
 
   PObject* val;
-  if (PSTORE.GetValue(key, val) == PError_ok) {
+  if (PSTORE.GetValue(key, val) == kPErrorOK) {
     int fromDB = PSTORE.SelectDB(toDB);
     if (fromDB >= 0 && fromDB != toDB && !PSTORE.ExistsKey(key)) {
       PSTORE.SelectDB(toDB);
@@ -196,7 +197,7 @@ PError move(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(ret, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError keys(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -214,7 +215,7 @@ PError keys(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(*e, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError randomkey(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -226,39 +227,39 @@ PError randomkey(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(res, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 static PError RenameKey(const PString& oldKey, const PString& newKey, bool force) {
   PObject* val;
 
   PError err = PSTORE.GetValue(oldKey, val);
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     return err;
   }
 
   if (!force && PSTORE.ExistsKey(newKey)) {
-    return PError_exist;
+    return kPErrorExist;
   }
 
   auto now = ::Now();
   auto ttl = PSTORE.TTL(oldKey, now);
 
-  if (ttl == PStore::expired) {
-    return PError_notExist;
+  if (ttl == PStore::kExpired) {
+    return kPErrorNotExist;
   }
 
   PSTORE.SetValue(newKey, std::move(*val));
   if (ttl > 0) {
     PSTORE.SetExpire(newKey, ttl + now);
-  } else if (ttl == PStore::persist) {
+  } else if (ttl == PStore::kPersist) {
     PSTORE.ClearExpire(newKey);
   }
 
   PSTORE.ClearExpire(oldKey);
   PSTORE.DeleteKey(oldKey);
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError rename(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -271,7 +272,7 @@ PError rename(const std::vector<PString>& params, UnboundedBuffer* reply) {
 PError renamenx(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PError err = RenameKey(params[1], params[2], false);
 
-  if (err == PError_ok) {
+  if (err == kPErrorOK) {
     Format1(reply);
   } else {
     ReplyError(err, reply);
@@ -301,23 +302,23 @@ static PError ParseScanOption(const std::vector<PString>& params, int start, lon
       }
     }
 
-    return PError_param;
+    return kPErrorParam;
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError scan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 != 0) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   long cursor = 0;
 
   if (!Strtol(params[1].c_str(), params[1].size(), &cursor)) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   // scan cursor  MATCH pattern  COUNT 1
@@ -325,7 +326,7 @@ PError scan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   const char* pattern = nullptr;
 
   PError err = ParseScanOption(params, 2, count, pattern);
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -360,26 +361,26 @@ PError scan(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(s, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError hscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   // hscan key cursor COUNT 0 MATCH 0
   if (params.size() % 2 == 0) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   long cursor = 0;
   if (!Strtol(params[2].c_str(), params[2].size(), &cursor)) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   // find hash
   PObject* value;
-  PError err = PSTORE.GetValueByType(params[1], value, PType_hash);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(params[1], value, kPTypeHash);
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -389,7 +390,7 @@ PError hscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   const char* pattern = nullptr;
 
   err = ParseScanOption(params, 3, count, pattern);
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -426,26 +427,26 @@ PError hscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(s, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError sscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   // sscan key cursor COUNT 0 MATCH 0
   if (params.size() % 2 == 0) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   long cursor = 0;
   if (!Strtol(params[2].c_str(), params[2].size(), &cursor)) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   // find set
   PObject* value;
-  PError err = PSTORE.GetValueByType(params[1], value, PType_set);
-  if (err != PError_ok) {
+  PError err = PSTORE.GetValueByType(params[1], value, kPTypeSet);
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -455,7 +456,7 @@ PError sscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
   const char* pattern = nullptr;
 
   err = ParseScanOption(params, 3, count, pattern);
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
@@ -491,21 +492,21 @@ PError sscan(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(s, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError sort(const std::vector<PString>& params, UnboundedBuffer* reply) {
   // sort key desc/asc alpha
   PObject* value;
   PError err = PSTORE.GetValue(params[1], value);
-  if (err != PError_ok) {
+  if (err != kPErrorOK) {
     ReplyError(err, reply);
     return err;
   }
 
-  if (value->type != PType_list && value->type != PType_set && value->type != PType_sortedSet) {
-    ReplyError(PError_type, reply);
-    return PError_type;
+  if (value->type != kPTypeList && value->type != kPTypeSet && value->type != kPTypeSortedSet) {
+    ReplyError(kPErrorType, reply);
+    return kPErrorType;
   }
 
   bool asc = true;
@@ -520,20 +521,20 @@ PError sort(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   std::vector<const PString*> values;
   switch (value->type) {
-    case PType_list: {
+    case kPTypeList: {
       PLIST l = value->CastList();
       std::for_each(l->begin(), l->end(), [&](const PString& v) { values.push_back(&v); });
     } break;
 
-    case PType_set: {
+    case kPTypeSet: {
       PSET s = value->CastSet();
       std::for_each(s->begin(), s->end(), [&](const PString& v) { values.push_back(&v); });
     } break;
 
-    case PType_sortedSet: {
+    case kPTypeSortedSet: {
       // TODO
       FormatOK(reply);
-      return PError_ok;
+      return kPErrorOK;
     } break;
 
     default:
@@ -565,7 +566,7 @@ PError sort(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatBulk(*v, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 }  // namespace pikiwidb

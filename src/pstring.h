@@ -18,4 +18,3 @@ struct PObject;
 std::unique_ptr<PString, void (*)(PString*)> GetDecodedString(const PObject* value);
 
 }  // namespace pikiwidb
-

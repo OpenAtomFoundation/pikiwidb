@@ -21,7 +21,7 @@ class CmdConfig : public BaseCmdGroup {
   bool DoInitial(PClient* client) override { return true; };
 
  private:
-//  std::vector<std::string> subCmd_;
+  //  std::vector<std::string> subCmd_;
 
   void DoCmd(PClient* client) override{};
 };
@@ -40,6 +40,28 @@ class CmdConfigGet : public BaseCmd {
 class CmdConfigSet : public BaseCmd {
  public:
   CmdConfigSet(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class FlushdbCmd : public BaseCmd {
+ public:
+  FlushdbCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class FlushallCmd : public BaseCmd {
+ public:
+  FlushallCmd(const std::string& name, int16_t arity);
 
  protected:
   bool DoInitial(PClient* client) override;

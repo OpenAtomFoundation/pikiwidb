@@ -155,7 +155,7 @@ std::vector<PSortedSet::Member2Score::value_type> PSortedSet::RangeByScore(doubl
 }
 
 PObject PObject::CreateZSet() {
-  PObject obj(PType_sortedSet);
+  PObject obj(kPTypeSortedSet);
   obj.Reset(new PSortedSet);
   return obj;
 }
@@ -163,27 +163,27 @@ PObject PObject::CreateZSet() {
 // commands
 #define GET_SORTEDSET(name)                                         \
   PObject* value;                                                   \
-  PError err = PSTORE.GetValueByType(name, value, PType_sortedSet); \
-  if (err != PError_ok) {                                           \
+  PError err = PSTORE.GetValueByType(name, value, kPTypeSortedSet); \
+  if (err != kPErrorOK) {                                           \
     ReplyError(err, reply);                                         \
     return err;                                                     \
   }
 
 #define GET_OR_SET_SORTEDSET(name)                                  \
   PObject* value;                                                   \
-  PError err = PSTORE.GetValueByType(name, value, PType_sortedSet); \
-  if (err != PError_ok && err != PError_notExist) {                 \
+  PError err = PSTORE.GetValueByType(name, value, kPTypeSortedSet); \
+  if (err != kPErrorOK && err != kPErrorNotExist) {                 \
     ReplyError(err, reply);                                         \
     return err;                                                     \
   }                                                                 \
-  if (err == PError_notExist) {                                     \
+  if (err == kPErrorNotExist) {                                     \
     value = PSTORE.SetValue(name, PObject::CreateZSet());           \
   }
 
 PError zadd(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 != 0) {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
   GET_OR_SET_SORTEDSET(params[1]);
@@ -193,8 +193,8 @@ PError zadd(const std::vector<PString>& params, UnboundedBuffer* reply) {
   for (size_t i = 2; i < params.size(); i += 2) {
     double score = 0;
     if (!Strtod(params[i].c_str(), params[i].size(), &score)) {
-      ReplyError(PError_nan, reply);
-      return PError_nan;
+      ReplyError(kPErrorNan, reply);
+      return kPErrorNan;
     }
 
     auto it = zset->FindMember(params[i + 1]);
@@ -205,7 +205,7 @@ PError zadd(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(newMembers, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zcard(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -214,7 +214,7 @@ PError zcard(const std::vector<PString>& params, UnboundedBuffer* reply) {
   auto zset = value->CastSortedSet();
 
   FormatInt(static_cast<long>(zset->Size()), reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zrank(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -229,7 +229,7 @@ PError zrank(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatNull(reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zrevrank(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -244,7 +244,7 @@ PError zrevrank(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatNull(reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zrem(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -259,7 +259,7 @@ PError zrem(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(cnt, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zincrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -267,8 +267,8 @@ PError zincrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
 
   double delta;
   if (!Strtod(params[2].c_str(), params[2].size(), &delta)) {
-    ReplyError(PError_nan, reply);
-    return PError_nan;
+    ReplyError(kPErrorNan, reply);
+    return kPErrorNan;
   }
 
   double newScore = delta;
@@ -281,7 +281,7 @@ PError zincrby(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   FormatInt(newScore, reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zscore(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -295,7 +295,7 @@ PError zscore(const std::vector<PString>& params, UnboundedBuffer* reply) {
     FormatInt(itMem->second, reply);
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 static PError GenericRange(const std::vector<PString>& params, UnboundedBuffer* reply, bool reverse) {
@@ -305,14 +305,14 @@ static PError GenericRange(const std::vector<PString>& params, UnboundedBuffer* 
   if (params.size() == 5 && strncasecmp(params[4].c_str(), "withscores", 10) == 0) {
     withScore = true;
   } else if (params.size() >= 5) {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
   long start, end;
   if (!Strtol(params[2].c_str(), params[2].size(), &start) || !Strtol(params[3].c_str(), params[3].size(), &end)) {
-    ReplyError(PError_param, reply);
-    return PError_param;
+    ReplyError(kPErrorParam, reply);
+    return kPErrorParam;
   }
 
   auto zset = value->CastSortedSet();
@@ -320,7 +320,7 @@ static PError GenericRange(const std::vector<PString>& params, UnboundedBuffer* 
   auto res(zset->RangeByRank(start, end));
   if (res.empty()) {
     FormatNullArray(reply);
-    return PError_ok;
+    return kPErrorOK;
   }
 
   long nBulk = withScore ? res.size() * 2 : res.size();
@@ -349,7 +349,7 @@ static PError GenericRange(const std::vector<PString>& params, UnboundedBuffer* 
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 // zrange key start stop [WITHSCORES]
@@ -367,15 +367,15 @@ static PError GenericScoreRange(const std::vector<PString>& params, UnboundedBuf
   if (params.size() == 5 && strncasecmp(params[4].c_str(), "withscores", 10) == 0) {
     withScore = true;
   } else if (params.size() >= 5) {
-    ReplyError(PError_syntax, reply);
-    return PError_syntax;
+    ReplyError(kPErrorSyntax, reply);
+    return kPErrorSyntax;
   }
 
   long minScore, maxScore;
   if (!Strtol(params[2].c_str(), params[2].size(), &minScore) ||
       !Strtol(params[3].c_str(), params[3].size(), &maxScore)) {
-    ReplyError(PError_nan, reply);
-    return PError_nan;
+    ReplyError(kPErrorNan, reply);
+    return kPErrorNan;
   }
 
   auto zset = value->CastSortedSet();
@@ -383,7 +383,7 @@ static PError GenericScoreRange(const std::vector<PString>& params, UnboundedBuf
   auto res(zset->RangeByScore(minScore, maxScore));
   if (res.empty()) {
     FormatNull(reply);
-    return PError_ok;
+    return kPErrorOK;
   }
 
   long nBulk = withScore ? res.size() * 2 : res.size();
@@ -412,7 +412,7 @@ static PError GenericScoreRange(const std::vector<PString>& params, UnboundedBuf
     }
   }
 
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zrangebyscore(const std::vector<PString>& params, UnboundedBuffer* reply) {
@@ -428,8 +428,8 @@ static PError GenericRemRange(const std::vector<PString>& params, UnboundedBuffe
 
   double start, end;
   if (!Strtod(params[2].c_str(), params[2].size(), &start) || !Strtod(params[3].c_str(), params[3].size(), &end)) {
-    ReplyError(PError_nan, reply);
-    return PError_nan;
+    ReplyError(kPErrorNan, reply);
+    return kPErrorNan;
   }
 
   std::vector<PSortedSet::Member2Score::value_type> res;
@@ -445,7 +445,7 @@ static PError GenericRemRange(const std::vector<PString>& params, UnboundedBuffe
 
   if (res.empty()) {
     Format0(reply);
-    return PError_ok;
+    return kPErrorOK;
   }
 
   for (const auto& s : res) {
@@ -458,7 +458,7 @@ static PError GenericRemRange(const std::vector<PString>& params, UnboundedBuffe
   }
 
   FormatInt(static_cast<long>(res.size()), reply);
-  return PError_ok;
+  return kPErrorOK;
 }
 
 PError zremrangebyrank(const std::vector<PString>& params, UnboundedBuffer* reply) {

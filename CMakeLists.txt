@@ -68,7 +68,7 @@ ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
         set(CMAKE_THREAD_LIBS_INIT "-lpthread")
     ELSEIF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         SET(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
-        SET(CMAKE_CXX_FLAGS "-pthread -Wl,--no-as-needed -ldl")
+        SET(CMAKE_CXX_FLAGS "-pthread -Wl,--no-as-needed -ldl -Wno-restrict")
     ENDIF ()
     ADD_DEFINITIONS(-DOS_LINUX)
 ELSE ()
@@ -90,6 +90,7 @@ SET(INSTALL_INCLUDEDIR ${STAGED_INSTALL_PREFIX}/include)
 SET(INSTALL_LIBDIR ${STAGED_INSTALL_PREFIX}/lib)
 SET(INSTALL_LIBDIR_64 ${STAGED_INSTALL_PREFIX}/lib64)
 SET(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${STAGED_INSTALL_PREFIX})
+SET(BUILD_SUPPORT_DIR ${PROJECT_SOURCE_DIR}/build_support)
 
 MESSAGE(STATUS "${PROJECT_NAME} staged install: ${STAGED_INSTALL_PREFIX}")
 MESSAGE(STATUS "Current platform: ${OS_VERSION} ")
@@ -107,10 +108,63 @@ include(cmake/llhttp.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/folly.cmake)
+include(cmake/gtest.cmake)
 include(cmake/rocksdb.cmake)
 
+enable_testing()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
+ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
+
+#############################################################################
+###			custom target
+#############################################################################
+SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+STRING(CONCAT FORMAT_DIRS "${PROJECT_SOURCE_DIR}/src,")
+FILE(WRITE
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  "${PROJECT_SOURCE_DIR}/src/redis_intset.c\n${PROJECT_SOURCE_DIR}/src/redis_zip_list.c")
+ADD_CUSTOM_TARGET(format
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
+  ${CLANG_FORMAT_BIN}
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  --source_dirs ${FORMAT_DIRS}
+  --quiet
+  --fix
+)
+ADD_CUSTOM_TARGET(check-format
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
+  ${CLANG_FORMAT_BIN}
+  ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
+  --source_dirs ${FORMAT_DIRS}
+)
+
+ADD_CUSTOM_TARGET(clang-tidy
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_tidy.py
+  -clang-tidy-binary ${CLANG_TIDY_BIN}
+  -p ${CMAKE_BINARY_DIR}
+  -extra-arg=-std=c++17
+)
+
+ADD_CUSTOM_TARGET(clang-tidy-fix 
+  COMMAND ${BUILD_SUPPORT_DIR}/run_clang_tidy.py
+  -clang-tidy-binary ${CLANG_TIDY_BIN}
+  -p ${CMAKE_BINARY_DIR}
+  -extra-arg=-std=c++17
+  -fix
+)
+
+FILE(GLOB_RECURSE LINT_FILES
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.h"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cc"
+)
+ADD_CUSTOM_TARGET(cpplint echo '${LINT_FILES}' | xargs -n12 -P8
+  ${CPPLINT_BIN}
+  --verbose=2 --quiet
+  --linelength=120
+  --filter=-legal/copyright,-build/header_guard,-runtime/references
+)
 

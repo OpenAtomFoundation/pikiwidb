@@ -13,9 +13,9 @@
 namespace pikiwidb {
 
 enum BackEndType {
-  BackEndNone = 0,
-  BackEndLeveldb = 1,
-  BackEndMax = 2,
+  kBackEndNone = 0,
+  kBackEndRocksDB = 1,
+  kBackEndMax = 2,
 };
 
 struct PConfig {
@@ -26,6 +26,8 @@ struct PConfig {
   unsigned short port;
 
   int timeout;
+
+  PString dbpath;
 
   PString loglevel;
   PString logdir;  // the log directory, differ from redis
@@ -77,6 +79,8 @@ struct PConfig {
   PString backendPath;
   int backendHz;  // the frequency of dump to backend
 
+  int64_t max_client_response_size;
+
   PConfig();
 
   bool CheckArgs() const;
@@ -88,4 +92,3 @@ extern PConfig g_config;
 extern bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg);
 
 }  // namespace pikiwidb
-
