@@ -73,6 +73,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HKeys, 2);
   ADD_COMMAND(HLen, 2);
   ADD_COMMAND(HStrLen, 3);
+  ADD_COMMAND(HScan, -3);
 
   // set
   ADD_COMMAND(SIsMember, 3);
