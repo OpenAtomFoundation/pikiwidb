@@ -58,4 +58,41 @@ void SAddCmd::DoCmd(PClient* client) {
     client->AppendInteger(0);
   }
 }
+
+SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SUnionCmd::DoInitial(PClient* client) {
+  std::vector<std::string> keys(client->argv_.begin(),client->argv_.end());
+  keys.erase(keys.begin());
+  client->SetKey(keys);
+  return true;
+}
+
+void SUnionCmd::DoCmd(PClient* client) {
+  std::unordered_set<std::string> unionSet;
+  for(auto key : client->Keys()) {
+    PObject* value = nullptr;
+    PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
+    if(err == kPErrorOK) {
+      const auto set = value->CastSet();
+      auto it = set->cbegin();
+      for(; it != set->cend(); ++it) {
+        std::string sv(it->data(),it->size());
+        if(unionSet.find(sv) == unionSet.end()) {
+          unionSet.insert(sv);
+        }
+      }
+    }else if (err != kPErrorNotExist) {
+      client->SetRes(CmdRes::kErrOther);
+      return;
+    }
+  }
+  client->AppendArrayLenUint64(unionSet.size());
+  for (const auto& member : unionSet) {
+    client->AppendStringLenUint64(member.size());
+    client->AppendContent(member);
+  }
+}
+
 }  // namespace pikiwidb
