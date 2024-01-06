@@ -111,12 +111,8 @@ class HRandFieldCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
-  void DoWithPositiveCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
-  void DoWithNegativeCount(PClient *client, const PHash *hash, int64_t count, bool with_value);
 
-  std::random_device rd_;
-
-  static const inline std::string kWithValueString{"withvalues"};
+  static constexpr const char *kWithValueString = "withvalues";
 };
 
 }  // namespace pikiwidb

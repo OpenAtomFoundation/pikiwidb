@@ -9,8 +9,8 @@
 
 #include <config.h>
 
-#include "store.h"
 #include "pstd/pstd_string.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -246,21 +246,21 @@ bool HRandFieldCmd::DoInitial(PClient* client) {
 
 void HRandFieldCmd::DoCmd(PClient* client) {
   // parse arguments
-  int64_t count{};
+  const auto& argv = client->argv_;
+  int64_t count{1};
   bool with_values{false};
-  if (client->argv_.size() > 2) {
-    if (pstd::String2int(client->argv_[2], &count) == 0) {
+  if (argv.size() > 2) {
+    // redis checks the integer argument first and then the number of parameters
+    if (pstd::String2int(argv[2], &count) == 0) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
-
-    if (client->argv_.size() > 4) {
+    if (argv.size() > 4) {
       client->SetRes(CmdRes::kSyntaxErr);
       return;
     }
-
-    if (client->argv_.size() > 3) {
-      if (kWithValueString != pstd::StringToLower(client->argv_[3])) {
+    if (argv.size() > 3) {
+      if (kWithValueString != pstd::StringToLower(argv[3])) {
         client->SetRes(CmdRes::kSyntaxErr);
         return;
       }
@@ -268,70 +268,26 @@ void HRandFieldCmd::DoCmd(PClient* client) {
     }
   }
 
-  // get hash
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
-  if (err != kPErrorOK) {
-    if (err == kPErrorNotExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kSyntaxErr, "hrandfield cmd error");
-    }
-    return;
-  }
-  auto hash = value->CastHash();
-  if (hash->empty()) {
+  // execute command
+  std::vector<storage::FieldValue> fvs;
+  auto s = PSTORE.GetBackend()->HRandField(client->Key(), count, &fvs);
+  if (s.IsNotFound()) {
     client->AppendString("");
     return;
   }
-
-  // fetch field(s) and reply
-  if (client->argv_.size() > 2) {
-    if (count >= 0) {
-      DoWithPositiveCount(client, hash, count, with_values);
-    } else {
-      DoWithNegativeCount(client, hash, count, with_values);
-    }
-  } else {
-    auto it = std::next(hash->begin(), rand() % hash->size());
-    client->AppendString(it->first);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
   }
-}
 
-void HRandFieldCmd::DoWithPositiveCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
-  if (hash->size() <= count) {  // reply all fields
-    client->AppendArrayLen(with_value ? hash->size() * 2 : hash->size());
-    for (auto&& kv : *hash) {
-      client->AppendString(kv.first);
-      if (with_value) {
-        client->AppendString(kv.second);
-      }
-    }
-  } else {  // reply [count] fields
-    std::vector<std::pair<PString, PString>> kvs;
-    for (auto&& kv : *hash) {
-      kvs.push_back(kv);
-    }
-    std::shuffle(kvs.begin(), kvs.end(), std::mt19937(rd_()));
-
-    client->AppendArrayLen(with_value ? count * 2 : count);
-    for (size_t i = 0; i < count; i++) {
-      client->AppendString(kvs[i].first);
-      if (with_value) {
-        client->AppendString(kvs[i].second);
-      }
-    }
+  // reply to client
+  if (argv.size() > 2) {
+    client->AppendArrayLenUint64(with_values ? fvs.size() * 2 : fvs.size());
   }
-}
-
-void HRandFieldCmd::DoWithNegativeCount(PClient* client, const PHash* hash, int64_t count, bool with_value) {
-  count = -count;
-  client->AppendArrayLen(with_value ? count * 2 : count);
-  while (count--) {
-    auto it = std::next(hash->begin(), rand() % hash->size());
-    client->AppendString(it->first);
-    if (with_value) {
-      client->AppendString(it->second);
+  for (const auto& [field, value] : fvs) {
+    client->AppendString(field);
+    if (with_values) {
+      client->AppendString(value);
     }
   }
 }

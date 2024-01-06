@@ -6,6 +6,8 @@
 #include "src/redis_hashes.h"
 
 #include <memory>
+#include <numeric>
+#include <random>
 
 #include <fmt/core.h>
 #include <glog/logging.h>
@@ -919,6 +921,57 @@ Status RedisHashes::HScanx(const Slice& key, const std::string& start_field, con
   } else {
     *next_field = "";
     return s;
+  }
+  return Status::OK();
+}
+
+Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<FieldValue>* fvs) {
+  std::string meta_value;
+  Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+  if (!s.ok()) {
+    return s;
+  }
+  ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+  auto hlen = parsed_hashes_meta_value.count();
+  if (parsed_hashes_meta_value.IsStale() || hlen == 0) {
+    return Status::NotFound();
+  }
+
+  if (count >= hlen) {
+    // case 1: count > 0 and >= hlen, return all fv
+    return HGetall(key, fvs);
+  }
+
+  std::vector<uint32_t> idxs;
+  if (count < 0) {
+    // case 2: count < 0, allow duplication
+    while (idxs.size() < -count) {
+      idxs.push_back(rand() % hlen);
+    }
+  } else {
+    // case 3: count > 0 and < hlen, no duplication
+    std::vector<uint32_t> range(hlen);
+    std::iota(range.begin(), range.end(), 0);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(range.begin(), range.end(), g);
+    idxs.insert(idxs.cend(), range.begin(), range.begin() + count);
+  }
+  std::sort(idxs.begin(), idxs.end());
+
+  HashesDataKey hashes_data_key(key, parsed_hashes_meta_value.version(), "");
+  Slice prefix = hashes_data_key.Encode();
+  auto iter = db_->NewIterator(default_read_options_, handles_[1]);
+  iter->Seek(prefix);
+  uint32_t save_idx{};
+  for (auto idx : idxs) {
+    while (save_idx < idx) {
+      iter->Next();
+      save_idx++;
+    }
+    assert(iter->Valid());
+    ParsedHashesDataKey datakey(iter->key());
+    fvs->emplace_back(datakey.field().ToString(), iter->value().ToString());
   }
   return Status::OK();
 }
