@@ -227,4 +227,56 @@ void HStrLenCmd::DoCmd(PClient* client) {
   }
 }
 
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyFloatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return false;
+  }
+  return true;
+}
+
+void HIncrbyFloatCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeHash);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "hkeys cmd error");
+    }
+    return;
+  }
+
+  auto hash = value->CastHash();
+  long double old_value = 0;
+  PString old_value_str;
+  std::string new_value_str;
+  long double long_double_by = 0;
+  StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by);
+  auto it = hash->find(client->argv_[2]);
+  if (it != hash->end()) {
+    old_value_str = it->second;
+    if (-1 == StrToLongDouble(old_value_str.c_str(), static_cast<int>(old_value_str.size()), &old_value)) {
+      client->SetRes(CmdRes::kErrOther, "Invalid value");
+      return;
+    } else {
+      long double total = old_value + long_double_by;
+      if (-1 == LongDoubleToStr(total, &new_value_str)) {
+        client->SetRes(CmdRes::KIncrByOverFlow);
+        return;
+      }
+      it->second = new_value_str;
+    }
+  } else {
+    LongDoubleToStr(long_double_by, &new_value_str);
+    hash->insert(PHash::value_type(client->argv_[2], new_value_str));
+  }
+  client->AppendString(new_value_str);
+}
+
 }  // namespace pikiwidb
