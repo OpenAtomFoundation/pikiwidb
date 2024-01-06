@@ -587,4 +587,29 @@ void SetBitCmd::DoCmd(PClient* client) {
   }
 }
 
+SetRangeCmd::SetRangeCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+
+bool SetRangeCmd::DoInitial(PClient* client) {
+  // setrange key offset value
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SetRangeCmd::DoCmd(PClient* client) {
+  int64_t offset = 0;
+  if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &offset))) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  std::string ret;
+  PError err = PSTORE.SetRange(client->Key(), offset, client->argv_[3], &ret);
+  if (err != kPErrorOK) {
+    client->SetRes(CmdRes::kErrOther, "setrange cmd error");
+    return;
+  }
+  client->AppendString(ret);
+}
+
 }  // namespace pikiwidb
