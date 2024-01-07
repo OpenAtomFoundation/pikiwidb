@@ -586,5 +586,4 @@ void SetBitCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
 }
-
 }  // namespace pikiwidb
