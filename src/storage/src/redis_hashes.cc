@@ -971,7 +971,7 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<Fiel
     }
     assert(iter->Valid());
     ParsedHashesDataKey datakey(iter->key());
-    fvs->emplace_back(datakey.field().ToString(), iter->value().ToString());
+    fvs->push_back({datakey.field().ToString(), iter->value().ToString()});
   }
   return Status::OK();
 }
