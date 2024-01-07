@@ -47,6 +47,7 @@ class RedisHashes : public Redis {
                std::vector<FieldValue>* field_values, int64_t* next_cursor);
   Status HScanx(const Slice& key, const std::string& start_field, const std::string& pattern, int64_t count,
                 std::vector<FieldValue>* field_values, std::string* next_field);
+  Status HRandField(const Slice& key, int64_t count, std::vector<FieldValue>* fvs);
   Status PKHScanRange(const Slice& key, const Slice& field_start, const std::string& field_end, const Slice& pattern,
                       int32_t limit, std::vector<FieldValue>* field_values, std::string* next_field);
   Status PKHRScanRange(const Slice& key, const Slice& field_start, const std::string& field_end, const Slice& pattern,

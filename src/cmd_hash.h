@@ -113,4 +113,17 @@ class HScanCmd : public BaseCmd {
   static constexpr const char *kCountSymbol = "count";
 };
 
+class HRandFieldCmd : public BaseCmd {
+ public:
+  HRandFieldCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+
+  static constexpr const char *kWithValueString = "withvalues";
+};
+
 }  // namespace pikiwidb

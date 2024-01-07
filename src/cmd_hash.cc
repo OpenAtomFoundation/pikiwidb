@@ -283,4 +283,68 @@ void HScanCmd::DoCmd(PClient* client) {
   }
 }
 
+HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HRandFieldCmd::DoInitial(PClient* client) {
+  /*
+   * There should not be quantity detection here,
+   * because the quantity detection of redis is after the COUNT integer detection.
+   */
+  // if (client->argv_.size() > 4) {
+  //   client->SetRes(CmdRes::kSyntaxErr);
+  //   return false;
+  // }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HRandFieldCmd::DoCmd(PClient* client) {
+  // parse arguments
+  const auto& argv = client->argv_;
+  int64_t count{1};
+  bool with_values{false};
+  if (argv.size() > 2) {
+    // redis checks the integer argument first and then the number of parameters
+    if (pstd::String2int(argv[2], &count) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (argv.size() > 4) {
+      client->SetRes(CmdRes::kSyntaxErr);
+      return;
+    }
+    if (argv.size() > 3) {
+      if (kWithValueString != pstd::StringToLower(argv[3])) {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      with_values = true;
+    }
+  }
+
+  // execute command
+  std::vector<storage::FieldValue> fvs;
+  auto s = PSTORE.GetBackend()->HRandField(client->Key(), count, &fvs);
+  if (s.IsNotFound()) {
+    client->AppendString("");
+    return;
+  }
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+
+  // reply to client
+  if (argv.size() > 2) {
+    client->AppendArrayLenUint64(with_values ? fvs.size() * 2 : fvs.size());
+  }
+  for (const auto& [field, value] : fvs) {
+    client->AppendString(field);
+    if (with_values) {
+      client->AppendString(value);
+    }
+  }
+}
+
 }  // namespace pikiwidb
