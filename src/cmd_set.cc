@@ -127,15 +127,15 @@ void SInterCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err;
   std::vector<std::string> resVt;
-  for(const auto &key: client->Keys()){
+  for (const auto& key : client->Keys()) {
     err = PSTORE.GetValueByType(key, value, kPTypeSet);
-    if(err!=kPErrorOK) {
+    if (err != kPErrorOK) {
       if (err == kPErrorNotExist) {
         client->AppendStringVector(resVt);
-      }else {
+      } else {
         client->SetRes(CmdRes::kErrOther);
       }
-      return ;
+      return;
     }
   }
 
