@@ -74,6 +74,7 @@ const std::string kCmdNameHScan = "hscan";
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
+const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSUnionStore = "sunionstore";
 
 enum CmdFlags {
