@@ -103,5 +103,4 @@ bool CmdTableManager::CmdExist(const std::string& cmd) const {
 }
 
 uint32_t CmdTableManager::GetCmdId() { return ++cmdId_; }
-
 }  // namespace pikiwidb

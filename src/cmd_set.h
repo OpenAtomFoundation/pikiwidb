@@ -31,5 +31,4 @@ class SAddCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
-
 }  // namespace pikiwidb
