@@ -69,6 +69,7 @@ const std::string kCmdNameHGetAll = "hgetall";
 const std::string kCmdNameHKeys = "hkeys";
 const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
+const std::string kCmdNameHScan = "hscan";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
