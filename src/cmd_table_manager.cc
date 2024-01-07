@@ -80,7 +80,6 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
   ADD_COMMAND(SInterStore, -3);
-
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
