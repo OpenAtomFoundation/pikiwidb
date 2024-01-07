@@ -77,7 +77,6 @@ const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
 const std::string kCmdNameSInter = "sinter";
 
-
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset

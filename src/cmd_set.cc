@@ -122,23 +122,6 @@ bool SInterCmd::DoInitial(PClient* client) {
   client->SetKey(keys);
   return true;
 }
-// todo ?有这样的通用方法卸载common中还是这里
-// tobe delete
-// PSet getInterSet(const PSET& set1, const PSET& set2) {
-//   PSet interSet;
-//   interSet.reserve(std::min(set1->size(), set2->size()));
-//   auto set1P = &set1;
-//   auto set2P = &set1;
-//   if (set1->size() > set2->size()) {
-//     std::swap(set1P, set2P);
-//   }
-//   for (const auto& item1 : *set1) {
-//     if (set2->contains(item1)) {
-//       interSet.emplace(item1);
-//     }
-//   }
-//   return interSet;
-// }
 
 void SInterCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
@@ -151,7 +134,7 @@ void SInterCmd::DoCmd(PClient* client) {
   }
   PSET firstSet = value->CastSet();
   bool reliable{};
-  for(const auto &member: *firstSet) {
+  for (const auto& member : *firstSet) {
     reliable = true;
     for (int i = 1; i < client->Keys().size(); ++i) {
       setKey = client->Keys().at(i);
@@ -160,7 +143,7 @@ void SInterCmd::DoCmd(PClient* client) {
         client->AppendStringVector(resVt);
         return;
       }
-      if(!value->CastSet()->contains(member)) {
+      if (!value->CastSet()->contains(member)) {
         reliable = false;
         break;
       }
