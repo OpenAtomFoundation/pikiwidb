@@ -7,10 +7,7 @@
 
 #pragma once
 
-#include <random>
-
 #include "base_cmd.h"
-#include "hash.h"
 
 namespace pikiwidb {
 

@@ -943,11 +943,15 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<Fiel
   }
 
   std::vector<uint32_t> idxs;
-  if (count < 0) {
+  if (count == 1) {
+    // special case of case 3
+    idxs.push_back(rand() % hlen);
+  } else if (count < 0) {
     // case 2: count < 0, allow duplication
     while (idxs.size() < -count) {
       idxs.push_back(rand() % hlen);
     }
+    std::sort(idxs.begin(), idxs.end());
   } else {
     // case 3: count > 0 and < hlen, no duplication
     std::vector<uint32_t> range(hlen);
@@ -956,8 +960,8 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<Fiel
     std::mt19937 g(rd());
     std::shuffle(range.begin(), range.end(), g);
     idxs.insert(idxs.cend(), range.begin(), range.begin() + count);
+    std::sort(idxs.begin(), idxs.end());
   }
-  std::sort(idxs.begin(), idxs.end());
 
   HashesDataKey hashes_data_key(key, parsed_hashes_meta_value.version(), "");
   Slice prefix = hashes_data_key.Encode();
