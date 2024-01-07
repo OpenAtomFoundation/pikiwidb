@@ -47,6 +47,7 @@ class CmdRes {
     kInconsistentHashTag,
     kErrOther,
     KIncrByOverFlow,
+    kInvalidCursor,
   };
 
   CmdRes() = default;
@@ -243,5 +244,4 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
 
   static thread_local PClient* s_current;
 };
-
 }  // namespace pikiwidb
