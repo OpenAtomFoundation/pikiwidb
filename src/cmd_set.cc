@@ -118,8 +118,7 @@ SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
 bool SUnionCmd::DoInitial(PClient* client) {
-  std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
-  keys.erase(keys.begin());
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end());
   client->SetKey(keys);
   return true;
 }
