@@ -32,4 +32,15 @@ class SAddCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SUnionStoreCmd : public BaseCmd {
+ public:
+  SUnionStoreCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb
