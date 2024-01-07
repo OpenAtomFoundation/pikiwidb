@@ -125,13 +125,23 @@ bool SInterCmd::DoInitial(PClient* client) {
 
 void SInterCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
+  PError err;
   std::vector<std::string> resVt;
-  std::string setKey = client->Keys().at(0);
-  PError err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
-  if (err == kPErrorNotExist) {
-    client->AppendStringVector(resVt);
-    return;
+  for(const auto &key: client->Keys()){
+    err = PSTORE.GetValueByType(key, value, kPTypeSet);
+    if(err!=kPErrorOK) {
+      if (err == kPErrorNotExist) {
+        client->AppendStringVector(resVt);
+      }else {
+        client->SetRes(CmdRes::kErrOther);
+      }
+      return ;
+    }
   }
+
+  std::string setKey = client->Keys().at(0);
+  err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
+
   PSET firstSet = value->CastSet();
   bool reliable{};
   for (const auto& member : *firstSet) {
@@ -139,10 +149,6 @@ void SInterCmd::DoCmd(PClient* client) {
     for (int i = 1; i < client->Keys().size(); ++i) {
       setKey = client->Keys().at(i);
       err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
-      if (err == kPErrorNotExist) {
-        client->AppendStringVector(resVt);
-        return;
-      }
       if (!value->CastSet()->contains(member)) {
         reliable = false;
         break;
@@ -152,7 +158,6 @@ void SInterCmd::DoCmd(PClient* client) {
       resVt.emplace_back(member);
     }
   }
-
   client->AppendStringVector(resVt);
 }
 
