@@ -60,6 +60,7 @@ void SAddCmd::DoCmd(PClient* client) {
   // new size is bigger than old size , avoid the risk
   client->AppendInteger(set->size() - oldSize);
 }
+
 SUnionStoreCmd::SUnionStoreCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
