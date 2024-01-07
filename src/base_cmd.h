@@ -272,5 +272,4 @@ class BaseCmdGroup : public BaseCmd {
  private:
   std::map<std::string, std::unique_ptr<BaseCmd>> subCmds_;
 };
-
 }  // namespace pikiwidb

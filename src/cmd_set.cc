@@ -94,5 +94,4 @@ void SUnionCmd::DoCmd(PClient* client) {
     client->AppendContent(member);
   }
 }
-
 }  // namespace pikiwidb
