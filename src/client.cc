@@ -28,7 +28,7 @@ void CmdRes::RedisAppendLen(std::string& str, int64_t ori, const std::string& pr
 
 void CmdRes::AppendStringVector(const std::vector<std::string>& strArray) {
   if (strArray.empty()) {
-    AppendArrayLen(-1);
+    AppendArrayLen(0);
     return;
   }
   AppendArrayLen(static_cast<int64_t>(strArray.size()));
@@ -128,6 +128,9 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
       AppendStringRaw("-ERR increment would produce NaN or Infinity");
       AppendStringRaw(content);
       AppendStringRaw(CRLF);
+      break;
+    case kInvalidCursor:
+      AppendStringRaw("-ERR invalid cursor");
       break;
     default:
       break;
