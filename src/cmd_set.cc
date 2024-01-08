@@ -113,6 +113,35 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther);
   }
 }
+
+SRemCmd::SRemCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SRemCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SRemCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  int retVal = 0;
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      client->AppendInteger(0);
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
+    }
+    return;
+  }
+  auto unset = value->CastSet();
+  const auto oldSize = unset->size();
+  for (int i = 2; i < client->argv_.size(); ++i) {
+    unset->erase(client->argv_[i]);
+  }
+  client->AppendInteger(oldSize - unset->size());
+}
+
 SInterStoreCmd::SInterStoreCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
