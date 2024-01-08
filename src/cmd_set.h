@@ -24,16 +24,10 @@ class SIsMemberCmd : public BaseCmd {
 class SAddCmd : public BaseCmd {
  public:
   SAddCmd(const std::string &name, int16_t arity);
- public:
-  SAddCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
- protected:
-  bool DoInitial(PClient *client) override;
 
- private:
-  void DoCmd(PClient *client) override;
  private:
   void DoCmd(PClient *client) override;
 };
