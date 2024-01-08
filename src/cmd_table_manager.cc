@@ -12,6 +12,7 @@
 #include "cmd_keys.h"
 #include "cmd_kv.h"
 #include "cmd_set.h"
+#include "cmd_list.h"
 
 namespace pikiwidb {
 
@@ -80,6 +81,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
   ADD_COMMAND(SRem, -3);
+
+  // list
+  ADD_COMMAND(LPush, -3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
