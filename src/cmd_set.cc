@@ -142,4 +142,85 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(oldSize - unset->size());
 }
 
+SInterStoreCmd::SInterStoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SInterStoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SInterStoreCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err{};
+  // check all value set is exist or not
+  bool reliable = true;
+  for (int i = 2; i < client->argv_.size(); ++i) {
+    err = PSTORE.GetValueByType(client->argv_[i], value, kPTypeSet);
+    if (err != kPErrorOK) {
+      if (err != kPErrorNotExist) {
+        client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
+      }
+      reliable = false;
+      break;
+    }
+  }
+  if (!reliable) {
+    // some value set is not exist, so return
+    err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+    if (err != kPErrorOK && err != kPErrorNotExist) {
+      client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
+    } else {
+      // delete key like DelCmd
+      if (PSTORE.DeleteKey(client->Key())) {
+        PSTORE.ClearExpire(client->Key());
+      }
+      client->AppendInteger(0);
+    }
+    return;
+  }
+
+  err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
+      return;
+    }
+  }
+  auto desSet = value->CastSet();
+  desSet->clear();
+
+  // end check , all value set is exist
+  err = PSTORE.GetValueByType(client->argv_[2], value, kPTypeSet);  // get girst value key
+
+  PSET firstSet = value->CastSet();
+  for (const auto& member : *firstSet) {
+    reliable = true;  // here reliable used to check for a string, whether all value set contains
+    for (int i = 3; i < client->argv_.size(); ++i) {  // start from second value key
+      err = PSTORE.GetValueByType(client->argv_[i], value, kPTypeSet);
+      if (err != kPErrorOK) {
+        client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");  // all value set is exist
+      }
+      if (!value->CastSet()->contains(member)) {
+        reliable = false;
+        break;
+      }
+    }
+    if (reliable == true) {
+      desSet->emplace(member);
+    }
+  }
+
+  if (desSet->empty()) {
+    // delete key like DelCmd
+    if (PSTORE.DeleteKey(client->Key())) {
+      PSTORE.ClearExpire(client->Key());
+    }
+    client->AppendInteger(0);
+
+  } else {
+    client->AppendInteger(desSet->size());
+  }
+}
 }  // namespace pikiwidb
