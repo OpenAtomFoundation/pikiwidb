@@ -36,3 +36,6 @@ ENDIF ()
 
 TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags "${MAC_LIBRARY}")
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)
+
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/braft/src)
+include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/braft/)

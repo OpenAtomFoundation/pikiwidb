@@ -146,6 +146,26 @@ INCLUDE(braft)
 
 ENABLE_TESTING()
 
+find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
+if(EXAMPLE_LINK_SO)
+    find_library(BRPC_LIB NAMES brpc)
+    find_library(BRAFT_LIB NAMES braft)
+else()
+    find_library(BRPC_LIB NAMES libbrpc.a brpc)
+    find_library(BRAFT_LIB NAMES libbraft.a braft)
+endif()
+
+if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
+    message(FATAL_ERROR "Fail to find brpc")
+endif()
+include_directories(${BRPC_INCLUDE_PATH})
+
+find_path(BRAFT_INCLUDE_PATH NAMES braft/raft.h)
+if ((NOT BRAFT_INCLUDE_PATH) OR (NOT BRAFT_LIB))
+    message (FATAL_ERROR "Fail to find braft")
+endif()
+include_directories(${BRAFT_INCLUDE_PATH})
+
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(tests/counter)
@@ -201,4 +221,3 @@ ADD_CUSTOM_TARGET(cpplint echo '${LINT_FILES}' | xargs -n12 -P8
   --linelength=120
   --filter=-legal/copyright,-build/header_guard,-runtime/references
 )
-
