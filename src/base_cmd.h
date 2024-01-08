@@ -76,6 +76,7 @@ const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
 const std::string kCmdNameSInter = "sinter";
+const std::string kCmdNameSRem = "srem";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

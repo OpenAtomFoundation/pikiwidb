@@ -79,6 +79,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SIsMember, 3);
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
+  ADD_COMMAND(SRem, -3);
   ADD_COMMAND(SInter, -2);
 }
 
