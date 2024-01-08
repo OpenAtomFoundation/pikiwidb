@@ -161,7 +161,6 @@ void SInterCmd::DoCmd(PClient* client) {
   client->AppendStringVector(resVt);
 }
 
-
 SRemCmd::SRemCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
