@@ -113,6 +113,53 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther);
   }
 }
+SInterCmd::SInterCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SInterCmd::DoInitial(PClient* client) {
+  std::vector keys(client->argv_.begin() + 1, client->argv_.end());
+
+  client->SetKey(keys);
+  return true;
+}
+
+void SInterCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err{};
+  std::vector<std::string> resVt;
+  for (const auto& key : client->Keys()) {
+    err = PSTORE.GetValueByType(key, value, kPTypeSet);
+    if (err != kPErrorOK) {
+      if (err == kPErrorNotExist) {
+        client->AppendStringVector(resVt);
+      } else {
+        client->SetRes(CmdRes::kErrOther);
+      }
+      return;
+    }
+  }
+
+  std::string setKey = client->Keys().at(0);
+  err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
+
+  PSET firstSet = value->CastSet();
+  bool reliable{};
+  for (const auto& member : *firstSet) {
+    reliable = true;
+    for (int i = 1; i < client->Keys().size(); ++i) {
+      setKey = client->Keys().at(i);
+      err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
+      if (!value->CastSet()->contains(member)) {
+        reliable = false;
+        break;
+      }
+    }
+    if (reliable == true) {
+      resVt.emplace_back(member);
+    }
+  }
+  client->AppendStringVector(resVt);
+}
 
 SRemCmd::SRemCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
