@@ -125,7 +125,7 @@ bool SInterCmd::DoInitial(PClient* client) {
 
 void SInterCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err;
+  PError err{};
   std::vector<std::string> resVt;
   for (const auto& key : client->Keys()) {
     err = PSTORE.GetValueByType(key, value, kPTypeSet);
