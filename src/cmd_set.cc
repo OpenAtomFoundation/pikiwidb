@@ -151,7 +151,7 @@ bool SInterStoreCmd::DoInitial(PClient* client) {
 }
 void SInterStoreCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  PError err;
+  PError err{};
   // check all value set is exist or not
   bool reliable = true;
   for (int i = 2; i < client->argv_.size(); ++i) {
@@ -196,7 +196,7 @@ void SInterStoreCmd::DoCmd(PClient* client) {
 
   PSET firstSet = value->CastSet();
   for (const auto& member : *firstSet) {
-    reliable = true;  // here reliable 用于检查对于一个string，是不是所有的value set 都存在
+    reliable = true;  //here reliable used to check for a string, whether all value set contains
     for (int i = 3; i < client->argv_.size(); ++i) {  // start from second value key
       err = PSTORE.GetValueByType(client->argv_[i], value, kPTypeSet);
       if (err != kPErrorOK) {
