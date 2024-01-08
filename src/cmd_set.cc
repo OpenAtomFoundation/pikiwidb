@@ -8,7 +8,6 @@
 #include "cmd_set.h"
 #include <memory>
 #include <utility>
-#include <utility>
 #include "store.h"
 
 namespace pikiwidb {
