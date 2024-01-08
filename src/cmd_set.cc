@@ -106,6 +106,7 @@ void SRemCmd::DoCmd(PClient* client) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
@@ -503,3 +504,6 @@ void SAddCmd::DoCmd(PClient* client) {
 }
 }  // namespace pikiwidb
 >>>>>>> 903857d (feat:add set cmd sadd)
+=======
+}  // namespace pikiwidb
+>>>>>>> 15c4a11 (resolve conflict)
