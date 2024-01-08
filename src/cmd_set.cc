@@ -196,7 +196,7 @@ void SInterStoreCmd::DoCmd(PClient* client) {
 
   PSET firstSet = value->CastSet();
   for (const auto& member : *firstSet) {
-    reliable = true;  //here reliable used to check for a string, whether all value set contains
+    reliable = true;  // here reliable used to check for a string, whether all value set contains
     for (int i = 3; i < client->argv_.size(); ++i) {  // start from second value key
       err = PSTORE.GetValueByType(client->argv_[i], value, kPTypeSet);
       if (err != kPErrorOK) {
