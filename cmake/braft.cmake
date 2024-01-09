@@ -15,4 +15,4 @@ SET(BRAFT_INSTALL OFF CACHE BOOL "" FORCE)
 FETCHCONTENT_MAKEAVAILABLE(pikiwidb-braft)
 
 # link_directories(${BRPC_DIR})
-target_link_libraries(pikiwidb-braft brpc gflags_static protobuf leveldb)
+# target_link_libraries(pikiwidb-braft brpc gflags_static protobuf leveldb)
