@@ -17,14 +17,21 @@ var _ = Describe("Zset", func() {
 		s   *util.Server
 		rdb *redis.Client
 	)
+
 	BeforeEach(func() {
 		config := util.GetConfPath(false, 0)
 		s = util.StartServer(config, map[string]string{"port": strconv.Itoa(7777)}, true)
+		if s == nil {
+			return
+		}
 		rdb = s.NewClient()
 	})
 
 	AfterEach(func() {
-		s.Close()
+		err := s.Close()
+		if err != nil {
+			return
+		}
 	})
 
 	//TODO(dingxiaoshuai) Add more test cases.

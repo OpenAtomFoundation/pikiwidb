@@ -3,7 +3,7 @@ package util
 import (
 	"context"
 	"fmt"
-	"io"
+	"log"
 	"net"
 	"os"
 	"os/exec"
@@ -90,7 +90,7 @@ func (s *Server) GetAddr() string {
 
 func (s *Server) NewClient() *redis.Client {
 	return redis.NewClient(&redis.Options{
-		Addr:         s.getAddr(),
+		Addr:         s.addr.String(),
 		DB:           0,
 		DialTimeout:  10 * time.Second,
 		ReadTimeout:  30 * time.Second,
@@ -101,27 +101,49 @@ func (s *Server) NewClient() *redis.Client {
 	})
 }
 
-func (s *Server) Close() {
-	err := s.cmd.Process.Signal(syscall.SIGTERM)
-	if err != nil || s.delete {
-		if err != nil {
-			s.cmd.Process.Kill()
+func (s *Server) Close() error {
+	err := s.cmd.Process.Signal(syscall.SIGINT)
+	done := make(chan error, 1)
+	go func() {
+		done <- s.cmd.Wait()
+	}()
+
+	timeout := time.After(30 * time.Second)
+
+	select {
+	case <-timeout:
+		log.Println("Wait timeout. Kill it.")
+		if err = s.cmd.Process.Kill(); err != nil {
+			log.Println("kill fail.", err.Error())
+			return err
 		}
-		s.cmd.Wait()
-		os.RemoveAll(s.dbDir)
-		os.Remove(s.config)
-		return
+	case err = <-done:
+		break
 	}
-	s.cmd.Wait()
+	if s.delete {
+		err := os.RemoveAll(s.dbDir)
+		if err != nil {
+			log.Println("Remove dbDir fail.", err.Error())
+			return err
+		}
+		err = os.Remove(s.config)
+		if err != nil {
+			log.Println("Remove config file fail.", err.Error())
+			return err
+		}
+	}
+	return nil
+
 }
 
 func StartServer(config string, options map[string]string, delete bool) *Server {
 	b := getBinPath()
 	c := exec.Command(b)
 	var (
-		p = 9221
-		d = ""
-		n = ""
+		p     = 9221
+		d     = ""
+		n     = ""
+		count = 0
 	)
 
 	if len(config) != 0 {
@@ -129,19 +151,27 @@ func StartServer(config string, options map[string]string, delete bool) *Server 
 		d = path.Join(getRootPathByCaller(), fmt.Sprintf("db_%d", t))
 		n = GetConfPath(true, t)
 
-		src, _ := os.Open(config)
-		defer src.Close()
-		dest, _ := os.Create(n)
-		defer dest.Close()
-		_, _ = io.Copy(dest, src)
-
-		cmd := exec.Command("sed", "-i", "", "-e", "s|db-path ./db|db-path "+d+"/db"+"|g", n)
-		_ = cmd.Run()
+		cmd := exec.Command("cp", config, n)
+		err := cmd.Run()
+		if err != nil {
+			log.Println("Cmd cp error.", err.Error())
+			return nil
+		}
+		if runtime.GOOS == "darwin" {
+			cmd = exec.Command("sed", "-i", "", "s|db-path ./db|db-path "+d+"/db"+"|", n)
+		} else {
+			cmd = exec.Command("sed", "-i", "s|db-path ./db|db-path "+d+"/db"+"|", n)
+		}
+		err = cmd.Run()
+		if err != nil {
+			log.Println("The configuration file cannot be used.", err.Error())
+			return nil
+		}
 
 		c.Args = append(c.Args, n)
 	}
 	for k, v := range options {
-		c.Args = append(c.Args, fmt.Sprintf("--%s ", k), v)
+		c.Args = append(c.Args, fmt.Sprintf("--%s", k), v)
 	}
 
 	if options["port"] != "" {
@@ -150,14 +180,20 @@ func StartServer(config string, options map[string]string, delete bool) *Server 
 
 	err := c.Start()
 	if err != nil {
+		log.Println("Pikiwidb startup failed.", err.Error())
 		return nil
 	}
 
-	ticker := time.NewTicker(5 * time.Second)
+	ticker := time.NewTicker(6 * time.Second)
 	defer ticker.Stop()
 	for {
+		count++
 		if checkCondition("127.0.0.1:" + strconv.Itoa(p)) {
 			break
+		}
+		if count == 10 {
+			log.Println("Unable to establish a valid connection.", err.Error())
+			return nil
 		}
 		<-ticker.C
 	}
