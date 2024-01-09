@@ -108,6 +108,8 @@ include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
 include(cmake/gtest.cmake)
 include(cmake/rocksdb.cmake)
+include(cmake/brpc.cmake)
+include(cmake/braft.cmake)
 
 enable_testing()
 
