@@ -142,4 +142,26 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(oldSize - unset->size());
 }
 
+SCardCmd::SCardCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SCardCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SCardCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      client->AppendInteger(0);
+    } else {
+      client->SetRes(CmdRes::kErrOther);
+    }
+    return;
+  }
+  client->AppendInteger(value->CastSet()->size());
+}
+
 }  // namespace pikiwidb
