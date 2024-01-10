@@ -166,6 +166,10 @@ if ((NOT BRAFT_INCLUDE_PATH) OR (NOT BRAFT_LIB))
 endif()
 include_directories(${BRAFT_INCLUDE_PATH})
 
+include(FindProtobuf)
+message(STATUS "PROTOBUF_INCLUDE_DIR: ${PROTOBUF_LIBRARY}")
+set(braft ${BRPC_LIB} ${BRAFT_LIB} ${PROTOBUF_LIBRARY})
+
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(tests/counter)

@@ -12,15 +12,26 @@
 #include <gflags/gflags.h>
 #include <memory>
 
+namespace pikiwidb {
+
+#define PRAFT PRaft::Instance()
+
 // Implementation of example::Block as a braft::StateMachine.
-class PikiwidbStateMachine : public braft::StateMachine {
+class PRaft : public braft::StateMachine {
  public:
-  PikiwidbStateMachine() : _node(nullptr), _leader_term(-1) {}
-  ~PikiwidbStateMachine() override = default;
+  PRaft() : _node(nullptr) {}
+
+  ~PRaft() override = default;
+
+  static PRaft& Instance();
 
   // Starts this node
   int start();
+
   bool is_leader() const;
+
+  butil::Status add_peer(const std::string& peer);
+  butil::Status remove_peer(const std::string& peer);
 
   // Shut this node down.
   void shutdown();
@@ -48,5 +59,6 @@ class PikiwidbStateMachine : public braft::StateMachine {
 
  private:
   std::unique_ptr<braft::Node> _node;
-  butil::atomic<int64_t> _leader_term;
 };
+
+}  // namespace pikiwidb
