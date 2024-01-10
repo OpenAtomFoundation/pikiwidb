@@ -7,15 +7,15 @@
 
 #pragma once
 
-#include "base_cmd.h"
 #include <braft/raft.h>
 #include <brpc/server.h>
+#include "base_cmd.h"
 
 namespace pikiwidb {
 
-class RaftClusterCmd : public BaseCmd {
+class RaftNodeCmd : public BaseCmd {
  public:
-  RaftClusterCmd(const std::string &name, int16_t arity);
+  RaftNodeCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

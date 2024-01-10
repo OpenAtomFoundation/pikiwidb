@@ -13,8 +13,5 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         ${rocksdb_SOURCE_DIR}/include
 )
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb; BRAFT_LIB)
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb; braft)
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)
-
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src/braft/src)
-include_directories(${CMAKE_CURRENT_BINARY_DIR}/src/braft/)

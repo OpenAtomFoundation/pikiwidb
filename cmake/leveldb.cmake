@@ -4,7 +4,6 @@ FetchContent_Declare(
     GIT_TAG main
 )
 
-# 检查 leveldb 是否已经被下载
 FetchContent_GetProperties(leveldb)
 if(NOT leveldb_POPULATED)
     FetchContent_Populate(leveldb)
