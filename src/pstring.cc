@@ -14,10 +14,11 @@ namespace pikiwidb {
 
 PObject PObject::CreateString(const PString& value) {
   PObject obj(kPTypeString);
-
   long val;
-  if (IsValidNumber(value)) {
-    Strtol(value.c_str(), value.size(), &val);
+
+  // isVaildNumber ensures that the string is in decimal format,
+  // while strtol ensures that the string is within the range of long type
+  if (IsValidNumber(value) && Strtol(value.c_str(), value.size(), &val)) {
     obj.encoding = kPEncodeInt;
     obj.value = (void*)val;
     DEBUG("set long value {}", val);
