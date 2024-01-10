@@ -588,7 +588,7 @@ void SetBitCmd::DoCmd(PClient* client) {
 }
 
 SetRangeCmd::SetRangeCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool SetRangeCmd::DoInitial(PClient* client) {
   // setrange key offset value
