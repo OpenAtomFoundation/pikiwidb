@@ -71,11 +71,13 @@ const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHScan = "hscan";
 const std::string kCmdNameHRandField = "hrandfield";
+const std::string kCmdNameHVals = "hvals";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
+const std::string kCmdNameSRem = "srem";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

@@ -75,11 +75,13 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HStrLen, 3);
   ADD_COMMAND(HScan, -3);
   ADD_COMMAND(HRandField, -2);
+  ADD_COMMAND(HVals, 2);
 
   // set
   ADD_COMMAND(SIsMember, 3);
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
+  ADD_COMMAND(SRem, -3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

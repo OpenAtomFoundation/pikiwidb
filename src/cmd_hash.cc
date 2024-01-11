@@ -287,14 +287,6 @@ HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
 bool HRandFieldCmd::DoInitial(PClient* client) {
-  /*
-   * There should not be quantity detection here,
-   * because the quantity detection of redis is after the COUNT integer detection.
-   */
-  // if (client->argv_.size() > 4) {
-  //   client->SetRes(CmdRes::kSyntaxErr);
-  //   return false;
-  // }
   client->SetKey(client->argv_[1]);
   return true;
 }
@@ -341,6 +333,24 @@ void HRandFieldCmd::DoCmd(PClient* client) {
   }
   for (const auto& item : res) {
     client->AppendString(item);
+  }
+}
+
+HValsCmd::HValsCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HValsCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HValsCmd::DoCmd(PClient* client) {
+  std::vector<std::string> valueVec;
+  storage::Status s = PSTORE.GetBackend()->HVals(client->Key(), &valueVec);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendStringVector(valueVec);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
 }
 
