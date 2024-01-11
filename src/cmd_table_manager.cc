@@ -74,6 +74,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HLen, 2);
   ADD_COMMAND(HStrLen, 3);
   ADD_COMMAND(HScan, -3);
+  ADD_COMMAND(HVals, 2);
 
   // set
   ADD_COMMAND(SIsMember, 3);
