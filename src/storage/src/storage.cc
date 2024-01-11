@@ -445,8 +445,8 @@ Status Storage::HRandField(const Slice& key, int64_t count, bool with_values, st
   return inst->HRandField(key, count, with_values, res);
 }
 
-Status Storage::HRandField(const Slice& key, int64_t count, std::vector<FieldValue>* fvs) {
-  return hashes_db_->HRandField(key, count, fvs);
+Status Storage::HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res) {
+  return hashes_db_->HRandField(key, count, with_values, res);
 }
 
 Status Storage::PKHScanRange(const Slice& key, const Slice& field_start, const std::string& field_end,
