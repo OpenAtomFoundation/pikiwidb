@@ -9,10 +9,8 @@
 #include <memory>
 #include <random>
 #include <utility>
-#include "common.h"
 #include "pstd/env.h"
 #include "store.h"
-#include "unbounded_buffer.h"
 
 namespace pikiwidb {
 
