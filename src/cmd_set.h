@@ -7,8 +7,6 @@
 
 #pragma once
 #include "base_cmd.h"
-#include "client.h"
-#include "store.h"
 
 namespace pikiwidb {
 
