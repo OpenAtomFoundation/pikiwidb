@@ -984,6 +984,7 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, bool with_values
       save_idx++;
     }
     if (!iter->Valid()) {
+      res->clear();
       return Status::IOError(fmt::format("Should search for the data starting with {}", prefix.ToString()));
     }
     ParsedHashesDataKey datakey(iter->key());
