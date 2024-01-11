@@ -974,7 +974,8 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, bool with_values
 
   HashesDataKey hashes_data_key(key, parsed_hashes_meta_value.version(), "");
   Slice prefix = hashes_data_key.Encode();
-  auto iter = db_->NewIterator(default_read_options_, handles_[1]);
+  auto tmp_iter = db_->NewIterator(default_read_options_, handles_[1]);
+  std::unique_ptr<rocksdb::Iterator> iter{tmp_iter};
   iter->Seek(prefix);
   uint32_t save_idx{};
   for (auto idx : idxs) {
