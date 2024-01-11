@@ -7,6 +7,8 @@
 
 #pragma once
 #include "base_cmd.h"
+#include "client.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -52,6 +54,19 @@ class SRemCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
+};
+
+class SRandMemberCmd : public BaseCmd {
+ public:
+  SRandMemberCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  void SRandWithCount(PClient *client, PObject *value, int num_rand);
+  void SRandWithoutCount(PClient *client, PObject *value);
 };
 
 }  // namespace pikiwidb
