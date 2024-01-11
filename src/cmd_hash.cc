@@ -324,8 +324,8 @@ void HRandFieldCmd::DoCmd(PClient* client) {
   }
 
   // execute command
-  std::vector<storage::FieldValue> fvs;
-  auto s = PSTORE.GetBackend()->HRandField(client->Key(), count, &fvs);
+  std::vector<std::string> res;
+  auto s = PSTORE.GetBackend()->HRandField(client->Key(), count, with_values, &res);
   if (s.IsNotFound()) {
     client->AppendString("");
     return;
@@ -337,13 +337,10 @@ void HRandFieldCmd::DoCmd(PClient* client) {
 
   // reply to client
   if (argv.size() > 2) {
-    client->AppendArrayLenUint64(with_values ? fvs.size() * 2 : fvs.size());
+    client->AppendArrayLenUint64(res.size());
   }
-  for (const auto& [field, value] : fvs) {
-    client->AppendString(field);
-    if (with_values) {
-      client->AppendString(value);
-    }
+  for (const auto& item : res) {
+    client->AppendString(item);
   }
 }
 

@@ -925,7 +925,7 @@ Status RedisHashes::HScanx(const Slice& key, const std::string& start_field, con
   return Status::OK();
 }
 
-Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<FieldValue>* fvs) {
+Status RedisHashes::HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res) {
   std::string meta_value;
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (!s.ok()) {
@@ -939,7 +939,16 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<Fiel
 
   if (count >= hlen) {
     // case 1: count > 0 and >= hlen, return all fv
-    return HGetall(key, fvs);
+    if (!with_values) {
+      return HKeys(key, res);
+    }
+    std::vector<FieldValue> fvs;
+    s = HGetall(key, &fvs);
+    for (const auto& [field, value] : fvs) {
+      res->push_back(field);
+      res->push_back(value);
+    }
+    return s;
   }
 
   std::vector<uint32_t> idxs;
@@ -975,7 +984,10 @@ Status RedisHashes::HRandField(const Slice& key, int64_t count, std::vector<Fiel
     }
     assert(iter->Valid());
     ParsedHashesDataKey datakey(iter->key());
-    fvs->push_back({datakey.field().ToString(), iter->value().ToString()});
+    res->push_back(datakey.field().ToString());
+    if (with_values) {
+      res->push_back(iter->value().ToString());
+    }
   }
   return Status::OK();
 }

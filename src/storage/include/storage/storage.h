@@ -353,7 +353,7 @@ class Storage {
                 std::vector<FieldValue>* field_values, std::string* next_field);
 
   // Return random field(s) and value(s) from the hash value stored at key.
-  Status HRandField(const Slice& key, int64_t count, std::vector<FieldValue>* fvs);
+  Status HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res);
 
   // Iterate over a Hash table of fields by specified range
   // return next_field that the user need to use as the start_field argument
