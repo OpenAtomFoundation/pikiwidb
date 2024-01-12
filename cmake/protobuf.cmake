@@ -8,11 +8,11 @@ FETCHCONTENT_DECLARE(
         GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
         GIT_TAG v25.1
 )
-
-SET(PROTOBUF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-SET(PROTOBUF_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-SET(PROTOBUF_INSTALL OFF CACHE BOOL "" FORCE)
+set(protobuf_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+SET(protobuf_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+SET(protobuf_INSTALL OFF CACHE BOOL "" FORCE)
+set(protobuf_BUILD_SHARED_LIBS_DEFAULT ON CACHE BOOL "Build shared libraries" FORCE)
+set(protobuf_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
 # Enable ABSL_PROPAGATE_CXX_STD option
 set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailableWithArgs(protobuf protobuf_USE_EXTERNAL_GTEST=ON)
-# FETCHCONTENT_MAKEAVAILABLE(protobuf)
+FetchContent_MakeAvailableWithArgs(protobuf)

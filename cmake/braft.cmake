@@ -3,8 +3,10 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
+include(cmake/brpc.cmake)
+
 FETCHCONTENT_DECLARE(
-        pikiwidb-braft
+        braft
         GIT_REPOSITORY https://github.com/baidu/braft.git
         GIT_TAG v1.1.2
 )
@@ -12,7 +14,8 @@ FETCHCONTENT_DECLARE(
 SET(BRAFT_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 SET(BRAFT_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 SET(BRAFT_INSTALL OFF CACHE BOOL "" FORCE)
-FETCHCONTENT_MAKEAVAILABLE(pikiwidb-braft)
+
+FetchContent_MakeAvailableWithArgs(braft)
 
 # link_directories(${BRPC_DIR})
 # target_link_libraries(pikiwidb-braft brpc gflags_static protobuf leveldb)
