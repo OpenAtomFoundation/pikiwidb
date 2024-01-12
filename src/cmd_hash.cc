@@ -325,6 +325,11 @@ HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string &name, int16_t arity)
 
 bool HIncrbyFloatCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return false;
+  }
   return true;
 }
 
