@@ -338,7 +338,7 @@ bool HIncrbyFloatCmd::DoInitial(PClient* client) {
 
 void HIncrbyFloatCmd::DoCmd(PClient* client) {
   long double long_double_by = 0;
-  if(-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)){
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
     client->SetRes(CmdRes::kInvalidFloat);
     return;
   }
