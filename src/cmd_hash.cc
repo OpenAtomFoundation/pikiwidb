@@ -258,6 +258,8 @@ bool HScanCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr);
     return false;
   }
+  client->SetKey(client->argv_[1]);
+  return true;
 }
 
 void HScanCmd::DoCmd(PClient* client) {
