@@ -323,7 +323,7 @@ void HValsCmd::DoCmd(PClient* client) {
   }
 }
 
-HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string &name, int16_t arity)
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
 bool HIncrbyFloatCmd::DoInitial(PClient* client) {
