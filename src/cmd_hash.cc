@@ -256,8 +256,6 @@ bool HScanCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr);
     return false;
   }
-  client->SetKey(client->argv_[1]);
-  return true;
 }
 
 void HScanCmd::DoCmd(PClient* client) {
@@ -321,4 +319,28 @@ void HValsCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
 }
+
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string &name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyFloatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HIncrbyFloatCmd::DoCmd(PClient* client) {
+  long double long_double_by = 0;
+  if(-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)){
+    client->SetRes(CmdRes::kInvalidFloat);
+    return;
+  }
+  std::string newValue;
+  storage::Status s = PSTORE.GetBackend()->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendString(newValue);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
+  }
+}
+
 }  // namespace pikiwidb
