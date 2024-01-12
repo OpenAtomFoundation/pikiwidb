@@ -17,26 +17,32 @@ FETCHCONTENT_DECLARE(
         GIT_TAG 1.7.0
 )
 
-SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-SET(BRPC_INSTALL OFF CACHE BOOL "" FORCE)
-SET(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/include)
-SET(BRPC_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/lib)
+# SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+# # SET(BRPC_INSTALL ON CACHE BOOL "" FORCE)
 
 SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
-SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build)
+SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
 
 SET(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build/include)
-SET(LEVELDB_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build)
+SET(LEVELDB_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build/libleveldb.a)
 
 # set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build ${CMAKE_PREFIX_PATH})
 SET(PROTOBUF_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build/include)
 SET(PROTOBUF_LIBRARIES ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build/libprotobuf.so)
 
-FetchContent_MakeAvailableWithArgs(brpc)
-# set_target_properties(brpc PROPERTIES
-#   INCLUDE_DIRECTORIES "${Protobuf_INCLUDE_DIRS}"
-#   LINK_LIBRARIES "${Protobuf_LIBRARIES}"
-# )
-# target_link_libraries(brpc gflags protobuf leveldb)
-# message(STATUS "brpc LD Path: ${BRPC_LIB}")
+FetchContent_GetProperties(brpc)
+if(NOT brpc_POPULATED)
+	FetchContent_Populate(brpc)
+	cmake_policy(SET CMP0069 NEW)
+        SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+        SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+        set(BRPC_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+	set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+	set(BRPC_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
+	set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
+	set(BUILD_BRPC_LIB ON CACHE BOOL "Build brpc library" FORCE)
+	add_subdirectory(${brpc_SOURCE_DIR} ${brpc_BINARY_DIR})
+endif()
+
+# FetchContent_MakeAvailableWithArgs(brpc)
