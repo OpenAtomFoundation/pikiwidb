@@ -3,7 +3,6 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-<<<<<<< HEAD
 INCLUDE(ExternalProject)
 
 SET(BRPC_SOURCES_DIR ${THIRD_PARTY_PATH}/brpc)
@@ -50,26 +49,3 @@ ADD_DEPENDENCIES(extern_brpc ssl crypto zlib protobuf leveldb gflags)
 ADD_LIBRARY(brpc STATIC IMPORTED GLOBAL)
 SET_PROPERTY(TARGET brpc PROPERTY IMPORTED_LOCATION ${BRPC_LIBRARIES})
 ADD_DEPENDENCIES(brpc extern_brpc)
-=======
-
-include(cmake/gflags.cmake)
-include(cmake/protobuf.cmake)
-include(cmake/leveldb.cmake)
-
-FETCHCONTENT_DECLARE(
-        brpc
-        GIT_REPOSITORY https://github.com/apache/brpc.git
-        GIT_TAG 1.7.0
-        # SOURCE_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-src
-        # BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/include
-)
-set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_BINARY_DIR}/build/_deps/brpc-build/output ${CMAKE_PREFIX_PATH})
-# set(BRPC_DIR ${CMAKE_CURRENT_BINARY_DIR}/build/_deps/brpc-build/output/include)
-
-SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-SET(BRPC_INSTALL OFF CACHE BOOL "" FORCE)
-FETCHCONTENT_MAKEAVAILABLE(brpc)
-
-# target_link_libraries(brpc gflags_static protobuf leveldb)
->>>>>>> fc35d0f (feat: import braft)

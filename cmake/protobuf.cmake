@@ -3,7 +3,6 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-<<<<<<< HEAD
 INCLUDE(ExternalProject)
 # Always invoke `FIND_PACKAGE(Protobuf)` for importing function protobuf_generate_cpp
 FIND_PACKAGE(Protobuf QUIET) 
@@ -166,18 +165,3 @@ IF (NOT PROTOBUF_FOUND)
             CACHE FILEPATH "protobuf executable." FORCE)
     PROMPT_PROTOBUF_LIB(extern_protobuf zlib)
 ENDIF (NOT PROTOBUF_FOUND)
-=======
-FETCHCONTENT_DECLARE(
-        protobuf
-        GIT_REPOSITORY https://github.com/protocolbuffers/protobuf.git
-        GIT_TAG v25.1
-)
-
-SET(PROTOBUF_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-SET(PROTOBUF_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-SET(PROTOBUF_INSTALL OFF CACHE BOOL "" FORCE)
-# Enable ABSL_PROPAGATE_CXX_STD option
-set(ABSL_PROPAGATE_CXX_STD ON CACHE BOOL "" FORCE)
-FetchContent_MakeAvailableWithArgs(protobuf protobuf_USE_EXTERNAL_GTEST=ON)
-# FETCHCONTENT_MAKEAVAILABLE(protobuf)
->>>>>>> fc35d0f (feat: import braft)

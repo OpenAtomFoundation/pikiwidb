@@ -130,7 +130,6 @@ SET(EXTERNAL_PROJECT_LOG_ARGS
 
 INCLUDE(FetchContent)
 
-<<<<<<< HEAD
 INCLUDE(gflags)
 INCLUDE(findTools)
 INCLUDE(leveldb)
@@ -144,19 +143,6 @@ INCLUDE(zlib)
 INCLUDE(protobuf)
 INCLUDE(brpc)
 INCLUDE(braft)
-=======
-include(cmake/findTools.cmake)
-include(cmake/leveldb.cmake)
-include(cmake/libevent.cmake)
-include(cmake/llhttp.cmake)
-include(cmake/fmt.cmake)
-include(cmake/spdlog.cmake)
-include(cmake/folly.cmake)
-include(cmake/gtest.cmake)
-include(cmake/rocksdb.cmake)
-include(cmake/brpc.cmake)
-include(cmake/braft.cmake)
->>>>>>> fc35d0f (feat: import braft)
 
 ENABLE_TESTING()
 
