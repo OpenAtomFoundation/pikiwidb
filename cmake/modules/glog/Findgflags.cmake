@@ -6,5 +6,6 @@
 if(gflags_SOURCE_DIR)
   message(STATUS "Found gflags in ${gflags_SOURCE_DIR}")
 
-  install(TARGETS gflags_static EXPORT glog-targets)
+#   add_library(gflags_static::gflags_static ALIAS gflags_static)
+#   install(TARGETS gflags_static EXPORT glog-targets)
 endif()
