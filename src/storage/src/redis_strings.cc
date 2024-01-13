@@ -694,7 +694,10 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  // return db_->Put(default_write_options_, key, strings_value.Encode());
+  auto future = storage_->GetBinlog()->Produce(
+      [&, this] { return db_->Put(default_write_options_, key, strings_value.Encode()); });
+  return future.get();
 }
 
 Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {

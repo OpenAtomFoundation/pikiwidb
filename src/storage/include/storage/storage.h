@@ -22,6 +22,7 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
+#include "storage/binlog.h"
 
 namespace storage {
 
@@ -1045,6 +1046,7 @@ class Storage {
   Status SetOptions(const OptionType& option_type, const std::string& db_type,
                     const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  auto GetBinlog() const -> Binlog* { return binlog_.get(); }
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1067,6 +1069,8 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
+
+  std::unique_ptr<Binlog> binlog_{std::make_unique<Binlog>()};
 };
 
 }  //  namespace storage
