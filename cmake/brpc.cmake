@@ -9,6 +9,7 @@ endif()
 
 include(cmake/gflags.cmake)
 include(cmake/protobuf.cmake)
+# include(cmake/openssl.cmake)
 include(cmake/leveldb.cmake)
 
 FETCHCONTENT_DECLARE(
@@ -21,16 +22,6 @@ FETCHCONTENT_DECLARE(
 # SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 # # SET(BRPC_INSTALL ON CACHE BOOL "" FORCE)
 
-SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
-SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
-
-SET(LEVELDB_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build/include)
-SET(LEVELDB_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build/libleveldb.a)
-
-# set(CMAKE_PREFIX_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build ${CMAKE_PREFIX_PATH})
-SET(PROTOBUF_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build/include)
-SET(PROTOBUF_LIBRARIES ${CMAKE_CURRENT_BINARY_DIR}/_deps/protobuf-build/libprotobuf.so)
-
 FetchContent_GetProperties(brpc)
 if(NOT brpc_POPULATED)
 	FetchContent_Populate(brpc)
@@ -42,7 +33,19 @@ if(NOT brpc_POPULATED)
 	set(BRPC_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
 	set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
 	set(BUILD_BRPC_LIB ON CACHE BOOL "Build brpc library" FORCE)
+        set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/brpc)
 	add_subdirectory(${brpc_SOURCE_DIR} ${brpc_BINARY_DIR})
 endif()
 
-# FetchContent_MakeAvailableWithArgs(brpc)
+SET(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/include)
+SET(BRPC_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/lib)
+
+add_custom_target(brpc DEPENDS protocolbuffers_protobuf gflags openssl leveldb)
+
+# FetchContent_MakeAvailableWithArgs(brpc
+#   CMAKE_MODULE_PATH=${PROJECT_SOURCE_DIR}/cmake/modules/brpc
+#   WITH_GFLAGS=ON
+#   BUILD_TESTING=OFF
+#   BUILD_STATIC_LIBS=ON
+#   BUILD_SHARED_LIBS=ON  
+# )
