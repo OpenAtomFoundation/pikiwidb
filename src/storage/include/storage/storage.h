@@ -1046,7 +1046,7 @@ class Storage {
   Status SetOptions(const OptionType& option_type, const std::string& db_type,
                     const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
-  auto GetBinlog() const -> Binlog* { return binlog_.get(); }
+  auto GetLogManager() const -> LogManger* { return log_manager_.get(); }
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1070,7 +1070,7 @@ class Storage {
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
 
-  std::unique_ptr<Binlog> binlog_{std::make_unique<Binlog>()};
+  auto DefaultWriteCallback(Binlog&& log) -> Status;
 };
 
 }  //  namespace storage
