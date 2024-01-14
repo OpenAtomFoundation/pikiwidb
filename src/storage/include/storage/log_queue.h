@@ -2,16 +2,17 @@
 
 #include <condition_variable>
 #include <functional>
+#include <future>
 #include <queue>
 #include <thread>
 #include <vector>
 
-// #include "binlog.h"
+#include "rocksdb/status.h"
+
+#include "binlog.h"
 #include "pstd/noncopyable.h"
 
-namespace pikiwidb {
-
-class Binlog;
+namespace storage {
 
 class ThreadPool {
  public:
@@ -34,17 +35,14 @@ class ThreadPool {
 
 class LogQueue : public pstd::noncopyable {
  public:
-  using WriteCallback = std::function<Status(Binlog&&)>;
+  using WriteCallback = std::function<rocksdb::Status(Binlog)>;
 
-  LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) {}
+  explicit LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) {}
 
-  auto Produce(Binlog&& log) -> std::future<Status> { return consumer_.enqueue(write_cb_, std::move(log)); }
+  auto Produce(Binlog&& log) -> std::future<rocksdb::Status> { return consumer_.enqueue(write_cb_, std::move(log)); }
 
  private:
-  auto Consume();
-  auto Apply();
-
-  std::function<Status(Binlog&&)> write_cb_;
+  WriteCallback write_cb_;
   ThreadPool consumer_{1};
 };
 
@@ -97,4 +95,4 @@ inline ThreadPool::~ThreadPool() {
   condition_.notify_all();
   for (std::thread& worker : workers_) worker.join();
 }
-}  // namespace pikiwidb
+}  // namespace storage

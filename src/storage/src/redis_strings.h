@@ -77,6 +77,9 @@ class RedisStrings : public Redis {
 
   // Iterate all data
   void ScanDatabase();
+
+  // binlog
+  auto GetDataType() const -> DataType { return DataType::kStrings; }
 };
 
 }  //  namespace storage

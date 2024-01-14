@@ -22,7 +22,7 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
-#include "storage/binlog.h"
+#include "storage/log_queue.h"
 
 namespace storage {
 
@@ -108,8 +108,6 @@ struct ScoreMember {
 };
 
 enum BeforeOrAfter { Before, After };
-
-enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets };
 
 const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
 
@@ -1046,7 +1044,7 @@ class Storage {
   Status SetOptions(const OptionType& option_type, const std::string& db_type,
                     const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
-  auto GetLogManager() const -> LogManger* { return log_manager_.get(); }
+  LogQueue* GetLogQueue() const { return log_queue_.get(); }
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1070,7 +1068,10 @@ class Storage {
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
 
-  auto DefaultWriteCallback(Binlog&& log) -> Status;
+  // binlog
+  auto DefaultWriteCallback(Binlog log) -> Status;
+  std::unique_ptr<LogQueue> log_queue_{
+      std::make_unique<LogQueue>([this](Binlog&& log) { return DefaultWriteCallback(std::move(log)); })};
 };
 
 }  //  namespace storage
