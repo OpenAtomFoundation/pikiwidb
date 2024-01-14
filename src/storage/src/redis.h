@@ -84,9 +84,9 @@ class Redis {
   // binlog
   virtual auto GetDataType() const -> DataType { return DataType::kAll; }
   auto CreateBinlog() -> Binlog { return Binlog{GetDataType()}; }
-  auto SimplePutBinlog(const Slice& key, const Slice& value) -> Binlog {
+  auto SimplePutBinlog(const Slice& key, Slice&& value) -> Binlog {
     auto log = CreateBinlog();
-    log.AppendOperate(OperateType::kPut, key, {value});
+    log.AppendOperate(OperateType::kPut, key, std::make_optional<Slice>(std::move(value)));
     return log;
   }
 };

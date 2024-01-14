@@ -1069,7 +1069,7 @@ class Storage {
   std::atomic<bool> scan_keynum_exit_ = false;
 
   // binlog
-  auto DefaultWriteCallback(Binlog log) -> Status;
+  auto DefaultWriteCallback(Binlog&& log) -> Status;
   std::unique_ptr<LogQueue> log_queue_{
       std::make_unique<LogQueue>([this](Binlog&& log) { return DefaultWriteCallback(std::move(log)); })};
 };
