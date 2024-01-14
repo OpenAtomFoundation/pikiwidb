@@ -13,6 +13,9 @@ enum class OperateType { kNoOperate = 0, kPut, kDelete };
 enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets };
 
 struct BinlogEntry {
+  BinlogEntry(OperateType type, const Slice& key, const std::optional<Slice>& value)
+      : op_type_(type), key_(key), value_(value) {}
+
   OperateType op_type_;
   Slice key_;
   std::optional<Slice> value_;
