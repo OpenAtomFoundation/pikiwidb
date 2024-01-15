@@ -56,6 +56,8 @@ class Redis {
   Status SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(size_t small_compaction_threshold);
   void GetRocksDBInfo(std::string& info, const char* prefix);
+  auto GetColumnFamilyHandle(uint8_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
 
  protected:
   Storage* const storage_;
@@ -84,9 +86,9 @@ class Redis {
   // binlog
   virtual auto GetDataType() const -> DataType { return DataType::kAll; }
   auto CreateBinlog() -> Binlog { return Binlog{GetDataType()}; }
-  auto SimplePutBinlog(const Slice& key, Slice&& value) -> Binlog {
+  auto CreatePutWithoutMetaBinlog(const Slice& key, Slice&& value) -> Binlog {
     auto log = CreateBinlog();
-    log.AppendOperate(OperateType::kPut, key, std::make_optional<Slice>(std::move(value)));
+    log.AppendOperation(-1, OperateType::kPut, key, std::make_optional<Slice>(std::move(value)));
     return log;
   }
 };

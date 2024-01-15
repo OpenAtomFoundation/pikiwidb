@@ -1806,10 +1806,10 @@ void Storage::DisableWal(const bool is_wal_disable) {
 }
 
 auto Storage::DefaultWriteCallback(Binlog&& log) -> Status {
-  rocksdb::DB* db = nullptr;
+  Redis* db = nullptr;
   switch (log.data_type_) {
     case DataType::kStrings:
-      db = strings_db_->GetDB();
+      db = strings_db_.get();
       break;
     default:
       assert(0);
@@ -1817,16 +1817,22 @@ auto Storage::DefaultWriteCallback(Binlog&& log) -> Status {
 
   rocksdb::WriteBatch batch;
   for (const auto& entry : log.entries_) {
-    if (entry.op_type_ == OperateType::kPut) {
-      assert(entry.value_.has_value());
-      batch.Put(entry.key_, *entry.value_);
-    } else {
-      batch.Delete(entry.key_);
+    switch (entry.op_type_) {
+      case OperateType::kPut:
+        assert(entry.value_.has_value());
+        if (entry.cf_idx_ == -1) {
+          batch.Put(entry.key_, *entry.value_);
+        } else {
+          batch.Put(db->GetColumnFamilyHandle(entry.cf_idx_), entry.key_, *entry.value_);
+        }
+        break;
+      default:
+        assert(0);
     }
   }
 
   assert(db);
-  return db->Write(rocksdb::WriteOptions(), &batch);
+  return db->GetDB()->Write(db->GetWriteOptions(), &batch);
 }
 
 }  //  namespace storage

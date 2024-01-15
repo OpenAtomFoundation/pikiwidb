@@ -695,7 +695,7 @@ Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
   // return db_->Put(default_write_options_, key, strings_value.Encode());
-  auto binlog = SimplePutBinlog(key, strings_value.Encode());
+  auto binlog = CreatePutWithoutMetaBinlog(key, strings_value.Encode());
   auto future = storage_->GetLogQueue()->Produce(std::move(binlog));
   return future.get();
 }
