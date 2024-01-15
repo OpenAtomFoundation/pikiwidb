@@ -22,30 +22,30 @@ FETCHCONTENT_DECLARE(
 # SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
 # # SET(BRPC_INSTALL ON CACHE BOOL "" FORCE)
 
-FetchContent_GetProperties(brpc)
-if(NOT brpc_POPULATED)
-	FetchContent_Populate(brpc)
-	cmake_policy(SET CMP0069 NEW)
-        SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
-        SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
-        set(BRPC_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
-	set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
-	set(BRPC_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
-	set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
-	set(BUILD_BRPC_LIB ON CACHE BOOL "Build brpc library" FORCE)
-        set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/brpc)
-	add_subdirectory(${brpc_SOURCE_DIR} ${brpc_BINARY_DIR})
-endif()
+# FetchContent_GetProperties(brpc)
+# if(NOT brpc_POPULATED)
+# 	FetchContent_Populate(brpc)
+# 	cmake_policy(SET CMP0069 NEW)
+#         SET(BRPC_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+#         SET(BRPC_BUILD_BENCHMARKS OFF CACHE BOOL "" FORCE)
+#         set(BRPC_BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+# 	set(BUILD_SHARED_LIBS ON CACHE BOOL "Build shared libraries" FORCE)
+# 	set(BRPC_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
+# 	set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
+# 	set(BUILD_BRPC_LIB ON CACHE BOOL "Build brpc library" FORCE)
+#         set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake/modules/brpc)
+# 	add_subdirectory(${brpc_SOURCE_DIR} ${brpc_BINARY_DIR})
+# endif()
 
 SET(BRPC_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/include)
 SET(BRPC_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/brpc-build/output/lib)
 
-add_custom_target(brpc DEPENDS protocolbuffers_protobuf gflags openssl leveldb)
+# add_custom_target(brpc DEPENDS protocolbuffers_protobuf gflags openssl leveldb)
 
-# FetchContent_MakeAvailableWithArgs(brpc
+FetchContent_MakeAvailableWithArgs(brpc
 #   CMAKE_MODULE_PATH=${PROJECT_SOURCE_DIR}/cmake/modules/brpc
-#   WITH_GFLAGS=ON
-#   BUILD_TESTING=OFF
-#   BUILD_STATIC_LIBS=ON
-#   BUILD_SHARED_LIBS=ON  
-# )
+  WITH_GFLAGS=ON
+  BUILD_TESTING=OFF
+  BUILD_STATIC_LIBS=ON
+  BUILD_SHARED_LIBS=ON  
+)
