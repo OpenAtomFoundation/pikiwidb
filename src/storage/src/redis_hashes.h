@@ -69,6 +69,9 @@ class RedisHashes : public Redis {
 
   // Iterate all data
   void ScanDatabase();
+
+  // binlog
+  auto GetDataType() const -> DataType override { return DataType::kHashes; }
 };
 
 }  //  namespace storage

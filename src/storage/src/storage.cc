@@ -1811,6 +1811,9 @@ auto Storage::DefaultWriteCallback(Binlog&& log) -> Status {
     case DataType::kStrings:
       db = strings_db_.get();
       break;
+    case DataType::kHashes:
+      db = hashes_db_.get();
+      break;
     default:
       assert(0);
   }
