@@ -63,6 +63,7 @@ const std::string kCmdNameAuth = "auth";
 // hash cmd
 const std::string kCmdNameHSet = "hset";
 const std::string kCmdNameHGet = "hget";
+const std::string kCmdNameHDel = "hdel";
 const std::string kCmdNameHMSet = "hmset";
 const std::string kCmdNameHMGet = "hmget";
 const std::string kCmdNameHGetAll = "hgetall";

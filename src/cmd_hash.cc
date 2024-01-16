@@ -71,6 +71,25 @@ void HGetCmd::DoCmd(PClient* client) {
   }
 }
 
+HDelCmd::HDelCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HDelCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HDelCmd::DoCmd(PClient* client) {
+  int32_t res{};
+  std::vector<std::string> fields(client->argv_.begin() + 2, client->argv_.end());
+  auto s = PSTORE.GetBackend()->HDel(client->Key(), fields, &res);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+  client->AppendInteger(res);
+}
+
 HMSetCmd::HMSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 
