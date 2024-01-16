@@ -88,7 +88,7 @@ class Redis {
   auto CreateBinlog() -> Binlog { return Binlog{GetDataType()}; }
   auto CreatePutWithoutMetaBinlog(const Slice& key, Slice&& value) -> Binlog {
     auto log = CreateBinlog();
-    log.AppendOperation(-1, OperateType::kPut, key, std::make_optional<Slice>(std::move(value)));
+    log.AppendPutOperation(-1, key, value);
     return log;
   }
 };

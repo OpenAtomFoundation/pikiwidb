@@ -1829,6 +1829,14 @@ auto Storage::DefaultWriteCallback(Binlog&& log) -> Status {
           batch.Put(db->GetColumnFamilyHandle(entry.cf_idx_), entry.key_, *entry.value_);
         }
         break;
+      case OperateType::kDelete:
+        assert(!entry.value_.has_value());
+        if (entry.cf_idx_ == -1) {
+          batch.Delete(entry.key_);
+        } else {
+          batch.Delete(db->GetColumnFamilyHandle(entry.cf_idx_), entry.key_);
+        }
+        break;
       default:
         assert(0);
     }

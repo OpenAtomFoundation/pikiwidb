@@ -23,9 +23,15 @@ class Binlog {
  public:
   explicit Binlog(DataType type) : data_type_(type) {}
 
-  void AppendOperation(int8_t cfid, OperateType type, const Slice& key,
-                       const std::optional<Slice>& value = std::nullopt) {
-    entries_.emplace_back(cfid, type, key, value);
+  // void AppendOperation(int8_t cfid, OperateType type, const Slice& key,
+  //                      const std::optional<Slice>& value = std::nullopt) {
+  //   entries_.emplace_back(cfid, type, key, value);
+  // }
+  void AppendPutOperation(int8_t cfid, const Slice& key, const Slice& value) {
+    entries_.emplace_back(cfid, OperateType::kPut, key, value);
+  }
+  void AppendDeleteOperation(int8_t cfid, const Slice& key) {
+    entries_.emplace_back(cfid, OperateType::kDelete, key, std::nullopt);
   }
 
   auto Serialization() -> std::string;

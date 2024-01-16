@@ -211,6 +211,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
   ScopeRecordLock l(lock_mgr_, key);
   ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
+  Binlog binlog = CreateBinlog();
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
@@ -226,7 +227,8 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
         if (s.ok()) {
           del_cnt++;
           statistic++;
-          batch.Delete(handles_[1], hashes_data_key.Encode());
+          // batch.Delete(handles_[1], hashes_data_key.Encode());
+          binlog.AppendDeleteOperation(1, hashes_data_key.Encode());
         } else if (s.IsNotFound()) {
           continue;
         } else {
@@ -238,7 +240,8 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
         return Status::InvalidArgument("hash size overflow");
       }
       parsed_hashes_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      // batch.Put(handles_[0], key, meta_value);
+      binlog.AppendPutOperation(0, key, meta_value);
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -246,7 +249,9 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  // s = db_->Write(default_write_options_, &batch);
+  auto future = storage_->GetLogQueue()->Produce(std::move(binlog));
+  s = future.get();
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
@@ -673,10 +678,10 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
       version = parsed_hashes_meta_value.InitialMetaValue();
       parsed_hashes_meta_value.set_count(1);
       // batch.Put(handles_[0], key, meta_value);
-      binlog.AppendOperation(0, OperateType::kPut, key, std::move(meta_value));
+      binlog.AppendPutOperation(0, key, std::move(meta_value));
       HashesDataKey data_key(key, version, field);
       // batch.Put(handles_[1], data_key.Encode(), value);
-      binlog.AppendOperation(1, OperateType::kPut, data_key.Encode(), value);
+      binlog.AppendPutOperation(1, data_key.Encode(), value);
       *res = 1;
     } else {
       version = parsed_hashes_meta_value.version();
@@ -689,7 +694,7 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
           return Status::OK();
         } else {
           // batch.Put(handles_[1], hashes_data_key.Encode(), value);
-          binlog.AppendOperation(1, OperateType::kPut, hashes_data_key.Encode(), value);
+          binlog.AppendPutOperation(1, hashes_data_key.Encode(), value);
           statistic++;
         }
       } else if (s.IsNotFound()) {
@@ -699,8 +704,8 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
         parsed_hashes_meta_value.ModifyCount(1);
         // batch.Put(handles_[0], key, meta_value);
         // batch.Put(handles_[1], hashes_data_key.Encode(), value);
-        binlog.AppendOperation(0, OperateType::kPut, key, std::move(meta_value));
-        binlog.AppendOperation(1, OperateType::kPut, hashes_data_key.Encode(), value);
+        binlog.AppendPutOperation(0, key, std::move(meta_value));
+        binlog.AppendPutOperation(1, hashes_data_key.Encode(), value);
         *res = 1;
       } else {
         return s;
@@ -711,10 +716,10 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
     HashesMetaValue meta_value(Slice(meta_value_buf, sizeof(int32_t)));
     version = meta_value.UpdateVersion();
     // batch.Put(handles_[0], key, meta_value.Encode());
-    binlog.AppendOperation(0, OperateType::kPut, key, meta_value.Encode());
+    binlog.AppendPutOperation(0, key, meta_value.Encode());
     HashesDataKey data_key(key, version, field);
     // batch.Put(handles_[1], data_key.Encode(), value);
-    binlog.AppendOperation(1, OperateType::kPut, data_key.Encode(), value);
+    binlog.AppendPutOperation(1, data_key.Encode(), value);
     *res = 1;
   } else {
     return s;
