@@ -36,6 +36,13 @@ jobs:
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest
 
+      - name: Run Go E2E Tests
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          cd ../tests
+          go mod tidy
+          go test
+
   build_on_ubuntu:
     runs-on: ubuntu-latest
     needs: check_format
@@ -52,3 +59,10 @@ jobs:
         # Execute tests defined by the CMake configuration.
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
         run: ctest
+
+      - name: Run Go E2E Tests
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          cd ../tests
+          go mod tidy
+          go test

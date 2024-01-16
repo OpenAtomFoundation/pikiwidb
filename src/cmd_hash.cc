@@ -283,4 +283,21 @@ void HScanCmd::DoCmd(PClient* client) {
   }
 }
 
+HValsCmd::HValsCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HValsCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HValsCmd::DoCmd(PClient* client) {
+  std::vector<std::string> valueVec;
+  storage::Status s = PSTORE.GetBackend()->HVals(client->Key(), &valueVec);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendStringVector(valueVec);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
+  }
+}
 }  // namespace pikiwidb
