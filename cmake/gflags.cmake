@@ -28,28 +28,3 @@ target_link_libraries(gflags_static Threads::Threads)
 SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
 SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
 SET(GFLAGS_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
-# SET(GFLAGS_INCLUDE_PATH $<BUILD_INTERFACE:${gflags_BINARY_DIR}/include>)
-# SET(GFLAGS_LIBRARY $<BUILD_INTERFACE:${gflags_SOURCE_DIR}/libgflags.a>)
-
-# FetchContent_Declare(gflags
-# 	GIT_REPOSITORY	https://github.com/gflags/gflags.git
-# 	GIT_TAG			master
-# )
-
-# FetchContent_GetProperties(gflags)
-# if(NOT gflags_POPULATED)
-# 	FetchContent_Populate(gflags)
-# 	cmake_policy(SET CMP0069 NEW)
-#   set(GFLAGS_BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-# 	set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-# 	set(GFLAGS_BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
-# 	set(BUILD_STATIC_LIBS ON CACHE BOOL "Build static libraries" FORCE)
-# 	set(BUILD_gflags_LIB ON CACHE BOOL "Build gflags library" FORCE)
-# 	add_subdirectory(${gflags_SOURCE_DIR} ${gflags_BINARY_DIR})
-# endif()
-
-# FetchContent_Declare(gflags
-#   URL      https://github.com/gflags/gflags/archive/v2.2.2.zip
-#   URL_HASH SHA256=19713a36c9f32b33df59d1c79b4958434cb005b5b47dc5400a7a4b078111d9b5
-# )
-# FetchContent_MakeAvailable(gflags)
