@@ -35,11 +35,13 @@ class ThreadPool {
 
 class LogQueue : public pstd::noncopyable {
  public:
-  using WriteCallback = std::function<rocksdb::Status(Binlog)>;
+  using WriteCallback = std::function<rocksdb::Status(const std::string&)>;
 
   explicit LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) {}
 
-  auto Produce(Binlog&& log) -> std::future<rocksdb::Status> { return consumer_.enqueue(write_cb_, std::move(log)); }
+  auto Produce(Binlog&& log) -> std::future<rocksdb::Status> {
+    return consumer_.enqueue(write_cb_, log.Serialization());
+  }
 
  private:
   WriteCallback write_cb_;

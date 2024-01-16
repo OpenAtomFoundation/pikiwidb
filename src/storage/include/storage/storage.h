@@ -1069,9 +1069,14 @@ class Storage {
   std::atomic<bool> scan_keynum_exit_ = false;
 
   // binlog
-  auto DefaultWriteCallback(Binlog&& log) -> Status;
-  std::unique_ptr<LogQueue> log_queue_{
-      std::make_unique<LogQueue>([this](Binlog&& log) { return DefaultWriteCallback(std::move(log)); })};
+  auto DefaultWriteCallback(const Binlog& log) -> Status;
+  std::unique_ptr<LogQueue> log_queue_{std::make_unique<LogQueue>([this](const std::string& data) {
+    auto log = Binlog::DeSerialization(data);
+    if (!log.has_value()) {
+      return Status::Incomplete("Failed to deserialize binlog");
+    }
+    return DefaultWriteCallback(*log);
+  })};
 };
 
 }  //  namespace storage

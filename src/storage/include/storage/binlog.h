@@ -34,13 +34,11 @@ class Binlog {
     entries_.emplace_back(cfid, OperateType::kDelete, key, std::nullopt);
   }
 
-  auto Serialization() -> std::string;
-  static auto DeSerialization(const std::string&) -> Binlog;
+  auto Serialization() const -> std::string;
+  static auto DeSerialization(const std::string&) -> std::optional<Binlog>;
 
   std::vector<BinlogEntry> entries_;
   DataType data_type_;
-
-  static constexpr uint64_t kMagic_ = 0x12345678;
 };
 
 }  // namespace storage

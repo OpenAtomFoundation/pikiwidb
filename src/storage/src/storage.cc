@@ -1805,7 +1805,7 @@ void Storage::DisableWal(const bool is_wal_disable) {
   zsets_db_->SetWriteWalOptions(is_wal_disable);
 }
 
-auto Storage::DefaultWriteCallback(Binlog&& log) -> Status {
+auto Storage::DefaultWriteCallback(const Binlog& log) -> Status {
   Redis* db = nullptr;
   switch (log.data_type_) {
     case DataType::kStrings:

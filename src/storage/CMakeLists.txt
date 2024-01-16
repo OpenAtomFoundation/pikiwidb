@@ -15,6 +15,6 @@ TARGET_INCLUDE_DIRECTORIES(storage
         PRIVATE ${rocksdb_SOURCE_DIR}/include
 )
 
-TARGET_LINK_LIBRARIES(storage pstd glog rocksdb)
+TARGET_LINK_LIBRARIES(storage pstd glog rocksdb libprotobuf-lited.a)
 
 SET_TARGET_PROPERTIES(storage PROPERTIES LINKER_LANGUAGE CXX)
