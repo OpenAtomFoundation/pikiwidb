@@ -106,17 +106,29 @@ var _ = Describe("Hash", Ordered, func() {
 		Expect(keys).To(ConsistOf([]string{"key1", "key2"}))
 	})
 
-	It("should HDel", func() {
-		hSet := client.HSet(ctx, "hash", "key", "hello")
+	It("HDel", func() {
+		testKey := "hdel"
+		hSet := client.HSet(ctx, testKey, "key", "hello")
 		Expect(hSet.Err()).NotTo(HaveOccurred())
+		hSet = client.HSet(ctx, testKey, "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(0)))
 
-		hDel := client.HDel(ctx, "hash", "key")
+		hDel := client.HDel(ctx, testKey, "key")
 		Expect(hDel.Err()).NotTo(HaveOccurred())
 		Expect(hDel.Val()).To(Equal(int64(1)))
 
-		hDel = client.HDel(ctx, "hash", "key")
+		hDel = client.HDel(ctx, testKey, "key")
 		Expect(hDel.Err()).NotTo(HaveOccurred())
 		Expect(hDel.Val()).To(Equal(int64(0)))
+
+		hSet = client.HSet(ctx, testKey, "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(1)))
+
+		hDel = client.HDel(ctx, testKey, "key")
+		Expect(hDel.Err()).NotTo(HaveOccurred())
+		Expect(hDel.Val()).To(Equal(int64(1)))
 	})
 
 })
