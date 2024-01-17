@@ -51,17 +51,14 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
 
 Storage::Storage()
     : log_queue_(std::make_unique<LogQueue>([this](const std::string& data) {
-        auto proto = Binlog::GetBinlogProto(data);
-        assert(proto.has_value());
-        auto log = Binlog::DeSerialization(*proto);
-        // if (!log.has_value()) {
-        //   LOG(ERROR) << "Failed to deserialize binlog";
-        //   return Status::Incomplete("Failed to deserialize binlog");
-        // } else {
-        //   LOG(INFO) << *log;
-        // }
-        LOG(INFO) << log;
-        return DefaultWriteCallback(log);
+        auto log = Binlog::DeSerialization(data);
+        if (!log.has_value()) {
+          LOG(ERROR) << "Failed to deserialize binlog";
+          return Status::Incomplete("Failed to deserialize binlog");
+        } else {
+          LOG(INFO) << *log;
+        }
+        return DefaultWriteCallback(*log);
       })) {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);

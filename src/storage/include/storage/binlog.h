@@ -4,7 +4,6 @@
 #include <optional>
 #include <vector>
 
-#include "binlog.pb.h"
 #include "rocksdb/slice.h"
 
 namespace storage {
@@ -38,8 +37,7 @@ class Binlog {
   }
 
   auto Serialization() const -> std::string;
-  static auto DeSerialization(const BinlogProto& proto) -> Binlog;
-  static auto GetBinlogProto(const std::string&) -> std::optional<BinlogProto>;
+  static auto DeSerialization(const std::string& data) -> std::optional<Binlog>;
 
   std::vector<BinlogEntry> entries_;
   DataType data_type_;

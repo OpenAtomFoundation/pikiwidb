@@ -1,5 +1,7 @@
 #include "storage/binlog.h"
 
+#include "binlog.pb.h"
+
 namespace storage {
 
 auto Binlog::Serialization() const -> std::string {
@@ -17,11 +19,15 @@ auto Binlog::Serialization() const -> std::string {
   return binlog_proto.SerializeAsString();
 }
 
-auto Binlog::DeSerialization(const BinlogProto& proto) -> Binlog {
-  Binlog binlog(static_cast<DataType>(proto.data_type()));
-  binlog.entries_.resize(proto.entries_size());
+auto Binlog::DeSerialization(const std::string& data) -> std::optional<Binlog> {
+  BinlogProto binlog_proto;
+  if (!binlog_proto.ParseFromString(data)) {
+    return std::nullopt;
+  }
+  Binlog binlog(static_cast<DataType>(binlog_proto.data_type()));
+  binlog.entries_.resize(binlog_proto.entries_size());
   auto& entries = binlog.entries_;
-  const auto& protos = proto.entries();
+  const auto& protos = binlog_proto.entries();
   for (size_t i = 0; i < entries.size(); i++) {
     entries[i].cf_idx_ = protos[i].cf_idx();
     entries[i].op_type_ = static_cast<OperateType>(protos[i].op_type());
@@ -31,14 +37,6 @@ auto Binlog::DeSerialization(const BinlogProto& proto) -> Binlog {
     }
   }
   return binlog;
-}
-
-auto Binlog::GetBinlogProto(const std::string& data) -> std::optional<BinlogProto> {
-  BinlogProto binlog_proto;
-  if (!binlog_proto.ParseFromString(data)) {
-    return std::nullopt;
-  }
-  return binlog_proto;
 }
 
 }  // namespace storage
