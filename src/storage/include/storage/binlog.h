@@ -1,8 +1,10 @@
 #pragma once
 
+#include <iostream>
 #include <optional>
 #include <vector>
 
+#include "binlog.pb.h"
 #include "rocksdb/slice.h"
 
 namespace storage {
@@ -11,6 +13,7 @@ using Slice = rocksdb::Slice;
 
 enum class OperateType { kNoOperate = 0, kPut, kDelete };
 enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets };
+const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
 
 struct BinlogEntry {
   int32_t cf_idx_;
@@ -35,10 +38,24 @@ class Binlog {
   }
 
   auto Serialization() const -> std::string;
-  static auto DeSerialization(const std::string&) -> std::optional<Binlog>;
+  static auto DeSerialization(const BinlogProto& proto) -> Binlog;
+  static auto GetBinlogProto(const std::string&) -> std::optional<BinlogProto>;
 
   std::vector<BinlogEntry> entries_;
   DataType data_type_;
 };
+
+inline std::ostream& operator<<(std::ostream& os, const Binlog& log) {
+  os << "{ type=" << DataTypeTag[log.data_type_] << ", op_size=" << log.entries_.size() << ": ";
+  for (const auto& entry : log.entries_) {
+    if (entry.op_type_ == OperateType::kPut) {
+      os << "put (" << entry.key_.data() << ", " << entry.value_->data() << "), ";
+    } else {
+      os << "del (" << entry.key_.data() << "), ";
+    }
+  }
+  os << "}";
+  return os;
+}
 
 }  // namespace storage

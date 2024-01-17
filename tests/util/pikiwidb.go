@@ -151,8 +151,10 @@ func StartServer(config string, options map[string]string, delete bool) *Server 
 	}
 	defer outfile.Close()
 
-	c.Stdout = outfile
-	c.Stderr = outfile
+	// c.Stdout = outfile
+	// c.Stderr = outfile
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
 	log.SetOutput(outfile)
 
 	if len(config) != 0 {

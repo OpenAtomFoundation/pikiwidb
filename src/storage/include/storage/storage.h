@@ -109,8 +109,6 @@ struct ScoreMember {
 
 enum BeforeOrAfter { Before, After };
 
-const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
-
 enum class OptionType {
   kDB,
   kColumnFamily,
@@ -1070,13 +1068,15 @@ class Storage {
 
   // binlog
   auto DefaultWriteCallback(const Binlog& log) -> Status;
-  std::unique_ptr<LogQueue> log_queue_{std::make_unique<LogQueue>([this](const std::string& data) {
-    auto log = Binlog::DeSerialization(data);
-    if (!log.has_value()) {
-      return Status::Incomplete("Failed to deserialize binlog");
-    }
-    return DefaultWriteCallback(*log);
-  })};
+  std::unique_ptr<LogQueue> log_queue_;
+  // std::unique_ptr<LogQueue> log_queue_{std::make_unique<LogQueue>([this](const std::string& data) {
+  //   auto log = Binlog::DeSerialization(data);
+  //   if (!log.has_value()) {
+  //     LOG(ERROR) << "Failed to deserialize binlog";
+  //     return Status::Incomplete("Failed to deserialize binlog");
+  //   }
+  //   return DefaultWriteCallback(*log);
+  // })};
 };
 
 }  //  namespace storage
