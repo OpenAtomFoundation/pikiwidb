@@ -71,7 +71,7 @@ class RedisHashes : public Redis {
   void ScanDatabase();
 
   // binlog
-  auto GetDataType() const -> DataType override { return DataType::kHashes; }
+  auto GetDataType() const -> BinlogDataType override { return BinlogDataType::HASHES; }
 };
 
 }  //  namespace storage

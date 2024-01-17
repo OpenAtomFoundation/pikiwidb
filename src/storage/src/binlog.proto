@@ -4,29 +4,29 @@ package storage;
 
 option optimize_for = LITE_RUNTIME;
 
-enum OperateTypeProto {
-  NO_OPERATE = 0;
-  PUT = 1;
-  DELETE = 2;
+enum OperateType {
+  kNoOperate = 0;
+  kPut = 1;
+  kDelete = 2;
 }
 
-message BinlogEntryProto {
+message BinlogEntry {
   int32 cf_idx = 1;
-  OperateTypeProto op_type = 2;
+  OperateType op_type = 2;
   bytes key = 3;
   optional bytes value = 4;
 }
 
-enum DataTypeProto {
-  ALL = 0;
-  STRINGS = 1;
-  HASHES = 2;
-  LISTS = 3;
-  ZSETS = 4;
-  SETS = 5;
+enum BinlogDataType {
+ ALL = 0;
+ STRINGS = 1;
+ HASHES = 2;
+ LISTS = 3;
+ ZSETS = 4;
+ SETS = 5;
 }
 
-message BinlogProto {
-  DataTypeProto data_type = 1;
-  repeated BinlogEntryProto entries = 2;
+message Binlog {
+  BinlogDataType data_type = 1;
+  repeated BinlogEntry entries = 2;
 }

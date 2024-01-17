@@ -40,7 +40,7 @@ class LogQueue : public pstd::noncopyable {
   explicit LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) {}
 
   auto Produce(Binlog&& log) -> std::future<rocksdb::Status> {
-    return consumer_.enqueue(write_cb_, log.Serialization());
+    return consumer_.enqueue(write_cb_, log.SerializeAsString());
   }
 
  private:

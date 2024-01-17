@@ -22,9 +22,11 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
-#include "storage/log_queue.h"
 
 namespace storage {
+
+enum DataType { kAll = 0, kStrings, kHashes, kLists, kZSets, kSets };
+const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
 
 inline constexpr double ZSET_SCORE_MAX = std::numeric_limits<double>::max();
 inline constexpr double ZSET_SCORE_MIN = std::numeric_limits<double>::lowest();
@@ -54,6 +56,8 @@ class RedisSets;
 class RedisLists;
 class RedisZSets;
 class HyperLogLog;
+class Binlog;
+class LogQueue;
 enum class OptionType;
 
 template <typename T1, typename T2>

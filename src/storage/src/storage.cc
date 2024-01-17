@@ -10,6 +10,7 @@
 
 #include <utility>
 
+#include "log_queue.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -51,13 +52,14 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
 
 Storage::Storage()
     : log_queue_(std::make_unique<LogQueue>([this](const std::string& data) {
-        auto log = Binlog::DeSerialization(data);
-        if (!log.has_value()) {
-          LOG(ERROR) << "Failed to deserialize binlog";
-          return Status::Incomplete("Failed to deserialize binlog");
-        } else {
-          LOG(INFO) << *log;
-        }
+        auto log = BinlogWrapper::Deserialization(data);
+        assert(log.has_value());
+        // if (!log.has_value()) {
+        //   LOG(ERROR) << "Failed to deserialize binlog";
+        //   return Status::Incomplete("Failed to deserialize binlog");
+        // } else {
+        //   LOG(INFO) << *log;
+        // }
         return DefaultWriteCallback(*log);
       })) {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
@@ -1817,11 +1819,11 @@ void Storage::DisableWal(const bool is_wal_disable) {
 
 auto Storage::DefaultWriteCallback(const Binlog& log) -> Status {
   Redis* db = nullptr;
-  switch (log.data_type_) {
-    case DataType::kStrings:
+  switch (log.data_type()) {
+    case BinlogDataType::STRINGS:
       db = strings_db_.get();
       break;
-    case DataType::kHashes:
+    case BinlogDataType::HASHES:
       db = hashes_db_.get();
       break;
     default:
@@ -1829,22 +1831,22 @@ auto Storage::DefaultWriteCallback(const Binlog& log) -> Status {
   }
 
   rocksdb::WriteBatch batch;
-  for (const auto& entry : log.entries_) {
-    switch (entry.op_type_) {
+  for (const auto& entry : log.entries()) {
+    switch (entry.op_type()) {
       case OperateType::kPut:
-        assert(entry.value_.has_value());
-        if (entry.cf_idx_ == -1) {
-          batch.Put(entry.key_, *entry.value_);
+        assert(entry.has_value());
+        if (entry.cf_idx() == -1) {
+          batch.Put(entry.key(), entry.value());
         } else {
-          batch.Put(db->GetColumnFamilyHandle(entry.cf_idx_), entry.key_, *entry.value_);
+          batch.Put(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
         }
         break;
       case OperateType::kDelete:
-        assert(!entry.value_.has_value());
-        if (entry.cf_idx_ == -1) {
-          batch.Delete(entry.key_);
+        assert(!entry.has_value());
+        if (entry.cf_idx() == -1) {
+          batch.Delete(entry.key());
         } else {
-          batch.Delete(db->GetColumnFamilyHandle(entry.cf_idx_), entry.key_);
+          batch.Delete(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
         }
         break;
       default:

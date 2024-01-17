@@ -10,6 +10,7 @@
 #include <fmt/core.h>
 #include <glog/logging.h>
 
+#include "log_queue.h"
 #include "src/base_filter.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
@@ -211,7 +212,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
   ScopeRecordLock l(lock_mgr_, key);
   ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
-  Binlog binlog = CreateBinlog();
+  auto binlog = CreateBinlogWrapper();
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
@@ -250,7 +251,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
     return s;
   }
   // s = db_->Write(default_write_options_, &batch);
-  auto future = storage_->GetLogQueue()->Produce(std::move(binlog));
+  auto future = storage_->GetLogQueue()->Produce(binlog.MoveBinlog());
   s = future.get();
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
@@ -669,7 +670,7 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
   int32_t version = 0;
   uint32_t statistic = 0;
   std::string meta_value;
-  Binlog binlog = CreateBinlog();
+  auto binlog = CreateBinlogWrapper();
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   char meta_value_buf[4] = {0};
   if (s.ok()) {
@@ -725,7 +726,7 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
     return s;
   }
   // s = db_->Write(default_write_options_, &batch);
-  auto future = storage_->GetLogQueue()->Produce(std::move(binlog));
+  auto future = storage_->GetLogQueue()->Produce(binlog.MoveBinlog());
   s = future.get();
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;

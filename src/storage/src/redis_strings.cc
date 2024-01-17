@@ -14,6 +14,7 @@
 #include <glog/logging.h>
 #include <iostream>
 
+#include "log_queue.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"

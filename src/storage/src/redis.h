@@ -13,10 +13,10 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
 
+#include "binlog.h"
 #include "src/lock_mgr.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
-#include "storage/binlog.h"
 #include "storage/storage.h"
 
 namespace storage {
@@ -84,12 +84,12 @@ class Redis {
   Status AddCompactKeyTaskIfNeeded(const std::string& key, size_t total);
 
   // binlog
-  virtual auto GetDataType() const -> DataType { return DataType::kAll; }
-  auto CreateBinlog() -> Binlog { return Binlog{GetDataType()}; }
+  virtual auto GetDataType() const -> BinlogDataType { return BinlogDataType::ALL; }
+  auto CreateBinlogWrapper() -> BinlogWrapper { return BinlogWrapper{GetDataType()}; }
   auto CreatePutWithoutMetaBinlog(const Slice& key, Slice&& value) -> Binlog {
-    auto log = CreateBinlog();
+    auto log = CreateBinlogWrapper();
     log.AppendPutOperation(-1, key, value);
-    return log;
+    return log.MoveBinlog();
   }
 };
 
