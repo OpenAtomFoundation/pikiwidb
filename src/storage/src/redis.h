@@ -56,7 +56,7 @@ class Redis {
   Status SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(size_t small_compaction_threshold);
   void GetRocksDBInfo(std::string& info, const char* prefix);
-  auto GetColumnFamilyHandle(uint8_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
 
  protected:
