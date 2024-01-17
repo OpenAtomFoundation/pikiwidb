@@ -9,8 +9,10 @@ auto Binlog::Serialization() const -> std::string {
     auto ptr = binlog_proto.add_entries();
     ptr->set_cf_idx(entry.cf_idx_);
     ptr->set_op_type(static_cast<OperateTypeProto>(entry.op_type_));
-    ptr->set_key(entry.key_.ToString());
-    ptr->set_value(entry.value_->ToString());
+    ptr->set_key(entry.key_);
+    if (entry.value_.has_value()) {
+      ptr->set_value(*entry.value_);
+    }
   }
   return binlog_proto.SerializeAsString();
 }
@@ -24,7 +26,9 @@ auto Binlog::DeSerialization(const BinlogProto& proto) -> Binlog {
     entries[i].cf_idx_ = protos[i].cf_idx();
     entries[i].op_type_ = static_cast<OperateType>(protos[i].op_type());
     entries[i].key_ = protos[i].key();
-    entries[i].value_ = protos[i].value();
+    if (protos[i].has_value()) {
+      entries[i].value_ = protos[i].value();
+    }
   }
   return binlog;
 }

@@ -18,8 +18,8 @@ const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
 struct BinlogEntry {
   int32_t cf_idx_;
   OperateType op_type_;
-  Slice key_;
-  std::optional<Slice> value_;
+  std::string key_;
+  std::optional<std::string> value_;
 };
 
 class Binlog {
@@ -31,10 +31,10 @@ class Binlog {
   //   entries_.emplace_back(cfid, type, key, value);
   // }
   void AppendPutOperation(int32_t cfid, const Slice& key, const Slice& value) {
-    entries_.emplace_back(cfid, OperateType::kPut, key, value);
+    entries_.emplace_back(cfid, OperateType::kPut, key.ToString(), value.ToString());
   }
   void AppendDeleteOperation(int32_t cfid, const Slice& key) {
-    entries_.emplace_back(cfid, OperateType::kDelete, key, std::nullopt);
+    entries_.emplace_back(cfid, OperateType::kDelete, key.ToString(), std::nullopt);
   }
 
   auto Serialization() const -> std::string;
@@ -49,9 +49,9 @@ inline std::ostream& operator<<(std::ostream& os, const Binlog& log) {
   os << "{ type=" << DataTypeTag[log.data_type_] << ", op_size=" << log.entries_.size() << ": ";
   for (const auto& entry : log.entries_) {
     if (entry.op_type_ == OperateType::kPut) {
-      os << "put (" << entry.key_.data() << ", " << entry.value_->data() << "), ";
+      os << "put (" << entry.key_ << ", " << *entry.value_ << "), ";
     } else {
-      os << "del (" << entry.key_.data() << "), ";
+      os << "del (" << entry.key_ << "), ";
     }
   }
   os << "}";
