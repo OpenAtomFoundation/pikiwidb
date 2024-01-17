@@ -12,7 +12,7 @@ FILE(GLOB BINLOG_PROTO
 )
 
 EXECUTE_PROCESS(
-        COMMAND protoc --cpp_out=${CMAKE_CURRENT_SOURCE_DIR}/src -I${CMAKE_CURRENT_SOURCE_DIR}/src ${BINLOG_PROTO}
+        COMMAND ${PROTOBUF_PROTOC} --cpp_out=${CMAKE_CURRENT_SOURCE_DIR}/src -I${CMAKE_CURRENT_SOURCE_DIR}/src ${BINLOG_PROTO}
 )
 
 TARGET_INCLUDE_DIRECTORIES(storage
@@ -23,6 +23,6 @@ TARGET_INCLUDE_DIRECTORIES(storage
         PRIVATE ${rocksdb_SOURCE_DIR}/include
 )
 
-TARGET_LINK_LIBRARIES(storage pstd glog rocksdb libprotobuf-lite.a)
+TARGET_LINK_LIBRARIES(storage pstd glog rocksdb ${Protobuf_LIBRARIES}/libprotobuf-lited.a)
 
 SET_TARGET_PROPERTIES(storage PROPERTIES LINKER_LANGUAGE CXX)
