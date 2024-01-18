@@ -158,8 +158,8 @@ void SUnionCmd::DoCmd(PClient* client) {
     PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
     if (err == kPErrorOK) {
       const auto set = value->CastSet();
-      for (const auto & it : *set) {
-          unionSet.insert(it);
+      for (const auto& it : *set) {
+        unionSet.insert(it);
       }
     } else if (err != kPErrorNotExist) {
       client->SetRes(CmdRes::kErrOther);
