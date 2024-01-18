@@ -67,6 +67,7 @@ void CmdTableManager::InitCmdTable() {
   // hash
   ADD_COMMAND(HSet, -4);
   ADD_COMMAND(HGet, 3);
+  ADD_COMMAND(HDel, -3);
   ADD_COMMAND(HMSet, -4);
   ADD_COMMAND(HMGet, -3);
   ADD_COMMAND(HGetAll, 2);

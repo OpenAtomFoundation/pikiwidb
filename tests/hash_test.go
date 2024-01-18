@@ -63,8 +63,72 @@ var _ = Describe("Hash", Ordered, func() {
 	})
 
 	//TODO(dingxiaoshuai) Add more test cases.
-	It("Cmd HSET", func() {
-		log.Println("Cmd HSET Begin")
-		Expect(client.HSet(ctx, "myhash", "one").Val()).NotTo(Equal("FooBar"))
+	It("HSet & HGet", func() {
+		hSet := client.HSet(ctx, "hash", "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+
+		hGet := client.HGet(ctx, "hash", "key")
+		Expect(hGet.Err()).NotTo(HaveOccurred())
+		Expect(hGet.Val()).To(Equal("hello"))
+
+		hGet = client.HGet(ctx, "hash", "key1")
+		Expect(hGet.Err()).To(Equal(redis.Nil))
+		Expect(hGet.Val()).To(Equal(""))
 	})
+
+	It("HGet & HSet 2", func() {
+		testKey := "hget-hset2"
+		_, err := client.Del(ctx, testKey).Result()
+		Expect(err).NotTo(HaveOccurred())
+
+		ok, err := client.HSet(ctx, testKey, map[string]interface{}{
+			"key1": "hello1",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ok).To(Equal(int64(1)))
+
+		ok, err = client.HSet(ctx, testKey, map[string]interface{}{
+			"key2": "hello2",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(ok).To(Equal(int64(1)))
+
+		v, err := client.HGet(ctx, testKey, "key1").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(v).To(Equal("hello1"))
+
+		v, err = client.HGet(ctx, testKey, "key2").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(v).To(Equal("hello2"))
+
+		keys, err := client.HKeys(ctx, testKey).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(keys).To(ConsistOf([]string{"key1", "key2"}))
+	})
+
+	It("HDel", func() {
+		testKey := "hdel"
+		hSet := client.HSet(ctx, testKey, "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		hSet = client.HSet(ctx, testKey, "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(0)))
+
+		hDel := client.HDel(ctx, testKey, "key")
+		Expect(hDel.Err()).NotTo(HaveOccurred())
+		Expect(hDel.Val()).To(Equal(int64(1)))
+
+		hDel = client.HDel(ctx, testKey, "key")
+		Expect(hDel.Err()).NotTo(HaveOccurred())
+		Expect(hDel.Val()).To(Equal(int64(0)))
+
+		hSet = client.HSet(ctx, testKey, "key", "hello")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(1)))
+
+		hDel = client.HDel(ctx, testKey, "key")
+		Expect(hDel.Err()).NotTo(HaveOccurred())
+		Expect(hDel.Val()).To(Equal(int64(1)))
+	})
+
 })
