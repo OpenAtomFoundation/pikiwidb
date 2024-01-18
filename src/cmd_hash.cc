@@ -9,6 +9,7 @@
 
 #include <config.h>
 
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -68,6 +69,25 @@ void HGetCmd::DoCmd(PClient* client) {
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "hget cmd error");
   }
+}
+
+HDelCmd::HDelCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HDelCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HDelCmd::DoCmd(PClient* client) {
+  int32_t res{};
+  std::vector<std::string> fields(client->argv_.begin() + 2, client->argv_.end());
+  auto s = PSTORE.GetBackend()->HDel(client->Key(), fields, &res);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+  client->AppendInteger(res);
 }
 
 HMSetCmd::HMSetCmd(const std::string& name, int16_t arity)
@@ -227,4 +247,76 @@ void HStrLenCmd::DoCmd(PClient* client) {
   }
 }
 
+HScanCmd::HScanCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HScanCmd::DoInitial(PClient* client) {
+  if (auto size = client->argv_.size(); size != 3 && size != 5 && size != 7) {
+    client->SetRes(CmdRes::kSyntaxErr);
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HScanCmd::DoCmd(PClient* client) {
+  const auto& argv = client->argv_;
+  // parse arguments
+  int64_t cursor{};
+  int64_t count{10};
+  std::string pattern{"*"};
+  if (pstd::String2int(argv[2], &cursor) == 0) {
+    client->SetRes(CmdRes::kInvalidCursor);
+    return;
+  }
+  for (size_t i = 3; i < argv.size(); i += 2) {
+    if (auto lower = pstd::StringToLower(argv[i]); kMatchSymbol == lower) {
+      pattern = argv[i + 1];
+    } else if (kCountSymbol == lower) {
+      if (pstd::String2int(argv[i + 1], &count) == 0) {
+        client->SetRes(CmdRes::kInvalidInt, kCmdNameHScan);
+        return;
+      }
+    } else {
+      client->SetRes(CmdRes::kErrOther, kCmdNameHScan);
+      return;
+    }
+  }
+
+  // execute command
+  std::vector<storage::FieldValue> fvs;
+  int64_t next_cursor{};
+  auto status = PSTORE.GetBackend()->HScan(client->Key(), cursor, pattern, count, &fvs, &next_cursor);
+  if (!status.ok() && !status.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, status.ToString());
+    return;
+  }
+
+  // reply to client
+  client->AppendArrayLen(2);
+  client->AppendString(std::to_string(next_cursor));
+  client->AppendArrayLenUint64(fvs.size() * 2);
+  for (const auto& [field, value] : fvs) {
+    client->AppendString(field);
+    client->AppendString(value);
+  }
+}
+
+HValsCmd::HValsCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HValsCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HValsCmd::DoCmd(PClient* client) {
+  std::vector<std::string> valueVec;
+  storage::Status s = PSTORE.GetBackend()->HVals(client->Key(), &valueVec);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendStringVector(valueVec);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
+  }
+}
 }  // namespace pikiwidb
