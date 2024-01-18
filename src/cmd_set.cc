@@ -43,32 +43,14 @@ bool SAddCmd::DoInitial(PClient* client) {
 // not including all the elements already present in the set.
 void SAddCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  const std::vector<std::string> members(client->argv_.begin()+2,client->argv_.end());
+  const std::vector<std::string> members(client->argv_.begin() + 2, client->argv_.end());
   int32_t ret{};
-  storage::Status s = PSTORE.GetBackend()->SAdd(client->Key(),members,&ret);
-  if(s.ok()) {
+  storage::Status s = PSTORE.GetBackend()->SAdd(client->Key(), members, &ret);
+  if (s.ok()) {
     client->AppendInteger(ret);
-  }else {
+  } else {
     client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
   }
-  return ;
-  // todo to delete if test success
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  if (err != kPErrorOK) {
-    if (err == kPErrorNotExist) {
-      value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
-    } else {
-      client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
-      return;
-    }
-  }
-  auto set = value->CastSet();
-  const auto oldSize = set->size();
-  for (int i = 2; i < client->argv_.size(); ++i) {
-    set->insert(client->argv_[i]);
-  }
-  // new size is bigger than old size , avoid the risk
-  client->AppendInteger(set->size() - oldSize);
 }
 
 SUnionStoreCmd::SUnionStoreCmd(const std::string& name, int16_t arity)
@@ -136,44 +118,9 @@ bool SInterCmd::DoInitial(PClient* client) {
 void SInterCmd::DoCmd(PClient* client) {
   std::vector<std::string> resVt;
   storage::Status s = PSTORE.GetBackend()->SInter(client->Keys(), &resVt);
-  if(!s.ok()) {
-    client->SetRes(CmdRes::kErrOther,"sinter cmd error");
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, "sinter cmd error");
   }
-  // todo 待删除
-  // PObject* value = nullptr;
-  // PError err{};
-  //
-  // for (const auto& key : client->Keys()) {
-  //   err = PSTORE.GetValueByType(key, value, kPTypeSet);
-  //   if (err != kPErrorOK) {
-  //     if (err == kPErrorNotExist) {
-  //       client->AppendStringVector(resVt);
-  //     } else {
-  //       client->SetRes(CmdRes::kErrOther);
-  //     }
-  //     return;
-  //   }
-  // }
-  //
-  // std::string setKey = client->Keys().at(0);
-  // err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
-  //
-  // PSET firstSet = value->CastSet();
-  // bool reliable{};
-  // for (const auto& member : *firstSet) {
-  //   reliable = true;
-  //   for (int i = 1; i < client->Keys().size(); ++i) {
-  //     setKey = client->Keys().at(i);
-  //     err = PSTORE.GetValueByType(setKey, value, kPTypeSet);
-  //     if (!value->CastSet()->contains(member)) {
-  //       reliable = false;
-  //       break;
-  //     }
-  //   }
-  //   if (reliable == true) {
-  //     resVt.emplace_back(member);
-  //   }
-  // }
   client->AppendStringVector(resVt);
 }
 
