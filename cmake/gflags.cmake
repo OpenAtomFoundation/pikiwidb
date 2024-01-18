@@ -24,3 +24,7 @@ FetchContent_MakeAvailableWithArgs(gflags
 find_package(Threads REQUIRED)
 
 target_link_libraries(gflags_static Threads::Threads)
+
+SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
+SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
+SET(GFLAGS_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)

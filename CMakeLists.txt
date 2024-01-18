@@ -91,32 +91,66 @@ SET(INSTALL_LIBDIR ${STAGED_INSTALL_PREFIX}/lib)
 SET(INSTALL_LIBDIR_64 ${STAGED_INSTALL_PREFIX}/lib64)
 SET(CMAKE_PREFIX_PATH ${CMAKE_PREFIX_PATH} ${STAGED_INSTALL_PREFIX})
 SET(BUILD_SUPPORT_DIR ${PROJECT_SOURCE_DIR}/build_support)
+# make sure we use the same compiler for all dependencies
+SET(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 MESSAGE(STATUS "${PROJECT_NAME} staged install: ${STAGED_INSTALL_PREFIX}")
 MESSAGE(STATUS "Current platform: ${OS_VERSION} ")
 CMAKE_HOST_SYSTEM_INFORMATION(RESULT CPU_CORE QUERY NUMBER_OF_LOGICAL_CORES)
 MESSAGE(STATUS "CPU core ${CPU_CORE}")
 
+#openssl
+find_package(OpenSSL REQUIRED)
+
+message(STATUS "ssl:" ${OPENSSL_SSL_LIBRARY})
+message(STATUS "crypto:" ${OPENSSL_CRYPTO_LIBRARY})
+
+ADD_LIBRARY(ssl SHARED IMPORTED GLOBAL)
+SET_PROPERTY(TARGET ssl PROPERTY IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY})
+
+ADD_LIBRARY(crypto SHARED IMPORTED GLOBAL)
+SET_PROPERTY(TARGET crypto PROPERTY IMPORTED_LOCATION ${OPENSSL_CRYPTO_LIBRARY})
+
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+SET(THIRD_PARTY_PATH ${CMAKE_CURRENT_BINARY_DIR}/third-party)
+SET(THIRD_PARTY_BUILD_TYPE Release)
+SET(EXTERNAL_PROJECT_LOG_ARGS
+        LOG_DOWNLOAD 0
+        LOG_UPDATE 1
+        LOG_CONFIGURE 0
+        LOG_BUILD 0
+        LOG_TEST 1
+        LOG_INSTALL 0)
 
 INCLUDE(FetchContent)
 #include(cmake/CmakeLists.txt)
 
-include(cmake/findTools.cmake)
-include(cmake/leveldb.cmake)
-include(cmake/libevent.cmake)
-include(cmake/llhttp.cmake)
-include(cmake/fmt.cmake)
-include(cmake/spdlog.cmake)
-include(cmake/folly.cmake)
-include(cmake/gtest.cmake)
-include(cmake/rocksdb.cmake)
+include(findTools)
+include(leveldb)
+include(libevent)
+include(llhttp)
+include(fmt)
+include(spdlog)
+include(folly)
+include(gtest)
+include(rocksdb)
+include(zlib)
+include(protobuf)
+include(brpc)
+# ExternalProject_Add_StepTargets(extern_brpc build)
+include(braft)
 
 enable_testing()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
+ADD_SUBDIRECTORY(src/counter)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
+
+# 设置依赖关系
+# add_dependencies(counter extern_brpc-build)
 
 #############################################################################
 ###			custom target
