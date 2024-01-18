@@ -24,14 +24,6 @@ void SIsMemberCmd::DoCmd(PClient* client) {
   int32_t replyNum{};  // only change to 1 if ismember . key not exist it is 0
   PSTORE.GetBackend()->SIsmember(client->Key(), client->argv_[2], &replyNum);
 
-  // todo delete if test success
-  // PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  // if (err == kPErrorOK && value->CastSet()->contains(client->argv_[2])) {
-  //   // only key exist and set has key , set 1
-  //
-  //   replyNum = 1;
-  // }
-
   client->AppendInteger(replyNum);
 }
 
@@ -75,47 +67,6 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "sunionstore cmd error");
   }
   client->AppendInteger(ret);
-  // //todo to delete if test success
-  // std::unordered_set<std::string> unionSet;
-  // std::string destKey = client->Keys().at(0);
-  // std::vector<std::string> keys(client->Keys().begin() + 1, client->Keys().end());
-  //
-  // PObject* value = nullptr;
-  // for (auto key : keys) {
-  //   PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
-  //   if (err == kPErrorOK) {
-  //     const auto set = value->CastSet();
-  //     auto it = set->cbegin();
-  //     for (; it != set->cend(); ++it) {
-  //       std::string sv(it->data(), it->size());
-  //       if (unionSet.find(sv) == unionSet.end()) {
-  //         unionSet.insert(sv);
-  //       }
-  //     }
-  //   } else if (err != kPErrorNotExist) {
-  //     client->SetRes(CmdRes::kErrOther);
-  //     return;
-  //   }
-  // }
-  //
-  // PError err = PSTORE.GetValueByType(destKey, value, kPTypeSet);
-  // if (err == kPErrorOK) {
-  //   auto updateSet = value->CastSet();
-  //   updateSet->clear();
-  //   for (auto it : unionSet) {
-  //     updateSet->emplace(it);
-  //   }
-  //   client->AppendInteger(updateSet->size());
-  // } else if (err == kPErrorNotExist) {
-  //   value = PSTORE.SetValue(destKey, PObject::CreateSet());
-  //   auto updateSet = value->CastSet();
-  //   for (auto it : unionSet) {
-  //     updateSet->emplace(it);
-  //   }
-  //   client->AppendInteger(updateSet->size());
-  // } else {
-  //   client->SetRes(CmdRes::kErrOther);
-  // }
 }
 SInterCmd::SInterCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
@@ -152,26 +103,6 @@ void SRemCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "srem cmd error");
   }
   client->AppendInteger(replyNum);
-
-  return;
-  // todo delete if test success
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  int retVal = 0;
-  if (err != kPErrorOK) {
-    if (err == kPErrorNotExist) {
-      client->AppendInteger(0);
-    } else {
-      client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
-    }
-    return;
-  }
-  auto unset = value->CastSet();
-  const auto oldSize = unset->size();
-  for (int i = 2; i < client->argv_.size(); ++i) {
-    unset->erase(client->argv_[i]);
-  }
-  client->AppendInteger(oldSize - unset->size());
 }
 
 SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
@@ -190,27 +121,5 @@ void SUnionCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "sunion cmd error");
   }
   client->AppendStringVector(resVt);
-
-  return;
-  // todo delete if test success
-  std::unordered_set<std::string> unionSet;
-  for (auto key : client->Keys()) {
-    PObject* value = nullptr;
-    PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
-    if (err == kPErrorOK) {
-      const auto set = value->CastSet();
-      for (const auto& it : *set) {
-        unionSet.insert(it);
-      }
-    } else if (err != kPErrorNotExist) {
-      client->SetRes(CmdRes::kErrOther);
-      return;
-    }
-  }
-  client->AppendArrayLenUint64(unionSet.size());
-  for (const auto& member : unionSet) {
-    client->AppendStringLenUint64(member.size());
-    client->AppendContent(member);
-  }
 }
 }  // namespace pikiwidb
