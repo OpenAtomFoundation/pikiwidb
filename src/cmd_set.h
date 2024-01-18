@@ -32,6 +32,28 @@ class SAddCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SUnionStoreCmd : public BaseCmd {
+ public:
+  SUnionStoreCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SRemCmd : public BaseCmd {
+ public:
+  SRemCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 class SUnionCmd : public BaseCmd {
  public:
   SUnionCmd(const std::string &name, int16_t arity);

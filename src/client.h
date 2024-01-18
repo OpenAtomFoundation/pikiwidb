@@ -47,6 +47,7 @@ class CmdRes {
     kInconsistentHashTag,
     kErrOther,
     KIncrByOverFlow,
+    kInvalidCursor,
   };
 
   CmdRes() = default;
