@@ -99,26 +99,57 @@ MESSAGE(STATUS "Current platform: ${OS_VERSION} ")
 CMAKE_HOST_SYSTEM_INFORMATION(RESULT CPU_CORE QUERY NUMBER_OF_LOGICAL_CORES)
 MESSAGE(STATUS "CPU core ${CPU_CORE}")
 
+#openssl
+find_package(OpenSSL REQUIRED)
+
+message(STATUS "ssl:" ${OPENSSL_SSL_LIBRARY})
+message(STATUS "crypto:" ${OPENSSL_CRYPTO_LIBRARY})
+
+ADD_LIBRARY(ssl SHARED IMPORTED GLOBAL)
+SET_PROPERTY(TARGET ssl PROPERTY IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY})
+
+ADD_LIBRARY(crypto SHARED IMPORTED GLOBAL)
+SET_PROPERTY(TARGET crypto PROPERTY IMPORTED_LOCATION ${OPENSSL_CRYPTO_LIBRARY})
+
+SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+
+SET(THIRD_PARTY_PATH ${CMAKE_CURRENT_BINARY_DIR}/third-party)
+SET(THIRD_PARTY_BUILD_TYPE Release)
+SET(EXTERNAL_PROJECT_LOG_ARGS
+        LOG_DOWNLOAD 0
+        LOG_UPDATE 1
+        LOG_CONFIGURE 0
+        LOG_BUILD 0
+        LOG_TEST 1
+        LOG_INSTALL 0)
 
 INCLUDE(FetchContent)
 #include(cmake/CmakeLists.txt)
 
-include(cmake/findTools.cmake)
-include(cmake/libevent.cmake)
-include(cmake/llhttp.cmake)
-include(cmake/fmt.cmake)
-include(cmake/spdlog.cmake)
-include(cmake/gtest.cmake)
-include(cmake/rocksdb.cmake)
-# include(cmake/brpc.cmake)
-include(cmake/braft.cmake)
+include(gflags)
+include(findTools)
+include(leveldb)
+include(libevent)
+include(llhttp)
+include(fmt)
+include(spdlog)
+include(gtest)
+include(rocksdb)
+include(zlib)
+include(protobuf)
+include(brpc)
+include(braft)
 
 enable_testing()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
+ADD_SUBDIRECTORY(src/counter)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
+
+# 设置依赖关系
+# add_dependencies(counter extern_brpc-build)
 
 #############################################################################
 ###			custom target

@@ -23,7 +23,7 @@ function(FetchContent_MakeAvailableWithArgs dep)
       set(${key} ${value} CACHE INTERNAL "")
     endforeach()
 
-    add_subdirectory(${${dep}_SOURCE_DIR} ${${dep}_BINARY_DIR} EXCLUDE_FROM_ALL)
+    add_subdirectory(${${dep}_SOURCE_DIR} ${${dep}_BINARY_DIR})
 
     foreach(arg IN LISTS ARGN)
       parse_var(${arg} key value)
