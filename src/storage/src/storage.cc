@@ -51,17 +51,7 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
 }
 
 Storage::Storage()
-    : log_queue_(std::make_unique<LogQueue>([this](const std::string& data) {
-        auto log = BinlogWrapper::Deserialization(data);
-        assert(log.has_value());
-        // if (!log.has_value()) {
-        //   LOG(ERROR) << "Failed to deserialize binlog";
-        //   return Status::Incomplete("Failed to deserialize binlog");
-        // } else {
-        //   LOG(INFO) << *log;
-        // }
-        return DefaultWriteCallback(*log);
-      })) {
+    : log_queue_{std::make_unique<LogQueue>([this](const std::string& data) { return DefaultWriteCallback(data); })} {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);
 
@@ -1817,7 +1807,13 @@ void Storage::DisableWal(const bool is_wal_disable) {
   zsets_db_->SetWriteWalOptions(is_wal_disable);
 }
 
-auto Storage::DefaultWriteCallback(const Binlog& log) -> Status {
+auto Storage::DefaultWriteCallback(const std::string& data) -> Status {
+  Binlog log;
+  auto res = log.ParseFromString(data);
+  if (!res) {
+    LOG(ERROR) << "Failed to deserialize binlog";
+    return Status::Incomplete("Failed to deserialize binlog");
+  }
   Redis* db = nullptr;
   switch (log.data_type()) {
     case BinlogDataType::STRINGS:

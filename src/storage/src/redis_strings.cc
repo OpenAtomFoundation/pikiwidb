@@ -14,6 +14,7 @@
 #include <glog/logging.h>
 #include <iostream>
 
+#include "binlog_helper.h"
 #include "log_queue.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
@@ -696,8 +697,9 @@ Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
   // return db_->Put(default_write_options_, key, strings_value.Encode());
-  auto binlog = CreatePutWithoutMetaBinlog(key, strings_value.Encode());
-  auto future = storage_->GetLogQueue()->Produce(std::move(binlog));
+  auto binlog = BinlogHelper::CreateBinlog(GetDataType());
+  BinlogHelper::AppendPutOperation(binlog, -1, key, strings_value.Encode());
+  auto future = storage_->GetLogQueue()->Produce(binlog.SerializeAsString());
   return future.get();
 }
 

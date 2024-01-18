@@ -13,7 +13,7 @@
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
 
-#include "binlog.h"
+#include "binlog.pb.h"
 #include "src/lock_mgr.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -85,12 +85,6 @@ class Redis {
 
   // binlog
   virtual auto GetDataType() const -> BinlogDataType { return BinlogDataType::ALL; }
-  auto CreateBinlogWrapper() -> BinlogWrapper { return BinlogWrapper{GetDataType()}; }
-  auto CreatePutWithoutMetaBinlog(const Slice& key, Slice&& value) -> Binlog {
-    auto log = CreateBinlogWrapper();
-    log.AppendPutOperation(-1, key, value);
-    return log.MoveBinlog();
-  }
 };
 
 }  //  namespace storage

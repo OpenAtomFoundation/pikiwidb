@@ -9,7 +9,6 @@
 
 #include "rocksdb/status.h"
 
-#include "binlog.h"
 #include "pstd/noncopyable.h"
 
 namespace storage {
@@ -39,8 +38,8 @@ class LogQueue : public pstd::noncopyable {
 
   explicit LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) {}
 
-  auto Produce(Binlog&& log) -> std::future<rocksdb::Status> {
-    return consumer_.enqueue(write_cb_, log.SerializeAsString());
+  auto Produce(std::string&& data) -> std::future<rocksdb::Status> {
+    return consumer_.enqueue(write_cb_, data);
   }
 
  private:
