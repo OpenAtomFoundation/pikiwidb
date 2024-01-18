@@ -67,6 +67,7 @@ void CmdTableManager::InitCmdTable() {
   // hash
   ADD_COMMAND(HSet, -4);
   ADD_COMMAND(HGet, 3);
+  ADD_COMMAND(HDel, -3);
   ADD_COMMAND(HMSet, -4);
   ADD_COMMAND(HMGet, -3);
   ADD_COMMAND(HGetAll, 2);
@@ -81,6 +82,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
   ADD_COMMAND(SRem, -3);
+  ADD_COMMAND(SUnion, -2);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

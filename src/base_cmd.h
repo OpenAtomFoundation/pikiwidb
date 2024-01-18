@@ -63,6 +63,7 @@ const std::string kCmdNameAuth = "auth";
 // hash cmd
 const std::string kCmdNameHSet = "hset";
 const std::string kCmdNameHGet = "hget";
+const std::string kCmdNameHDel = "hdel";
 const std::string kCmdNameHMSet = "hmset";
 const std::string kCmdNameHMGet = "hmget";
 const std::string kCmdNameHGetAll = "hgetall";
@@ -77,6 +78,7 @@ const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
 const std::string kCmdNameSRem = "srem";
+const std::string kCmdNameSUnion = "sunion";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
