@@ -39,7 +39,7 @@ bool SAddCmd::DoInitial(PClient* client) {
 void SAddCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   const std::vector<std::string> members(client->argv_.begin() + 2, client->argv_.end());
-  int32_t ret{};
+  int32_t ret = 0;
   storage::Status s = PSTORE.GetBackend()->SAdd(client->Key(), members, &ret);
   if (s.ok()) {
     client->AppendInteger(ret);
@@ -61,7 +61,7 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
   std::string destKey = client->Keys().at(0);
   std::vector<std::string> keys(client->Keys().begin() + 1, client->Keys().end());
   std::vector<std::string> value_to_dest;
-  int32_t ret{};
+  int32_t ret = 0;
   storage::Status s = PSTORE.GetBackend()->SUnionstore(client->Keys().at(0), keys, value_to_dest, &ret);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sunionstore cmd error");
