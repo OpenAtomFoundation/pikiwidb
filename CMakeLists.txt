@@ -152,6 +152,9 @@ ADD_SUBDIRECTORY(tests/counter)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
 
+# 设置依赖关系
+# add_dependencies(counter extern_brpc-build)
+
 #############################################################################
 ###			custom target
 #############################################################################

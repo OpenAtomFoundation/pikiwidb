@@ -1,0 +1,25 @@
+syntax="proto2";
+package example;
+option cc_generic_services = true;
+
+message Snapshot {
+    required int64 value = 1;
+};
+
+message FetchAddRequest {
+    required int64 value = 1;
+};
+
+message CounterResponse {
+    required bool success = 1;
+    optional int64 value = 2;
+    optional string redirect = 3;
+};
+
+message GetRequest {
+};
+
+service CounterService {
+    rpc fetch_add(FetchAddRequest) returns (CounterResponse);
+    rpc get(GetRequest) returns (CounterResponse);
+};
