@@ -67,7 +67,7 @@ TEST_F(HashTest, HSetUseRocksBatch) {
   }
 }
 
-TEST_F(HashTest, DISABLED_HSetUseBinlogBatch) {
+TEST_F(HashTest, HSetUseBinlogBatch) {
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());

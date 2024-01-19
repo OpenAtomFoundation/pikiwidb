@@ -14,7 +14,7 @@
 #include <glog/logging.h>
 #include <iostream>
 
-#include "src/binlog_helper.h"
+#include "src/batch.h"
 #include "src/log_queue.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
@@ -694,9 +694,11 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
 }
 
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
+  auto batch = Batch::CreateBatch(storage_, type_);
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  batch->Put(-1, key, strings_value.Encode());
+  return batch->Commit();
 }
 
 Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
