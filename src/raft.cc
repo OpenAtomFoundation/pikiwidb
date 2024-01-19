@@ -1,6 +1,9 @@
 #include "raft.h"
 #include <braft/raft.h>
 #include <butil/status.h>
+#include <cassert>
+#include <memory>
+#include "config.h"
 
 namespace pikiwidb {
 
@@ -9,9 +12,39 @@ PRaft& PRaft::Instance() {
   return store;
 }
 
-int PRaft::start() { return 0; }
+butil::Status PRaft::Init(std::string& clust_id) {
+  assert(clust_id.size() == RAFT_DBID_LEN);
+  this->_dbid = clust_id;
 
-bool PRaft::is_leader() const {
+  // FIXME: g_config.ip is default to 127.0.0.0, which may not work in cluster.
+  auto raw_addr = g_config.ip + ":" + std::to_string(g_config.port + RAFT_PORT_OFFSET);
+  butil::EndPoint addr(butil::my_ip(), g_config.port + RAFT_PORT_OFFSET);
+  braft::NodeOptions node_options;
+
+  // Default init in one node.
+  if (node_options.initial_conf.parse_from(raw_addr) != 0) {
+    LOG(ERROR) << "Fail to parse configuration, address: " << raw_addr;
+    return {EINVAL, "Fail to parse address."};
+  }
+
+  node_options.fsm = this;
+  node_options.node_owns_fsm = false;
+  std::string prefix = "local://" + g_config.dbpath;
+  node_options.log_uri = prefix + "/log";
+  node_options.raft_meta_uri = prefix + "/raft_meta";
+  node_options.snapshot_uri = prefix + "/snapshot";
+
+  _node = std::make_unique<braft::Node>(clust_id, braft::PeerId(addr));
+  if (_node->init(node_options) != 0) {
+    _node.reset();
+    LOG(ERROR) << "Fail to init raft node";
+    return {EINVAL, "Fail to init raft node"};
+  }
+
+  return {0, "OK"};
+}
+
+bool PRaft::IsLeader() const {
   if (!_node) {
     LOG(ERROR) << "Node is not initialized";
     return false;
@@ -19,7 +52,7 @@ bool PRaft::is_leader() const {
   return _node->is_leader();
 }
 
-butil::Status PRaft::add_peer(const std::string& peer) {
+butil::Status PRaft::AddPeer(const std::string& peer) {
   if (!_node) {
     LOG(ERROR) << "Node is not initialized";
     return {EINVAL, "Node is not initialized"};
@@ -37,7 +70,7 @@ butil::Status PRaft::add_peer(const std::string& peer) {
   return {0, "OK"};
 }
 
-butil::Status PRaft::remove_peer(const std::string& peer) {
+butil::Status PRaft::RemovePeer(const std::string& peer) {
   if (!_node) {
     LOG(ERROR) << "Node is not initialized";
     return {EINVAL, "Node is not initialized"};
@@ -56,14 +89,14 @@ butil::Status PRaft::remove_peer(const std::string& peer) {
 }
 
 // Shut this node down.
-void PRaft::shutdown() {
+void PRaft::ShutDown() {
   if (_node) {
     _node->shutdown(nullptr);
   }
 }
 
 // Blocking this thread until the node is eventually down.
-void PRaft::join() {
+void PRaft::Join() {
   if (_node) {
     _node->join();
   }

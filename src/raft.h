@@ -14,9 +14,11 @@
 
 namespace pikiwidb {
 
+#define RAFT_DBID_LEN 32
+#define RAFT_PORT_OFFSET 10
+
 #define PRAFT PRaft::Instance()
 
-// Implementation of example::Block as a braft::StateMachine.
 class PRaft : public braft::StateMachine {
  public:
   PRaft() : _node(nullptr) {}
@@ -26,25 +28,19 @@ class PRaft : public braft::StateMachine {
   static PRaft& Instance();
 
   // Starts this node
-  int start();
+  butil::Status Init(std::string& clust_id);
+  butil::Status AddPeer(const std::string& peer);
+  butil::Status RemovePeer(const std::string& peer);
 
-  bool is_leader() const;
+  bool IsLeader() const;
+  bool IsInitialized() const { return _node != nullptr; }
 
-  butil::Status add_peer(const std::string& peer);
-  butil::Status remove_peer(const std::string& peer);
-
-  // Shut this node down.
-  void shutdown();
-
-  // Blocking this thread until the node is eventually down.
-  void join();
+  void ShutDown();
+  void Join();
 
  private:
-  // @braft::StateMachine
   void on_apply(braft::Iterator& iter) override;
-
   void on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done) override;
-
   int on_snapshot_load(braft::SnapshotReader* reader) override;
 
   void on_leader_start(int64_t term) override;
@@ -59,6 +55,7 @@ class PRaft : public braft::StateMachine {
 
  private:
   std::unique_ptr<braft::Node> _node;
+  std::string _dbid;
 };
 
 }  // namespace pikiwidb
