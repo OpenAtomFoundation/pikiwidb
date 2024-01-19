@@ -127,7 +127,7 @@ SET(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 STRING(CONCAT FORMAT_DIRS "${PROJECT_SOURCE_DIR}/src,")
 FILE(WRITE
   ${BUILD_SUPPORT_DIR}/clang_format_exclusions.txt
-  "${PROJECT_SOURCE_DIR}/src/redis_intset.c\n${PROJECT_SOURCE_DIR}/src/redis_zip_list.c")
+  "${PROJECT_SOURCE_DIR}/src/redis_intset.c\n${PROJECT_SOURCE_DIR}/src/redis_zip_list.c\n${PROJECT_SOURCE_DIR}/src/storage/src/binlog.pb.h\n${PROJECT_SOURCE_DIR}/src/storage/src/binlog.pb.cc")
 ADD_CUSTOM_TARGET(format
   COMMAND ${BUILD_SUPPORT_DIR}/run_clang_format.py
   ${CLANG_FORMAT_BIN}
