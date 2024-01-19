@@ -204,7 +204,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
     }
   }
 
-  auto batch = Batch::CreateBatch(storage_, type_);
+  auto batch = Batch::CreateBatch(storage_, type_, IsWriteByBinlog());
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -661,7 +661,7 @@ Status RedisHashes::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) 
 }
 
 Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
-  auto batch = Batch::CreateBatch(storage_, type_);
+  auto batch = Batch::CreateBatch(storage_, type_, IsWriteByBinlog());
   ScopeRecordLock l(lock_mgr_, key);
 
   int32_t version = 0;

@@ -57,6 +57,7 @@ class Redis {
   void GetRocksDBInfo(std::string& info, const char* prefix);
   auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
+  auto IsWriteByBinlog() const -> bool { return storage_->IsWriteByBinlog(); }
 
  protected:
   Storage* const storage_;

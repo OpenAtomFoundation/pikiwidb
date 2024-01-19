@@ -68,6 +68,7 @@ struct StorageOptions {
   size_t statistics_max_size = 0;
   size_t small_compaction_threshold = 5000;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
+  bool is_write_by_binlog = false;
 };
 
 struct KeyValue {
@@ -1049,6 +1050,7 @@ class Storage {
                     const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
   LogQueue* GetLogQueue() const { return log_queue_.get(); }
+  bool IsWriteByBinlog() const { return is_write_by_binlog_; }
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1073,8 +1075,9 @@ class Storage {
   std::atomic<bool> scan_keynum_exit_ = false;
 
   // binlog
-  auto DefaultWriteCallback(const std::string&) -> Status;
+  bool is_write_by_binlog_;
   std::unique_ptr<LogQueue> log_queue_;
+  auto DefaultWriteCallback(const std::string&) -> Status;
 };
 
 }  //  namespace storage

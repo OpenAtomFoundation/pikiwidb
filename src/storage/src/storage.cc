@@ -91,6 +91,8 @@ static std::string AppendSubDirectory(const std::string& db_path, const std::str
 Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
 
+  is_write_by_binlog_ = storage_options.is_write_by_binlog;
+
   strings_db_ = std::make_unique<RedisStrings>(this, kStrings);
   Status s = strings_db_->Open(storage_options, AppendSubDirectory(db_path, "strings"));
   if (!s.ok()) {
