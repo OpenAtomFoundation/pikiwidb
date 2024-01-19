@@ -6,7 +6,14 @@
  */
 
 #include "cmd_raft.h"
+#include <braft/configuration.h>
+#include <cassert>
 #include <cstdint>
+#include <string>
+#include "client.h"
+#include "event_loop.h"
+#include "pikiwidb.h"
+#include "pstd_status.h"
 #include "pstd_string.h"
 #include "raft.h"
 
@@ -39,6 +46,7 @@ bool RaftNodeCmd::DoInitial(PClient* client) { return true; }
  */
 void RaftNodeCmd::DoCmd(PClient* client) {
   auto cmd = client->argv_[1];
+
   if (!strcasecmp(cmd.c_str(), "ADD")) {
     if (client->argv_.size() != 4) {
       return client->SetRes(CmdRes::kWrongNum, client->CmdName());
@@ -47,8 +55,7 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     // RedisRaft has nodeid, but in Braft, NodeId is IP:Port.
     // So we do not need to parse and use nodeid like redis;
 
-    // (KKorpse)TODO: Redirect to leader if not leader.
-    auto s = PRAFT.add_peer(client->argv_[3]);
+    auto s = PRAFT.AddPeer(client->argv_[3]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
     } else {
@@ -61,7 +68,7 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     }
 
     // (KKorpse)TODO: Redirect to leader if not leader.
-    auto s = PRAFT.remove_peer(client->argv_[2]);
+    auto s = PRAFT.RemovePeer(client->argv_[2]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
     } else {
@@ -71,15 +78,106 @@ void RaftNodeCmd::DoCmd(PClient* client) {
   } else {
     client->SetRes(CmdRes::kErrOther, "ERR RAFT.NODE supports ADD / REMOVE only");
   }
-
-  // (KKorpse)TODO: Support all replys types:
-  //   -NOCLUSTER ||
-  //   -LOADING ||
-  //   -CLUSTERDOWN ||
-  //   -MOVED <slot> <addr>:<port> ||
-  //   *2
-  //   :<new node id>
-  //   :<dbid>
 }
 
+bool RaftClusterCmd::DoInitial(PClient* client) { return true; }
+
+// The endpoint must be in the league format of ip:port
+std::string GetIpFromEndPoint(std::string& endpoint) {
+  auto pos = endpoint.find(':');
+  assert(pos != std::string::npos);
+  if (pos == std::string::npos) {
+    return "";
+  }
+  return endpoint.substr(0, pos);
+}
+
+// The endpoint must be in the league format of ip:port
+int GetPortFromEndPoint(std::string& endpoint) {
+  auto pos = endpoint.find(':');
+  assert(pos != std::string::npos);
+  if (pos == std::string::npos) {
+    return 0;
+  }
+  int ret = 0;
+  pstd::String2int(endpoint.substr(pos + 1), &ret);
+  return ret;
+}
+
+/* RAFT.CLUSTER INIT <id>
+ *   Initializes a new Raft cluster.
+ *   <id> is an optional 32 character string, if set, cluster will use it for the id
+ * Reply:
+ *   +OK [dbid]
+ *
+ * RAFT.CLUSTER JOIN [addr:port]
+ *   Join an existing cluster.
+ *   The operation is asynchronous and may take place/retry in the background.
+ * Reply:
+ *   +OK
+ */
+void RaftClusterCmd::DoCmd(PClient* client) {
+  if (client->argv_.size() < 2) {
+    return client->SetRes(CmdRes::kWrongNum, client->CmdName());
+  }
+
+  if (PRAFT.IsInitialized()) {
+    return client->SetRes(CmdRes::kErrOther, "ERR cluster already initialized");
+  }
+
+  auto cmd = client->argv_[1];
+  if (!strcasecmp(cmd.c_str(), "INIT")) {
+    if (client->argv_.size() != 2 && client->argv_.size() != 3) {
+      return client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    }
+    std::string cluster_id;
+    if (client->argv_.size() == 3) {
+      cluster_id = client->argv_[2];
+      if (cluster_id.size() != RAFT_DBID_LEN) {
+        return client->SetRes(CmdRes::kInvalidParameter,
+                              "ERR cluster id must be " + std::to_string(RAFT_DBID_LEN) + " characters");
+      }
+    } else {
+      cluster_id = pstd::RandomHexChars(RAFT_DBID_LEN);
+    }
+    auto s = PRAFT.Init(cluster_id);
+    if (!s.ok()) {
+      return client->SetRes(CmdRes::kErrOther, s.error_str());
+    }
+    client->SetRes(CmdRes::kOK, "OK " + cluster_id);
+
+  } else if (!strcasecmp(cmd.c_str(), "JOIN")) {
+    if (client->argv_.size() < 3) {
+      return client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    }
+
+    // (KKorpse)TODO: Support multiple nodes join at the same time.
+    if (client->argv_.size() > 3) {
+      LOG(WARNING) << "RAFT.CLUSTER JOIN with too many arguments";
+      return client->SetRes(CmdRes::kInvalidParameter, "ERR too many arguments");
+    }
+
+    auto addr = client->argv_[2];
+    if (braft::PeerId(addr).is_empty()) {
+      LOG(WARNING) << "RAFT.CLUSTER JOIN with invalid peer id";
+      return client->SetRes(CmdRes::kInvalidParameter, "ERR invalid peer id");
+    }
+
+    auto on_new_conn = [](TcpConnection* obj) {
+      if (g_pikiwidb) {
+        g_pikiwidb->OnNewConnection(obj);
+      }
+    };
+
+    auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
+      LOG(WARNING) << "RAFT.CLUSTER JOIN failed to connect to " << peer_ip << ":" << port;
+    };
+
+    auto loop = EventLoop::Self();
+    loop->Connect(GetIpFromEndPoint(addr).c_str(), GetPortFromEndPoint(addr), on_new_conn, fail_cb);
+
+  } else {
+    client->SetRes(CmdRes::kErrOther, "ERR RAFT.CLUSTER supports INIT / JOIN only");
+  }
+}
 }  // namespace pikiwidb
