@@ -10,7 +10,7 @@ SET(BRAFT_INSTALL_DIR ${THIRD_PARTY_PATH}/install/braft)
 SET(BRAFT_INCLUDE_DIR "${BRAFT_INSTALL_DIR}/include" CACHE PATH "braft include directory." FORCE)
 SET(BRAFT_LIBRARIES "${BRAFT_INSTALL_DIR}/lib/libbraft.a" CACHE FILEPATH "braft library." FORCE)
 
-set(prefix_path "${THIRD_PARTY_PATH}/install/brpc|${THIRD_PARTY_PATH}/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${THIRD_PARTY_PATH}/glog-build|${THIRD_PARTY_PATH}/leveldb-build")
+set(prefix_path "${THIRD_PARTY_PATH}/install/brpc|${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build")
 
 ExternalProject_Add(
         extern_braft
@@ -30,7 +30,7 @@ ExternalProject_Add(
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
         -DCMAKE_PREFIX_PATH=${prefix_path}
-        -DBRPC_WITH_GLOG=ON
+        -DBRPC_WITH_GLOG=OFF
         -DWITH_DEBUG_SYMBOLS=OFF
         ${EXTERNAL_OPTIONAL_ARGS}
         LIST_SEPARATOR |
