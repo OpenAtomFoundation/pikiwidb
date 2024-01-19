@@ -68,11 +68,12 @@ func checkCondition(c *redis.Client) bool {
 }
 
 type Server struct {
-	cmd    *exec.Cmd
-	addr   *net.TCPAddr
-	delete bool
-	dbDir  string
-	config string
+	cmd     *exec.Cmd
+	addr    *net.TCPAddr
+	delete  bool
+	dbDir   string
+	config  string
+	outfile *os.File
 }
 
 func (s *Server) getAddr() string {
@@ -93,6 +94,7 @@ func (s *Server) NewClient() *redis.Client {
 }
 
 func (s *Server) Close() error {
+	defer s.outfile.Close()
 	err := s.cmd.Process.Signal(syscall.SIGINT)
 
 	done := make(chan error, 1)
@@ -223,10 +225,11 @@ func StartServer(config string, options map[string]string, delete bool) *Server 
 	log.Println("Start server success.")
 
 	return &Server{
-		cmd:    c,
-		addr:   addr,
-		delete: delete,
-		dbDir:  d,
-		config: n,
+		cmd:     c,
+		addr:    addr,
+		delete:  delete,
+		dbDir:   d,
+		config:  n,
+		outfile: outfile,
 	}
 }

@@ -54,6 +54,7 @@ class RedisSets;
 class RedisLists;
 class RedisZSets;
 class HyperLogLog;
+class LogQueue;
 enum class OptionType;
 
 template <typename T1, typename T2>
@@ -1047,6 +1048,7 @@ class Storage {
   Status SetOptions(const OptionType& option_type, const std::string& db_type,
                     const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  LogQueue* GetLogQueue() const { return log_queue_.get(); }
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1069,6 +1071,10 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
+
+  // binlog
+  auto DefaultWriteCallback(const std::string&) -> Status;
+  std::unique_ptr<LogQueue> log_queue_;
 };
 
 }  //  namespace storage

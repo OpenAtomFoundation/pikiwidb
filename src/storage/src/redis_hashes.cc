@@ -12,6 +12,8 @@
 
 #include "src/base_filter.h"
 #include "src/batch.h"
+#include "src/binlog_helper.h"
+#include "src/log_queue.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "storage/util.h"
@@ -202,7 +204,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
     }
   }
 
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(storage_, type_);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -227,7 +229,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
         if (s.ok()) {
           del_cnt++;
           statistic++;
-          batch.Delete(handles_[1], hashes_data_key.Encode());
+          batch->Delete(1, hashes_data_key.Encode());
         } else if (s.IsNotFound()) {
           continue;
         } else {
@@ -239,7 +241,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
         return Status::InvalidArgument("hash size overflow");
       }
       parsed_hashes_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -247,7 +249,7 @@ Status RedisHashes::HDel(const Slice& key, const std::vector<std::string>& field
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit();
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }

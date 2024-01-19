@@ -11,6 +11,8 @@
 #include <utility>
 
 #include "scope_snapshot.h"
+#include "src/binlog.pb.h"
+#include "src/log_queue.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "src/options_helper.h"
@@ -49,7 +51,8 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
   return Status::OK();
 }
 
-Storage::Storage() {
+Storage::Storage()
+    : log_queue_{std::make_unique<LogQueue>([this](const std::string& data) { return DefaultWriteCallback(data); })} {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);
 
@@ -1815,6 +1818,53 @@ void Storage::DisableWal(const bool is_wal_disable) {
   lists_db_->SetWriteWalOptions(is_wal_disable);
   sets_db_->SetWriteWalOptions(is_wal_disable);
   zsets_db_->SetWriteWalOptions(is_wal_disable);
+}
+
+auto Storage::DefaultWriteCallback(const std::string& data) -> Status {
+  Binlog log;
+  auto res = log.ParseFromString(data);
+  if (!res) {
+    LOG(ERROR) << "Failed to deserialize binlog";
+    return Status::Incomplete("Failed to deserialize binlog");
+  }
+  Redis* db = nullptr;
+  switch (log.data_type()) {
+    case BinlogDataType::STRINGS:
+      db = strings_db_.get();
+      break;
+    case BinlogDataType::HASHES:
+      db = hashes_db_.get();
+      break;
+    default:
+      assert(0);
+  }
+
+  rocksdb::WriteBatch batch;
+  for (const auto& entry : log.entries()) {
+    switch (entry.op_type()) {
+      case OperateType::kPut:
+        assert(entry.has_value());
+        if (entry.cf_idx() == -1) {
+          batch.Put(entry.key(), entry.value());
+        } else {
+          batch.Put(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
+        }
+        break;
+      case OperateType::kDelete:
+        assert(!entry.has_value());
+        if (entry.cf_idx() == -1) {
+          batch.Delete(entry.key());
+        } else {
+          batch.Delete(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
+        }
+        break;
+      default:
+        assert(0);
+    }
+  }
+
+  assert(db);
+  return db->GetDB()->Write(db->GetWriteOptions(), &batch);
 }
 
 }  //  namespace storage
