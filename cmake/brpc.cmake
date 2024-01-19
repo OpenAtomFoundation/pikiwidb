@@ -11,7 +11,7 @@ SET(BRPC_INCLUDE_DIR "${BRPC_INSTALL_DIR}/include" CACHE PATH "brpc include dire
 SET(BRPC_LIBRARIES "${BRPC_INSTALL_DIR}/lib/libbrpc.a" CACHE FILEPATH "brpc library." FORCE)
 
 # Reference https://stackoverflow.com/questions/45414507/pass-a-list-of-prefix-paths-to-externalproject-add-in-cmake-args
-set(prefix_path "${THIRD_PARTY_PATH}/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${THIRD_PARTY_PATH}/glog-build|${THIRD_PARTY_PATH}/leveldb-build")
+set(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build")
 
 # If minimal .a is need, you can set  WITH_DEBUG_SYMBOLS=OFF
 ExternalProject_Add(
@@ -32,7 +32,7 @@ ExternalProject_Add(
         -DCMAKE_POSITION_INDEPENDENT_CODE=ON
         -DCMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
         -DCMAKE_PREFIX_PATH=${prefix_path}
-        -DWITH_GLOG=ON
+        -DWITH_GLOG=OFF
         -DDOWNLOAD_GTEST=OFF
         ${EXTERNAL_OPTIONAL_ARGS}
         LIST_SEPARATOR |

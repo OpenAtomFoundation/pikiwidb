@@ -20,3 +20,6 @@ FetchContent_MakeAvailableWithArgs(glog
   BUILD_SHARED_LIBS=OFF
   WITH_UNWIND=ON
 )
+
+SET(GLOG_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src CACHE BOOL "" FORCE)
+SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglog.a CACHE BOOL "" FORCE)
