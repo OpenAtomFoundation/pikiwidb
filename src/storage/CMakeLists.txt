@@ -21,10 +21,11 @@ TARGET_INCLUDE_DIRECTORIES(storage
         PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include
         PRIVATE ${rocksdb_SOURCE_DIR}/
         PRIVATE ${rocksdb_SOURCE_DIR}/include
+        PRIVATE ${Protobuf_INCLUDE_DIR}
 )
 
-TARGET_LINK_LIBRARIES(storage pstd glog rocksdb ${Protobuf_LIBRARIES}/libprotobuf-lited.a)
+TARGET_LINK_LIBRARIES(storage pstd glog rocksdb ${PROTOBUF_LITE_LIBRARY})
 
 SET_TARGET_PROPERTIES(storage PROPERTIES LINKER_LANGUAGE CXX)
 
-ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/tests/benchmark)
+ADD_SUBDIRECTORY(${CMAKE_CURRENT_SOURCE_DIR}/tests)
