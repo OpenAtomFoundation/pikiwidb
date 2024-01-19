@@ -11,6 +11,7 @@
 #include <glog/logging.h>
 
 #include "src/base_filter.h"
+#include "src/batch.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "storage/util.h"
@@ -658,7 +659,7 @@ Status RedisHashes::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) 
 }
 
 Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(storage_, type_);
   ScopeRecordLock l(lock_mgr_, key);
 
   int32_t version = 0;
@@ -671,9 +672,9 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
     if (parsed_hashes_meta_value.IsStale() || parsed_hashes_meta_value.count() == 0) {
       version = parsed_hashes_meta_value.InitialMetaValue();
       parsed_hashes_meta_value.set_count(1);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
       HashesDataKey data_key(key, version, field);
-      batch.Put(handles_[1], data_key.Encode(), value);
+      batch->Put(1, data_key.Encode(), value);
       *res = 1;
     } else {
       version = parsed_hashes_meta_value.version();
@@ -685,7 +686,7 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
         if (data_value == value.ToString()) {
           return Status::OK();
         } else {
-          batch.Put(handles_[1], hashes_data_key.Encode(), value);
+          batch->Put(1, hashes_data_key.Encode(), value);
           statistic++;
         }
       } else if (s.IsNotFound()) {
@@ -693,8 +694,8 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
           return Status::InvalidArgument("hash size overflow");
         }
         parsed_hashes_meta_value.ModifyCount(1);
-        batch.Put(handles_[0], key, meta_value);
-        batch.Put(handles_[1], hashes_data_key.Encode(), value);
+        batch->Put(0, key, meta_value);
+        batch->Put(1, hashes_data_key.Encode(), value);
         *res = 1;
       } else {
         return s;
@@ -704,14 +705,14 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
     EncodeFixed32(meta_value_buf, 1);
     HashesMetaValue meta_value(Slice(meta_value_buf, sizeof(int32_t)));
     version = meta_value.UpdateVersion();
-    batch.Put(handles_[0], key, meta_value.Encode());
+    batch->Put(0, key, meta_value.Encode());
     HashesDataKey data_key(key, version, field);
-    batch.Put(handles_[1], data_key.Encode(), value);
+    batch->Put(1, data_key.Encode(), value);
     *res = 1;
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit();
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }

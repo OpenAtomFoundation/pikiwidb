@@ -47,6 +47,7 @@ using BlockBasedTableOptions = rocksdb::BlockBasedTableOptions;
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
 
+class Redis;
 class RedisStrings;
 class RedisHashes;
 class RedisSets;
@@ -1040,7 +1041,8 @@ class Storage {
   Status GetKeyNum(std::vector<KeyInfo>* key_infos);
   Status StopScanKeyNum();
 
-  rocksdb::DB* GetDBByType(const std::string& type);
+  rocksdb::DB* GetDBByType(const std::string& type) const;
+  Redis* GetRedisByType(DataType type) const;
 
   Status SetOptions(const OptionType& option_type, const std::string& db_type,
                     const std::unordered_map<std::string, std::string>& options);

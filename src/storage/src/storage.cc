@@ -1737,7 +1737,7 @@ Status Storage::StopScanKeyNum() {
   return Status::OK();
 }
 
-rocksdb::DB* Storage::GetDBByType(const std::string& type) {
+rocksdb::DB* Storage::GetDBByType(const std::string& type) const {
   if (type == STRINGS_DB) {
     return strings_db_->GetDB();
   } else if (type == HASHES_DB) {
@@ -1751,6 +1751,18 @@ rocksdb::DB* Storage::GetDBByType(const std::string& type) {
   } else {
     return nullptr;
   }
+}
+
+Redis* Storage::GetRedisByType(DataType type) const {
+  switch (type) {
+    case DataType::kStrings:
+      return strings_db_.get();
+    case DataType::kHashes:
+      return hashes_db_.get();
+    default:
+      assert(0);
+  }
+  return nullptr;
 }
 
 Status Storage::SetOptions(const OptionType& option_type, const std::string& db_type,
