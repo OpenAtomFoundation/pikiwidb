@@ -1829,17 +1829,7 @@ auto Storage::DefaultWriteCallback(const std::string& data) -> Status {
     LOG(ERROR) << "Failed to deserialize binlog";
     return Status::Incomplete("Failed to deserialize binlog");
   }
-  Redis* db = nullptr;
-  switch (log.data_type()) {
-    case BinlogDataType::STRINGS:
-      db = strings_db_.get();
-      break;
-    case BinlogDataType::HASHES:
-      db = hashes_db_.get();
-      break;
-    default:
-      assert(0);
-  }
+  Redis* db = GetRedisByType(static_cast<DataType>(log.data_type()));
 
   rocksdb::WriteBatch batch;
   for (const auto& entry : log.entries()) {
