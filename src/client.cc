@@ -15,6 +15,7 @@
 #include "pstd_string.h"
 #include "slow_log.h"
 #include "store.h"
+#include "raft.h"
 
 namespace pikiwidb {
 
@@ -268,6 +269,11 @@ int PClient::handlePacket(const char* start, int bytes) {
     }
   }
 
+  if (isJoinCmdTarget()) {
+    // Proccees the packet at one turn.
+    return PRAFT.ProcessClusterJoinCmdResponse(start, bytes);
+  }
+
   auto parseRet = parser_.ParseRequest(ptr, end);
   if (parseRet == PParseResult::kError) {
     if (!parser_.IsInitialState()) {
@@ -437,6 +443,9 @@ void PClient::OnConnect() {
     if (g_config.masterauth.empty()) {
       SetAuth();
     }
+  } else if (isJoinCmdTarget()) {
+    SetName("ClusterJoinCmdConnection");
+    PRAFT.SendNodeAddRequest();
   } else {
     if (g_config.password.empty()) {
       SetAuth();
@@ -507,6 +516,10 @@ void PClient::reset() {
 bool PClient::isPeerMaster() const {
   const auto& repl_addr = PREPL.GetMasterAddr();
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
+}
+
+bool PClient::isJoinCmdTarget() const {
+  return PRAFT.GetJoinCtx().GetPeerIp() == PeerIP() && PRAFT.GetJoinCtx().GetPort() == PeerPort();
 }
 
 int PClient::uniqueID() const {
