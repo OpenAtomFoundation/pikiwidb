@@ -1,11 +1,36 @@
 #pragma once
 
+#include "google/protobuf/stubs/callback.h"
+
 #include "src/binlog.pb.h"
 #include "src/log_queue.h"
 #include "src/redis.h"
 #include "storage/storage.h"
 
 namespace storage {
+
+using Closure = ::google::protobuf::Closure;
+
+class RocksClosure : public ::google::protobuf::Closure {
+ public:
+  explicit RocksClosure(std::promise<rocksdb::Status>&& promise) : promise_(std::move(promise)) {}
+
+  void Run() override { promise_.set_value(result_); }
+  void SetStatus(rocksdb::Status&& status) { result_ = std::move(status); }
+
+ private:
+  std::promise<rocksdb::Status> promise_;
+  rocksdb::Status result_{Status::Aborted("Unknown error")};
+};
+
+class Task {
+ public:
+  Task(std::string&& data, std::promise<Status>&& promise)
+      : data_(std::move(data)), done_(std::make_shared<RocksClosure>(std::move(promise))) {}
+
+  std::string data_;
+  std::shared_ptr<Closure> done_;
+};
 
 class Batch {
  public:
@@ -67,7 +92,10 @@ class BinlogBatch : public Batch {
   }
 
   Status Commit() override {
-    auto future = log_queue_->Produce(binlog_.SerializeAsString());
+    std::promise<Status> promise;
+    auto future = promise.get_future();
+    Task task(binlog_.SerializeAsString(), std::move(promise));
+    log_queue_->Produce(std::move(task));
     return future.get();
   }
 
@@ -83,5 +111,18 @@ inline auto Batch::CreateBatch(const Storage* storage, DataType type, bool use_b
     return std::make_unique<RocksBatch>(storage, type);
   }
 }
+
+class ClosureGuard {
+ public:
+  explicit ClosureGuard(Closure* done) : done_(done) {}
+  ~ClosureGuard() {
+    if (done_) {
+      done_->Run();
+    }
+  }
+
+ private:
+  Closure* done_;
+};
 
 }  // namespace storage

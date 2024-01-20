@@ -7,13 +7,15 @@
 
 namespace storage {
 
+class Task;
+
 class LogQueue : public pstd::noncopyable {
  public:
-  using WriteCallback = std::function<rocksdb::Status(const std::string&)>;
+  using WriteCallback = std::function<void(const Task&)>;
 
   explicit LogQueue(WriteCallback&& cb) : write_cb_(std::move(cb)) { consumer_.SetMaxIdleThread(1); }
 
-  auto Produce(std::string&& data) -> std::future<rocksdb::Status> { return consumer_.ExecuteTask(write_cb_, data); }
+  void Produce(Task&& task) { consumer_.ExecuteTask(write_cb_, task); }
 
  private:
   WriteCallback write_cb_;

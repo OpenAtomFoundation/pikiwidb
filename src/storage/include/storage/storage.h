@@ -55,6 +55,7 @@ class RedisLists;
 class RedisZSets;
 class HyperLogLog;
 class LogQueue;
+class Task;
 enum class OptionType;
 
 template <typename T1, typename T2>
@@ -1077,7 +1078,7 @@ class Storage {
   // binlog
   bool is_write_by_binlog_;
   std::unique_ptr<LogQueue> log_queue_;
-  auto DefaultWriteCallback(const std::string&) -> Status;
+  void DefaultWriteCallback(const Task&);
 };
 
 }  //  namespace storage

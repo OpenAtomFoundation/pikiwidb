@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "scope_snapshot.h"
+#include "src/batch.h"
 #include "src/binlog.pb.h"
 #include "src/log_queue.h"
 #include "src/lru_cache.h"
@@ -52,7 +53,7 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
 }
 
 Storage::Storage()
-    : log_queue_{std::make_unique<LogQueue>([this](const std::string& data) { return DefaultWriteCallback(data); })} {
+    : log_queue_{std::make_unique<LogQueue>([this](const Task& task) { return DefaultWriteCallback(task); })} {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);
 
@@ -1822,12 +1823,16 @@ void Storage::DisableWal(const bool is_wal_disable) {
   zsets_db_->SetWriteWalOptions(is_wal_disable);
 }
 
-auto Storage::DefaultWriteCallback(const std::string& data) -> Status {
+void Storage::DefaultWriteCallback(const Task& task) {
+  ClosureGuard gd(task.done_.get());
   Binlog log;
-  auto res = log.ParseFromString(data);
+  auto res = log.ParseFromString(task.data_);
+  RocksClosure* done = dynamic_cast<RocksClosure*>(task.done_.get());
+  assert(done);
   if (!res) {
     LOG(ERROR) << "Failed to deserialize binlog";
-    return Status::Incomplete("Failed to deserialize binlog");
+    done->SetStatus(Status::Incomplete("Failed to deserialize binlog"));
+    return;
   }
   Redis* db = GetRedisByType(static_cast<DataType>(log.data_type()));
 
@@ -1856,7 +1861,8 @@ auto Storage::DefaultWriteCallback(const std::string& data) -> Status {
   }
 
   assert(db);
-  return db->GetDB()->Write(db->GetWriteOptions(), &batch);
+  auto s = db->GetDB()->Write(db->GetWriteOptions(), &batch);
+  done->SetStatus(std::move(s));
 }
 
 }  //  namespace storage
