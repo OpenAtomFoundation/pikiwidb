@@ -21,7 +21,7 @@ bool SIsMemberCmd::DoInitial(PClient* client) {
 }
 void SIsMemberCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  int32_t replyNum{};  // only change to 1 if ismember . key not exist it is 0
+  int32_t replyNum = 0;  // only change to 1 if ismember . key not exist it is 0
   PSTORE.GetBackend()->SIsmember(client->Key(), client->argv_[2], &replyNum);
 
   client->AppendInteger(replyNum);
