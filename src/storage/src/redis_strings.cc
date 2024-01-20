@@ -15,7 +15,6 @@
 #include <iostream>
 
 #include "src/batch.h"
-#include "src/log_queue.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
