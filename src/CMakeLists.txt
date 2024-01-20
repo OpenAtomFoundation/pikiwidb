@@ -13,5 +13,5 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         ${rocksdb_SOURCE_DIR}/include
 )
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb; braft)
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb;)
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)

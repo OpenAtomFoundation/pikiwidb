@@ -143,30 +143,6 @@ include(braft)
 
 enable_testing()
 
-find_path(BRPC_INCLUDE_PATH NAMES brpc/server.h)
-if(EXAMPLE_LINK_SO)
-    find_library(BRPC_LIB NAMES brpc)
-    find_library(BRAFT_LIB NAMES braft)
-else()
-    find_library(BRPC_LIB NAMES libbrpc.a brpc)
-    find_library(BRAFT_LIB NAMES libbraft.a braft)
-endif()
-
-if((NOT BRPC_INCLUDE_PATH) OR (NOT BRPC_LIB))
-    message(FATAL_ERROR "Fail to find brpc")
-endif()
-include_directories(${BRPC_INCLUDE_PATH})
-
-find_path(BRAFT_INCLUDE_PATH NAMES braft/raft.h)
-if ((NOT BRAFT_INCLUDE_PATH) OR (NOT BRAFT_LIB))
-    message (FATAL_ERROR "Fail to find braft")
-endif()
-include_directories(${BRAFT_INCLUDE_PATH})
-
-include(FindProtobuf)
-message(STATUS "PROTOBUF_INCLUDE_DIR: ${PROTOBUF_LIBRARY}")
-set(braft ${BRPC_LIB} ${BRAFT_LIB} ${PROTOBUF_LIBRARY})
-
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(src/counter)
