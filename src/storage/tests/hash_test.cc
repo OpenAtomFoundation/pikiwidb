@@ -44,13 +44,13 @@ class HashTest : public ::testing::Test {
 
 TEST_F(HashTest, DoNothing) {}
 
-TEST_F(HashTest, HSetUseRocksBatch) {
+TEST_F(HashTest, HSetUseRocksBatchWithWAL) {
   options_.is_write_by_binlog = false;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
 
   {
-    TimerGuard timer("use RocksBatch");
+    TimerGuard timer("hset use RocksBatch with WAL");
     for (int i = 0; i < test_times_; i++) {
       auto field = field_prefix_ + std::to_string(i);
       auto value = value_prefix_ + std::to_string(i);
@@ -67,13 +67,61 @@ TEST_F(HashTest, HSetUseRocksBatch) {
   }
 }
 
-TEST_F(HashTest, HSetUseBinlogBatch) {
+TEST_F(HashTest, HSetUseRocksBatchWithoutWAL) {
+  options_.is_write_by_binlog = false;
+  auto s = db_.Open(options_, db_path_);
+  EXPECT_TRUE(s.ok());
+
+  db_.DisableWal(true);
+  {
+    TimerGuard timer("hset use RocksBatch without WAL");
+    for (int i = 0; i < test_times_; i++) {
+      auto field = field_prefix_ + std::to_string(i);
+      auto value = value_prefix_ + std::to_string(i);
+      int32_t res{};
+      s = db_.HSet(key_, field, value, &res);
+      EXPECT_TRUE(s.ok());
+      EXPECT_EQ(1, res);
+
+      std::string get_res;
+      s = db_.HGet(key_, field, &get_res);
+      EXPECT_TRUE(s.ok());
+      EXPECT_EQ(value, get_res);
+    }
+  }
+}
+
+TEST_F(HashTest, HSetUseBinlogBatchWithWAL) {
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
 
   {
-    TimerGuard timer("use BinlogBatch");
+    TimerGuard timer("hset use BinlogBatch with WAL");
+    for (int i = 0; i < test_times_; i++) {
+      auto field = field_prefix_ + std::to_string(i);
+      auto value = value_prefix_ + std::to_string(i);
+      int32_t res{};
+      s = db_.HSet(key_, field, value, &res);
+      EXPECT_TRUE(s.ok());
+      EXPECT_EQ(1, res);
+
+      std::string get_res;
+      s = db_.HGet(key_, field, &get_res);
+      EXPECT_TRUE(s.ok());
+      EXPECT_EQ(value, get_res);
+    }
+  }
+}
+
+TEST_F(HashTest, HSetUseBinlogBatchWithoutWAL) {
+  options_.is_write_by_binlog = true;
+  auto s = db_.Open(options_, db_path_);
+  EXPECT_TRUE(s.ok());
+
+  db_.DisableWal(true);
+  {
+    TimerGuard timer("hset use BinlogBatch without WAL");
     for (int i = 0; i < test_times_; i++) {
       auto field = field_prefix_ + std::to_string(i);
       auto value = value_prefix_ + std::to_string(i);
