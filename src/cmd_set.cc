@@ -97,7 +97,7 @@ bool SRemCmd::DoInitial(PClient* client) {
 
 void SRemCmd::DoCmd(PClient* client) {
   std::vector<std::string> toDeleteMembers(client->argv_.begin() + 2, client->argv_.end());
-  int32_t replyNum{};
+  int32_t replyNum = 0;
   storage::Status s = PSTORE.GetBackend()->SRem(client->Key(), toDeleteMembers, &replyNum);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "srem cmd error");
