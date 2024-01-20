@@ -122,7 +122,7 @@ void RaftClusterCmd::DoCmd(PClient* client) {
   }
 
   if (PRAFT.IsInitialized()) {
-    return client->SetRes(CmdRes::kErrOther, "ERR cluster already initialized");
+    return client->SetRes(CmdRes::kErrOther, "ERR Already cluster member");
   }
 
   auto cmd = client->argv_[1];
@@ -130,6 +130,7 @@ void RaftClusterCmd::DoCmd(PClient* client) {
     if (client->argv_.size() != 2 && client->argv_.size() != 3) {
       return client->SetRes(CmdRes::kWrongNum, client->CmdName());
     }
+
     std::string cluster_id;
     if (client->argv_.size() == 3) {
       cluster_id = client->argv_[2];
@@ -140,6 +141,7 @@ void RaftClusterCmd::DoCmd(PClient* client) {
     } else {
       cluster_id = pstd::RandomHexChars(RAFT_DBID_LEN);
     }
+
     auto s = PRAFT.Init(cluster_id);
     if (!s.ok()) {
       return client->SetRes(CmdRes::kErrOther, s.error_str());
@@ -153,14 +155,12 @@ void RaftClusterCmd::DoCmd(PClient* client) {
 
     // (KKorpse)TODO: Support multiple nodes join at the same time.
     if (client->argv_.size() > 3) {
-      LOG(WARNING) << "RAFT.CLUSTER JOIN with too many arguments";
       return client->SetRes(CmdRes::kInvalidParameter, "ERR too many arguments");
     }
 
     auto addr = client->argv_[2];
     if (braft::PeerId(addr).is_empty()) {
-      LOG(WARNING) << "RAFT.CLUSTER JOIN with invalid peer id";
-      return client->SetRes(CmdRes::kInvalidParameter, "ERR invalid peer id");
+      return client->SetRes(CmdRes::kInvalidParameter, "ERR invalid ip::port: " + addr);
     }
 
     auto on_new_conn = [](TcpConnection* obj) {
@@ -168,13 +168,20 @@ void RaftClusterCmd::DoCmd(PClient* client) {
         g_pikiwidb->OnNewConnection(obj);
       }
     };
-
-    auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
-      LOG(WARNING) << "RAFT.CLUSTER JOIN failed to connect to " << peer_ip << ":" << port;
+    auto fail_cb = [&](EventLoop* loop, const char* peer_ip, int port) {
+      PRAFT.OnJoinCmdConnectionFailed(loop, peer_ip, port);
     };
 
     auto loop = EventLoop::Self();
-    loop->Connect(GetIpFromEndPoint(addr).c_str(), GetPortFromEndPoint(addr), on_new_conn, fail_cb);
+    auto peer_ip = GetIpFromEndPoint(addr);
+    auto port = GetPortFromEndPoint(addr);
+    // FIXME: The client here is not smart pointer, may cause undefined behavior.
+    // should use shared_ptr in DoCmd() rather than raw pointer.
+    PRAFT.GetJoinCtx().Set(client, peer_ip, port);
+    loop->Connect(peer_ip.c_str(), port, on_new_conn, fail_cb);
+
+    // Not reply any message here, we will reply after the connection is established.
+    client->Clear();
 
   } else {
     client->SetRes(CmdRes::kErrOther, "ERR RAFT.CLUSTER supports INIT / JOIN only");

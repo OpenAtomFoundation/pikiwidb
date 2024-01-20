@@ -7,10 +7,16 @@
 
 #pragma once
 
+#include <braft/configuration.h>
 #include <braft/raft.h>
 #include <braft/util.h>
+#include <butil/status.h>
 #include <gflags/gflags.h>
+#include <cstddef>
 #include <memory>
+#include <mutex>
+#include "client.h"
+#include "common.h"
 
 namespace pikiwidb {
 
@@ -19,24 +25,78 @@ namespace pikiwidb {
 
 #define PRAFT PRaft::Instance()
 
+class JoinCmdContext {
+  friend class PRaft;
+
+ public:
+  JoinCmdContext() = default;
+  ~JoinCmdContext() = default;
+
+  bool Set(PClient* client, const std::string& peer_ip, int port) {
+    std::unique_lock<std::mutex> lck(mtx_);
+    if (client_ != nullptr) {
+      return false;
+    }
+    assert(client);
+    client_ = client;
+    peer_ip_ = peer_ip;
+    ;
+    port_ = port;
+    return true;
+  }
+
+  void Clear() {
+    std::unique_lock<std::mutex> lck(mtx_);
+    client_ = nullptr;
+    peer_ip_.clear();
+    port_ = 0;
+  }
+
+  bool IsEmpty() {
+    std::unique_lock<std::mutex> lck(mtx_);
+    return client_ == nullptr;
+  }
+
+  PClient* GetClient() { return client_; }
+  braft::PeerId GetPeerIp() { return peer_ip_; }
+  int GetPort() { return port_; }
+
+ private:
+  PClient* client_ = nullptr;
+  std::string peer_ip_;
+  int port_ = 0;
+  std::mutex mtx_;
+};
+
 class PRaft : public braft::StateMachine {
  public:
-  PRaft() : _node(nullptr) {}
+  PRaft() : node_(nullptr) {}
 
   ~PRaft() override = default;
 
   static PRaft& Instance();
 
-  // Starts this node
-  butil::Status Init(std::string& clust_id);
+  //===--------------------------------------------------------------------===//
+  // Braft API
+  //===--------------------------------------------------------------------===//
+  butil::Status Init(std::string& cluster_id);
   butil::Status AddPeer(const std::string& peer);
   butil::Status RemovePeer(const std::string& peer);
-
-  bool IsLeader() const;
-  bool IsInitialized() const { return _node != nullptr; }
+  butil::Status RaftRecvEntry();
 
   void ShutDown();
   void Join();
+  
+  //===--------------------------------------------------------------------===//
+  // ClusterJoin command
+  //===--------------------------------------------------------------------===//
+  JoinCmdContext& GetJoinCtx() { return join_ctx_; }
+  void SendNodeAddRequest();
+  int ProcessClusterJoinCmdResponse(const char* start, int len);
+  void OnJoinCmdConnectionFailed(EventLoop*, const char* peer_ip, int port);
+
+  bool IsLeader() const;
+  bool IsInitialized() const { return node_ != nullptr; }
 
  private:
   void on_apply(braft::Iterator& iter) override;
@@ -51,11 +111,14 @@ class PRaft : public braft::StateMachine {
   void on_configuration_committed(const ::braft::Configuration& conf) override;
   void on_stop_following(const ::braft::LeaderChangeContext& ctx) override;
   void on_start_following(const ::braft::LeaderChangeContext& ctx) override;
-  // end of @braft::StateMachine
 
  private:
-  std::unique_ptr<braft::Node> _node;
-  std::string _dbid;
+  std::unique_ptr<braft::Node> node_;
+  braft::NodeOptions node_options_;  // options for raft node
+  std::string raw_addr_;             // ip:port of this node
+
+  JoinCmdContext join_ctx_;  // context for cluster join command
+  std::string _dbid;         // dbid of cluster,
 };
 
 }  // namespace pikiwidb
