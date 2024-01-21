@@ -21,10 +21,10 @@ bool SIsMemberCmd::DoInitial(PClient* client) {
 }
 void SIsMemberCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
-  int32_t replyNum = 0;  // only change to 1 if ismember . key not exist it is 0
-  PSTORE.GetBackend()->SIsmember(client->Key(), client->argv_[2], &replyNum);
+  int32_t reply_Num = 0;  // only change to 1 if ismember . key not exist it is 0
+  PSTORE.GetBackend()->SIsmember(client->Key(), client->argv_[2], &reply_Num);
 
-  client->AppendInteger(replyNum);
+  client->AppendInteger(reply_Num);
 }
 
 SAddCmd::SAddCmd(const std::string& name, int16_t arity)
@@ -58,7 +58,6 @@ bool SUnionStoreCmd::DoInitial(PClient* client) {
 }
 
 void SUnionStoreCmd::DoCmd(PClient* client) {
-  std::string destKey = client->Keys().at(0);
   std::vector<std::string> keys(client->Keys().begin() + 1, client->Keys().end());
   std::vector<std::string> value_to_dest;
   int32_t ret = 0;
@@ -79,12 +78,12 @@ bool SInterCmd::DoInitial(PClient* client) {
 }
 
 void SInterCmd::DoCmd(PClient* client) {
-  std::vector<std::string> resVt;
-  storage::Status s = PSTORE.GetBackend()->SInter(client->Keys(), &resVt);
+  std::vector<std::string> res_vt;
+  storage::Status s = PSTORE.GetBackend()->SInter(client->Keys(), &res_vt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "sinter cmd error");
   }
-  client->AppendStringVector(resVt);
+  client->AppendStringVector(res_vt);
 }
 
 SRemCmd::SRemCmd(const std::string& name, int16_t arity)
@@ -96,13 +95,13 @@ bool SRemCmd::DoInitial(PClient* client) {
 }
 
 void SRemCmd::DoCmd(PClient* client) {
-  std::vector<std::string> toDeleteMembers(client->argv_.begin() + 2, client->argv_.end());
-  int32_t replyNum = 0;
-  storage::Status s = PSTORE.GetBackend()->SRem(client->Key(), toDeleteMembers, &replyNum);
+  std::vector<std::string> to_delete_members(client->argv_.begin() + 2, client->argv_.end());
+  int32_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend()->SRem(client->Key(), to_delete_members, &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "srem cmd error");
   }
-  client->AppendInteger(replyNum);
+  client->AppendInteger(reply_num);
 }
 
 SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
@@ -115,11 +114,11 @@ bool SUnionCmd::DoInitial(PClient* client) {
 }
 
 void SUnionCmd::DoCmd(PClient* client) {
-  std::vector<std::string> resVt;
-  storage::Status s = PSTORE.GetBackend()->SUnion(client->Keys(), &resVt);
+  std::vector<std::string> res_vt;
+  storage::Status s = PSTORE.GetBackend()->SUnion(client->Keys(), &res_vt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "sunion cmd error");
   }
-  client->AppendStringVector(resVt);
+  client->AppendStringVector(res_vt);
 }
 }  // namespace pikiwidb
