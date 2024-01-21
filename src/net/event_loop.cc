@@ -58,15 +58,11 @@ void EventLoop::Run() {
     }
   }
 
-  {
-    std::unique_lock<std::mutex> guard(object_mutex_);
-    for (auto& pair : objects_) {
-      reactor_->Unregister(pair.second.get());
-    }
-
-    objects_.clear();
+  for (auto& pair : objects_) {
+    reactor_->Unregister(pair.second.get());
   }
 
+  objects_.clear();
   reactor_.reset();
 }
 
@@ -106,7 +102,7 @@ EventLoop* EventLoop::Self() { return g_this_loop; }
 bool EventLoop::Register(std::shared_ptr<EventObject> obj, int events) {
   if (!obj) return false;
 
-  // assert(InThisLoop());
+  assert(InThisLoop());
   assert(obj->GetUniqueId() == -1);
 
   if (!reactor_) {
@@ -115,7 +111,6 @@ bool EventLoop::Register(std::shared_ptr<EventObject> obj, int events) {
 
   {
     // alloc unique id
-    std::unique_lock<std::mutex> guard(object_mutex_);
     int id = -1;
     do {
       id = obj_id_generator_.fetch_add(1) + 1;
@@ -139,14 +134,9 @@ bool EventLoop::Modify(std::shared_ptr<EventObject> obj, int events) {
 
   assert(InThisLoop());
   assert(obj->GetUniqueId() >= 0);
-
-  {
 #ifdef DEBUG
-    std::unique_lock<std::mutex> guard(object_mutex_);
-    assert(objects_.count(obj->GetUniqueId()) == 1);
+  assert(objects_.count(obj->GetUniqueId()) == 1);
 #endif
-  }
-
   if (!reactor_) {
     return false;
   }
@@ -157,18 +147,15 @@ void EventLoop::Unregister(std::shared_ptr<EventObject> obj) {
   if (!obj) return;
 
   int id = obj->GetUniqueId();
-  // assert(InThisLoop());
+  assert(InThisLoop());
   assert(id >= 0);
-  {
-    std::unique_lock<std::mutex> guard(object_mutex_);
-    assert(objects_.count(id) == 1);
+  assert(objects_.count(id) == 1);
 
-    if (!reactor_) {
-      return;
-    }
-    reactor_->Unregister(obj.get());
-    objects_.erase(id);
+  if (!reactor_) {
+    return;
   }
+  reactor_->Unregister(obj.get());
+  objects_.erase(id);
 }
 
 bool EventLoop::Listen(const char* ip, int port, NewTcpConnectionCallback ccb, EventLoopSelector selector) {
@@ -218,13 +205,10 @@ std::shared_ptr<HttpClient> EventLoop::ConnectHTTP(const char* ip, int port) {
 }
 
 void EventLoop::Reset() {
-  {
-    std::unique_lock<std::mutex> guard(object_mutex_);
-    for (auto& kv : objects_) {
-      Unregister(kv.second);
-    }
-    objects_.clear();
+  for (auto& kv : objects_) {
+    Unregister(kv.second);
   }
+  objects_.clear();
 
   {
     std::unique_lock<std::mutex> guard(task_mutex_);
@@ -236,12 +220,9 @@ void EventLoop::Reset() {
 }
 
 std::shared_ptr<EventObject> EventLoop::GetEventObject(int id) const {
-  {
-    std::unique_lock<std::mutex> guard(object_mutex_);
-    auto it = objects_.find(id);
-    if (it != objects_.end()) {
-      return it->second;
-    }
+  auto it = objects_.find(id);
+  if (it != objects_.end()) {
+    return it->second;
   }
 
   return nullptr;
