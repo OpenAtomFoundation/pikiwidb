@@ -21,23 +21,14 @@ bool LPushCmd::DoInitial(PClient* client) {
   return true;
 }
 void LPushCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
-  // todo :need to change code after issue 114  becase this function should return an error if the key type does not
-  // match
-  //@578223592
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeList);
-  if (err != kPErrorOK) {
-    if (err != kPErrorNotExist) {
-      client->SetRes(CmdRes::kSyntaxErr, "lpush cmd error");
-    }
-    // if this key not exist , create it
-    value = PSTORE.SetValue(client->Key(), PObject::CreateList());
+  std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
+  uint64_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend()->LPush(client->Key(), list_values, &reply_num);
+  if (s.ok()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "lpush cmd error");
   }
-  auto desList = value->CastList();
-  for (int i = 2; i < client->argv_.size(); ++i) {
-    desList->emplace_front(client->argv_[i]);
-  }
-  client->AppendInteger(desList->size());
 }
 RPushCmd::RPushCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
@@ -46,23 +37,14 @@ bool RPushCmd::DoInitial(PClient* client) {
   return true;
 }
 void RPushCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
-  // todo :need to change code after issue 114  becase this function should return an error if the key type does not
-  // match , as LPush
-  //@578223592
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeList);
-  if (err != kPErrorOK) {
-    if (err != kPErrorNotExist) {
-      client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
-    }
-    // if this key not exist , create it
-    value = PSTORE.SetValue(client->Key(), PObject::CreateList());
+  std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
+  uint64_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend()->RPush(client->Key(), list_values, &reply_num);
+  if (s.ok()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
   }
-  auto desList = value->CastList();
-  for (int i = 2; i < client->argv_.size(); ++i) {
-    desList->emplace_back(client->argv_[i]);
-  }
-  client->AppendInteger(desList->size());
 }
 
 }  // namespace pikiwidb
