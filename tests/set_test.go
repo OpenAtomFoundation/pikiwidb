@@ -63,8 +63,51 @@ var _ = Describe("Set", Ordered, func() {
 	})
 
 	//TODO(dingxiaoshuai) Add more test cases.
-	It("Cmd SADD", func() {
-		log.Println("Cmd SADD Begin")
-		Expect(client.SAdd(ctx, "myset", "one", "two").Val()).NotTo(Equal("FooBar"))
-	})
+	It("SUnion", func() {
+        sAdd := client.SAdd(ctx, "set1", "a")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set1", "b")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set1", "c")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+        sAdd = client.SAdd(ctx, "set2", "c")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set2", "d")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set2", "e")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+        sUnion := client.SUnion(ctx, "set1", "set2")
+        Expect(sUnion.Err()).NotTo(HaveOccurred())
+        Expect(sUnion.Val()).To(HaveLen(5))
+
+        sUnion = client.SUnion(ctx, "nonexistent_set1", "nonexistent_set2")
+        Expect(sUnion.Err()).NotTo(HaveOccurred())
+        Expect(sUnion.Val()).To(HaveLen(0))
+    })
+
+    It("should SUnionStore", func() {
+        sAdd := client.SAdd(ctx, "set1", "a")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set1", "b")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set1", "c")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+        sAdd = client.SAdd(ctx, "set2", "c")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set2", "d")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+        sAdd = client.SAdd(ctx, "set2", "e")
+        Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+        sUnionStore := client.SUnionStore(ctx, "set", "set1", "set2")
+        Expect(sUnionStore.Err()).NotTo(HaveOccurred())
+        Expect(sUnionStore.Val()).To(Equal(int64(5)))
+
+        //sMembers := client.SMembers(ctx, "set")
+        //Expect(sMembers.Err()).NotTo(HaveOccurred())
+        //Expect(sMembers.Val()).To(HaveLen(5))
+    })
 })

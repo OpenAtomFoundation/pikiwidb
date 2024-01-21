@@ -142,4 +142,34 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(oldSize - unset->size());
 }
 
+SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SUnionCmd::DoInitial(PClient* client) {
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end());
+  client->SetKey(keys);
+  return true;
+}
+
+void SUnionCmd::DoCmd(PClient* client) {
+  std::unordered_set<std::string> unionSet;
+  for (auto key : client->Keys()) {
+    PObject* value = nullptr;
+    PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
+    if (err == kPErrorOK) {
+      const auto set = value->CastSet();
+      for (const auto& it : *set) {
+        unionSet.insert(it);
+      }
+    } else if (err != kPErrorNotExist) {
+      client->SetRes(CmdRes::kErrOther);
+      return;
+    }
+  }
+  client->AppendArrayLenUint64(unionSet.size());
+  for (const auto& member : unionSet) {
+    client->AppendStringLenUint64(member.size());
+    client->AppendContent(member);
+  }
+}
 }  // namespace pikiwidb
