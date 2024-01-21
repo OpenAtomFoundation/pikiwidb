@@ -20,7 +20,7 @@ import (
 	"github.com/OpenAtomFoundation/pikiwidb/tests/util"
 )
 
-var _ = Describe("Zset", Ordered, func() {
+var _ = Describe("Keyspace", Ordered, func() {
 	var (
 		ctx    = context.TODO()
 		s      *util.Server
@@ -66,8 +66,43 @@ var _ = Describe("Zset", Ordered, func() {
 	})
 
 	//TODO(dingxiaoshuai) Add more test cases.
-	It("Cmd ZADD", func() {
-		log.Println("Cmd ZADD Begin")
-		Expect(client.ZAdd(ctx, "myset", redis.Z{Score: 1, Member: "one"}).Val()).NotTo(Equal("FooBar"))
+	It("Exists", func() {
+		n, err := client.Exists(ctx, "key1").Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(n).To(Equal(int64(0)))
+
+        set := client.Set(ctx, "key1", "value1", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+
+        n, err = client.Exists(ctx, "key1").Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(n).To(Equal(int64(1)))
+
+        set = client.Set(ctx, "key2", "value2", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+
+        n, err = client.Exists(ctx, "key1", "key2", "notExistKey").Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(n).To(Equal(int64(2)))
 	})
+
+	It("Del", func() {
+        set := client.Set(ctx, "key1", "value1", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+
+        set = client.Set(ctx, "key2", "value2", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+
+        n, err := client.Del(ctx, "key1", "key2", "notExistKey").Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(n).To(Equal(int64(2)))
+
+        n, err = client.Exists(ctx, "key1", "key2").Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(n).To(Equal(int64(0)))
+    })
 })

@@ -598,7 +598,7 @@ int32_t Storage::Expire(const Slice& key, int32_t ttl, std::map<DataType, Status
   }
 }
 
-int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, Status>* type_status) {
+int64_t Storage::Del(const std::vector<std::string>& keys) {
   Status s;
   int64_t count = 0;
   bool is_corruption = false;
@@ -610,7 +610,6 @@ int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, St
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kStrings] = s;
     }
 
     // Hashes
@@ -619,7 +618,6 @@ int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, St
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kHashes] = s;
     }
 
     // Sets
@@ -628,7 +626,6 @@ int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, St
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kSets] = s;
     }
 
     // Lists
@@ -637,7 +634,6 @@ int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, St
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kLists] = s;
     }
 
     // ZSets
@@ -646,7 +642,6 @@ int64_t Storage::Del(const std::vector<std::string>& keys, std::map<DataType, St
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kZSets] = s;
     }
   }
 
@@ -727,7 +722,7 @@ int64_t Storage::DelByType(const std::vector<std::string>& keys, const DataType&
   }
 }
 
-int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType, Status>* type_status) {
+int64_t Storage::Exists(const std::vector<std::string>& keys) {
   int64_t count = 0;
   int32_t ret;
   uint64_t llen;
@@ -741,7 +736,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kStrings] = s;
     }
 
     s = hashes_db_->HLen(key, &ret);
@@ -749,7 +743,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kHashes] = s;
     }
 
     s = sets_db_->SCard(key, &ret);
@@ -757,7 +750,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kSets] = s;
     }
 
     s = lists_db_->LLen(key, &llen);
@@ -765,7 +757,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kLists] = s;
     }
 
     s = zsets_db_->ZCard(key, &ret);
@@ -773,7 +764,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
       count++;
     } else if (!s.IsNotFound()) {
       is_corruption = true;
-      (*type_status)[DataType::kZSets] = s;
     }
   }
 
