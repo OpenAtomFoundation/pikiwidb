@@ -91,7 +91,7 @@ class PRaft : public braft::StateMachine {
   // ClusterJoin command
   //===--------------------------------------------------------------------===//
   JoinCmdContext& GetJoinCtx() { return join_ctx_; }
-  void SendNodeAddRequest();
+  void SendNodeAddRequest(PClient *client);
   int ProcessClusterJoinCmdResponse(const char* start, int len);
   void OnJoinCmdConnectionFailed(EventLoop*, const char* peer_ip, int port);
 

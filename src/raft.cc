@@ -53,12 +53,8 @@ bool PRaft::IsLeader() const {
   return node_->is_leader();
 }
 
-void PRaft::SendNodeAddRequest() {
-  auto cli = join_ctx_.GetClient();
-  if (!cli) {
-    LOG(WARNING) << "No client to send node add request.";
-    return;
-  }
+void PRaft::SendNodeAddRequest(PClient *client) {
+  assert(client);
 
   UnboundedBuffer req;
   req.PushData("RAFT.NODE ADD ", 13);
@@ -67,7 +63,7 @@ void PRaft::SendNodeAddRequest() {
   req.PushData(std::to_string(unused_node_id).c_str(), std::to_string(unused_node_id).size());
   req.PushData(" ", 1);
   req.PushData(raw_addr_.data(), raw_addr_.size());
-  cli->SendPacket(req);
+  client->SendPacket(req);
 }
 
 int PRaft::ProcessClusterJoinCmdResponse(const char* start, int len) {

@@ -449,7 +449,7 @@ void PClient::OnConnect() {
     }
   } else if (isJoinCmdTarget()) {
     SetName("ClusterJoinCmdConnection");
-    PRAFT.SendNodeAddRequest();
+    PRAFT.SendNodeAddRequest(this);
   } else {
     if (g_config.password.empty()) {
       SetAuth();
