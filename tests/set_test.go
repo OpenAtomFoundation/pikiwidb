@@ -113,4 +113,59 @@ var _ = Describe("Set", Ordered, func() {
         //Expect(sMembers.Err()).NotTo(HaveOccurred())
         //Expect(sMembers.Val()).To(HaveLen(5))
     })
+	It("Cmd SADD", func() {
+		log.Println("Cmd SADD Begin")
+		Expect(client.SAdd(ctx, "myset", "one", "two").Val()).NotTo(Equal("FooBar"))
+	})
+	It("should SAdd", func() {
+		sAdd := client.SAdd(ctx, "setSAdd1", "Hello")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		sAdd = client.SAdd(ctx, "setSAdd1", "World")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		sAdd = client.SAdd(ctx, "setSAdd1", "World")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(0)))
+
+		// sMembers := client.SMembers(ctx, "set")   After the smember command is developed, uncomment it to test smember command.
+		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
+	})
+
+	It("should SAdd strings", func() {
+		set := []string{"Hello", "World", "World"}
+		sAdd := client.SAdd(ctx, "setSAdd2", set)
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(2)))
+
+		// sMembers := client.SMembers(ctx, "set") After the smember command is developed, uncomment it to test smember command.
+		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
+	})
+	It("should SInter", func() {
+		sAdd := client.SAdd(ctx, "set1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "set2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sInter := client.SInter(ctx, "set1", "set2")
+		Expect(sInter.Err()).NotTo(HaveOccurred())
+		Expect(sInter.Val()).To(Equal([]string{"c"}))
+
+		sInter = client.SInter(ctx, "nonexistent_set1", "nonexistent_set2")
+		Expect(sInter.Err()).NotTo(HaveOccurred())
+		Expect(sInter.Val()).To(HaveLen(0))
+	})
 })
