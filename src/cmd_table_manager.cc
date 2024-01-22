@@ -40,7 +40,7 @@ void CmdTableManager::InitCmdTable() {
 
   // keyspace
   ADD_COMMAND(Del, -2);
-  ADD_COMMAND(Exists, 2);
+  ADD_COMMAND(Exists, -2);
 
   // kv
   ADD_COMMAND(Get, 2);

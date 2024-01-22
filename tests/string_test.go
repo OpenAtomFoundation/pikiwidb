@@ -67,6 +67,8 @@ var _ = Describe("String", Ordered, func() {
 	BeforeEach(func() {
 		log.Println("before")
 		client = s.NewClient()
+		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
+        time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).

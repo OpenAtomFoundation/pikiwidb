@@ -917,7 +917,7 @@ class Storage {
   // Removes the specified keys
   // return -1 operation exception errors happen in database
   // return >=0 the number of keys that were removed
-  int64_t Del(const std::vector<std::string>& keys, std::map<DataType, Status>* type_status);
+  int64_t Del(const std::vector<std::string>& keys);
 
   // Removes the specified keys of the specified type
   // return -1 operation exception errors happen in database
@@ -960,7 +960,7 @@ class Storage {
   // Returns if key exists.
   // return -1 operation exception errors happen in database
   // return >=0 the number of keys existing
-  int64_t Exists(const std::vector<std::string>& keys, std::map<DataType, Status>* type_status);
+  int64_t Exists(const std::vector<std::string>& keys);
 
   // EXPIREAT has the same effect and semantic as EXPIRE, but instead of
   // specifying the number of seconds representing the TTL (time to live), it
