@@ -130,19 +130,19 @@ bool SInterStoreCmd::DoInitial(PClient* client) {
 }
 
 void SInterStoreCmd::DoCmd(PClient* client) {
+  std::vector<std::string> value_to_dest;
+  int32_t reply_num = 0;
 
-  std::vector<std::string> value_to_dest;int32_t reply_num = 0;
-
-  std::vector<std::string> inter_keys(client->argv_.begin()+2,client->argv_.end());
-  storage::Status s = PSTORE.GetBackend()->SInterstore(client->Key(),inter_keys,value_to_dest,&reply_num);
+  std::vector<std::string> inter_keys(client->argv_.begin() + 2, client->argv_.end());
+  storage::Status s = PSTORE.GetBackend()->SInterstore(client->Key(), inter_keys, value_to_dest, &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
-    return ;
+    return;
   }
   client->AppendInteger(reply_num);
 
-  //todo delete if test success
-  return ;
+  // todo delete if test success
+  return;
   PObject* value = nullptr;
   PError err{};
   // check all value set is exist or not
