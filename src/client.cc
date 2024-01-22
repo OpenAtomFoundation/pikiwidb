@@ -625,10 +625,17 @@ void PClient::TransferToSlaveThreads() {
     auto slave_loop = tcp_connection->SelectSlaveEventLoop();
     auto id = tcp_connection->GetUniqueId();
     auto event_object = loop->GetEventObject(id);
-    loop->Unregister(event_object);
-    event_object->SetUniqueId(-1);
-    slave_loop->Register(event_object, 0);
-    tcp_connection->ResetEventLoop(slave_loop);
+    auto del_conn = [loop, slave_loop, event_object]() {
+      loop->Unregister(event_object);
+      event_object->SetUniqueId(-1);
+      auto tcp_connection = std::dynamic_pointer_cast<TcpConnection>(event_object);
+      assert(tcp_connection);
+      tcp_connection->ResetEventLoop(slave_loop);
+
+      auto add_conn = [slave_loop, event_object]() { slave_loop->Register(event_object, 0); };
+      slave_loop->Execute(std::move(add_conn));
+    };
+    loop->Execute(std::move(del_conn));
   }
 }
 
