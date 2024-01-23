@@ -14,7 +14,7 @@ namespace pikiwidb {
 
 PObject PObject::CreateString(const PString& value) {
   PObject obj(kPTypeString);
-  long val;
+  long val = 0;
 
   // isVaildNumber ensures that the string is in decimal format,
   // while strtol ensures that the string is within the range of long type
