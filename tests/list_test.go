@@ -71,6 +71,7 @@ var _ = Describe("List", Ordered, func() {
 		Expect(client.LPush(ctx, "mylistLPUSH", "hello", ).Val()).To(Equal(int64(2)))
 
 		// Expect(client.LRange(ctx,"mylistLPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+		Expect(client.Del(ctx,"mylistLPUSH").Err()).NotTo(HaveOccurred());
 	})
 	It("Cmd RPUSH", func() {
 		log.Println("Cmd RPUSH Begin")
@@ -78,5 +79,30 @@ var _ = Describe("List", Ordered, func() {
 		Expect(client.LPush(ctx, "mylistRPUSH", "world", ).Val()).To(Equal(int64(2)))
 
 		// Expect(client.LRange(ctx,"mylistRPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+		Expect(client.Del(ctx,"mylistRPUSH").Err()).NotTo(HaveOccurred());
 	})
+
+	It("should LSet", func() {
+		rPush := client.RPush(ctx, "list", "one")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "two")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "three")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lSet := client.LSet(ctx, "list", 0, "four")
+		Expect(lSet.Err()).NotTo(HaveOccurred())
+		Expect(lSet.Val()).To(Equal("OK"))
+
+		lSet = client.LSet(ctx, "list", -2, "five")
+		Expect(lSet.Err()).NotTo(HaveOccurred())
+		Expect(lSet.Val()).To(Equal("OK"))
+
+		// lRange := client.LRange(ctx, "list", 0, -1)  //After the LRange command is developed, uncomment it to test command.
+		// Expect(lRange.Err()).NotTo(HaveOccurred())
+		// Expect(lRange.Val()).To(Equal([]string{"four", "five", "three"}))
+
+		Expect(client.Del(ctx,"list").Err()).NotTo(HaveOccurred());
+	})
+
 })
