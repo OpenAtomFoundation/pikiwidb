@@ -30,7 +30,7 @@ class RPushCmd : public BaseCmd {
  private:
   void DoCmd(PClient* client) override;
 };
-class LSetCmd: public BaseCmd {
+class LSetCmd : public BaseCmd {
  public:
   LSetCmd(const std::string& name, int16_t arity);
 
