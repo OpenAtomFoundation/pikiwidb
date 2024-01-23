@@ -11,6 +11,7 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -51,6 +52,8 @@ var _ = Describe("List", Ordered, func() {
 	// shared variable.
 	BeforeEach(func() {
 		client = s.NewClient()
+		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
+        time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).
@@ -64,6 +67,16 @@ var _ = Describe("List", Ordered, func() {
 	//TODO(dingxiaoshuai) Add more test cases.
 	It("Cmd LPUSH", func() {
 		log.Println("Cmd LPUSH Begin")
-		Expect(client.LPush(ctx, "mylist", "one", "two").Val()).NotTo(Equal("FooBar"))
+		Expect(client.LPush(ctx, "mylistLPUSH", "world", ).Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "mylistLPUSH", "hello", ).Val()).To(Equal(int64(2)))
+
+		// Expect(client.LRange(ctx,"mylistLPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+	})
+	It("Cmd RPUSH", func() {
+		log.Println("Cmd RPUSH Begin")
+		Expect(client.LPush(ctx, "mylistRPUSH", "hello", ).Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "mylistRPUSH", "world", ).Val()).To(Equal(int64(2)))
+
+		// Expect(client.LRange(ctx,"mylistRPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
 	})
 })

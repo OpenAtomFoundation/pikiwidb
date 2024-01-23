@@ -91,7 +91,6 @@ class EventLoop {
  private:
   std::unique_ptr<Reactor> reactor_;
 
-  mutable std::mutex object_mutex_;
   std::unordered_map<int, std::shared_ptr<EventObject>> objects_;
 
   std::shared_ptr<internal::PipeObject> notifier_;

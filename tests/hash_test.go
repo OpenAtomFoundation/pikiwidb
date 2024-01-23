@@ -11,7 +11,7 @@ import (
 	"context"
 	"log"
 	"strconv"
-
+    "time"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/redis/go-redis/v9"
@@ -51,6 +51,8 @@ var _ = Describe("Hash", Ordered, func() {
 	// shared variable.
 	BeforeEach(func() {
 		client = s.NewClient()
+		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
+        time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).
