@@ -56,9 +56,9 @@ bool LSetCmd::DoInitial(PClient* client) {
 void LSetCmd::DoCmd(PClient* client) {
   // isVaildNumber ensures that the string is in decimal format,
   // while strtol ensures that the string is within the range of long type
-  auto& indexStr = client->argv_[2];
+  const auto& index_str = client->argv_[2];
   long val = 0;
-  if (IsValidNumber(indexStr) && Strtol(indexStr.c_str(), indexStr.size(), &val)) {
+  if (IsValidNumber(index_str) && Strtol(index_str.c_str(), index_str.size(), &val)) {
     storage::Status s = PSTORE.GetBackend()->LSet(client->Key(), val, client->argv_[3]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
