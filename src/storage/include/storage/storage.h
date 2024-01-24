@@ -3,7 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef INCLUDE_STORAGE_STORAGE_H_
+#define INCLUDE_STORAGE_STORAGE_H_
 
 #include <unistd.h>
 #include <list>
@@ -22,6 +23,7 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
+#include "storage/slot_indexer.h"
 
 namespace storage {
 
@@ -32,13 +34,6 @@ inline const std::string PROPERTY_TYPE_ROCKSDB_CUR_SIZE_ALL_MEM_TABLES = "rocksd
 inline const std::string PROPERTY_TYPE_ROCKSDB_ESTIMATE_TABLE_READER_MEM = "rocksdb.estimate-table-readers-mem";
 inline const std::string PROPERTY_TYPE_ROCKSDB_BACKGROUND_ERRORS = "rocksdb.background-errors";
 
-inline const std::string ALL_DB = "all";
-inline const std::string STRINGS_DB = "strings";
-inline const std::string HASHES_DB = "hashes";
-inline const std::string LISTS_DB = "lists";
-inline const std::string ZSETS_DB = "zsets";
-inline const std::string SETS_DB = "sets";
-
 inline constexpr size_t BATCH_DELETE_LIMIT = 100;
 inline constexpr size_t COMPACT_THRESHOLD_COUNT = 2000;
 
@@ -47,12 +42,7 @@ using BlockBasedTableOptions = rocksdb::BlockBasedTableOptions;
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
 
-class RedisStrings;
-class RedisHashes;
-class RedisSets;
-class RedisLists;
-class RedisZSets;
-class HyperLogLog;
+class Redis;
 enum class OptionType;
 
 template <typename T1, typename T2>
@@ -65,7 +55,14 @@ struct StorageOptions {
   bool share_block_cache = false;
   size_t statistics_max_size = 0;
   size_t small_compaction_threshold = 5000;
+  size_t small_compaction_duration_threshold = 10000;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
+};
+
+struct CFOptions {
+  uint64_t rocksdb_ttl_second_;
+  uint64_t rocksdb_periodic_second_;
+  int db_instance_num_;
 };
 
 struct KeyValue {
@@ -76,31 +73,50 @@ struct KeyValue {
 };
 
 struct KeyInfo {
-  uint64_t keys;
-  uint64_t expires;
-  uint64_t avg_ttl;
-  uint64_t invaild_keys;
+  uint64_t keys = 0;
+  uint64_t expires = 0;
+  uint64_t avg_ttl = 0;
+  uint64_t invaild_keys = 0;
+
+  KeyInfo() : keys(0), expires(0), avg_ttl(0), invaild_keys(0) {}
+
+  KeyInfo(uint64_t k, uint64_t e, uint64_t a, uint64_t i) : keys(k), expires(e), avg_ttl(a), invaild_keys(i) {}
+
+  KeyInfo operator+(const KeyInfo& info) {
+    KeyInfo res;
+    res.keys = keys + info.keys;
+    res.expires = expires + info.expires;
+    res.avg_ttl = avg_ttl + info.avg_ttl;
+    res.invaild_keys = invaild_keys + info.invaild_keys;
+    return res;
+  }
 };
 
 struct ValueStatus {
   std::string value;
   Status status;
-  bool operator==(const ValueStatus& vs) const { return (vs.value == value && vs.status == status); }
+  int64_t ttl;
+  bool operator==(const ValueStatus& vs) const { return (vs.value == value && vs.status == status && vs.ttl == ttl); }
 };
 
 struct FieldValue {
   std::string field;
   std::string value;
+  FieldValue() = default;
+  FieldValue(const std::string& k, const std::string& v) : field(k), value(v) {}
+  FieldValue(std::string&& k, std::string&& v) : field(std::move(k)), value(std::move(v)) {}
   bool operator==(const FieldValue& fv) const { return (fv.field == field && fv.value == value); }
 };
 
 struct KeyVersion {
   std::string key;
-  int32_t version;
+  uint64_t version = 0;
   bool operator==(const KeyVersion& kv) const { return (kv.key == key && kv.version == version); }
 };
 
 struct ScoreMember {
+  ScoreMember() : score(0.0), member("") {}
+  ScoreMember(double t_score, const std::string& t_member) : score(t_score), member(t_member) {}
   double score;
   std::string member;
   bool operator==(const ScoreMember& sm) const { return (sm.score == score && sm.member == member); }
@@ -108,9 +124,9 @@ struct ScoreMember {
 
 enum BeforeOrAfter { Before, After };
 
-enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets };
+enum DataType { kAll, kStrings, kHashes, kSets, kLists, kZSets };
 
-const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's'};
+const char DataTypeTag[] = {'a', 'k', 'h', 's', 'l', 'z'};
 
 enum class OptionType {
   kDB,
@@ -123,15 +139,25 @@ enum AGGREGATE { SUM, MIN, MAX };
 
 enum BitOpType { kBitOpAnd = 1, kBitOpOr, kBitOpXor, kBitOpNot, kBitOpDefault };
 
-enum Operation { kNone = 0, kCleanAll, kCleanStrings, kCleanHashes, kCleanZSets, kCleanSets, kCleanLists, kCompactKey };
+enum Operation {
+  kNone = 0,
+  kCleanAll,
+  kCleanStrings,
+  kCleanHashes,
+  kCleanZSets,
+  kCleanSets,
+  kCleanLists,
+  kCompactRange
+};
 
 struct BGTask {
   DataType type;
   Operation operation;
-  std::string argv;
+  std::vector<std::string> argv;
 
-  BGTask(const DataType& _type = DataType::kAll, const Operation& _opeation = Operation::kNone, std::string _argv = "")
-      : type(_type), operation(_opeation), argv(std::move(_argv)) {}
+  BGTask(const DataType& _type = DataType::kAll, const Operation& _opeation = Operation::kNone,
+         const std::vector<std::string>& _argv = {})
+      : type(_type), operation(_opeation), argv(_argv) {}
 };
 
 class Storage {
@@ -139,11 +165,15 @@ class Storage {
   Storage();
   ~Storage();
 
-  Status Open(const StorageOptions& storage_options, const std::string& db_path);
+  Status Open(const StorageOptions& storage_options, const CFOptions& cfOption, const std::string& db_path);
 
-  Status GetStartKey(const DataType& dtype, int64_t cursor, std::string* start_key);
+  Status LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key);
 
-  Status StoreCursorStartKey(const DataType& dtype, int64_t cursor, const std::string& next_key);
+  Status StoreCursorStartKey(const DataType& dtype, int64_t cursor, char type, const std::string& next_key);
+
+  std::shared_ptr<Redis> GetDBInstance(const Slice& key);
+
+  std::shared_ptr<Redis> GetDBInstance(const std::string& key);
 
   // Strings Commands
 
@@ -180,6 +210,11 @@ class Storage {
   // that does not hold a string value or does not exist, the
   // special value nil is returned
   Status MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss);
+
+  // Returns the values of all specified keyswithTTL. For every key
+  // that does not hold a string value or does not exist, the
+  // special value nil is returned
+  Status MGetWithTTL(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss);
 
   // Set key to hold string value if key does not exist
   // return 1 if the key was set
@@ -930,13 +965,6 @@ class Storage {
   int64_t Scan(const DataType& dtype, int64_t cursor, const std::string& pattern, int64_t count,
                std::vector<std::string>* keys);
 
-  // Iterate over a collection of elements, obtaining the item which timeout
-  // conforms to the inequality (min_ttl < item_ttl < max_ttl)
-  // return an updated cursor that the user need to use as the cursor argument
-  // in the next call
-  int64_t PKExpireScan(const DataType& dtype, int64_t cursor, int32_t min_ttl, int32_t max_ttl, int64_t count,
-                       std::vector<std::string>* keys);
-
   // Iterate over a collection of elements by specified range
   // return a next_key that the user need to use as the key_start argument
   // in the next call
@@ -961,6 +989,10 @@ class Storage {
   // return -1 operation exception errors happen in database
   // return >=0 the number of keys existing
   int64_t Exists(const std::vector<std::string>& keys, std::map<DataType, Status>* type_status);
+
+  // Return the key exists type count
+  // return param type_status: return every type status
+  int64_t IsExist(const Slice& key, std::map<DataType, Status>* type_status);
 
   // EXPIREAT has the same effect and semantic as EXPIRE, but instead of
   // specifying the number of seconds representing the TTL (time to live), it
@@ -1026,32 +1058,30 @@ class Storage {
   Status AddBGTask(const BGTask& bg_task);
 
   Status Compact(const DataType& type, bool sync = false);
-  Status DoCompact(const DataType& type);
-  Status CompactKey(const DataType& type, const std::string& key);
+  Status CompactRange(const DataType& type, const std::string& start, const std::string& end, bool sync = false);
+  Status DoCompactRange(const DataType& type, const std::string& start, const std::string& end);
+  Status DoCompactSpecificKey(const DataType& type, const std::string& key);
 
   Status SetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(uint32_t small_compaction_threshold);
+  Status SetSmallCompactionDurationThreshold(uint32_t small_compaction_duration_threshold);
 
   std::string GetCurrentTaskType();
   Status GetUsage(const std::string& property, uint64_t* result);
-  Status GetUsage(const std::string& property, std::map<std::string, uint64_t>* type_result);
-  uint64_t GetProperty(const std::string& db_type, const std::string& property);
+  Status GetUsage(const std::string& property, std::map<int, uint64_t>* type_result);
+  uint64_t GetProperty(const std::string& property);
 
   Status GetKeyNum(std::vector<KeyInfo>* key_infos);
   Status StopScanKeyNum();
 
-  rocksdb::DB* GetDBByType(const std::string& type);
+  rocksdb::DB* GetDBByIndex(int index);
 
-  Status SetOptions(const OptionType& option_type, const std::string& db_type,
-                    const std::unordered_map<std::string, std::string>& options);
+  Status SetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
 
  private:
-  std::unique_ptr<RedisStrings> strings_db_;
-  std::unique_ptr<RedisHashes> hashes_db_;
-  std::unique_ptr<RedisSets> sets_db_;
-  std::unique_ptr<RedisZSets> zsets_db_;
-  std::unique_ptr<RedisLists> lists_db_;
+  std::vector<std::shared_ptr<Redis>> insts_;
+  std::unique_ptr<SlotIndexer> slot_indexer_;
   std::atomic<bool> is_opened_ = false;
 
   std::unique_ptr<LRUCache<std::string, std::string>> cursors_store_;
@@ -1067,6 +1097,8 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
+  int db_instance_num_;
 };
 
 }  //  namespace storage
+#endif  //  INCLUDE_STORAGE_STORAGE_H_

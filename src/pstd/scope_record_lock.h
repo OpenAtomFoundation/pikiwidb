@@ -20,11 +20,14 @@ namespace pstd::lock {
 
 using Slice = rocksdb::Slice;
 
+//* 实现了一个 RAII 的锁对象。
 class ScopeRecordLock final : public pstd::noncopyable {
  public:
+  // 构造对象的时候传入一个锁管理器以及要上锁的 key ，对象产生即使用锁管理器对 key 上锁。
   ScopeRecordLock(const std::shared_ptr<LockMgr>& lock_mgr, const Slice& key) : lock_mgr_(lock_mgr), key_(key) {
     lock_mgr_->TryLock(key_.ToString());
   }
+  // 析构时使用锁管理器对 key 解锁。
   ~ScopeRecordLock() { lock_mgr_->UnLock(key_.ToString()); }
 
  private:
