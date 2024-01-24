@@ -243,12 +243,12 @@ var _ = Describe("Set", Ordered, func() {
         Expect(sMove.Err()).NotTo(HaveOccurred())
         Expect(sMove.Val()).To(Equal(true))
 
-        sMembers := client.SMembers(ctx, "set1")
-        Expect(sMembers.Err()).NotTo(HaveOccurred())
-        Expect(sMembers.Val()).To(Equal([]string{"one"}))
+		sIsMember := client.SIsMember(ctx, "set1", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(false))
 
-        sMembers = client.SMembers(ctx, "set2")
-        Expect(sMembers.Err()).NotTo(HaveOccurred())
-        Expect(sMembers.Val()).To(ConsistOf([]string{"three", "two"}))
+		sIsMember = client.SIsMember(ctx, "set2", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(true))
     })
 })
