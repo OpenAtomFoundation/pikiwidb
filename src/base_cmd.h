@@ -83,6 +83,11 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
 
+// zset cmd
+const std::string kCmdNameZAdd = "zadd";
+const std::string kCmdNameZRevrange = "zrevrange";
+const std::string kCmdNameZRangebyscore = "zrangebyscore";
+
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
