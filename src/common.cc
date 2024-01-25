@@ -192,22 +192,6 @@ bool Strtol(const char* ptr, size_t nBytes, long* outVal) {
   return pEnd == ptr + nBytes;
 }
 
-bool Strtoll(const char* ptr, size_t nBytes, long long* outVal) {
-  if (nBytes == 0 || nBytes > 20) {
-    return false;
-  }
-
-  errno = 0;
-  char* pEnd = 0;
-  *outVal = strtoll(ptr, &pEnd, 0);
-
-  if (errno == ERANGE || errno == EINVAL) {
-    return false;
-  }
-
-  return pEnd == ptr + nBytes;
-}
-
 bool Strtof(const char* ptr, size_t nBytes, float* outVal) {
   if (nBytes == 0 || nBytes > 20) {
     return false;

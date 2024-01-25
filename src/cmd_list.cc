@@ -6,6 +6,9 @@
  */
 
 #include "cmd_list.h"
+
+#include <pstd_string.h>
+
 #include "store.h"
 
 namespace pikiwidb {
@@ -56,9 +59,14 @@ bool LSetCmd::DoInitial(PClient* client) {
 void LSetCmd::DoCmd(PClient* client) {
   // isVaildNumber ensures that the string is in decimal format,
   // while strtol ensures that the string is within the range of long type
-  const auto& index_str = client->argv_[2];
-  long val = 0;
-  if (IsValidNumber(index_str) && Strtol(index_str.c_str(), index_str.size(), &val)) {
+  std::string& index_str = client->argv_[2];
+
+  if (IsValidNumber(index_str)) {
+    int64_t val = 0;
+    if (1 != pstd::String2int(index_str, &val)) {
+      client->SetRes(CmdRes::kErrOther, "lset cmd error");  // this will not happend in normal case
+      return;
+    }
     storage::Status s = PSTORE.GetBackend()->LSet(client->Key(), val, client->argv_[3]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
@@ -69,7 +77,6 @@ void LSetCmd::DoCmd(PClient* client) {
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
     };
-    return;
   } else {
     client->SetRes(CmdRes::kInvalidInt);
   }
