@@ -634,7 +634,7 @@ rocksdb::Status Redis::SMembers(const Slice& key, std::vector<std::string>* memb
   return s;
 }
 
-Status Redis::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t* ttl) {
+Status Redis::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, uint64_t* ttl) {
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -1190,7 +1190,7 @@ rocksdb::Status Redis::SScan(const Slice& key, int64_t cursor, const std::string
   return rocksdb::Status::OK();
 }
 
-rocksdb::Status Redis::SetsExpire(const Slice& key, int32_t ttl) {
+rocksdb::Status Redis::SetsExpire(const Slice& key, uint64_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1237,7 +1237,7 @@ rocksdb::Status Redis::SetsDel(const Slice& key) {
   return s;
 }
 
-rocksdb::Status Redis::SetsExpireat(const Slice& key, int32_t timestamp) {
+rocksdb::Status Redis::SetsExpireat(const Slice& key, uint64_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1286,7 +1286,7 @@ rocksdb::Status Redis::SetsPersist(const Slice& key) {
   return s;
 }
 
-rocksdb::Status Redis::SetsTTL(const Slice& key, int64_t* timestamp) {
+rocksdb::Status Redis::SetsTTL(const Slice& key, uint64_t* timestamp) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);

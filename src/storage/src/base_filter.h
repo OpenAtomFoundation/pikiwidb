@@ -12,6 +12,7 @@
 
 #include "glog/logging.h"
 #include "rocksdb/compaction_filter.h"
+#include "rocksdb/db.h"
 #include "src/base_data_key_format.h"
 #include "src/base_meta_value_format.h"
 #include "src/debug.h"
@@ -121,22 +122,6 @@ class BaseDataFilter : public rocksdb::CompactionFilter {
       TRACE("Reserve[data_key_version == cur_meta_version]");
       return false;
     }
-  }
-
-  // Only judge by meta value ttl
-  virtual rocksdb::CompactionFilter::Decision FilterBlobByKey(int level, const Slice& key, uint64_t expire_time,
-                                                              std::string* new_value,
-                                                              std::string* skip_until) const override {
-    UNUSED(level);
-    UNUSED(expire_time);
-    UNUSED(new_value);
-    UNUSED(skip_until);
-    bool unused_value_changed;
-    bool should_remove = Filter(level, key, Slice{}, new_value, &unused_value_changed);
-    if (should_remove) {
-      return CompactionFilter::Decision::kRemove;
-    }
-    return CompactionFilter::Decision::kKeep;
   }
 
   const char* Name() const override { return "BaseDataFilter"; }

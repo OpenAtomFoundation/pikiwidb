@@ -57,7 +57,7 @@ static bool make_expired(storage::Storage* const db, const Slice& key) {
   return true;
 }
 
-static bool set_timeout(storage::Storage* const db, const Slice& key, int32_t ttl) {
+static bool set_timeout(storage::Storage* const db, const Slice& key, uint64_t ttl) {
   std::map<storage::DataType, rocksdb::Status> type_status;
   int ret = db->Expire(key, ttl, &type_status);
   return !((ret == 0) || !type_status[storage::DataType::kStrings].ok());

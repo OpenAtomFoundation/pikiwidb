@@ -7,8 +7,8 @@ include_guard()
 
 FetchContent_Declare(
         rocksdb
-        GIT_REPOSITORY   https://github.com/pikiwidb/rocksdb.git
-        GIT_TAG feature/optimize_blob
+        GIT_REPOSITORY https://github.com/facebook/rocksdb.git
+        GIT_TAG v8.3.3
 )
 
 FetchContent_MakeAvailableWithArgs(rocksdb
@@ -24,7 +24,7 @@ FetchContent_MakeAvailableWithArgs(rocksdb
         WITH_LIBURING=OFF
         WITH_LZ4=OFF
         WITH_SNAPPY=OFF
-        WITH_ZLIB=OFF
+        WITH_ZLIB=ON
         WITH_ZSTD=OFF
         WITH_GFLAGS=OFF
         USE_RTTI=ON

@@ -83,20 +83,6 @@ class ZSetsScoreFilter : public rocksdb::CompactionFilter {
     }
   }
 
-  // Only judge by meta value ttl
-  virtual rocksdb::CompactionFilter::Decision FilterBlobByKey(int level, const Slice& key, std::string* new_value,
-                                                              std::string* skip_until) const {
-    UNUSED(level);
-    UNUSED(new_value);
-    UNUSED(skip_until);
-    bool unused_value_changed;
-    bool should_remove = Filter(level, key, Slice{}, new_value, &unused_value_changed);
-    if (should_remove) {
-      return CompactionFilter::Decision::kRemove;
-    }
-    return CompactionFilter::Decision::kKeep;
-  }
-
   const char* Name() const override { return "ZSetsScoreFilter"; }
 
  private:

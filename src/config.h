@@ -81,9 +81,9 @@ struct PConfig {
 
   int64_t max_client_response_size;
 
-  int db_instance_num_;
-  uint64_t rocksdb_ttl_second_ = 0;
-  uint64_t rocksdb_periodic_second_ = 0;
+  int db_instance_num;
+  uint64_t rocksdb_ttl_second;
+  uint64_t rocksdb_periodic_second;
   PConfig();
 
   bool CheckArgs() const;

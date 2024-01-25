@@ -9,7 +9,6 @@ ADD_LIBRARY(pstd ${STD_SRC})
 
 ADD_SUBDIRECTORY(tests)
 
-MESSAGE(WARNING ${rocksdb_SOURCE_DIR})
 TARGET_INCLUDE_DIRECTORIES(pstd
         PRIVATE ${rocksdb_SOURCE_DIR}/include
 )

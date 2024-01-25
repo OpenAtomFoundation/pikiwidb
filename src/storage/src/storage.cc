@@ -9,7 +9,7 @@
 #include <glog/logging.h>
 
 #include "config.h"
-#include "pstd/pikiwidb_codis_slot.h"
+#include "pstd/pikiwidb_slot.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -80,12 +80,12 @@ static std::string AppendSubDirectory(const std::string& db_path, int index) {
   }
 }
 
-Status Storage::Open(const StorageOptions& storage_options, const CFOptions& cfOption, const std::string& db_path) {
+Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
-  db_instance_num_ = cfOption.db_instance_num_;
+  db_instance_num_ = storage_options.db_instance_num;
   for (int index = 0; index < db_instance_num_; index++) {
     insts_.emplace_back(std::make_shared<Redis>(this, index));
-    Status s = insts_.back()->Open(storage_options, cfOption, AppendSubDirectory(db_path, index));
+    Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
       LOG(FATAL) << "open db failed" << s.ToString();
     }
@@ -116,7 +116,6 @@ Status Storage::StoreCursorStartKey(const DataType& dtype, int64_t cursor, char 
   return cursors_store_->Insert(index_key, index_value);
 }
 
-//* 通过 key 做分片，得到 rocksdb。
 std::shared_ptr<Redis> Storage::GetDBInstance(const Slice& key) { return GetDBInstance(key.ToString()); }
 
 std::shared_ptr<Redis> Storage::GetDBInstance(const std::string& key) {
@@ -130,7 +129,7 @@ Status Storage::Set(const Slice& key, const Slice& value) {
   return inst->Set(key, value);
 }
 
-Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
+Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const uint64_t ttl) {
   auto inst = GetDBInstance(key);
   return inst->Setxx(key, value, ret, ttl);
 }
@@ -140,7 +139,7 @@ Status Storage::Get(const Slice& key, std::string* value) {
   return inst->Get(key, value);
 }
 
-Status Storage::GetWithTTL(const Slice& key, std::string* value, int64_t* ttl) {
+Status Storage::GetWithTTL(const Slice& key, std::string* value, uint64_t* ttl) {
   auto inst = GetDBInstance(key);
   return inst->GetWithTTL(key, value, ttl);
 }
@@ -197,7 +196,7 @@ Status Storage::MGetWithTTL(const std::vector<std::string>& keys, std::vector<Va
   for (const auto& key : keys) {
     auto inst = GetDBInstance(key);
     std::string value;
-    int64_t ttl;
+    uint64_t ttl;
     s = inst->GetWithTTL(key, &value, &ttl);
     if (s.ok()) {
       vss->push_back({value, Status::OK(), ttl});
@@ -211,12 +210,11 @@ Status Storage::MGetWithTTL(const std::vector<std::string>& keys, std::vector<Va
   return Status::OK();
 }
 
-Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
+Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const uint64_t ttl) {
   auto inst = GetDBInstance(key);
   return inst->Setnx(key, value, ret, ttl);
 }
 
-// disallowed in codis, only runs in pika classic mode
 // TODO: Not concurrent safe now, merge wuxianrong's bugfix after floyd's PR review finishes.
 Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   Status s;
@@ -242,7 +240,7 @@ Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   return s;
 }
 
-Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const int32_t ttl) {
+Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const uint64_t ttl) {
   auto inst = GetDBInstance(key);
   return inst->Setvx(key, value, new_value, ret, ttl);
 }
@@ -263,7 +261,7 @@ Status Storage::Getrange(const Slice& key, int64_t start_offset, int64_t end_off
 }
 
 Status Storage::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret,
-                                  std::string* value, int64_t* ttl) {
+                                  std::string* value, uint64_t* ttl) {
   auto inst = GetDBInstance(key);
   return inst->GetrangeWithValue(key, start_offset, end_offset, ret, value, ttl);
 }
@@ -339,7 +337,7 @@ Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* r
   return inst->Incrbyfloat(key, value, ret);
 }
 
-Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl) {
+Status Storage::Setex(const Slice& key, const Slice& value, uint64_t ttl) {
   auto inst = GetDBInstance(key);
   return inst->Setex(key, value, ttl);
 }
@@ -349,7 +347,7 @@ Status Storage::Strlen(const Slice& key, int32_t* len) {
   return inst->Strlen(key, len);
 }
 
-Status Storage::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp) {
+Status Storage::PKSetexAt(const Slice& key, const Slice& value, uint64_t timestamp) {
   auto inst = GetDBInstance(key);
   return inst->PKSetexAt(key, value, timestamp);
 }
@@ -380,7 +378,7 @@ Status Storage::HGetall(const Slice& key, std::vector<FieldValue>* fvs) {
   return inst->HGetall(key, fvs);
 }
 
-Status Storage::HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fvs, int64_t* ttl) {
+Status Storage::HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fvs, uint64_t* ttl) {
   auto inst = GetDBInstance(key);
   return inst->HGetallWithTTL(key, fvs, ttl);
 }
@@ -584,7 +582,7 @@ Status Storage::SMembers(const Slice& key, std::vector<std::string>* members) {
   return inst->SMembers(key, members);
 }
 
-Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t* ttl) {
+Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, uint64_t* ttl) {
   auto inst = GetDBInstance(key);
   return inst->SMembersWithTTL(key, members, ttl);
 }
@@ -697,7 +695,7 @@ Status Storage::LRange(const Slice& key, int64_t start, int64_t stop, std::vecto
 }
 
 Status Storage::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret,
-                              int64_t* ttl) {
+                              uint64_t* ttl) {
   auto inst = GetDBInstance(key);
   return inst->LRangeWithTTL(key, start, stop, ret, ttl);
 }
@@ -818,7 +816,7 @@ Status Storage::ZRange(const Slice& key, int32_t start, int32_t stop, std::vecto
   return inst->ZRange(key, start, stop, score_members);
 }
 Status Storage::ZRangeWithTTL(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members,
-                              int64_t* ttl) {
+                              uint64_t* ttl) {
   score_members->clear();
   auto inst = GetDBInstance(key);
   return inst->ZRangeWithTTL(key, start, stop, score_members, ttl);
@@ -1035,7 +1033,7 @@ Status Storage::ZScan(const Slice& key, int64_t cursor, const std::string& patte
   return inst->ZScan(key, cursor, pattern, count, score_members, next_cursor);
 }
 
-int32_t Storage::Expire(const Slice& key, int32_t ttl, std::map<DataType, Status>* type_status) {
+int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Status>* type_status) {
   type_status->clear();
   int32_t ret = 0;
   bool is_corruption = false;
@@ -1534,7 +1532,7 @@ Status Storage::Scanx(const DataType& data_type, const std::string& start_key, c
   return Status::OK();
 }
 
-int32_t Storage::Expireat(const Slice& key, int32_t timestamp, std::map<DataType, Status>* type_status) {
+int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataType, Status>* type_status) {
   Status s;
   int32_t count = 0;
   bool is_corruption = false;
@@ -1642,7 +1640,7 @@ int32_t Storage::Persist(const Slice& key, std::map<DataType, Status>* type_stat
 std::map<DataType, int64_t> Storage::TTL(const Slice& key, std::map<DataType, Status>* type_status) {
   Status s;
   std::map<DataType, int64_t> ret;
-  int64_t timestamp = 0;
+  uint64_t timestamp = 0;
 
   auto inst = GetDBInstance(key);
   s = inst->StringsTTL(key, &timestamp);

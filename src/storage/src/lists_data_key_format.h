@@ -28,14 +28,14 @@ class ListsDataKey {
   Slice Encode() {
     size_t meta_size = sizeof(reserve1_) + sizeof(version_) + sizeof(reserve2_);
     size_t usize = key_.size() + sizeof(index_) + kEncodedKeyDelimSize;
-    usize += std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    size_t nzero = std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    usize += nzero;
     size_t needed = meta_size + usize;
     char* dst;
     if (needed <= sizeof(space_)) {
       dst = space_;
     } else {
       dst = new char[needed];
-
       // Need to allocate space, delete previous space
       if (start_ != space_) {
         delete[] start_;
@@ -46,12 +46,12 @@ class ListsDataKey {
     // reserve1: 8 byte
     memcpy(dst, reserve1_, sizeof(reserve1_));
     dst += sizeof(reserve1_);
-    dst = EncodeUserKey(key_, dst);
+    dst = EncodeUserKey(key_, dst, nzero);
     // version 8 byte
-    pstd::EncodeFixed64(dst, version_);
+    EncodeFixed64(dst, version_);
     dst += sizeof(version_);
     // index
-    pstd::EncodeFixed64(dst, index_);
+    EncodeFixed64(dst, index_);
     dst += sizeof(index_);
     // TODO(wangshaoyi): too much for reserve
     // reserve2: 16 byte

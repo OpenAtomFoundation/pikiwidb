@@ -23,7 +23,7 @@ bool GetCmd::DoInitial(PClient* client) {
 
 void GetCmd::DoCmd(PClient* client) {
   PString value;
-  int64_t ttl = -1;
+  uint64_t ttl = -1;
   storage::Status s = PSTORE.GetBackend()->GetWithTTL(client->Key(), &value, &ttl);
   if (s.ok()) {
     client->AppendString(value);

@@ -499,7 +499,7 @@ Status Redis::ZRange(const Slice& key, int32_t start, int32_t stop, std::vector<
 }
 
 Status Redis::ZRangeWithTTL(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members,
-                            int64_t* ttl) {
+                            uint64_t* ttl) {
   score_members->clear();
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot = nullptr;
@@ -1457,7 +1457,7 @@ Status Redis::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& ma
   return s;
 }
 
-Status Redis::ZsetsExpire(const Slice& key, int32_t ttl) {
+Status Redis::ZsetsExpire(const Slice& key, uint64_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1503,7 +1503,7 @@ Status Redis::ZsetsDel(const Slice& key) {
   return s;
 }
 
-Status Redis::ZsetsExpireat(const Slice& key, int32_t timestamp) {
+Status Redis::ZsetsExpireat(const Slice& key, uint64_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1628,7 +1628,7 @@ Status Redis::ZsetsPersist(const Slice& key) {
   return s;
 }
 
-Status Redis::ZsetsTTL(const Slice& key, int64_t* timestamp) {
+Status Redis::ZsetsTTL(const Slice& key, uint64_t* timestamp) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);

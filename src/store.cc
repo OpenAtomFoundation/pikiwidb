@@ -794,13 +794,14 @@ void PStore::InitDumpBackends() {
       std::unique_ptr<storage::Storage> db = std::make_unique<storage::Storage>();
       storage::StorageOptions storage_options;
       storage_options.options.create_if_missing = true;
+      storage_options.db_instance_num = g_config.db_instance_num;
+
+      // options for CF
+      storage_options.options.ttl = g_config.rocksdb_ttl_second;
+      storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
       PString dbpath = g_config.dbpath + std::to_string(i) + '/';
 
-      storage::CFOptions cfOptions;
-      cfOptions.rocksdb_ttl_second_ = g_config.rocksdb_ttl_second_;
-      cfOptions.rocksdb_periodic_second_ = g_config.rocksdb_periodic_second_;
-      cfOptions.db_instance_num_ = g_config.db_instance_num_;
-      storage::Status s = db->Open(storage_options, cfOptions, dbpath.data());
+      storage::Status s = db->Open(storage_options, dbpath.data());
       if (!s.ok()) {
         assert(false);
       } else {

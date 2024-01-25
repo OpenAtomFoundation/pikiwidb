@@ -441,7 +441,7 @@ Status Redis::LRange(const Slice& key, int64_t start, int64_t stop, std::vector<
 }
 
 Status Redis::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret,
-                            int64_t* ttl) {
+                            uint64_t* ttl) {
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -965,7 +965,7 @@ Status Redis::RPushx(const Slice& key, const std::vector<std::string>& values, u
   return s;
 }
 
-Status Redis::ListsExpire(const Slice& key, int32_t ttl) {
+Status Redis::ListsExpire(const Slice& key, uint64_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1012,7 +1012,7 @@ Status Redis::ListsDel(const Slice& key) {
   return s;
 }
 
-Status Redis::ListsExpireat(const Slice& key, int32_t timestamp) {
+Status Redis::ListsExpireat(const Slice& key, uint64_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1060,7 +1060,7 @@ Status Redis::ListsPersist(const Slice& key) {
   return s;
 }
 
-Status Redis::ListsTTL(const Slice& key, int64_t* timestamp) {
+Status Redis::ListsTTL(const Slice& key, uint64_t* timestamp) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);

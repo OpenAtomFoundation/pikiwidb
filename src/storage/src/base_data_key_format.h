@@ -12,6 +12,7 @@
 namespace storage {
 
 using Slice = rocksdb::Slice;
+using namespace pstd;
 /*
  * used for Hash/Set/Zset's member data key. format:
  * | reserve1 | key | version | data | reserve2 |
@@ -30,7 +31,8 @@ class BaseDataKey {
   Slice EncodeSeekKey() {
     size_t meta_size = sizeof(reserve1_) + sizeof(version_);
     size_t usize = key_.size() + data_.size() + kEncodedKeyDelimSize;
-    usize += std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    size_t nzero = std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    usize += nzero;
     size_t needed = meta_size + usize;
     char* dst;
     if (needed <= sizeof(space_)) {
@@ -49,9 +51,9 @@ class BaseDataKey {
     memcpy(dst, reserve1_, sizeof(reserve1_));
     dst += sizeof(reserve1_);
     // key
-    dst = EncodeUserKey(key_, dst);
+    dst = EncodeUserKey(key_, dst, nzero);
     // version 8 byte
-    pstd::EncodeFixed64(dst, version_);
+    EncodeFixed64(dst, version_);
     dst += sizeof(version_);
     // data
     memcpy(dst, data_.data(), data_.size());
@@ -62,14 +64,14 @@ class BaseDataKey {
   Slice Encode() {
     size_t meta_size = sizeof(reserve1_) + sizeof(version_) + sizeof(reserve2_);
     size_t usize = key_.size() + data_.size() + kEncodedKeyDelimSize;
-    usize += std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    size_t nzero = std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
+    usize += nzero;
     size_t needed = meta_size + usize;
     char* dst;
     if (needed <= sizeof(space_)) {
       dst = space_;
     } else {
       dst = new char[needed];
-
       // Need to allocate space, delete previous space
       if (start_ != space_) {
         delete[] start_;
@@ -81,9 +83,9 @@ class BaseDataKey {
     memcpy(dst, reserve1_, sizeof(reserve1_));
     dst += sizeof(reserve1_);
     // key
-    dst = EncodeUserKey(key_, dst);
+    dst = EncodeUserKey(key_, dst, nzero);
     // version 8 byte
-    pstd::EncodeFixed64(dst, version_);
+    EncodeFixed64(dst, version_);
     dst += sizeof(version_);
     // data
     memcpy(dst, data_.data(), data_.size());

@@ -234,7 +234,7 @@ Status Redis::HGetall(const Slice& key, std::vector<FieldValue>* fvs) {
   return s;
 }
 
-Status Redis::HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fvs, int64_t* ttl) {
+Status Redis::HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fvs, uint64_t* ttl) {
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -1022,7 +1022,7 @@ Status Redis::PKHRScanRange(const Slice& key, const Slice& field_start, const st
   return Status::OK();
 }
 
-Status Redis::HashesExpire(const Slice& key, int32_t ttl) {
+Status Redis::HashesExpire(const Slice& key, uint64_t ttl) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1069,7 +1069,7 @@ Status Redis::HashesDel(const Slice& key) {
   return s;
 }
 
-Status Redis::HashesExpireat(const Slice& key, int32_t timestamp) {
+Status Redis::HashesExpireat(const Slice& key, uint64_t timestamp) {
   std::string meta_value;
   ScopeRecordLock l(lock_mgr_, key);
 
@@ -1118,7 +1118,7 @@ Status Redis::HashesPersist(const Slice& key) {
   return s;
 }
 
-Status Redis::HashesTTL(const Slice& key, int64_t* timestamp) {
+Status Redis::HashesTTL(const Slice& key, uint64_t* timestamp) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);

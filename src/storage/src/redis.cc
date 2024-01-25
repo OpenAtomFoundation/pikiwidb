@@ -51,107 +51,90 @@ Redis::~Redis() {
   delete db_;
 }
 
-Status Redis::Open(const StorageOptions& storage_options, const CFOptions& cfOption, const std::string& db_path) {
+Status Redis::Open(const StorageOptions& storage_options, const std::string& db_path) {
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
 
+  rocksdb::BlockBasedTableOptions table_ops(storage_options.table_options);
+  table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
+
   rocksdb::DBOptions db_ops(storage_options.options);
   db_ops.create_missing_column_families = true;
-  db_ops.env = rocksdb::Env::Instance();
 
   // string column-family options
   rocksdb::ColumnFamilyOptions string_cf_ops(storage_options.options);
-  string_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  string_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   string_cf_ops.compaction_filter_factory = std::make_shared<StringsFilterFactory>();
+  rocksdb::BlockBasedTableOptions string_table_ops(table_ops);
+  if (!storage_options.share_block_cache && storage_options.block_cache_size > 0) {
+    string_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+  }
+  string_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(string_table_ops));
 
   // hash column-family options
   rocksdb::ColumnFamilyOptions hash_meta_cf_ops(storage_options.options);
   rocksdb::ColumnFamilyOptions hash_data_cf_ops(storage_options.options);
-  hash_meta_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  hash_meta_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   hash_meta_cf_ops.compaction_filter_factory = std::make_shared<HashesMetaFilterFactory>();
-
-  hash_data_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  hash_data_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   hash_data_cf_ops.compaction_filter_factory =
       std::make_shared<HashesDataFilterFactory>(&db_, &handles_, kHashesMetaCF);
+  rocksdb::BlockBasedTableOptions hash_meta_cf_table_ops(table_ops);
+  rocksdb::BlockBasedTableOptions hash_data_cf_table_ops(table_ops);
+  if (!storage_options.share_block_cache && storage_options.block_cache_size > 0) {
+    hash_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+    hash_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+  }
+  hash_meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(hash_meta_cf_table_ops));
+  hash_data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(hash_data_cf_table_ops));
 
   // list column-family options
   rocksdb::ColumnFamilyOptions list_meta_cf_ops(storage_options.options);
   rocksdb::ColumnFamilyOptions list_data_cf_ops(storage_options.options);
-  list_meta_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  list_meta_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   list_meta_cf_ops.compaction_filter_factory = std::make_shared<ListsMetaFilterFactory>();
-
-  list_data_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  list_data_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   list_data_cf_ops.compaction_filter_factory = std::make_shared<ListsDataFilterFactory>(&db_, &handles_, kListsMetaCF);
   list_data_cf_ops.comparator = ListsDataKeyComparator();
+  rocksdb::BlockBasedTableOptions list_meta_cf_table_ops(table_ops);
+  rocksdb::BlockBasedTableOptions list_data_cf_table_ops(table_ops);
+  if (!storage_options.share_block_cache && storage_options.block_cache_size > 0) {
+    list_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+    list_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+  }
+  list_meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(list_meta_cf_table_ops));
+  list_data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(list_data_cf_table_ops));
 
   // set column-family options
   rocksdb::ColumnFamilyOptions set_meta_cf_ops(storage_options.options);
   rocksdb::ColumnFamilyOptions set_data_cf_ops(storage_options.options);
   set_meta_cf_ops.compaction_filter_factory = std::make_shared<SetsMetaFilterFactory>();
-  set_meta_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  set_meta_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
-
   set_data_cf_ops.compaction_filter_factory = std::make_shared<SetsMemberFilterFactory>(&db_, &handles_, kSetsMetaCF);
-  set_data_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  set_data_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
+  rocksdb::BlockBasedTableOptions set_meta_cf_table_ops(table_ops);
+  rocksdb::BlockBasedTableOptions set_data_cf_table_ops(table_ops);
+  if (!storage_options.share_block_cache && storage_options.block_cache_size > 0) {
+    set_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+    set_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
+  }
+  set_meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(set_meta_cf_table_ops));
+  set_data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(set_data_cf_table_ops));
 
   // zset column-family options
   rocksdb::ColumnFamilyOptions zset_meta_cf_ops(storage_options.options);
   rocksdb::ColumnFamilyOptions zset_data_cf_ops(storage_options.options);
   rocksdb::ColumnFamilyOptions zset_score_cf_ops(storage_options.options);
   zset_meta_cf_ops.compaction_filter_factory = std::make_shared<ZSetsMetaFilterFactory>();
-  zset_meta_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  zset_meta_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
-
   zset_data_cf_ops.compaction_filter_factory = std::make_shared<ZSetsDataFilterFactory>(&db_, &handles_, kZsetsMetaCF);
-  zset_data_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  zset_data_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
-
   zset_score_cf_ops.compaction_filter_factory =
       std::make_shared<ZSetsScoreFilterFactory>(&db_, &handles_, kZsetsMetaCF);
-  zset_score_cf_ops.ttl = cfOption.rocksdb_ttl_second_;
-  zset_score_cf_ops.periodic_compaction_seconds = cfOption.rocksdb_periodic_second_;
   zset_score_cf_ops.comparator = ZSetsScoreKeyComparator();
 
-  rocksdb::BlockBasedTableOptions table_ops(storage_options.table_options);
-  table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
-  // string table ops
-  rocksdb::BlockBasedTableOptions string_table_ops(table_ops);
-
-  // hash table ops
-  rocksdb::BlockBasedTableOptions hash_meta_cf_table_ops(table_ops);
-  rocksdb::BlockBasedTableOptions hash_data_cf_table_ops(table_ops);
-
-  // list table ops
-  rocksdb::BlockBasedTableOptions list_meta_cf_table_ops(table_ops);
-  rocksdb::BlockBasedTableOptions list_data_cf_table_ops(table_ops);
-
-  // set table ops
-  rocksdb::BlockBasedTableOptions set_meta_cf_table_ops(table_ops);
-  rocksdb::BlockBasedTableOptions set_data_cf_table_ops(table_ops);
-
-  // zset table ops
   rocksdb::BlockBasedTableOptions zset_meta_cf_table_ops(table_ops);
   rocksdb::BlockBasedTableOptions zset_data_cf_table_ops(table_ops);
   rocksdb::BlockBasedTableOptions zset_score_cf_table_ops(table_ops);
-
   if (!storage_options.share_block_cache && storage_options.block_cache_size > 0) {
-    string_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    hash_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    hash_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    list_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    list_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    set_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
-    set_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     zset_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     zset_data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     zset_meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
+  zset_meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(zset_meta_cf_table_ops));
+  zset_data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(zset_data_cf_table_ops));
+  zset_score_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(zset_score_cf_table_ops));
 
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, string_cf_ops);
