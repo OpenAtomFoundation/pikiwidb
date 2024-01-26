@@ -33,7 +33,7 @@ class CmdTableManager {
   uint32_t GetCmdId();
 
  private:
-  std::unique_ptr<CmdTable> cmds_;
+  static thread_local std::unique_ptr<CmdTable> cmds_;
 
   uint32_t cmdId_ = 0;
 
