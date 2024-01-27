@@ -14,16 +14,17 @@ DelCmd::DelCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
 
 bool DelCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end());
+  client->SetKey(keys);
   return true;
 }
 
 void DelCmd::DoCmd(PClient* client) {
-  if (PSTORE.DeleteKey(client->Key())) {
-    PSTORE.ClearExpire(client->Key());
-    client->AppendInteger(1);
+  int64_t count = PSTORE.GetBackend()->Del(client->Keys());
+  if (count >= 0) {
+    client->AppendInteger(count);
   } else {
-    client->AppendInteger(0);
+    client->SetRes(CmdRes::kErrOther, "delete error");
   }
 }
 
@@ -31,15 +32,17 @@ ExistsCmd::ExistsCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
 
 bool ExistsCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
+  std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end());
+  client->SetKey(keys);
   return true;
 }
 
 void ExistsCmd::DoCmd(PClient* client) {
-  if (PSTORE.ExistsKey(client->Key())) {
-    client->AppendInteger(1);
+  int64_t count = PSTORE.GetBackend()->Exists(client->Keys());
+  if (count >= 0) {
+    client->AppendInteger(count);
   } else {
-    client->AppendInteger(0);
+    client->SetRes(CmdRes::kErrOther, "exists internal error");
   }
 }
 
