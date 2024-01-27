@@ -6,8 +6,8 @@
  */
 
 #include "cmd_list.h"
-#include "store.h"
 #include "pstd_string.h"
+#include "store.h"
 
 namespace pikiwidb {
 
