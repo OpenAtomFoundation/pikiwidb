@@ -79,11 +79,13 @@ const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
 const std::string kCmdNameSInter = "sinter";
 const std::string kCmdNameSRem = "srem";
+const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
+const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 
 enum CmdFlags {
