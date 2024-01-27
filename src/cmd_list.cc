@@ -7,6 +7,7 @@
 
 #include "cmd_list.h"
 #include "store.h"
+#include "pstd_string.h"
 
 namespace pikiwidb {
 
@@ -45,6 +46,31 @@ void RPushCmd::DoCmd(PClient* client) {
     client->AppendInteger(reply_num);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
+  }
+}
+
+LRemCmd::LRemCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LRemCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LRemCmd::DoCmd(PClient* client) {
+  int64_t freq_ = 0;
+  std::string count = client->argv_[2];
+  if (pstd::String2int(count, &freq_) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  uint64_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend()->LRem(client->Key(), freq_, client->argv_[3], &reply_num);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "lrem cmd error");
   }
 }
 

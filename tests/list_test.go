@@ -79,4 +79,23 @@ var _ = Describe("List", Ordered, func() {
 
 		// Expect(client.LRange(ctx,"mylistRPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
 	})
+
+	It("Cmd LRem", func() {
+        rPush := client.RPush(ctx, "list", "hello")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "hello")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "key")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "hello")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+
+        lRem := client.LRem(ctx, "list", -2, "hello")
+        Expect(lRem.Err()).NotTo(HaveOccurred())
+        Expect(lRem.Val()).To(Equal(int64(2)))
+
+//         lRange := client.LRange(ctx, "list", 0, -1)
+//         Expect(lRange.Err()).NotTo(HaveOccurred())
+//         Expect(lRange.Val()).To(Equal([]string{"hello", "key"}))
+    })
 })
