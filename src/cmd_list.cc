@@ -59,7 +59,7 @@ bool LSetCmd::DoInitial(PClient* client) {
 void LSetCmd::DoCmd(PClient* client) {
   // isVaildNumber ensures that the string is in decimal format,
   // while strtol ensures that the string is within the range of long type
-  std::string& index_str = client->argv_[2];
+  const std::string index_str = client->argv_[2];
 
   if (IsValidNumber(index_str)) {
     int64_t val = 0;
