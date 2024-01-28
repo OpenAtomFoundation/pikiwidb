@@ -6,10 +6,12 @@
  */
 
 #include "cmd_list.h"
+
+#include <pstd_string.h>
+
 #include "store.h"
 
 namespace pikiwidb {
-
 LPushCmd::LPushCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
@@ -67,5 +69,25 @@ void RPopCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
   }
 }
+LTrimCmd::LTrimCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+bool LTrimCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
 
+  return true;
+}
+void LTrimCmd::DoCmd(PClient* client) {
+  int64_t start_index = 0, end_index = 0;
+
+  if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  storage::Status s = PSTORE.GetBackend()->LTrim(client->Key(), start_index, end_index);
+  if (s.ok() || s.IsNotFound()) {
+    client->SetRes(CmdRes::kOK);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
+  }
+}
 }  // namespace pikiwidb

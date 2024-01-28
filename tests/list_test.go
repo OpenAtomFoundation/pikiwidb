@@ -94,9 +94,32 @@ var _ = Describe("List", Ordered, func() {
 
         //lRange := client.LRange(ctx, "list", 0, -1)
         //Expect(lRange.Err()).NotTo(HaveOccurred())
-        //Expect(lRange.Val()).To(Equal([]string{"one", "two"}))
+        //Expect(lRange.Val()).To(Equal([]string{"one", "two"})) //After the LRange command is developed, uncomment it to test LRange command.
 
         err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
         Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
+
+		// del
+		del := client.Del(ctx,"list")
+		Expect(del.Err()).NotTo(HaveOccurred())
     })
+	It("should LTrim", func() {
+		rPush := client.RPush(ctx, "list", "one")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "two")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "three")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lTrim := client.LTrim(ctx, "list", 1, -1)
+		Expect(lTrim.Err()).NotTo(HaveOccurred())
+		Expect(lTrim.Val()).To(Equal("OK"))
+
+		// lRange := client.LRange(ctx, "list", 0, -1)
+		// Expect(lRange.Err()).NotTo(HaveOccurred())
+		// Expect(lRange.Val()).To(Equal([]string{"two", "three"}))  //After the LRange command is developed, uncomment it to test LRange command.
+		// del
+		del := client.Del(ctx,"list")
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
 })

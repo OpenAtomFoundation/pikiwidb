@@ -86,6 +86,7 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
 const std::string kCmdNameRPop = "rpop";
+const std::string kCmdNameLTrim = "ltrim";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
