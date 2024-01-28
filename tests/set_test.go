@@ -168,4 +168,28 @@ var _ = Describe("Set", Ordered, func() {
 		Expect(sInter.Err()).NotTo(HaveOccurred())
 		Expect(sInter.Val()).To(HaveLen(0))
 	})
+
+	It("should SInterStore", func() {
+		sAdd := client.SAdd(ctx, "set1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "set2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sInterStore := client.SInterStore(ctx, "set", "set1", "set2")
+		Expect(sInterStore.Err()).NotTo(HaveOccurred())
+		Expect(sInterStore.Val()).To(Equal(int64(1)))
+
+		// sMembers := client.SMembers(ctx, "set")  // After the smember command is developed, uncomment it to test command.
+		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+		// Expect(sMembers.Val()).To(Equal([]string{"c"}))
+	})
 })

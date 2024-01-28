@@ -20,7 +20,6 @@ bool SIsMemberCmd::DoInitial(PClient* client) {
   return true;
 }
 void SIsMemberCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
   int32_t reply_Num = 0;  // only change to 1 if ismember . key not exist it is 0
   PSTORE.GetBackend()->SIsmember(client->Key(), client->argv_[2], &reply_Num);
 
@@ -37,7 +36,6 @@ bool SAddCmd::DoInitial(PClient* client) {
 // Integer reply: the number of elements that were added to the set,
 // not including all the elements already present in the set.
 void SAddCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
   const std::vector<std::string> members(client->argv_.begin() + 2, client->argv_.end());
   int32_t ret = 0;
   storage::Status s = PSTORE.GetBackend()->SAdd(client->Key(), members, &ret);
@@ -82,6 +80,7 @@ void SInterCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend()->SInter(client->Keys(), &res_vt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "sinter cmd error");
+    return;
   }
   client->AppendStringVector(res_vt);
 }
@@ -120,5 +119,26 @@ void SUnionCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "sunion cmd error");
   }
   client->AppendStringVector(res_vt);
+}
+
+SInterStoreCmd::SInterStoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SInterStoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SInterStoreCmd::DoCmd(PClient* client) {
+  std::vector<std::string> value_to_dest;
+  int32_t reply_num = 0;
+
+  std::vector<std::string> inter_keys(client->argv_.begin() + 2, client->argv_.end());
+  storage::Status s = PSTORE.GetBackend()->SInterstore(client->Key(), inter_keys, value_to_dest, &reply_num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
+    return;
+  }
+  client->AppendInteger(reply_num);
 }
 }  // namespace pikiwidb

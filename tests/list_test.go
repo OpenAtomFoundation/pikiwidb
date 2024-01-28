@@ -82,6 +82,26 @@ var _ = Describe("List", Ordered, func() {
 		Expect(client.Del(ctx,"mylistRPUSH").Err()).NotTo(HaveOccurred());
 	})
 
+	It("should RPop", func() {
+        rPush := client.RPush(ctx, "list", "one")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "two")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "three")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+
+        rPop := client.RPop(ctx, "list")
+        Expect(rPop.Err()).NotTo(HaveOccurred())
+        Expect(rPop.Val()).To(Equal("three"))
+
+        //lRange := client.LRange(ctx, "list", 0, -1)
+        //Expect(lRange.Err()).NotTo(HaveOccurred())
+        //Expect(lRange.Val()).To(Equal([]string{"one", "two"}))
+
+        err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
+        Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
+    })
+
 	It("should LSet", func() {
 		rPush := client.RPush(ctx, "list", "one")
 		Expect(rPush.Err()).NotTo(HaveOccurred())

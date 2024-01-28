@@ -85,10 +85,12 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SRem, -3);
   ADD_COMMAND(SInter, -2);
   ADD_COMMAND(SUnion, -2);
+  ADD_COMMAND(SInterStore, -3);
 
   // list
   ADD_COMMAND(LPush, -3);
   ADD_COMMAND(RPush, -3);
+  ADD_COMMAND(RPop, 2);
   ADD_COMMAND(LSet, 4);
 }
 
