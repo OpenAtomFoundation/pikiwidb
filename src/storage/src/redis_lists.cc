@@ -815,7 +815,7 @@ Status Redis::RPoplpush(const Slice& source, const Slice& destination, std::stri
     }
   }
 
-  uint64_t version;
+  uint64_t version = 0;
   std::string target;
   std::string source_meta_value;
   BaseMetaKey base_source(source);

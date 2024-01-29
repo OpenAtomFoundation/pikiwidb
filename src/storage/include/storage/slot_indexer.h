@@ -14,13 +14,14 @@ namespace storage {
 // TODO(wangshaoyi): temporarily mock return
 class SlotIndexer {
  public:
-  SlotIndexer(uint32_t inst_num) : inst_num_(inst_num) {}
+  explicit SlotIndexer(int32_t inst_num) : inst_num_(inst_num) { assert(inst_num > 0); }
+  SlotIndexer() = delete;
   ~SlotIndexer() {}
-  uint32_t GetInstanceID(int32_t slot_id) { return slot_id % inst_num_; }
+  uint32_t GetInstanceID(uint32_t slot_id) { return slot_id % inst_num_; }
   void ReshardSlots(const std::vector<uint32_t>& slots) {}
 
  private:
-  uint32_t inst_num_ = 0;
+  int32_t inst_num_ = 3;
 };
 }  // namespace storage
 

@@ -11,9 +11,9 @@
 #include <string>
 
 // get db instance number of the key
-int32_t GetSlotID(const std::string& str);
+uint32_t GetSlotID(const std::string& str);
 
 // get db instance number of the key
-int32_t GetSlotsID(const std::string& str, uint32_t* pcrc, int* phastag);
+uint32_t GetSlotsID(const std::string& str, uint32_t* pcrc, int* phastag);
 
 #endif

@@ -1160,10 +1160,10 @@ void Redis::ScanHashes() {
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kHashesMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedHashesMetaValue parsed_hashes_meta_value(meta_iter->value());
-    int32_t survival_time = 0;
+    uint64_t survival_time = 0;
     if (parsed_hashes_meta_value.Etime() != 0) {
       survival_time =
-          parsed_hashes_meta_value.Etime() - current_time > 0 ? parsed_hashes_meta_value.Etime() - current_time : -1;
+          (parsed_hashes_meta_value.Etime() > current_time) ? (parsed_hashes_meta_value.Etime() - current_time) : -1;
     }
     ParsedBaseMetaKey parsed_meta_key(meta_iter->key());
 

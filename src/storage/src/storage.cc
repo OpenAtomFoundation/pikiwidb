@@ -520,7 +520,6 @@ Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::st
   Status s;
   members->clear();
 
-  // 多key命令
   std::vector<std::string> key0_members;
   auto& inst = GetDBInstance(keys[0]);
   s = inst->SMembers(keys[0], &key0_members);
@@ -556,7 +555,6 @@ Status Storage::SInterstore(const Slice& destination, const std::vector<std::str
                             std::vector<std::string>& value_to_dest, int32_t* ret) {
   Status s;
 
-  // 多key命令
   s = SInter(keys, &value_to_dest);
   if (!s.ok()) {
     return s;
@@ -628,7 +626,6 @@ Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, 
 Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   Status s;
   members->clear();
-  // 多key命令
 
   using Iter = std::vector<std::string>::iterator;
   using Uset = std::unordered_set<std::string>;
@@ -655,8 +652,6 @@ Status Storage::SUnionstore(const Slice& destination, const std::vector<std::str
                             std::vector<std::string>& value_to_dest, int32_t* ret) {
   Status s;
   value_to_dest.clear();
-
-  // 多key命令
 
   s = SUnion(keys, &value_to_dest);
   if (!s.ok()) {
@@ -757,8 +752,6 @@ Status Storage::LSet(const Slice& key, int64_t index, const Slice& value) {
 Status Storage::RPoplpush(const Slice& source, const Slice& destination, std::string* element) {
   Status s;
   element->clear();
-
-  // 多key命令
 
   auto& source_inst = GetDBInstance(source);
   if (source.compare(destination) == 0) {
@@ -897,8 +890,6 @@ Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::str
   value_to_dest.clear();
   Status s;
 
-  // 多key命令
-
   for (int idx = 0; idx < keys.size(); idx++) {
     Slice key = Slice(keys[idx]);
     auto& inst = GetDBInstance(key);
@@ -949,8 +940,6 @@ Status Storage::ZInterstore(const Slice& destination, const std::vector<std::str
                             std::vector<ScoreMember>& value_to_dest, int32_t* ret) {
   Status s;
   value_to_dest.clear();
-
-  // 多key命令
 
   Slice key = Slice(keys[0]);
   auto& inst = GetDBInstance(key);
@@ -1282,7 +1271,6 @@ int64_t Storage::Exists(const std::vector<std::string>& keys, std::map<DataType,
 
 int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& pattern, int64_t count,
                       std::vector<std::string>* keys) {
-  // 多key命令
   keys->clear();
   bool is_finish;
   int64_t leftover_visits = count;

@@ -29,10 +29,10 @@ static const char *GetSlotsTag(const std::string &str, int *plen) {
 }
 
 // get db instance number of the key
-int32_t GetSlotID(const std::string &str) { return GetSlotsID(str, nullptr, nullptr); }
+uint32_t GetSlotID(const std::string &str) { return GetSlotsID(str, nullptr, nullptr); }
 
 // get db instance number of the key
-int32_t GetSlotsID(const std::string &str, uint32_t *pcrc, int *phastag) {
+uint32_t GetSlotsID(const std::string &str, uint32_t *pcrc, int *phastag) {
   const char *s = str.data();
   int taglen;
   int hastag = 0;
@@ -49,5 +49,5 @@ int32_t GetSlotsID(const std::string &str, uint32_t *pcrc, int *phastag) {
   if (phastag != nullptr) {
     *phastag = hastag;
   }
-  return static_cast<int32_t>(crc);
+  return static_cast<uint32_t>(crc);
 }

@@ -120,7 +120,7 @@ inline const char* DecodeUserKey(const char* ptr, int length, std::string* user_
 inline const char* SeekUserkeyDelim(const char* ptr, int length) {
   bool zero_ahead = false;
   for (int i = 0; i < length; i++) {
-    if (ptr[i] == kNeedTransformCharacter && zero_ahead) {
+    if ((ptr[i] == kNeedTransformCharacter) && zero_ahead) {
       return ptr + i + 1;
     }
     zero_ahead = ptr[i] == kNeedTransformCharacter;
