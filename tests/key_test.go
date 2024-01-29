@@ -105,4 +105,35 @@ var _ = Describe("Keyspace", Ordered, func() {
         Expect(err).NotTo(HaveOccurred())
         Expect(n).To(Equal(int64(0)))
     })
+
+	// pikiwidb should treat numbers other than base-10 as strings 
+	It("base", func() {
+        set := client.Set(ctx, "key", "0b1", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+		
+		get := client.Get(ctx,"key")
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("0b1"))
+
+        set = client.Set(ctx, "key", "011", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+		
+		get = client.Get(ctx,"key")
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("011"))
+		
+		set = client.Set(ctx, "key", "0xA", 0)
+        Expect(set.Err()).NotTo(HaveOccurred())
+        Expect(set.Val()).To(Equal("OK"))
+		
+		get = client.Get(ctx,"key")
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("0xA"))
+
+
+        del := client.Del(ctx, "key")	
+        Expect(del.Err()).NotTo(HaveOccurred())
+    })
 })
