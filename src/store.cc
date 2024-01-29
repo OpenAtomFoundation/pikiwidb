@@ -799,6 +799,7 @@ void PStore::InitDumpBackends() {
       // options for CF
       storage_options.options.ttl = g_config.rocksdb_ttl_second;
       storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
+
       PString dbpath = g_config.dbpath + std::to_string(i) + '/';
 
       storage::Status s = db->Open(storage_options, dbpath.data());

@@ -22,11 +22,11 @@ class StringsFilter : public rocksdb::CompactionFilter {
               bool* value_changed) const override {
     int64_t unix_time;
     rocksdb::Env::Default()->GetCurrentTime(&unix_time);
-    auto cur_time = static_cast<uint64_t>(unix_time);
+    auto cur_time = static_cast<int32_t>(unix_time);
     ParsedStringsValue parsed_strings_value(value);
     TRACE("==========================START==========================");
-    TRACE("[StringsFilter], key: %s, value = %s, timestamp: %d, cur_time: %d", key.ToString().c_str(),
-          parsed_strings_value.value().ToString().c_str(), parsed_strings_value.timestamp(), cur_time);
+    TRACE("[StringsFilter], key: %s, value = %s, timestamp: %llu, cur_time: %d", key.ToString().c_str(),
+          parsed_strings_value.UserValue().ToString().c_str(), parsed_strings_value.Etime(), cur_time);
 
     if (parsed_strings_value.Etime() != 0 && parsed_strings_value.Etime() < cur_time) {
       TRACE("Drop[Stale]");
