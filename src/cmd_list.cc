@@ -6,6 +6,9 @@
  */
 
 #include "cmd_list.h"
+
+#include <pstd_string.h>
+
 #include "store.h"
 
 namespace pikiwidb {
@@ -67,5 +70,26 @@ void RPopCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
   }
 }
+LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
 
+bool LRangeCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LRangeCmd::DoCmd(PClient* client) {
+  std::vector<std::string> ret;
+  int64_t start_index = 0, end_index = 0;
+  if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  storage::Status s = PSTORE.GetBackend()->LRange(client->Key(), start_index, end_index, &ret);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
+    return;
+  }
+  client->AppendStringVector(ret);
+}
 }  // namespace pikiwidb
