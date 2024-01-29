@@ -3,39 +3,42 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef SRC_LISTS_DATA_KEY_FORMAT_H_
-#define SRC_LISTS_DATA_KEY_FORMAT_H_
+#ifndef SRC_BASE_KEY_FORMAT_H_
+#define SRC_BASE_KEY_FORMAT_H_
+
+#include <iostream>
 
 #include "pstd/pstd_coding.h"
 #include "storage/storage_define.h"
 
 namespace storage {
 /*
- * used for List data key. format:
- * | reserve1 | key | version | index | reserve2 |
- * |    8B    |     |    8B   |   8B  |   16B    |
+ * used for string data key or hash/zset/set/list's meta key. format:
+ * | reserve1 | key | reserve2 |
+ * |    8B    |     |   16B    |
  */
-class ListsDataKey {
- public:
-  ListsDataKey(const Slice& key, uint64_t version, uint64_t index) : key_(key), version_(version), index_(index) {}
 
-  ~ListsDataKey() {
+class BaseKey {
+ public:
+  BaseKey(const Slice& key) : key_(key) {}
+
+  ~BaseKey() {
     if (start_ != space_) {
       delete[] start_;
     }
   }
 
   Slice Encode() {
-    size_t meta_size = sizeof(reserve1_) + sizeof(version_) + sizeof(reserve2_);
-    size_t usize = key_.size() + sizeof(index_) + kEncodedKeyDelimSize;
+    size_t meta_size = sizeof(reserve1_) + sizeof(reserve2_);
     size_t nzero = std::count(key_.data(), key_.data() + key_.size(), kNeedTransformCharacter);
-    usize += nzero;
+    size_t usize = nzero + kEncodedKeyDelimSize + key_.size();
     size_t needed = meta_size + usize;
     char* dst;
     if (needed <= sizeof(space_)) {
       dst = space_;
     } else {
       dst = new char[needed];
+
       // Need to allocate space, delete previous space
       if (start_ != space_) {
         delete[] start_;
@@ -46,15 +49,10 @@ class ListsDataKey {
     // reserve1: 8 byte
     memcpy(dst, reserve1_, sizeof(reserve1_));
     dst += sizeof(reserve1_);
+    // key
     dst = EncodeUserKey(key_, dst, nzero);
-    // version 8 byte
-    EncodeFixed64(dst, version_);
-    dst += sizeof(version_);
-    // index
-    EncodeFixed64(dst, index_);
-    dst += sizeof(index_);
-    // TODO(wangshaoyi): too much for reserve
-    // reserve2: 16 byte
+    // TODO(wangshaoyi): no need to reserve tailing,
+    // since we already set delimiter
     memcpy(dst, reserve2_, sizeof(reserve2_));
     return Slice(start_, needed);
   }
@@ -64,53 +62,41 @@ class ListsDataKey {
   char space_[200];
   char reserve1_[8] = {0};
   Slice key_;
-  uint64_t version_ = uint64_t(-1);
-  uint64_t index_ = 0;
   char reserve2_[16] = {0};
 };
 
-class ParsedListsDataKey {
+class ParsedBaseKey {
  public:
-  explicit ParsedListsDataKey(const std::string* key) {
+  explicit ParsedBaseKey(const std::string* key) {
     const char* ptr = key->data();
     const char* end_ptr = key->data() + key->size();
     decode(ptr, end_ptr);
   }
 
-  explicit ParsedListsDataKey(const Slice& key) {
+  explicit ParsedBaseKey(const Slice& key) {
     const char* ptr = key.data();
     const char* end_ptr = key.data() + key.size();
     decode(ptr, end_ptr);
   }
 
   void decode(const char* ptr, const char* end_ptr) {
-    const char* start = ptr;
     // skip head reserve1_
-    ptr += sizeof(reserve1_);
+    ptr += kPrefixReserveLength;
     // skip tail reserve2_
-    end_ptr -= sizeof(reserve2_);
-
-    ptr = DecodeUserKey(ptr, std::distance(ptr, end_ptr), &key_str_);
-    version_ = pstd::DecodeFixed64(ptr);
-    ptr += sizeof(version_);
-    index_ = pstd::DecodeFixed64(ptr);
+    end_ptr -= kSuffixReserveLength;
+    DecodeUserKey(ptr, std::distance(ptr, end_ptr), &key_str_);
   }
 
-  virtual ~ParsedListsDataKey() = default;
+  virtual ~ParsedBaseKey() = default;
 
-  Slice key() { return Slice(key_str_); }
+  Slice Key() { return Slice(key_str_); }
 
-  uint64_t Version() { return version_; }
-
-  uint64_t index() { return index_; }
-
- private:
+ protected:
   std::string key_str_;
-  char reserve1_[8] = {0};
-  uint64_t version_ = (uint64_t)(-1);
-  uint64_t index_ = 0;
-  char reserve2_[16] = {0};
 };
 
+using ParsedBaseMetaKey = ParsedBaseKey;
+using BaseMetaKey = BaseKey;
+
 }  //  namespace storage
-#endif  // SRC_LISTS_DATA_KEY_FORMAT_H_
+#endif  // SRC_BASE_KEY_FORMAT_H_

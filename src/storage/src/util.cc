@@ -11,8 +11,10 @@
 #include <memory>
 
 #include "pstd/pstd_string.h"
-
+#include "src/base_data_key_format.h"
+#include "src/base_key_format.h"
 #include "src/coding.h"
+#include "storage/storage_define.h"
 #include "storage/util.h"
 
 namespace storage {
@@ -202,36 +204,34 @@ int is_dir(const char* filename) {
   return -1;
 }
 
-int CalculateMetaStartAndEndKey(const std::string& key, std::string* meta_start_key, std::string* meta_end_key) {
-  size_t needed = key.size() + 1;
-  auto dst = std::make_unique<char[]>(needed);
-  const char* start = dst.get();
-  std::strncpy(dst.get(), key.data(), key.size());
-  char* dst_ptr = dst.get() + key.size();
-  meta_start_key->assign(start, key.size());
-  *dst_ptr = static_cast<char>(0xff);
-  meta_end_key->assign(start, key.size() + 1);
+int CalculateStartAndEndKey(const std::string& key, std::string* start_key, std::string* end_key) {
+  if (key.empty()) {
+    return 0;
+  }
+  size_t usize = kPrefixReserveLength + key.size() + kEncodedKeyDelimSize;
+  size_t nzero = std::count(key.begin(), key.end(), kNeedTransformCharacter);
+  usize += nzero;
+  auto dst = std::make_unique<char[]>(usize);
+  char* ptr = dst.get();
+  memset(ptr, kNeedTransformCharacter, kPrefixReserveLength);
+  ptr += kPrefixReserveLength;
+  ptr = storage::EncodeUserKey(Slice(key), ptr, nzero);
+  if (start_key) {
+    *start_key = std::string(dst.get(), ptr);
+  }
+  if (end_key) {
+    *end_key = std::string(dst.get(), ptr);
+    // Encoded key's last two character is "\u0000\u0000",
+    // so directly upgrade end_key's back character to '\u0001'.
+    end_key->back() = '\u0001';
+  }
   return 0;
 }
 
-int CalculateDataStartAndEndKey(const std::string& key, std::string* data_start_key, std::string* data_end_key) {
-  size_t needed = sizeof(int32_t) + key.size() + 1;
-  auto dst = std::make_unique<char[]>(needed);
-  const char* start = dst.get();
-  char* dst_ptr = dst.get();
-
-  EncodeFixed32(dst_ptr, key.size());
-  dst_ptr += sizeof(int32_t);
-  std::strncpy(dst_ptr, key.data(), key.size());
-  dst_ptr += key.size();
-  *dst_ptr = static_cast<char>(0xff);
-
-  data_start_key->assign(start, sizeof(int32_t) + key.size());
-  data_end_key->assign(start, sizeof(int32_t) + key.size() + 1);
-
-  return 0;
-}
-
+// requires:
+// 1. pattern's length >= 2
+// 2. tail character is '*'
+// 3. other position's charactor cannot be *, ?, [,]
 bool isTailWildcard(const std::string& pattern) {
   if (pattern.size() < 2) {
     return false;
