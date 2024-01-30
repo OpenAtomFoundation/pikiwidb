@@ -10,6 +10,7 @@
 #include <utility>
 #include "pstd/pstd_string.h"
 #include "store.h"
+#include <utility>
 
 namespace pikiwidb {
 
@@ -105,15 +106,54 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
+<<<<<<< HEAD
 SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
 bool SUnionCmd::DoInitial(PClient* client) {
   std::vector<std::string> keys(client->argv_.begin() + 1, client->argv_.end());
+=======
+SAddCmd::SAddCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SAddCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+// Integer reply: the number of elements that were added to the set,
+// not including all the elements already present in the set.
+void SAddCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      value = PSTORE.SetValue(client->Key(), PObject::CreateSet());
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
+      return;
+    }
+  }
+  auto set = value->CastSet();
+  const auto oldSize = set->size();
+  for (int i = 2; i < client->argv_.size(); ++i) {
+    set->insert(client->argv_[i]);
+  }
+  // new size is bigger than old size , avoid the risk
+  client->AppendInteger(set->size() - oldSize);
+}
+
+SUnionStoreCmd::SUnionStoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SUnionStoreCmd::DoInitial(PClient* client) {
+  std::vector<std::string> keys(client->argv_.begin(), client->argv_.end());
+  keys.erase(keys.begin());
+>>>>>>> 903857d (feat:add set cmd sadd)
   client->SetKey(keys);
   return true;
 }
 
+<<<<<<< HEAD
 void SUnionCmd::DoCmd(PClient* client) {
   std::vector<std::string> res_vt;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SUnion(client->Keys(), &res_vt);
@@ -127,10 +167,60 @@ SInterStoreCmd::SInterStoreCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
 bool SInterStoreCmd::DoInitial(PClient* client) {
+=======
+void SUnionStoreCmd::DoCmd(PClient* client) {
+  std::unordered_set<std::string> unionSet;
+  std::string destKey = client->Keys().at(0);
+  std::vector<std::string> keys(client->Keys().begin() + 1, client->Keys().end());
+
+  PObject* value = nullptr;
+  for (auto key : keys) {
+    PError err = PSTORE.GetValueByType(key, value, kPTypeSet);
+    if (err == kPErrorOK) {
+      const auto set = value->CastSet();
+      auto it = set->cbegin();
+      for (; it != set->cend(); ++it) {
+        std::string sv(it->data(), it->size());
+        if (unionSet.find(sv) == unionSet.end()) {
+          unionSet.insert(sv);
+        }
+      }
+    } else if (err != kPErrorNotExist) {
+      client->SetRes(CmdRes::kErrOther);
+      return;
+    }
+  }
+
+  PError err = PSTORE.GetValueByType(destKey, value, kPTypeSet);
+  if (err == kPErrorOK) {
+    auto updateSet = value->CastSet();
+    updateSet->clear();
+    for (auto it : unionSet) {
+      updateSet->emplace(it);
+    }
+    client->AppendInteger(updateSet->size());
+  } else if (err == kPErrorNotExist) {
+    value = PSTORE.SetValue(destKey, PObject::CreateSet());
+    auto updateSet = value->CastSet();
+    for (auto it : unionSet) {
+      updateSet->emplace(it);
+    }
+    client->AppendInteger(updateSet->size());
+  } else {
+    client->SetRes(CmdRes::kErrOther);
+  }
+}
+
+SRemCmd::SRemCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SRemCmd::DoInitial(PClient* client) {
+>>>>>>> 903857d (feat:add set cmd sadd)
   client->SetKey(client->argv_[1]);
   return true;
 }
 
+<<<<<<< HEAD
 void SInterStoreCmd::DoCmd(PClient* client) {
   std::vector<std::string> value_to_dest;
   int32_t reply_num = 0;
@@ -251,3 +341,54 @@ void SPopCmd::DoCmd(PClient* client) {
   }
 }
 }  // namespace pikiwidb
+=======
+void SRemCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  int retVal = 0;
+  if (err != kPErrorOK) {
+    if (err == kPErrorNotExist) {
+      client->AppendInteger(0);
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
+    }
+    return;
+  }
+  auto unset = value->CastSet();
+  const auto oldSize = unset->size();
+  for (int i = 2; i < client->argv_.size(); ++i) {
+    unset->erase(client->argv_[i]);
+  }
+  client->AppendInteger(oldSize - unset->size());
+}
+
+SAddCmd::SAddCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SAddCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SAddCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+  if(err!=kPErrorOK){
+    if (err == kPErrorNotExist) {
+      client->AppendString("");
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "sadd cmd error");
+    }
+    return;
+  }
+  auto set = value->CastSet();
+  auto resPair = set->emplace(client->argv_[2]);
+  if(resPair.second){
+    client->AppendInteger(1);
+  }else{
+    client->AppendInteger(0);
+  }
+  
+
+}
+}  // namespace pikiwidb
+>>>>>>> 903857d (feat:add set cmd sadd)
