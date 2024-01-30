@@ -365,6 +365,7 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(oldSize - unset->size());
 }
 
+<<<<<<< HEAD
 SAddCmd::SAddCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
@@ -451,18 +452,31 @@ SRemCmd::SRemCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
 bool SRemCmd::DoInitial(PClient* client) {
+=======
+SCardCmd::SCardCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SCardCmd::DoInitial(PClient* client) {
+>>>>>>> 3abd6be (feat:add set cmd scard)
   client->SetKey(client->argv_[1]);
   return true;
 }
 
+<<<<<<< HEAD
 void SRemCmd::DoCmd(PClient* client) {
   PObject* value = nullptr;
   PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
   int retVal = 0;
+=======
+void SCardCmd::DoCmd(PClient* client) {
+  PObject* value = nullptr;
+  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
+>>>>>>> 3abd6be (feat:add set cmd scard)
   if (err != kPErrorOK) {
     if (err == kPErrorNotExist) {
       client->AppendInteger(0);
     } else {
+<<<<<<< HEAD
       client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
     }
     return;
@@ -506,3 +520,13 @@ void SAddCmd::DoCmd(PClient* client) {
 =======
 }  // namespace pikiwidb
 >>>>>>> 15c4a11 (resolve conflict)
+=======
+      client->SetRes(CmdRes::kErrOther);
+    }
+    return;
+  }
+  client->AppendInteger(value->CastSet()->size());
+}
+
+}  // namespace pikiwidb
+>>>>>>> 3abd6be (feat:add set cmd scard)

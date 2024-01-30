@@ -80,6 +80,7 @@ const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
 const std::string kCmdNameSInter = "sinter";
 const std::string kCmdNameSRem = "srem";
+<<<<<<< HEAD
 const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
 
@@ -87,6 +88,9 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
 const std::string kCmdNameRPop = "rpop";
+=======
+const std::string kCmdNameSCard = "scard";
+>>>>>>> 3abd6be (feat:add set cmd scard)
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
