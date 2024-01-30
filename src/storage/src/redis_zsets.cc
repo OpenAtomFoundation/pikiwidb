@@ -1014,13 +1014,10 @@ Status Redis::ZRevrank(const Slice& key, const Slice& member, int32_t* rank) {
   return s;
 }
 
-Status Redis::ZScore(const Slice& key, const Slice& member, double* score) {
+Status Redis::ZScore(const Slice& key, const Slice& member, double* score, const rocksdb::Snapshot* snapshot) {
   *score = 0;
   rocksdb::ReadOptions read_options;
-  const rocksdb::Snapshot* snapshot = nullptr;
-
   std::string meta_value;
-  ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);
@@ -1052,11 +1049,10 @@ Status Redis::ZScore(const Slice& key, const Slice& member, double* score) {
   return s;
 }
 
-Status Redis::ZGetAll(const Slice& key, double weight, std::map<std::string, double>* value_to_dest) {
+Status Redis::ZGetAll(const Slice& key, double weight, std::map<std::string, double>* value_to_dest,
+                      const rocksdb::Snapshot* snapshot) {
   Status s;
   rocksdb::ReadOptions read_options;
-  const rocksdb::Snapshot* snapshot = nullptr;
-  ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
   std::string meta_value;
 

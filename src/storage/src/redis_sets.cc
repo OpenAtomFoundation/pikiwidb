@@ -570,14 +570,13 @@ rocksdb::Status Redis::SInterstore(const Slice& destination, const std::vector<s
   return s;
 }
 
-rocksdb::Status Redis::SIsmember(const Slice& key, const Slice& member, int32_t* ret) {
+rocksdb::Status Redis::SIsmember(const Slice& key, const Slice& member, int32_t* ret,
+                                 const rocksdb::Snapshot* snapshot) {
   *ret = 0;
   rocksdb::ReadOptions read_options;
-  const rocksdb::Snapshot* snapshot;
 
   std::string meta_value;
   uint64_t version = 0;
-  ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);
@@ -601,13 +600,11 @@ rocksdb::Status Redis::SIsmember(const Slice& key, const Slice& member, int32_t*
   return s;
 }
 
-rocksdb::Status Redis::SMembers(const Slice& key, std::vector<std::string>* members) {
+rocksdb::Status Redis::SMembers(const Slice& key, std::vector<std::string>* members,
+                                const rocksdb::Snapshot* snapshot) {
   rocksdb::ReadOptions read_options;
-  const rocksdb::Snapshot* snapshot;
-
   std::string meta_value;
   uint64_t version = 0;
-  ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);

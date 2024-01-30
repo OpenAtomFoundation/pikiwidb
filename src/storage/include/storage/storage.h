@@ -23,6 +23,7 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
+#include "src/lock_mgr.h"
 #include "storage/slot_indexer.h"
 
 namespace storage {
@@ -1078,6 +1079,9 @@ class Storage {
   std::vector<std::unique_ptr<Redis>> insts_;
   std::unique_ptr<SlotIndexer> slot_indexer_;
   std::atomic<bool> is_opened_ = false;
+  std::shared_ptr<LockMgr> lock_mgr_;
+  std::mutex snapshots_protector_;
+  std::vector<const rocksdb::Snapshot*> snapshots_;
 
   std::unique_ptr<LRUCache<std::string, std::string>> cursors_store_;
 

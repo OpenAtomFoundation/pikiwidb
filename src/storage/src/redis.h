@@ -218,8 +218,8 @@ class Redis {
   Status SInter(const std::vector<std::string>& keys, std::vector<std::string>* members);
   Status SInterstore(const Slice& destination, const std::vector<std::string>& keys,
                      std::vector<std::string>& value_to_dest, int32_t* ret);
-  Status SIsmember(const Slice& key, const Slice& member, int32_t* ret);
-  Status SMembers(const Slice& key, std::vector<std::string>* members);
+  Status SIsmember(const Slice& key, const Slice& member, int32_t* ret, const rocksdb::Snapshot* snapshot);
+  Status SMembers(const Slice& key, std::vector<std::string>* members, const rocksdb::Snapshot* snapshot);
   Status SMembersWithTTL(const Slice& key, std::vector<std::string>* members, uint64_t* ttl);
   Status SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret);
   Status SPop(const Slice& key, std::vector<std::string>* members, int64_t cnt);
@@ -269,8 +269,9 @@ class Redis {
   Status ZRevrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int64_t count,
                           int64_t offset, std::vector<ScoreMember>* score_members);
   Status ZRevrank(const Slice& key, const Slice& member, int32_t* rank);
-  Status ZScore(const Slice& key, const Slice& member, double* score);
-  Status ZGetAll(const Slice& key, double weight, std::map<std::string, double>* value_to_dest);
+  Status ZScore(const Slice& key, const Slice& member, double* score, const rocksdb::Snapshot* snapshot);
+  Status ZGetAll(const Slice& key, double weight, std::map<std::string, double>* value_to_dest,
+                 const rocksdb::Snapshot* snapshot);
   Status ZUnionstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,
                      AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret);
   Status ZInterstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,

@@ -10,6 +10,7 @@
 
 #include "config.h"
 #include "pstd/pikiwidb_slot.h"
+#include "pstd/scope_record_lock.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -54,7 +55,7 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
 Storage::Storage() {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);
-
+  lock_mgr_ = std::make_shared<LockMgr>(1000, 0, std::make_shared<MutexFactoryImpl>());
   Status s = StartBGThread();
   if (!s.ok()) {
     LOG(FATAL) << "start bg thread failed, " << s.ToString();
@@ -470,21 +471,31 @@ Status Storage::SDiff(const std::vector<std::string>& keys, std::vector<std::str
     return rocksdb::Status::Corruption("SDiff invalid parameter, no keys");
   }
   members->clear();
-
+  pstd::lock::MultiRecordLock record_lock(lock_mgr_);
+  record_lock.Lock(keys);
+  std::unique_lock<std::mutex> lock(snapshots_protector_);
+  snapshots_.clear();
+  for (size_t idx = 0; idx < keys.size(); idx++) {
+    auto& inst = GetDBInstance(keys[idx]);
+    const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+    snapshots_.emplace_back(snapshot);
+  }
+  lock.unlock();
+  record_lock.Unlock(keys);
   Status s;
   auto& inst = GetDBInstance(keys[0]);
   std::vector<std::string> keys0_members;
-  s = inst->SMembers(Slice(keys[0]), &keys0_members);
+  s = inst->SMembers(Slice(keys[0]), &keys0_members, snapshots_[0]);
   if (!s.ok() && !s.IsNotFound()) {
     return s;
   }
 
   for (const auto& member : keys0_members) {
     int32_t exist = 0;
-    for (int idx = 1; idx < keys.size(); idx++) {
+    for (size_t idx = 1; idx < keys.size(); idx++) {
       Slice pkey = Slice(keys[idx]);
       auto& inst = GetDBInstance(pkey);
-      s = inst->SIsmember(pkey, Slice(member), &exist);
+      s = inst->SIsmember(pkey, Slice(member), &exist, snapshots_[idx]);
       if (!s.ok() && !s.IsNotFound()) {
         return s;
       }
@@ -505,7 +516,7 @@ Status Storage::SDiffstore(const Slice& destination, const std::vector<std::stri
   if (!s.ok()) {
     return s;
   }
-
+  pstd::lock::ScopeRecordLock l(lock_mgr_, destination);
   auto& inst = GetDBInstance(destination);
   s = inst->SetsDel(destination);
   if (!s.ok() && !s.IsNotFound()) {
@@ -519,10 +530,20 @@ Status Storage::SDiffstore(const Slice& destination, const std::vector<std::stri
 Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   Status s;
   members->clear();
-
   std::vector<std::string> key0_members;
+  pstd::lock::MultiRecordLock record_lock(lock_mgr_);
+  record_lock.Lock(keys);
+  std::unique_lock<std::mutex> lock(snapshots_protector_);
+  snapshots_.clear();
+  for (size_t idx = 0; idx < keys.size(); idx++) {
+    auto& inst = GetDBInstance(keys[idx]);
+    const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+    snapshots_.emplace_back(snapshot);
+  }
+  lock.unlock();
+  record_lock.Unlock(keys);
   auto& inst = GetDBInstance(keys[0]);
-  s = inst->SMembers(keys[0], &key0_members);
+  s = inst->SMembers(keys[0], &key0_members, snapshots_[0]);
   if (s.IsNotFound()) {
     return Status::OK();
   }
@@ -535,7 +556,7 @@ Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::st
     for (int idx = 1; idx < keys.size(); idx++) {
       Slice pkey(keys[idx]);
       auto& inst = GetDBInstance(keys[idx]);
-      s = inst->SIsmember(keys[idx], member, &exist);
+      s = inst->SIsmember(keys[idx], member, &exist, snapshots_[idx]);
       if (s.ok() && exist > 0) {
         continue;
       } else if (!s.IsNotFound()) {
@@ -559,7 +580,7 @@ Status Storage::SInterstore(const Slice& destination, const std::vector<std::str
   if (!s.ok()) {
     return s;
   }
-
+  pstd::lock::ScopeRecordLock l(lock_mgr_, destination);
   auto& dest_inst = GetDBInstance(destination);
   s = dest_inst->SetsDel(destination);
   if (!s.ok() && !s.IsNotFound()) {
@@ -572,12 +593,14 @@ Status Storage::SInterstore(const Slice& destination, const std::vector<std::str
 
 Status Storage::SIsmember(const Slice& key, const Slice& member, int32_t* ret) {
   auto& inst = GetDBInstance(key);
-  return inst->SIsmember(key, member, ret);
+  const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+  return inst->SIsmember(key, member, ret, snapshot);
 }
 
 Status Storage::SMembers(const Slice& key, std::vector<std::string>* members) {
   auto& inst = GetDBInstance(key);
-  return inst->SMembers(key, members);
+  const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+  return inst->SMembers(key, members, snapshot);
 }
 
 Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* members, uint64_t* ttl) {
@@ -587,9 +610,10 @@ Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* memb
 
 Status Storage::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret) {
   Status s;
-
+  pstd::lock::ScopeRecordLock l(lock_mgr_, source);
   auto& src_inst = GetDBInstance(source);
-  s = src_inst->SIsmember(source, member, ret);
+  const rocksdb::Snapshot* snapshot = src_inst->GetDB()->GetSnapshot();
+  s = src_inst->SIsmember(source, member, ret, snapshot);
   if (s.IsNotFound()) {
     *ret = 0;
     return s;
@@ -626,14 +650,25 @@ Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, 
 Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   Status s;
   members->clear();
-
   using Iter = std::vector<std::string>::iterator;
   using Uset = std::unordered_set<std::string>;
   Uset member_set;
-  for (const auto& key : keys) {
+  pstd::lock::MultiRecordLock record_lock(lock_mgr_);
+  record_lock.Lock(keys);
+  std::unique_lock<std::mutex> lock(snapshots_protector_);
+  snapshots_.clear();
+  for (size_t idx = 0; idx < keys.size(); idx++) {
+    auto& inst = GetDBInstance(keys[idx]);
+    const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+    snapshots_.emplace_back(snapshot);
+  }
+  lock.unlock();
+  record_lock.Unlock(keys);
+  for (size_t idx = 0; idx < keys.size(); ++idx) {
+    const auto& key = keys[idx];
     std::vector<std::string> vec;
     auto& inst = GetDBInstance(key);
-    s = inst->SMembers(key, &vec);
+    s = inst->SMembers(key, &vec, snapshots_[idx]);
     if (s.IsNotFound()) {
       continue;
     }
@@ -658,6 +693,7 @@ Status Storage::SUnionstore(const Slice& destination, const std::vector<std::str
     return s;
   }
   *ret = value_to_dest.size();
+  pstd::lock::ScopeRecordLock l(lock_mgr_, destination);
   auto& dest_inst = GetDBInstance(destination);
   s = dest_inst->SetsDel(destination);
   if (!s.ok() && !s.IsNotFound()) {
@@ -881,7 +917,8 @@ Status Storage::ZRevrank(const Slice& key, const Slice& member, int32_t* rank) {
 
 Status Storage::ZScore(const Slice& key, const Slice& member, double* ret) {
   auto& inst = GetDBInstance(key);
-  return inst->ZScore(key, member, ret);
+  const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+  return inst->ZScore(key, member, ret, snapshot);
 }
 
 Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::string>& keys,
@@ -889,13 +926,23 @@ Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::str
                             std::map<std::string, double>& value_to_dest, int32_t* ret) {
   value_to_dest.clear();
   Status s;
-
-  for (int idx = 0; idx < keys.size(); idx++) {
+  pstd::lock::MultiRecordLock record_lock(lock_mgr_);
+  record_lock.Lock(keys);
+  std::unique_lock<std::mutex> lock(snapshots_protector_);
+  snapshots_.clear();
+  for (size_t idx = 0; idx < keys.size(); idx++) {
+    auto& inst = GetDBInstance(keys[idx]);
+    const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+    snapshots_.emplace_back(snapshot);
+  }
+  lock.unlock();
+  record_lock.Unlock(keys);
+  for (size_t idx = 0; idx < keys.size(); idx++) {
     Slice key = Slice(keys[idx]);
     auto& inst = GetDBInstance(key);
     std::map<std::string, double> member_to_score;
     double weight = idx >= weights.size() ? 1 : weights[idx];
-    s = inst->ZGetAll(key, weight, &member_to_score);
+    s = inst->ZGetAll(key, weight, &member_to_score, snapshots_[idx]);
     if (!s.ok() && !s.IsNotFound()) {
       return s;
     }
@@ -922,6 +969,7 @@ Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::str
   }
 
   BaseMetaKey base_destination(destination);
+  pstd::lock::ScopeRecordLock l(lock_mgr_, destination);
   auto& inst = GetDBInstance(destination);
   s = inst->ZsetsDel(destination);
   if (!s.ok() && !s.IsNotFound()) {
@@ -940,12 +988,22 @@ Status Storage::ZInterstore(const Slice& destination, const std::vector<std::str
                             std::vector<ScoreMember>& value_to_dest, int32_t* ret) {
   Status s;
   value_to_dest.clear();
-
+  pstd::lock::MultiRecordLock record_lock(lock_mgr_);
+  record_lock.Lock(keys);
+  std::unique_lock<std::mutex> lock(snapshots_protector_);
+  snapshots_.clear();
+  for (size_t idx = 0; idx < keys.size(); idx++) {
+    auto& inst = GetDBInstance(keys[idx]);
+    const rocksdb::Snapshot* snapshot = inst->GetDB()->GetSnapshot();
+    snapshots_.emplace_back(snapshot);
+  }
+  lock.unlock();
+  record_lock.Unlock(keys);
   Slice key = Slice(keys[0]);
   auto& inst = GetDBInstance(key);
   std::map<std::string, double> member_to_score;
   double weight = weights.empty() ? 1 : weights[0];
-  s = inst->ZGetAll(key, weight, &member_to_score);
+  s = inst->ZGetAll(key, weight, &member_to_score, snapshots_[0]);
   if (!s.ok() && !s.IsNotFound()) {
     return s;
   }
@@ -959,7 +1017,7 @@ Status Storage::ZInterstore(const Slice& destination, const std::vector<std::str
       double weight = idx >= weights.size() ? 1 : weights[idx];
       auto& inst = GetDBInstance(keys[idx]);
       double ret_score;
-      s = inst->ZScore(keys[idx], member, &ret_score);
+      s = inst->ZScore(keys[idx], member, &ret_score, snapshots_[idx]);
       if (!s.ok() && !s.IsNotFound()) {
         return s;
       }
@@ -983,7 +1041,7 @@ Status Storage::ZInterstore(const Slice& destination, const std::vector<std::str
       value_to_dest.emplace_back(score, member);
     }
   }
-
+  pstd::lock::ScopeRecordLock l(lock_mgr_, destination);
   BaseMetaKey base_destination(destination);
   auto& dinst = GetDBInstance(destination);
 
