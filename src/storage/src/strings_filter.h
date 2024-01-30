@@ -3,7 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef SRC_STRINGS_FILTER_H_
+#define SRC_STRINGS_FILTER_H_
 
 #include <memory>
 #include <string>
@@ -24,10 +25,10 @@ class StringsFilter : public rocksdb::CompactionFilter {
     auto cur_time = static_cast<int32_t>(unix_time);
     ParsedStringsValue parsed_strings_value(value);
     TRACE("==========================START==========================");
-    TRACE("[StringsFilter], key: %s, value = %s, timestamp: %d, cur_time: %d", key.ToString().c_str(),
-          parsed_strings_value.value().ToString().c_str(), parsed_strings_value.timestamp(), cur_time);
+    TRACE("[StringsFilter], key: %s, value = %s, timestamp: %llu, cur_time: %d", key.ToString().c_str(),
+          parsed_strings_value.UserValue().ToString().c_str(), parsed_strings_value.Etime(), cur_time);
 
-    if (parsed_strings_value.timestamp() != 0 && parsed_strings_value.timestamp() < cur_time) {
+    if (parsed_strings_value.Etime() != 0 && parsed_strings_value.Etime() < cur_time) {
       TRACE("Drop[Stale]");
       return true;
     } else {
@@ -50,3 +51,4 @@ class StringsFilterFactory : public rocksdb::CompactionFilterFactory {
 };
 
 }  //  namespace storage
+#endif  // SRC_STRINGS_FILTER_H_

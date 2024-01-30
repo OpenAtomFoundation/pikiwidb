@@ -48,4 +48,24 @@ void RPushCmd::DoCmd(PClient* client) {
   }
 }
 
+RPopCmd::RPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool RPopCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void RPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> elements;
+  storage::Status s = PSTORE.GetBackend()->RPop(client->Key(), 1, &elements);
+  if (s.ok()) {
+    client->AppendString(elements[0]);
+  } else if (s.IsNotFound()) {
+    client->AppendStringLen(-1);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
+  }
+}
+
 }  // namespace pikiwidb
