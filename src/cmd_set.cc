@@ -6,8 +6,11 @@
  */
 
 #include "cmd_set.h"
+#include <cstdlib>
+#include <ctime>
 #include <memory>
 #include <utility>
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
