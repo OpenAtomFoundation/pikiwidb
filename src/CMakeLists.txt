@@ -11,7 +11,9 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         ${PROJECT_SOURCE_DIR}/src/storage/include
         ${rocksdb_SOURCE_DIR}/
         ${rocksdb_SOURCE_DIR}/include
+        PRIVATE ${BRAFT_INCLUDE_DIR}
+        PRIVATE ${BRPC_INCLUDE_DIR}
 )
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb)
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags)
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)

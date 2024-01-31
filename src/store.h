@@ -18,6 +18,8 @@
 #include <shared_mutex>
 #include <vector>
 
+#include "braft/raft.h"
+
 namespace pikiwidb {
 
 class PStore {
