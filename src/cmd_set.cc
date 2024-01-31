@@ -144,7 +144,6 @@ void SInterStoreCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
-
 SCardCmd::SCardCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
@@ -153,7 +152,7 @@ bool SCardCmd::DoInitial(PClient* client) {
   return true;
 }
 void SCardCmd::DoCmd(PClient* client) {
-  int32_t reply_Num = 0;  
+  int32_t reply_Num = 0;
   storage::Status s = PSTORE.GetBackend()->SCard(client->Key(), &reply_Num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
