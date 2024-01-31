@@ -54,7 +54,6 @@ class SRemCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-<<<<<<< HEAD
 class SUnionCmd : public BaseCmd {
  public:
   SUnionCmd(const std::string &name, int16_t arity);
@@ -65,14 +64,10 @@ class SUnionCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
+
 class SInterCmd : public BaseCmd {
  public:
   SInterCmd(const std::string &name, int16_t arity);
-=======
-class SCardCmd : public BaseCmd {
- public:
-  SCardCmd(const std::string &name, int16_t arity);
->>>>>>> 3abd6be (feat:add set cmd scard)
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -81,7 +76,6 @@ class SCardCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-<<<<<<< HEAD
 class SInterStoreCmd : public BaseCmd {
  public:
   SInterStoreCmd(const std::string &name, int16_t arity);
@@ -92,6 +86,16 @@ class SInterStoreCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
-=======
->>>>>>> 3abd6be (feat:add set cmd scard)
+
+class SCardCmd : public BaseCmd {
+ public:
+  SCardCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

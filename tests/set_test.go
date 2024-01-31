@@ -192,4 +192,19 @@ var _ = Describe("Set", Ordered, func() {
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(Equal([]string{"c"}))
 	})
+        It("should SCard", func() {
+                sAdd := client.SAdd(ctx, "set", "Hello")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                Expect(sAdd.Val()).To(Equal(int64(1)))
+
+                sAdd = client.SAdd(ctx, "set", "World")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                Expect(sAdd.Val()).To(Equal(int64(1)))
+
+                sCard = client.SCard(ctx, "set")
+                Expect(sCard.Err()).NotTo(HaveOccurred())
+                Expect(sCard.Val()).To(Equal(int64(2)))
+
+        })
+
 })

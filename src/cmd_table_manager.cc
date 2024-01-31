@@ -85,18 +85,15 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
   ADD_COMMAND(SRem, -3);
-<<<<<<< HEAD
   ADD_COMMAND(SInter, -2);
   ADD_COMMAND(SUnion, -2);
   ADD_COMMAND(SInterStore, -3);
+  ADD_COMMAND(SCard, 2);
 
   // list
   ADD_COMMAND(LPush, -3);
   ADD_COMMAND(RPush, -3);
   ADD_COMMAND(RPop, 2);
-=======
-  ADD_COMMAND(SCard, 2);
->>>>>>> 3abd6be (feat:add set cmd scard)
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
