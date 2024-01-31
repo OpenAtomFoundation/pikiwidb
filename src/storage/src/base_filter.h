@@ -16,6 +16,8 @@
 #include "src/base_meta_value_format.h"
 #include "src/debug.h"
 
+#include "braft/raft.h"
+
 namespace storage {
 
 class BaseMetaFilter : public rocksdb::CompactionFilter {

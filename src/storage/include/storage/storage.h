@@ -25,6 +25,8 @@
 #include "pstd/pstd_mutex.h"
 #include "storage/slot_indexer.h"
 
+#include "braft/raft.h"
+
 namespace storage {
 
 inline constexpr double ZSET_SCORE_MAX = std::numeric_limits<double>::max();
