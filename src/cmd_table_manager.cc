@@ -5,14 +5,15 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "cmd_table_manager.h"
 #include <memory>
+
 #include "cmd_admin.h"
 #include "cmd_hash.h"
 #include "cmd_keys.h"
 #include "cmd_kv.h"
 #include "cmd_list.h"
 #include "cmd_set.h"
+#include "cmd_table_manager.h"
 
 namespace pikiwidb {
 
@@ -38,6 +39,7 @@ void CmdTableManager::InitCmdTable() {
 
   // server
   ADD_COMMAND(Flushdb, 1);
+  ADD_COMMAND(Select, 2);
 
   // keyspace
   ADD_COMMAND(Del, -2);
