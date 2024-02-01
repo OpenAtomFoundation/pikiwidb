@@ -21,7 +21,7 @@ bool LPushCmd::DoInitial(PClient* client) {
 void LPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend()->LPush(client->Key(), list_values, &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -40,7 +40,7 @@ bool RPushCmd::DoInitial(PClient* client) {
 void RPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend()->RPush(client->Key(), list_values, &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->RPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -58,7 +58,7 @@ bool RPopCmd::DoInitial(PClient* client) {
 
 void RPopCmd::DoCmd(PClient* client) {
   std::vector<std::string> elements;
-  storage::Status s = PSTORE.GetBackend()->RPop(client->Key(), 1, &elements);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->RPop(client->Key(), 1, &elements);
   if (s.ok()) {
     client->AppendString(elements[0]);
   } else if (s.IsNotFound()) {
