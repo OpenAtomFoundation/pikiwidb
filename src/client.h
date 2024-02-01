@@ -124,10 +124,10 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
 
   void Close();
 
-  // db
-  void SetCurrentDB(int db) { db_ = db; }
+  // dbno
+  void SetCurrentDB(int dbno) { dbno_ = dbno; }
 
-  int GetCurrentDB() { return db_; }
+  int GetCurrentDB() { return dbno_; }
 
   static PClient* Current();
 
@@ -215,7 +215,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
 
   PProtoParser parser_;
 
-  int db_;
+  int dbno_;
 
   std::unordered_set<std::string> channels_;
   std::unordered_set<std::string> pattern_channels_;

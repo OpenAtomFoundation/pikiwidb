@@ -402,7 +402,7 @@ PClient* PClient::Current() { return s_current; }
 
 PClient::PClient(TcpConnection* obj)
     : tcp_connection_(std::static_pointer_cast<TcpConnection>(obj->shared_from_this())),
-      db_(0),
+      dbno_(0),
       flag_(0),
       name_("clientxxx"),
       parser_(params_) {
