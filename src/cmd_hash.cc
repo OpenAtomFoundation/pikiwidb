@@ -342,7 +342,7 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
     return;
   }
   std::string newValue;
-  storage::Status s = PSTORE.GetBackend()->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
   if (s.ok() || s.IsNotFound()) {
     client->AppendString(newValue);
   } else {
