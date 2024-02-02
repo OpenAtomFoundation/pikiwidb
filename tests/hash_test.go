@@ -195,4 +195,21 @@ var _ = Describe("Hash", Ordered, func() {
 		Expect(length.Val()).To(Equal(int64(len("hello1"))))
 	})
 
+	It("HIncrbyFloat", func() {
+		hSet := client.HSet(ctx, "hash", "field", "10.50")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(1)))
+
+		hIncrByFloat := client.HIncrByFloat(ctx, "hash", "field", 0.1)
+		Expect(hIncrByFloat.Err()).NotTo(HaveOccurred())
+		Expect(hIncrByFloat.Val()).To(Equal(10.6))
+
+		hSet = client.HSet(ctx, "hash", "field", "5.0e3")
+		Expect(hSet.Err()).NotTo(HaveOccurred())
+		Expect(hSet.Val()).To(Equal(int64(0)))
+
+		hIncrByFloat = client.HIncrByFloat(ctx, "hash", "field", 2.0e2)
+		Expect(hIncrByFloat.Err()).NotTo(HaveOccurred())
+		Expect(hIncrByFloat.Val()).To(Equal(float64(5200)))
+	})
 })
