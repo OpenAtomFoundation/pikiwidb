@@ -1,8 +1,5 @@
 #include "raft.h"
-#include <braft/raft.h>
-#include <butil/status.h>
 #include <cassert>
-#include <memory>
 #include <string>
 #include "client.h"
 #include "config.h"
