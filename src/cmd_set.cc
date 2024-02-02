@@ -145,7 +145,7 @@ void SInterStoreCmd::DoCmd(PClient* client) {
   }
   client->AppendInteger(reply_num);
 }
-  
+
 SRandMemberCmd::SRandMemberCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
@@ -173,13 +173,13 @@ void SRandMemberCmd::DoCmd(PClient* client) {
   if (err != kPErrorOK && err != kPErrorNotExist) {
     client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
   }
-  if (num_rand == 1) {  // srand 只用返回一个元素即可
+  if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
     if (err == kPErrorNotExist) {
       client->AppendString("");
       return;
     }
     SRandWithoutCount(client, value);
-  } else {
+  } else if(client->argv_.size() == 3) {
     if (err == kPErrorNotExist) {
       client->AppendArrayLen(0);
       return;

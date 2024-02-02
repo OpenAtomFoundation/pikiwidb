@@ -83,7 +83,7 @@ const std::string kCmdNameSRem = "srem";
 const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSRandMember = "srandmember";
-  
+
 // list cmd
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
