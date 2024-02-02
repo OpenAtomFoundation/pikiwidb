@@ -1,9 +1,10 @@
-//  Copyright (c) 2017-present, Qihoo, Inc.  All rights reserved.
+//  Copyright (c) 2024-present, Qihoo, Inc.  All rights reserved.
 //  This source code is licensed under the BSD-style license found in the
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef SRC_LRU_CACHE_H_
+#define SRC_LRU_CACHE_H_
 
 #include <cassert>
 #include <cstdio>
@@ -293,3 +294,4 @@ bool LRUCache<T1, T2>::FinishErase(LRUHandle<T1, T2>* const e) {
 }
 
 }  //  namespace storage
+#endif  // SRC_LRU_CACHE_H_

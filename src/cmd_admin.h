@@ -8,8 +8,11 @@
 #pragma once
 
 #include "base_cmd.h"
+#include "config.h"
 
 namespace pikiwidb {
+
+extern PConfig g_config;
 
 class CmdConfig : public BaseCmdGroup {
  public:
@@ -62,6 +65,17 @@ class FlushdbCmd : public BaseCmd {
 class FlushallCmd : public BaseCmd {
  public:
   FlushallCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class SelectCmd : public BaseCmd {
+ public:
+  SelectCmd(const std::string& name, int16_t arity);
 
  protected:
   bool DoInitial(PClient* client) override;

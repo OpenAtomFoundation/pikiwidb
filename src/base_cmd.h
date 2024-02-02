@@ -59,10 +59,12 @@ const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
 const std::string kCmdNameAuth = "auth";
+const std::string kCmdNameSelect = "select";
 
 // hash cmd
 const std::string kCmdNameHSet = "hset";
 const std::string kCmdNameHGet = "hget";
+const std::string kCmdNameHDel = "hdel";
 const std::string kCmdNameHMSet = "hmset";
 const std::string kCmdNameHMGet = "hmget";
 const std::string kCmdNameHGetAll = "hgetall";
@@ -76,8 +78,16 @@ const std::string kCmdNameHVals = "hvals";
 const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
+const std::string kCmdNameSInter = "sinter";
 const std::string kCmdNameSRem = "srem";
+const std::string kCmdNameSInterStore = "sinterstore";
+const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSRandMember = "srandmember";
+  
+// list cmd
+const std::string kCmdNameLPush = "lpush";
+const std::string kCmdNameRPush = "rpush";
+const std::string kCmdNameRPop = "rpop";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

@@ -67,4 +67,39 @@ var _ = Describe("Admin", Ordered, func() {
 		log.Println("Cmd INFO Begin")
 		Expect(client.Info(ctx).Val()).NotTo(Equal("FooBar"))
 	})
+
+	It("Cmd Select", func() {
+		var outRangeNumber = 100
+
+		r, e := client.Set(ctx, DefaultKey, DefaultValue, 0).Result()
+		Expect(e).NotTo(HaveOccurred())
+		Expect(r).To(Equal(OK))
+
+		r, e = client.Get(ctx, DefaultKey).Result()
+		Expect(e).NotTo(HaveOccurred())
+		Expect(r).To(Equal(DefaultValue))
+
+		rDo, eDo := client.Do(ctx, kCmdSelect, outRangeNumber).Result()
+		Expect(eDo).To(MatchError(kInvalidIndex))
+
+		r, e = client.Get(ctx, DefaultKey).Result()
+		Expect(e).NotTo(HaveOccurred())
+		Expect(r).To(Equal(DefaultValue))
+
+		rDo, eDo = client.Do(ctx, kCmdSelect, 1).Result()
+		Expect(eDo).NotTo(HaveOccurred())
+		Expect(rDo).To(Equal(OK))
+
+		r, e = client.Get(ctx, DefaultKey).Result()
+		Expect(e).To(MatchError(redis.Nil))
+		Expect(r).To(Equal(Nil))
+
+		rDo, eDo = client.Do(ctx, kCmdSelect, 0).Result()
+		Expect(eDo).NotTo(HaveOccurred())
+		Expect(rDo).To(Equal(OK))
+
+		rDel, eDel := client.Del(ctx, DefaultKey).Result()
+		Expect(eDel).NotTo(HaveOccurred())
+		Expect(rDel).To(Equal(int64(1)))
+	})
 })

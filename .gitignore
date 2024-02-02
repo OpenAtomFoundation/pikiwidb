@@ -36,6 +36,7 @@ make_config.mk
 logs/
 lib/
 output/
+*.log
 
 # DB
 db/

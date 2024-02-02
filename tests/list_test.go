@@ -11,6 +11,7 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -51,6 +52,8 @@ var _ = Describe("List", Ordered, func() {
 	// shared variable.
 	BeforeEach(func() {
 		client = s.NewClient()
+		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
+        time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).
@@ -64,6 +67,36 @@ var _ = Describe("List", Ordered, func() {
 	//TODO(dingxiaoshuai) Add more test cases.
 	It("Cmd LPUSH", func() {
 		log.Println("Cmd LPUSH Begin")
-		Expect(client.LPush(ctx, "mylist", "one", "two").Val()).NotTo(Equal("FooBar"))
+		Expect(client.LPush(ctx, "mylistLPUSH", "world", ).Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "mylistLPUSH", "hello", ).Val()).To(Equal(int64(2)))
+
+		// Expect(client.LRange(ctx,"mylistLPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
 	})
+	It("Cmd RPUSH", func() {
+		log.Println("Cmd RPUSH Begin")
+		Expect(client.LPush(ctx, "mylistRPUSH", "hello", ).Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "mylistRPUSH", "world", ).Val()).To(Equal(int64(2)))
+
+		// Expect(client.LRange(ctx,"mylistRPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+	})
+
+	It("should RPop", func() {
+        rPush := client.RPush(ctx, "list", "one")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "two")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+        rPush = client.RPush(ctx, "list", "three")
+        Expect(rPush.Err()).NotTo(HaveOccurred())
+
+        rPop := client.RPop(ctx, "list")
+        Expect(rPop.Err()).NotTo(HaveOccurred())
+        Expect(rPop.Val()).To(Equal("three"))
+
+        //lRange := client.LRange(ctx, "list", 0, -1)
+        //Expect(lRange.Err()).NotTo(HaveOccurred())
+        //Expect(lRange.Val()).To(Equal([]string{"one", "two"}))
+
+        err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
+        Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
+    })
 })

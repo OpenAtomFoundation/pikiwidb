@@ -5,13 +5,15 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "cmd_table_manager.h"
 #include <memory>
+
 #include "cmd_admin.h"
 #include "cmd_hash.h"
 #include "cmd_keys.h"
 #include "cmd_kv.h"
+#include "cmd_list.h"
 #include "cmd_set.h"
+#include "cmd_table_manager.h"
 
 namespace pikiwidb {
 
@@ -37,10 +39,11 @@ void CmdTableManager::InitCmdTable() {
 
   // server
   ADD_COMMAND(Flushdb, 1);
+  ADD_COMMAND(Select, 2);
 
   // keyspace
   ADD_COMMAND(Del, -2);
-  ADD_COMMAND(Exists, 2);
+  ADD_COMMAND(Exists, -2);
 
   // kv
   ADD_COMMAND(Get, 2);
@@ -67,6 +70,7 @@ void CmdTableManager::InitCmdTable() {
   // hash
   ADD_COMMAND(HSet, -4);
   ADD_COMMAND(HGet, 3);
+  ADD_COMMAND(HDel, -3);
   ADD_COMMAND(HMSet, -4);
   ADD_COMMAND(HMGet, -3);
   ADD_COMMAND(HGetAll, 2);
@@ -81,7 +85,15 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SAdd, -3);
   ADD_COMMAND(SUnionStore, -3);
   ADD_COMMAND(SRem, -3);
+  ADD_COMMAND(SInter, -2);
+  ADD_COMMAND(SUnion, -2);
+  ADD_COMMAND(SInterStore, -3);
   ADD_COMMAND(SRandMember, -2);  // Added the count argument since Redis 3.2.0
+
+  // list
+  ADD_COMMAND(LPush, -3);
+  ADD_COMMAND(RPush, -3);
+  ADD_COMMAND(RPop, 2);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
