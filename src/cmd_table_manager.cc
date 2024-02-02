@@ -39,6 +39,7 @@ void CmdTableManager::InitCmdTable() {
 
   // server
   ADD_COMMAND(Flushdb, 1);
+  ADD_COMMAND(Flushall, 1);
   ADD_COMMAND(Select, 2);
 
   // keyspace
