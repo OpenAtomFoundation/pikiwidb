@@ -168,7 +168,8 @@ bool SMoveCmd::DoInitial(PClient* client) { return true; }
 
 void SMoveCmd::DoCmd(PClient* client) {
   int32_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SMove(client->argv_[1], client->argv_[2], client->argv_[3], &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->SMove(client->argv_[1], client->argv_[2], client->argv_[3], &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "smove cmd error");
   }
