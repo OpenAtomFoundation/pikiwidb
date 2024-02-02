@@ -179,7 +179,7 @@ void SRandMemberCmd::DoCmd(PClient* client) {
       return;
     }
     SRandWithoutCount(client, value);
-  } else if(client->argv_.size() == 3) {
+  } else if (client->argv_.size() == 3) {
     if (err == kPErrorNotExist) {
       client->AppendArrayLen(0);
       return;
