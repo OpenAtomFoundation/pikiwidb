@@ -192,4 +192,25 @@ var _ = Describe("Set", Ordered, func() {
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(Equal([]string{"c"}))
 	})
+
+	It("should SRem", func() {
+		sAdd := client.SAdd(ctx, "set", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sRem := client.SRem(ctx, "set", "one")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(1)))
+
+		sRem = client.SRem(ctx, "set", "four")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(0)))
+
+ 		// sMembers := client.SMembers(ctx, "set")
+ 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+ 		// Expect(sMembers.Val()).To(ConsistOf([]string{"three", "two"}))
+	})
 })
