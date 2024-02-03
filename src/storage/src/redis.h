@@ -18,6 +18,7 @@
 #include "src/custom_comparator.h"
 #include "src/debug.h"
 #include "src/lock_mgr.h"
+#include "src/log_index.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "src/type_iterator.h"
@@ -212,6 +213,9 @@ class Redis {
   void GetRocksDBInfo(std::string& info, const char* prefix);
   auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
+  void UpdateLogIndex(int64_t applied_log_index) {
+    log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
+  }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
@@ -337,6 +341,7 @@ class Redis {
   Storage* const storage_;
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
+  LogIndexCollector log_index_collector_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
   rocksdb::WriteOptions default_write_options_;
