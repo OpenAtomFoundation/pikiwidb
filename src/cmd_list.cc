@@ -86,7 +86,7 @@ void LRemCmd::DoCmd(PClient* client) {
   }
 
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend()->LRem(client->Key(), freq_, client->argv_[3], &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LRem(client->Key(), freq_, client->argv_[3], &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
   } else {
