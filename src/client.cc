@@ -289,7 +289,7 @@ int PClient::handlePacket(const char* start, int bytes) {
     return static_cast<int>(ptr - start);
   }
 
-  DEFER { reset(); };
+  //  DEFER { reset(); };
 
   // handle packet
   //  const auto& params = parser_.GetParams();
@@ -495,15 +495,17 @@ bool PClient::SendPacket(const evbuffer_iovec* iovecs, size_t nvecs) {
   return false;
 }
 
-void PClient::WriteReply2Net() {
+void PClient::WriteReply2Client() {
   if (auto c = getTcpConnection(); c) {
     c->SendPacket(Message());
   }
   Clear();
+  reset();
 }
 
 void PClient::Close() {
   SetState(ClientState::kClosed);
+  reset();
   if (auto c = getTcpConnection(); c) {
     c->ActiveClose();
     tcp_connection_.reset();

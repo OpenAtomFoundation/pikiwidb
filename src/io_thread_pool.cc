@@ -198,7 +198,7 @@ void WorkIOThreadPool::StartWorkers() {
         }
         auto client = writeQueue_[index].front();
         if (client->State() == ClientState::kOK) {
-          client->WriteReply2Net();
+          client->WriteReply2Client();
         }
         writeQueue_[index].pop_front();
       }

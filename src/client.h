@@ -126,7 +126,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   bool SendPacket(UnboundedBuffer& data);
   bool SendPacket(const evbuffer_iovec* iovecs, size_t nvecs);
 
-  void WriteReply2Net();
+  void WriteReply2Client();
 
   void Close();
 
