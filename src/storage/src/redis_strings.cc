@@ -27,6 +27,8 @@ RedisStrings::RedisStrings(Storage* const s, const DataType& type) : Redis(s, ty
 Status RedisStrings::Open(const StorageOptions& storage_options, const std::string& db_path) {
   rocksdb::Options ops(storage_options.options);
   ops.compaction_filter_factory = std::make_shared<StringsFilterFactory>();
+  ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(&log_index_collector_));
 
   // use the bloom filter policy to reduce disk reads
   rocksdb::BlockBasedTableOptions table_ops(storage_options.table_options);

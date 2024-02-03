@@ -32,6 +32,8 @@ rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
 
   rocksdb::Options ops(storage_options.options);
+  ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(&log_index_collector_));
   rocksdb::Status s = rocksdb::DB::Open(ops, db_path, &db_);
   if (s.ok()) {
     // create column family
