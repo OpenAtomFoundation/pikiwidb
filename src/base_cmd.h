@@ -44,6 +44,7 @@ const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
 const std::string kCmdNameBitCount = "bitcount";
 const std::string kCmdNameGetRange = "getrange";
+const std::string kCmdNameSetRange = "setrange";
 const std::string kCmdNameDecr = "decr";
 const std::string kCmdNameIncr = "incr";
 
