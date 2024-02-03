@@ -1862,6 +1862,8 @@ void Storage::DefaultWriteCallback(const Task& task) {
 
   assert(db);
   auto s = db->GetDB()->Write(db->GetWriteOptions(), &batch);
+  // TODO: get real log index
+  db->UpdateLogIndex(0);
   done->SetStatus(std::move(s));
 }
 

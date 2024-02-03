@@ -14,6 +14,7 @@
 #include "rocksdb/status.h"
 
 #include "src/lock_mgr.h"
+#include "src/log_index.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "storage/storage.h"
@@ -59,11 +60,16 @@ class Redis {
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
   auto IsWriteByBinlog() const -> bool { return storage_->IsWriteByBinlog(); }
 
+  void UpdateLogIndex(int64_t applied_log_index) {
+    log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
+  }
+
  protected:
   Storage* const storage_;
   DataType type_;
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
+  LogIndexCollector log_index_collector_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
   rocksdb::WriteOptions default_write_options_;
