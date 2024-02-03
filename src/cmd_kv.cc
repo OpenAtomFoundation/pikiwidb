@@ -510,7 +510,7 @@ void GetRangeCmd::DoCmd(PClient* client) {
   int64_t end = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start);
   pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end);
-  auto s = PSTORE.GetBackend()->Getrange(client->Key(), start, end, &ret);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->Getrange(client->Key(), start, end, &ret);
   if (!s.ok()) {
     if (s.IsNotFound()) {
       client->AppendString("");
@@ -577,7 +577,8 @@ void SetRangeCmd::DoCmd(PClient* client) {
   }
 
   int32_t ret = 0;
-  storage::Status s = PSTORE.GetBackend()->Setrange(client->Key(), offset, client->argv_[3], &ret);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->Setrange(client->Key(), offset, client->argv_[3], &ret);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "setrange cmd error");
     return;
