@@ -153,7 +153,7 @@ bool SCardCmd::DoInitial(PClient* client) {
 }
 void SCardCmd::DoCmd(PClient* client) {
   int32_t reply_Num = 0;
-  storage::Status s = PSTORE.GetBackend()->SCard(client->Key(), &reply_Num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SCard(client->Key(), &reply_Num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
     return;
