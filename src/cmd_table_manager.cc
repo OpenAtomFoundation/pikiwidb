@@ -95,6 +95,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LPush, -3);
   ADD_COMMAND(RPush, -3);
   ADD_COMMAND(RPop, 2);
+  ADD_COMMAND(LRem, 4);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
