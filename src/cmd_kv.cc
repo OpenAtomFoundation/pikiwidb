@@ -577,7 +577,8 @@ void SetRangeCmd::DoCmd(PClient* client) {
   }
 
   int32_t ret = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->Setrange(client->Key(), offset, client->argv_[3], &ret);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->Setrange(client->Key(), offset, client->argv_[3], &ret);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "setrange cmd error");
     return;
