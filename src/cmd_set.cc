@@ -143,4 +143,21 @@ void SInterStoreCmd::DoCmd(PClient* client) {
   }
   client->AppendInteger(reply_num);
 }
+
+SCardCmd::SCardCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SCardCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SCardCmd::DoCmd(PClient* client) {
+  int32_t reply_Num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SCard(client->Key(), &reply_Num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
+    return;
+  }
+  client->AppendInteger(reply_Num);
+}
 }  // namespace pikiwidb
