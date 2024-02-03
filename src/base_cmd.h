@@ -74,6 +74,7 @@ const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHScan = "hscan";
 const std::string kCmdNameHVals = "hvals";
+const std::string kCmdNameHIncrbyFloat = "hincrbyfloat";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";

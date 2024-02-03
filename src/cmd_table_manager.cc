@@ -39,6 +39,7 @@ void CmdTableManager::InitCmdTable() {
 
   // server
   ADD_COMMAND(Flushdb, 1);
+  ADD_COMMAND(Flushall, 1);
   ADD_COMMAND(Select, 2);
 
   // keyspace
@@ -80,6 +81,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HStrLen, 3);
   ADD_COMMAND(HScan, -3);
   ADD_COMMAND(HVals, 2);
+  ADD_COMMAND(HIncrbyFloat, 4);
 
   // set
   ADD_COMMAND(SIsMember, 3);
