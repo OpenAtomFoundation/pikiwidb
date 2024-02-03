@@ -59,9 +59,9 @@ void IOThreadPool::Run(int ac, char* av[]) {
   StartWorkers();
   base_.Run();
 
-  for (auto& w : worker_threads_) {
-    w.join();
-  }
+  //  for (auto& w : worker_threads_) {
+  //    w.join();
+  //  }
 
   worker_threads_.clear();
 
@@ -107,7 +107,7 @@ void IOThreadPool::StartWorkers() {
 
   for (index = 0; index < worker_loops_.size(); ++index) {
     EventLoop* loop = worker_loops_[index].get();
-    std::thread t([loop]() {
+    std::jthread t([loop]() {
       loop->Init();
       loop->Run();
     });
@@ -166,6 +166,55 @@ std::shared_ptr<HttpClient> IOThreadPool::ConnectHTTP(const char* ip, int port, 
 void IOThreadPool::Reset() {
   state_ = State::kNone;
   BaseLoop()->Reset();
+}
+
+void WorkIOThreadPool::PushWriteTask(std::shared_ptr<PClient> client) {
+  auto pos = ++counter_ % worker_num_;
+  std::unique_lock lock(*writeMutex_[pos]);
+
+  writeQueue_[pos].emplace_back(client);
+  writeCond_[pos]->notify_one();
+}
+
+void WorkIOThreadPool::StartWorkers() {
+  // only called by main thread
+  assert(state_ == State::kNone);
+
+  IOThreadPool::StartWorkers();
+
+  writeMutex_.reserve(worker_num_);
+  writeCond_.reserve(worker_num_);
+  writeQueue_.reserve(worker_num_);
+  for (size_t index = 0; index < worker_num_; ++index) {
+    writeMutex_.emplace_back(std::make_unique<std::mutex>());
+    writeCond_.emplace_back(std::make_unique<std::condition_variable>());
+    writeQueue_.emplace_back();
+
+    std::jthread t([this, index](const std::stop_token& stopToken) {
+      while (!stopToken.stop_requested()) {
+        std::unique_lock lock(*writeMutex_[index]);
+        while (writeQueue_[index].empty()) {
+          writeCond_[index]->wait_for(lock, std::chrono::milliseconds(100));
+        }
+        auto client = writeQueue_[index].front();
+        if (client->State() == ClientState::kOK) {
+          client->WriteReply2Net();
+        }
+        writeQueue_[index].pop_front();
+      }
+    });
+
+    INFO("worker write thread {}, starting...", index);
+    writeThreads_.push_back(std::move(t));
+  }
+}
+
+void WorkIOThreadPool::Exit() {
+  IOThreadPool::Exit();
+
+  for (auto& wt : writeThreads_) {
+    wt.request_stop();
+  }
 }
 
 }  // namespace pikiwidb

@@ -172,6 +172,8 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
 
   // slave threads
   cfg.slave_threads_num = parser.GetData<int>("slave-threads", 1);
+  cfg.fast_cmd_threads_num = parser.GetData<int>("fast-threads", 1);
+  cfg.slow_cmd_threads_num = parser.GetData<int>("slow-threads", 1);
 
   // backend
   cfg.backend = parser.GetData<int>("backend", kBackEndNone);
@@ -202,6 +204,8 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(maxmemory >= 512 * 1024 * 1024UL);
   RETURN_IF_FAIL(maxmemorySamples > 0 && maxmemorySamples < 10);
   RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129);  // as redis
+  RETURN_IF_FAIL(fast_cmd_threads_num > 0 && fast_cmd_threads_num < 16);
+  RETURN_IF_FAIL(slow_cmd_threads_num > 0 && slow_cmd_threads_num < 16);
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
   RETURN_IF_FAIL(db_instance_num >= 1);

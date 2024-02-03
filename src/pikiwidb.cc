@@ -174,7 +174,10 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
   auto msg_cb = std::bind(&pikiwidb::PClient::HandlePackets, client.get(), std::placeholders::_1, std::placeholders::_2,
                           std::placeholders::_3);
   obj->SetMessageCallback(msg_cb);
-  obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) { INFO("disconnect from {}", obj->GetPeerIp()); });
+  obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) {
+    INFO("disconnect from {}", obj->GetPeerIp());
+    obj->GetContext<pikiwidb::PClient>()->SetState(pikiwidb::ClientState::kClosed);
+  });
   obj->SetNodelay(true);
   obj->SetEventLoopSelector([this]() { return worker_threads_.ChooseNextWorkerEventLoop(); });
   obj->SetSlaveEventLoopSelector([this]() { return slave_threads_.ChooseNextWorkerEventLoop(); });
@@ -214,6 +217,13 @@ bool PikiwiDB::Init() {
   worker_threads_.SetWorkerNum(static_cast<size_t>(g_config.worker_threads_num));
   slave_threads_.SetWorkerNum(static_cast<size_t>(g_config.slave_threads_num));
 
+  // now we only use fast cmd thread pool
+  auto status = cmd_threads_.Init(g_config.fast_cmd_threads_num, 0, "pikiwidb-cmd");
+  if (!status.ok()) {
+    ERROR("init cmd thread pool failed: {}", status.ToString());
+    return false;
+  }
+
   PSTORE.Init(g_config.databases);
 
   // Only if there is no backend, load rdb
@@ -234,7 +244,7 @@ bool PikiwiDB::Init() {
     PREPL.SetMasterAddr(g_config.masterIp.c_str(), g_config.masterPort);
   }
 
-  cmd_table_manager_.InitCmdTable();
+  //  cmd_table_manager_.InitCmdTable();
 
   return true;
 }
@@ -243,7 +253,9 @@ void PikiwiDB::Run() {
   worker_threads_.SetName("pikiwi-main");
   slave_threads_.SetName("pikiwi-slave");
 
-  std::thread t([this]() {
+  cmd_threads_.Start();
+
+  std::jthread t([this]() {
     auto slave_loop = slave_threads_.BaseLoop();
     slave_loop->Init();
     slave_threads_.Run(0, nullptr);
@@ -251,7 +263,7 @@ void PikiwiDB::Run() {
 
   worker_threads_.Run(0, nullptr);
 
-  t.join();  // wait for slave thread exit
+  //  t.join();  // wait for slave thread exit
   INFO("server exit running");
 }
 
@@ -260,7 +272,7 @@ void PikiwiDB::Stop() {
   worker_threads_.Exit();
 }
 
-pikiwidb::CmdTableManager& PikiwiDB::GetCmdTableManager() { return cmd_table_manager_; }
+// pikiwidb::CmdTableManager& PikiwiDB::GetCmdTableManager() { return cmd_table_manager_; }
 
 static void InitLogs() {
   logger::Init("logs/pikiwidb_server.log");
