@@ -173,9 +173,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.backendPath = parser.GetData<PString>("backendpath", cfg.backendPath);
   EraseQuotes(cfg.backendPath);
   cfg.backendHz = parser.GetData<int>("backendhz", 10);
-
-  cfg.max_client_response_size = parser.GetData<int64_t>("max_client_response_size");
-
+  cfg.max_client_response_size = parser.GetData<int64_t>("max-client-response-size", 1073741824);
   return cfg.CheckArgs();
 }
 
@@ -195,6 +193,7 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129);  // as redis
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
+  RETURN_IF_FAIL(max_client_response_size > 0);
 
 #undef RETURN_IF_FAIL
 
