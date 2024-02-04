@@ -177,7 +177,7 @@ void BitCountCmd::DoCmd(PClient* client) {
       return;
     }
 
-    s = PSTORE.GetBackend(client->GetCurrentDB())->BitCount(client->Key(), start_offset, end_offset, &count, false);
+    s = PSTORE.GetBackend(client->GetCurrentDB())->BitCount(client->Key(), start_offset, end_offset, &count, true);
   }
 
   if (s.ok() || s.IsNotFound()) {
