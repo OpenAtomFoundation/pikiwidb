@@ -1,6 +1,10 @@
 #pragma once
 
+#include <chrono>
+#include <cstdint>
+#include <future>
 #include <memory>
+
 #include "rocksdb/db.h"
 
 #include "src/binlog.pb.h"
@@ -43,7 +47,9 @@ class RocksBatch : public Batch {
 
 class BinlogBatch : public Batch {
  public:
-  BinlogBatch(TaskQueue* queue, int32_t index) : task_queue_(queue) { binlog_.set_slot_idx(index); }
+  BinlogBatch(TaskQueue* queue, int32_t index, int32_t seconds = 10) : task_queue_(queue), seconds_(seconds) {
+    binlog_.set_slot_idx(index);
+  }
 
   void Put(ColumnFamilyIndex cf_idx, const Slice& key, const Slice& value) override {
     auto entry = binlog_.add_entries();
@@ -65,12 +71,21 @@ class BinlogBatch : public Batch {
     auto future = promise.get_future();
     Task task(binlog_.SerializeAsString(), std::move(promise));
     task_queue_->Produce(std::move(task));
+    if (seconds_ == -1) {  // if do not require timeout
+      return future.get();
+    }
+
+    auto status = future.wait_for(std::chrono::seconds(seconds_));
+    if (status == std::future_status::timeout) {
+      return Status::Incomplete("Wait for write timeout");
+    }
     return future.get();
   }
 
  private:
   Binlog binlog_;
   TaskQueue* task_queue_;
+  int32_t seconds_;
 };
 
 inline auto Batch::CreateBatch(Redis* redis, bool use_binlog) -> std::unique_ptr<Batch> {
