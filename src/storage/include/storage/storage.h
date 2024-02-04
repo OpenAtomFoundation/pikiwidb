@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <list>
 #include <map>
+#include <memory>
 #include <queue>
 #include <string>
 #include <utility>
@@ -43,6 +44,8 @@ using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
 
 class Redis;
+class Task;
+class TaskQueue;
 enum class OptionType;
 
 template <typename T1, typename T2>
@@ -58,6 +61,7 @@ struct StorageOptions {
   size_t small_compaction_duration_threshold = 10000;
   size_t db_instance_num = 3;  // default = 3
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
+  bool is_write_by_binlog = false;
 };
 
 struct KeyValue {
@@ -1073,6 +1077,7 @@ class Storage {
 
   Status SetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  auto GetTaskQueue() const -> TaskQueue* { return task_queue_.get(); }
 
  private:
   std::vector<std::unique_ptr<Redis>> insts_;
@@ -1093,6 +1098,9 @@ class Storage {
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
   int32_t db_instance_num_;
+
+  void DefaultWriteCallback(const Task& task);
+  std::unique_ptr<TaskQueue> task_queue_;
 };
 
 }  //  namespace storage

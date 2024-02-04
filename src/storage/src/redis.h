@@ -37,6 +37,8 @@ class Redis {
   virtual ~Redis();
 
   rocksdb::DB* GetDB() { return db_; }
+  auto GetWriteOptions() -> const rocksdb::WriteOptions& { return default_write_options_; }
+  auto GetColumnFamilyHandles() -> const std::vector<rocksdb::ColumnFamilyHandle*>& { return handles_; }
 
   struct KeyStatistics {
     size_t window_size;
@@ -208,6 +210,8 @@ class Redis {
   Status SetSmallCompactionThreshold(uint64_t small_compaction_threshold);
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   void GetRocksDBInfo(std::string& info, const char* prefix);
+  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
@@ -326,6 +330,7 @@ class Redis {
     }
     return nullptr;
   }
+  TaskQueue* GetTaskQueue() const { return storage_->GetTaskQueue(); }
 
  private:
   int32_t index_ = 0;
@@ -355,6 +360,9 @@ class Redis {
   Status UpdateSpecificKeyStatistics(const DataType& dtype, const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const DataType& dtype, const std::string& key, uint64_t duration);
   Status AddCompactKeyTaskIfNeeded(const DataType& dtype, const std::string& key, uint64_t count, uint64_t duration);
+
+  // For binlog
+  bool is_write_by_binlog_{false};
 };
 
 }  //  namespace storage

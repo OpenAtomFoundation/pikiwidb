@@ -52,6 +52,8 @@ Redis::~Redis() {
 }
 
 Status Redis::Open(const StorageOptions& storage_options, const std::string& db_path) {
+  is_write_by_binlog_ = storage_options.is_write_by_binlog;
+
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
 

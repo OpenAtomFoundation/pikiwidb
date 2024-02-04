@@ -4,6 +4,7 @@
 //  of patent rights can be found in the PATENTS file in the same directory.
 
 #include <algorithm>
+#include <memory>
 #include <utility>
 
 #include <glog/logging.h>
@@ -11,11 +12,13 @@
 #include "config.h"
 #include "pstd/pikiwidb_slot.h"
 #include "scope_snapshot.h"
+#include "src/batch.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "src/options_helper.h"
 #include "src/redis.h"
 #include "src/redis_hyperloglog.h"
+#include "src/task_queue.h"
 #include "src/type_iterator.h"
 #include "storage/slot_indexer.h"
 #include "storage/storage.h"
@@ -51,7 +54,8 @@ Status StorageOptions::ResetOptions(const OptionType& option_type,
   return Status::OK();
 }
 
-Storage::Storage() {
+Storage::Storage()
+    : task_queue_(std::make_unique<TaskQueue>([this](const Task& task) { DefaultWriteCallback(task); })) {
   cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   cursors_store_->SetCapacity(5000);
 
@@ -2200,6 +2204,39 @@ void Storage::DisableWal(const bool is_wal_disable) {
   for (const auto& inst : insts_) {
     inst->SetWriteWalOptions(is_wal_disable);
   }
+}
+
+void Storage::DefaultWriteCallback(const Task& task) {
+  ClosureGuard gd(task.done_.get());
+  Binlog log;
+  auto res = log.ParseFromString(task.data_);
+  RocksClosure* done = dynamic_cast<RocksClosure*>(task.done_.get());  // NOLINT
+  assert(done);
+  if (!res) {
+    LOG(ERROR) << "Failed to deserialize binlog";
+    done->SetStatus(Status::Incomplete("Failed to deserialize binlog"));
+    return;
+  }
+  auto& inst = insts_[log.slot_idx()];
+
+  rocksdb::WriteBatch batch;
+  for (const auto& entry : log.entries()) {
+    switch (entry.op_type()) {
+      case OperateType::kPut: {
+        assert(entry.has_value());
+        batch.Put(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
+      } break;
+      case OperateType::kDelete: {
+        assert(!entry.has_value());
+        batch.Delete(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
+      } break;
+      default:
+        assert(0);
+    }
+  }
+
+  auto s = inst->GetDB()->Write(inst->GetWriteOptions(), &batch);
+  done->SetStatus(std::move(s));
 }
 
 }  //  namespace storage
