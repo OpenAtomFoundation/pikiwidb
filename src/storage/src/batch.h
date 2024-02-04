@@ -4,8 +4,8 @@
 #include "rocksdb/db.h"
 
 #include "src/binlog.pb.h"
-#include "src/task_queue.h"
 #include "src/redis.h"
+#include "src/task_queue.h"
 #include "storage/storage.h"
 #include "storage/storage_define.h"
 

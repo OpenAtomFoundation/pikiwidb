@@ -35,8 +35,7 @@ class ClosureGuard {
   Closure* done_;
 };
 
-class 
-Task {
+class Task {
  public:
   Task(std::string&& data, std::promise<rocksdb::Status>&& promise)
       : data_(std::move(data)), done_(std::make_shared<RocksClosure>(std::move(promise))) {}
