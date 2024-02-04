@@ -1824,6 +1824,7 @@ void Storage::DisableWal(const bool is_wal_disable) {
 }
 
 void Storage::DefaultWriteCallback(const Task& task) {
+  int64_t cur_log_index = 99999999;
   ClosureGuard gd(task.done_.get());
   Binlog log;
   auto res = log.ParseFromString(task.data_);
@@ -1843,7 +1844,7 @@ void Storage::DefaultWriteCallback(const Task& task) {
         assert(entry.has_value());
         if (entry.cf_idx() == -1) {
           batch.Put(entry.key(), entry.value());
-        } else {
+        } else if (db->CheckIfApplyAndSet(entry.cf_idx(), cur_log_index)) {
           batch.Put(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
         }
         break;
@@ -1851,7 +1852,7 @@ void Storage::DefaultWriteCallback(const Task& task) {
         assert(!entry.has_value());
         if (entry.cf_idx() == -1) {
           batch.Delete(entry.key());
-        } else {
+        } else if (db->CheckIfApplyAndSet(entry.cf_idx(), cur_log_index)) {
           batch.Delete(db->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
         }
         break;
@@ -1863,7 +1864,7 @@ void Storage::DefaultWriteCallback(const Task& task) {
   assert(db);
   auto s = db->GetDB()->Write(db->GetWriteOptions(), &batch);
   // TODO: get real log index
-  db->UpdateLogIndex(0);
+  db->UpdateLogIndex(cur_log_index);
   done->SetStatus(std::move(s));
 }
 

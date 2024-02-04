@@ -63,23 +63,8 @@ class Redis {
   void UpdateLogIndex(int64_t applied_log_index) {
     log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
   }
-
-  Status GetLastestAppliedLogIndex() {
-    cf_applied_log_index_.resize(handles_.size());
-    rocksdb::TablePropertiesCollection collection;
-    auto s = db_->GetPropertiesOfAllTables(&collection);
-    if (!s.ok()) {
-      return s;
-    }
-
-    for (const auto& [name, props] : collection) {
-      int64_t current_lastest_applied_index = 0;
-      auto cf_id = props->column_family_id;
-      LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props, current_lastest_applied_index);
-      cf_applied_log_index_[cf_id] = std::max(cf_applied_log_index_[cf_id], current_lastest_applied_index);
-    }
-
-    return s;
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+    return log_index_of_.CheckIfApplyAndSet(cf_id, cur_log_index);
   }
 
  protected:
@@ -87,10 +72,10 @@ class Redis {
   DataType type_;
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
-  LogIndexCollector log_index_collector_;
+  LogIndexAndSequenceCollector log_index_collector_;
+  LogIndexOfCF log_index_of_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
-  std::vector<int64_t> cf_applied_log_index_;
 
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;

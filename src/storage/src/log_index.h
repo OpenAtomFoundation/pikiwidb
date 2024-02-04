@@ -9,9 +9,22 @@
 
 namespace storage {
 
-class LogIndex {
+class LogIndexOfCF {
  public:
-  LogIndex(int64_t applied_log_index, rocksdb::SequenceNumber seqno)
+  Status Init(rocksdb::DB *db, size_t cf_num);
+
+  inline bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+    applied_log_index_[cf_id] = std::max(cur_log_index, applied_log_index_[cf_id]);
+    return cur_log_index == applied_log_index_[cf_id];
+  }
+
+ private:
+  std::vector<int64_t> applied_log_index_;
+};
+
+class LogIndexAndSequencePair {
+ public:
+  LogIndexAndSequencePair(int64_t applied_log_index, rocksdb::SequenceNumber seqno)
       : applied_log_index_(applied_log_index), seqno_(seqno) {}
   inline int64_t GetAppliedLogIndex() { return applied_log_index_; }
   inline rocksdb::SequenceNumber GetSequenceNumber() { return seqno_; }
@@ -21,22 +34,17 @@ class LogIndex {
   rocksdb::SequenceNumber seqno_ = 0;
 };
 
-class LogIndexCollector {
+class LogIndexAndSequenceCollector {
  public:
-  LogIndexCollector() {}
-  LogIndexCollector(int64_t step_length) : step_length_(step_length) {}
-
+  LogIndexAndSequenceCollector() {}
+  LogIndexAndSequenceCollector(int64_t step_length) : step_length_(step_length) {}
+  // purge out dated log index after braft do snapshot.
+  void Purge(int64_t applied_log_index);
   void Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno);
-
   int64_t FindAppliedLogIndex(rocksdb::SequenceNumber seqno);
 
-  /*
-    purge out dated log index after braft do snapshot.
-  */
-  void Purge(int64_t applied_log_index);
-
  private:
-  std::list<LogIndex> collector_;
+  std::list<LogIndexAndSequencePair> list_;
   std::mutex mutex_;
   uint64_t num_update_ = 0;
   uint64_t step_length_ = 1;
@@ -44,7 +52,7 @@ class LogIndexCollector {
 
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
  public:
-  LogIndexTablePropertiesCollector(const LogIndexCollector *collector) : collector_(collector) {}
+  LogIndexTablePropertiesCollector(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
   rocksdb::Status Finish(rocksdb::UserCollectedProperties *properties) override;
 
   const char *Name() const override { return "LogIndexTablePropertiesCollector"; }
@@ -58,7 +66,7 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
 
  private:
   static const std::string properties_name_;
-  const LogIndexCollector *collector_;
+  const LogIndexAndSequenceCollector *collector_;
   rocksdb::SequenceNumber smallest_seqno_ = 0;
   rocksdb::SequenceNumber largest_seqno_ = 0;
   mutable std::map<rocksdb::SequenceNumber, int64_t> tmp_;
@@ -66,7 +74,7 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
 
 class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesCollectorFactory {
  public:
-  LogIndexTablePropertiesCollectorFactory(const LogIndexCollector *collector) : collector_(collector) {}
+  LogIndexTablePropertiesCollectorFactory(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
   virtual ~LogIndexTablePropertiesCollectorFactory() {}
 
   rocksdb::TablePropertiesCollector *CreateTablePropertiesCollector(
@@ -77,7 +85,7 @@ class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesC
   virtual const char *Name() const override { return "SnapshotAuxSysPropCollFactory"; }
 
  private:
-  const LogIndexCollector *collector_;
+  const LogIndexAndSequenceCollector *collector_;
 };
 
 }  // namespace storage
