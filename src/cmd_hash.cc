@@ -179,6 +179,7 @@ void HGetAllCmd::DoCmd(PClient* client) {
         client->AppendContent(fv.value);
       }
       if (raw.size() >= raw_limit) {
+        client->Clear();
         client->SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
         return;
       }
