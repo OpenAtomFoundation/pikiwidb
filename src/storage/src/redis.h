@@ -233,6 +233,9 @@ class Redis {
 
     return s;
   }
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+    return log_index_of_.CheckIfApplyAndSet(cf_id, cur_log_index);
+  }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
@@ -358,10 +361,10 @@ class Redis {
   Storage* const storage_;
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
-  LogIndexCollector log_index_collector_;
+  LogIndexAndSequenceCollector log_index_collector_;
+  LogIndexOfCF log_index_of_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
-  std::vector<int64_t> cf_applied_log_index_;
 
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;

@@ -2,7 +2,24 @@
 
 namespace storage {
 
-void LogIndexCollector::Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno) {
+Status LogIndexOfCF::Init(rocksdb::DB *db, size_t cf_num) {
+  applied_log_index_.resize(cf_num);
+  rocksdb::TablePropertiesCollection collection;
+  auto s = db->GetPropertiesOfAllTables(&collection);
+  if (!s.ok()) {
+    return s;
+  }
+
+  for (const auto &[name, props] : collection) {
+    int64_t current_lastest_applied_index = 0;
+    auto cf_id = props->column_family_id;
+    LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props, current_lastest_applied_index);
+    applied_log_index_[cf_id] = std::max(applied_log_index_[cf_id], current_lastest_applied_index);
+  }
+  return s;
+}
+
+void LogIndexAndSequenceCollector::Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno) {
   /*
     If step length > 1, log index is sampled and sacrifice precision to save memory usage.
     It means that extra applied log may be applied again on start stage.
@@ -11,12 +28,12 @@ void LogIndexCollector::Update(int64_t applied_log_index, rocksdb::SequenceNumbe
   */
   if (step_length_ == 1 || ++num_update_ % step_length_ == 0) {
     std::lock_guard<std::mutex> guard(mutex_);
-    LogIndex log_index(applied_log_index, seqno);
-    collector_.emplace_back(log_index);
+    LogIndexAndSequencePair log_index(applied_log_index, seqno);
+    list_.emplace_back(log_index);
   }
 }
 
-int64_t LogIndexCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) {
+int64_t LogIndexAndSequenceCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) {
   if (seqno == 0) {
     return 0;
   }
@@ -24,7 +41,7 @@ int64_t LogIndexCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) {
   std::lock_guard<std::mutex> guard(mutex_);
   int64_t applied_log_index = 0;
 
-  for (auto it = collector_.begin(); it != collector_.end(); it++) {
+  for (auto it = list_.begin(); it != list_.end(); it++) {
     if (seqno >= it->GetSequenceNumber()) {
       applied_log_index = it->GetAppliedLogIndex();
     } else {
@@ -35,13 +52,13 @@ int64_t LogIndexCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) {
   return applied_log_index;
 }
 
-void LogIndexCollector::Purge(int64_t applied_log_index) {
+void LogIndexAndSequenceCollector::Purge(int64_t applied_log_index) {
   std::lock_guard<std::mutex> guard(mutex_);
 
-  while (!collector_.empty()) {
-    auto &r = collector_.front();
+  while (!list_.empty()) {
+    auto &r = list_.front();
     if (applied_log_index >= r.GetAppliedLogIndex()) {
-      collector_.pop_front();
+      list_.pop_front();
     } else {
       break;
     }
