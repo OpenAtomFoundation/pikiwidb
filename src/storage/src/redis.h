@@ -211,31 +211,6 @@ class Redis {
   Status SetSmallCompactionThreshold(uint64_t small_compaction_threshold);
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   void GetRocksDBInfo(std::string& info, const char* prefix);
-  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
-  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
-  void UpdateLogIndex(int64_t applied_log_index) {
-    log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
-  }
-  Status GetLastestAppliedLogIndex() {
-    cf_applied_log_index_.resize(handles_.size());
-    rocksdb::TablePropertiesCollection collection;
-    auto s = db_->GetPropertiesOfAllTables(&collection);
-    if (!s.ok()) {
-      return s;
-    }
-
-    for (const auto& [name, props] : collection) {
-      int64_t current_lastest_applied_index = 0;
-      auto cf_id = props->column_family_id;
-      LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props, current_lastest_applied_index);
-      cf_applied_log_index_[cf_id] = std::max(cf_applied_log_index_[cf_id], current_lastest_applied_index);
-    }
-
-    return s;
-  }
-  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
-    return log_index_of_.CheckIfApplyAndSet(cf_id, cur_log_index);
-  }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
@@ -355,6 +330,14 @@ class Redis {
     return nullptr;
   }
   TaskQueue* GetTaskQueue() const { return storage_->GetTaskQueue(); }
+  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
+  void UpdateLogIndex(int64_t applied_log_index) {
+    log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
+  }
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+    return log_index_of_.CheckIfApplyAndSet(cf_id, cur_log_index);
+  }
 
  private:
   int32_t index_ = 0;
