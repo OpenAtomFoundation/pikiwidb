@@ -53,6 +53,8 @@ class LogIndexAndSequenceCollector {
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
  public:
   LogIndexTablePropertiesCollector(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
+  rocksdb::Status AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value, rocksdb::EntryType type,
+                              rocksdb::SequenceNumber seq, uint64_t file_size) override;
   rocksdb::Status Finish(rocksdb::UserCollectedProperties *properties) override;
 
   const char *Name() const override { return "LogIndexTablePropertiesCollector"; }
@@ -82,7 +84,7 @@ class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesC
     return new LogIndexTablePropertiesCollector(collector_);
   }
 
-  virtual const char *Name() const override { return "SnapshotAuxSysPropCollFactory"; }
+  virtual const char *Name() const override { return "LogIndexTablePropertiesCollectorFactory"; }
 
  private:
   const LogIndexAndSequenceCollector *collector_;
