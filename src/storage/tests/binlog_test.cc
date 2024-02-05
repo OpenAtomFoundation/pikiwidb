@@ -1,19 +1,19 @@
 #include <chrono>
-#include <iostream>
 
 #include "gtest/gtest.h"
+#include "fmt/core.h"
 
 #include "storage/storage.h"
 #include "storage/util.h"
 
-using namespace storage;
+using namespace storage;  // NOLINT
 
 class TimerGuard {
  public:
-  TimerGuard(const std::string& name = "") : name_(name) { start_ = std::chrono::steady_clock::now(); }
+  TimerGuard(std::string&& name = "") : name_(name) { start_ = std::chrono::steady_clock::now(); }
   ~TimerGuard() {
     Stop();
-    std::cout << name_ << " cost " << std::chrono::duration<double>{end_ - start_}.count() << "s" << std::endl;
+    fmt::println("{} cost {}s", name_, std::chrono::duration<double>{end_ - start_}.count());
   }
 
  private:
@@ -23,15 +23,15 @@ class TimerGuard {
   std::chrono::steady_clock::time_point end_;
 };
 
-class HashTest : public ::testing::Test {
+class BinlogHashTest : public ::testing::Test {
  public:
-  HashTest() {
+  BinlogHashTest() {
     if (access(db_path_.c_str(), F_OK) != 0) {
       mkdir(db_path_.c_str(), 0755);
     }
     options_.options.create_if_missing = true;
   }
-  ~HashTest() { DeleteFiles(db_path_.c_str()); }
+  ~BinlogHashTest() override { DeleteFiles(db_path_.c_str()); }
 
   std::string db_path_{"./test_db/hash"};
   StorageOptions options_;
@@ -42,9 +42,9 @@ class HashTest : public ::testing::Test {
   std::string value_prefix_ = "value";
 };
 
-TEST_F(HashTest, DoNothing) {}
+TEST_F(BinlogHashTest, DoNothing) {}
 
-TEST_F(HashTest, HSetUseRocksBatchWithWAL) {
+TEST_F(BinlogHashTest, HSetUseRocksBatchWithWAL) {
   options_.is_write_by_binlog = false;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
@@ -67,7 +67,7 @@ TEST_F(HashTest, HSetUseRocksBatchWithWAL) {
   }
 }
 
-TEST_F(HashTest, HSetUseRocksBatchWithoutWAL) {
+TEST_F(BinlogHashTest, HSetUseRocksBatchWithoutWAL) {
   options_.is_write_by_binlog = false;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
@@ -91,7 +91,7 @@ TEST_F(HashTest, HSetUseRocksBatchWithoutWAL) {
   }
 }
 
-TEST_F(HashTest, HSetUseBinlogBatchWithWAL) {
+TEST_F(BinlogHashTest, HSetUseBinlogBatchWithWAL) {
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
@@ -114,7 +114,7 @@ TEST_F(HashTest, HSetUseBinlogBatchWithWAL) {
   }
 }
 
-TEST_F(HashTest, HSetUseBinlogBatchWithoutWAL) {
+TEST_F(BinlogHashTest, HSetUseBinlogBatchWithoutWAL) {
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
