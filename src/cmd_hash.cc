@@ -164,22 +164,15 @@ void HGetAllCmd::DoCmd(PClient* client) {
     if (!s.ok()) {
       raw.clear();
       total_fv = 0;
-      if (s.IsNotFound()) {
-        client->AppendArrayLen(0);
-      } else {
-        client->SetRes(CmdRes::kErrOther, s.ToString());
-      }
       break;
     } else {
-      client->AppendArrayLenUint64(fvs.size() * 2);
       for (const auto& fv : fvs) {
-        client->AppendStringLenUint64(fv.field.size());
-        client->AppendContent(fv.field);
-        client->AppendStringLenUint64(fv.value.size());
-        client->AppendContent(fv.value);
+        client->RedisAppendLenUint64(raw, fv.field.size(), "$");
+        client->RedisAppendContent(raw, fv.field);
+        client->RedisAppendLenUint64(raw, fv.value.size(), "$");
+        client->RedisAppendContent(raw, fv.value);
       }
       if (raw.size() >= raw_limit) {
-        client->Clear();
         client->SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
         return;
       }
@@ -187,6 +180,13 @@ void HGetAllCmd::DoCmd(PClient* client) {
       cursor = next_cursor;
     }
   } while (cursor != 0);
+
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendArrayLen(total_fv * 2);
+    client->AppendStringRaw(raw);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
 }
 
 HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)
