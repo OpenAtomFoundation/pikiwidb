@@ -101,7 +101,7 @@ std::pair<std::string, std::string> LogIndexTablePropertiesCollector::materializ
   if (tmp_.count(largest_seqno_) != 0) {
     applied_log_index = tmp_[largest_seqno_];
   } else {
-    applied_log_index = collector_->Find(largest_seqno_);
+    applied_log_index = collector_->FindAppliedLogIndex(largest_seqno_);
     tmp_[largest_seqno_] = applied_log_index;
   }
 
