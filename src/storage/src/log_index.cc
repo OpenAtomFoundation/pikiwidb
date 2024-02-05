@@ -1,8 +1,10 @@
 #include "src/log_index.h"
 
+#include <cinttypes>
+
 namespace storage {
 
-Status LogIndexOfCF::Init(rocksdb::DB *db, size_t cf_num) {
+rocksdb::Status LogIndexOfCF::Init(rocksdb::DB *db, size_t cf_num) {
   applied_log_index_.resize(cf_num);
   rocksdb::TablePropertiesCollection collection;
   auto s = db->GetPropertiesOfAllTables(&collection);
@@ -33,7 +35,7 @@ void LogIndexAndSequenceCollector::Update(int64_t applied_log_index, rocksdb::Se
   }
 }
 
-int64_t LogIndexAndSequenceCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) {
+int64_t LogIndexAndSequenceCollector::FindAppliedLogIndex(rocksdb::SequenceNumber seqno) const {
   if (seqno == 0) {
     return 0;
   }
@@ -68,8 +70,8 @@ void LogIndexAndSequenceCollector::Purge(int64_t applied_log_index) {
 const std::string LogIndexTablePropertiesCollector::properties_name_ = "lastest_applied_log_index/largest_seqno";
 
 rocksdb::Status LogIndexTablePropertiesCollector::AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value,
-                                                             +rocksdb::EntryType type, rocksdb::SequenceNumber seq,
-                                                             +uint64_t file_size) {
+                                                             rocksdb::EntryType type, rocksdb::SequenceNumber seq,
+                                                             uint64_t file_size) {
   smallest_seqno_ = std::min(smallest_seqno_, seq);
   largest_seqno_ = std::max(largest_seqno_, seq);
   return rocksdb::Status::OK();
