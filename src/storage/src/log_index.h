@@ -27,6 +27,7 @@ class LogIndexAndSequencePair {
  public:
   LogIndexAndSequencePair(int64_t applied_log_index, rocksdb::SequenceNumber seqno)
       : applied_log_index_(applied_log_index), seqno_(seqno) {}
+
   inline int64_t GetAppliedLogIndex() const { return applied_log_index_; }
   inline rocksdb::SequenceNumber GetSequenceNumber() const { return seqno_; }
 
@@ -37,8 +38,8 @@ class LogIndexAndSequencePair {
 
 class LogIndexAndSequenceCollector {
  public:
-  LogIndexAndSequenceCollector() {}
-  LogIndexAndSequenceCollector(int64_t step_length) : step_length_(step_length) {}
+  explicit LogIndexAndSequenceCollector(int64_t step_length = 1) : step_length_(step_length) {}
+
   // purge out dated log index after braft do snapshot.
   void Purge(int64_t applied_log_index);
   void Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno);
@@ -54,18 +55,18 @@ class LogIndexAndSequenceCollector {
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
  public:
   LogIndexTablePropertiesCollector(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
+
   rocksdb::Status AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value, rocksdb::EntryType type,
                              rocksdb::SequenceNumber seq, uint64_t file_size) override;
   rocksdb::Status Finish(rocksdb::UserCollectedProperties *properties) override;
-
   const char *Name() const override { return "LogIndexTablePropertiesCollector"; }
-
   rocksdb::UserCollectedProperties GetReadableProperties() const override;
 
   static void ReadStatsFromTableProps(const std::shared_ptr<const rocksdb::TableProperties> &table_props,
                                       int64_t &applied_log_index);
 
-  std::pair<std::string, std::string> materialize() const;
+ private:
+  std::pair<std::string, std::string> Materialize() const;
 
  private:
   static const std::string properties_name_;
@@ -78,14 +79,14 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
 class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesCollectorFactory {
  public:
   LogIndexTablePropertiesCollectorFactory(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
-  virtual ~LogIndexTablePropertiesCollectorFactory() {}
+  ~LogIndexTablePropertiesCollectorFactory() override = default;
 
   rocksdb::TablePropertiesCollector *CreateTablePropertiesCollector(
       [[maybe_unused]] rocksdb::TablePropertiesCollectorFactory::Context context) override {
     return new LogIndexTablePropertiesCollector(collector_);
   }
 
-  virtual const char *Name() const override { return "LogIndexTablePropertiesCollectorFactory"; }
+  const char *Name() const override { return "LogIndexTablePropertiesCollectorFactory"; }
 
  private:
   const LogIndexAndSequenceCollector *collector_;

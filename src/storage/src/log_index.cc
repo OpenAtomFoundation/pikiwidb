@@ -43,9 +43,9 @@ int64_t LogIndexAndSequenceCollector::FindAppliedLogIndex(rocksdb::SequenceNumbe
   std::lock_guard<std::mutex> guard(mutex_);
   int64_t applied_log_index = 0;
 
-  for (auto it = list_.begin(); it != list_.end(); it++) {
-    if (seqno >= it->GetSequenceNumber()) {
-      applied_log_index = it->GetAppliedLogIndex();
+  for (const auto &it : list_) {
+    if (seqno >= it.GetSequenceNumber()) {
+      applied_log_index = it.GetAppliedLogIndex();
     } else {
       break;
     }
@@ -78,12 +78,12 @@ rocksdb::Status LogIndexTablePropertiesCollector::AddUserKey(const rocksdb::Slic
 }
 
 rocksdb::Status LogIndexTablePropertiesCollector::Finish(rocksdb::UserCollectedProperties *const properties) {
-  properties->insert(materialize());
+  properties->insert(Materialize());
   return rocksdb::Status::OK();
 }
 
 rocksdb::UserCollectedProperties LogIndexTablePropertiesCollector::GetReadableProperties() const {
-  return rocksdb::UserCollectedProperties{materialize()};
+  return rocksdb::UserCollectedProperties{Materialize()};
 }
 
 void LogIndexTablePropertiesCollector::ReadStatsFromTableProps(
@@ -97,10 +97,10 @@ void LogIndexTablePropertiesCollector::ReadStatsFromTableProps(
   }
 }
 
-std::pair<std::string, std::string> LogIndexTablePropertiesCollector::materialize() const {
+std::pair<std::string, std::string> LogIndexTablePropertiesCollector::Materialize() const {
   char buf[64];
   int64_t applied_log_index = 0;
-  if (tmp_.count(largest_seqno_) != 0) {
+  if (tmp_.contains(largest_seqno_)) {
     applied_log_index = tmp_[largest_seqno_];
   } else {
     applied_log_index = collector_->FindAppliedLogIndex(largest_seqno_);
