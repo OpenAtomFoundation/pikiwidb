@@ -38,7 +38,7 @@ void LogIndexAndSequenceOfCF::SetFlushedSeqno(size_t cf_id, rocksdb::SequenceNum
   cf_[cf_id].SetSequenceNumber(seqno);
 }
 
-int64_t LogIndexAndSequenceOfCF::GetSmallestAppliedLogIndex() {
+int64_t LogIndexAndSequenceOfCF::GetSmallestAppliedLogIndex() const {
   int64_t smallest_applied_log_index = std::numeric_limits<int64_t>::max();
   for (const auto &it : cf_) {
     smallest_applied_log_index = std::min(it.GetAppliedLogIndex(), smallest_applied_log_index);
@@ -46,7 +46,7 @@ int64_t LogIndexAndSequenceOfCF::GetSmallestAppliedLogIndex() {
   return smallest_applied_log_index;
 }
 
-rocksdb::SequenceNumber LogIndexAndSequenceOfCF::GetSmallestFlushedSeqno() {
+rocksdb::SequenceNumber LogIndexAndSequenceOfCF::GetSmallestFlushedSeqno() const {
   rocksdb::SequenceNumber smallest_seqno = std::numeric_limits<rocksdb::SequenceNumber>::max();
   for (const auto &it : cf_) {
     smallest_seqno = std::min(it.GetSequenceNumber(), smallest_seqno);
@@ -61,8 +61,13 @@ void LogIndexAndSequenceCollector::Update(int64_t applied_log_index, rocksdb::Se
   */
   if (applied_log_index & step_length_mask_ == 0) {
     std::lock_guard<std::mutex> guard(mutex_);
-    LogIndexAndSequencePair log_index(applied_log_index, seqno);
-    list_.emplace_back(log_index);
+    LogIndexAndSequencePair pair(applied_log_index, seqno);
+    list_.emplace_back(pair);
+
+    if (applied_log_index & skip_length_mask_ == 0) {
+      PairAndIterator s(pair, std::prev(list_.end()));
+      skip_list_.emplace_back(s);
+    }
   }
 }
 
@@ -73,38 +78,26 @@ int64_t LogIndexAndSequenceCollector::FindAppliedLogIndex(rocksdb::SequenceNumbe
 
   std::lock_guard<std::mutex> guard(mutex_);
   int64_t applied_log_index = 0;
+  auto it = list_.begin();
 
-  for (const auto &it : list_) {
-    if (seqno >= it.GetSequenceNumber()) {
-      applied_log_index = it.GetAppliedLogIndex();
+  // use skip list to find the best iterator for search seqno
+  for (const auto &s : skip_list_) {
+    if (seqno >= s.GetSequenceNumber()) {
+      it = s.GetIterator();
+    } else {
+      break;
+    }
+  }
+
+  for (; it != list_.end(); it++) {
+    if (seqno >= it->GetSequenceNumber()) {
+      applied_log_index = it->GetAppliedLogIndex();
     } else {
       break;
     }
   }
 
   return applied_log_index;
-}
-
-void LogIndexAndSequenceCollector::Purge(int64_t smallest_applied_log_index,
-                                         rocksdb::SequenceNumber smallest_flush_seqno) {
-  std::lock_guard<std::mutex> guard(mutex_);
-  // purge condition:
-  // We found first pair is greater than both smallest_flush_seqno and smallest_applied_log_index,
-  // then we keep previous one, and purge everyone before previous one.
-  // More aggressively(we don't do it yet), we can found first pair is greater than smallest_applied_log_index.
-  LogIndexAndSequencePair tmp;
-  while (list_.size() > 1) {
-    auto &cur = list_.front();
-    if (smallest_flush_seqno >= cur.GetSequenceNumber()) {
-      list_.pop_front();
-      tmp = cur;
-    } else {
-      if (smallest_applied_log_index < cur.GetAppliedLogIndex()) {
-        list_.emplace_front(tmp);
-      }
-      break;
-    }
-  }
 }
 
 rocksdb::Status LogIndexTablePropertiesCollector::AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value,

@@ -34,8 +34,8 @@ class LogIndexAndSequenceOfCF {
 
   bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index);
   void SetFlushedSeqno(size_t cf_id, rocksdb::SequenceNumber seqno);
-  int64_t GetSmallestAppliedLogIndex();
-  rocksdb::SequenceNumber GetSmallestFlushedSeqno();
+  int64_t GetSmallestAppliedLogIndex() const;
+  rocksdb::SequenceNumber GetSmallestFlushedSeqno() const;
 
  private:
   // log index: newest record in memtable.
@@ -44,22 +44,61 @@ class LogIndexAndSequenceOfCF {
 };
 
 class LogIndexAndSequenceCollector {
+ private:
+  mutable std::mutex mutex_;
+  std::list<LogIndexAndSequencePair> list_;
+  class PairAndIterator {
+   public:
+    PairAndIterator() {}
+    PairAndIterator(LogIndexAndSequencePair pair, decltype(list_)::iterator iter) : pair_(pair), iter_(iter) {}
+    inline int64_t GetAppliedLogIndex() const { return pair_.GetAppliedLogIndex(); }
+    inline rocksdb::SequenceNumber GetSequenceNumber() const { return pair_.GetSequenceNumber(); }
+    inline decltype(list_)::iterator GetIterator() const { return iter_; }
+
+   private:
+    LogIndexAndSequencePair pair_;
+    decltype(list_)::iterator iter_;
+  };
+  std::list<PairAndIterator> skip_list_;
+  int64_t step_length_mask_ = 0;
+  int64_t skip_length_mask_ = 0;
+
  public:
-  explicit LogIndexAndSequenceCollector(uint8_t step_length_bit = 0) {
-    if (step_length_bit > 0) {
-      step_length_mask_ = 1 << (step_length_bit - 1);
+  explicit LogIndexAndSequenceCollector(uint8_t step_length_bit = 0, uint8_t extra_skip_length_bit = 8) {
+    step_length_mask_ = (1 << step_length_bit) - 1;
+    skip_length_mask_ = (1 << step_length_bit + extra_skip_length_bit) - 1;
+  }
+
+  void Update(int64_t smallest_applied_log_index, rocksdb::SequenceNumber smallest_flush_seqno);
+  int64_t FindAppliedLogIndex(rocksdb::SequenceNumber seqno) const;
+
+  template <typename T>
+  void Purge(std::list<T> list, int64_t smallest_applied_log_index, rocksdb::SequenceNumber smallest_flush_seqno) {
+    // purge condition:
+    // We found first pair is greater than both smallest_flush_seqno and smallest_applied_log_index,
+    // then we keep previous one, and purge everyone before previous one.
+    // More aggressively(we don't do it yet), we can found first pair is greater than smallest_applied_log_index.
+    T tmp;
+    while (list.size() > 1) {
+      auto &cur = list.front();
+      if (smallest_flush_seqno >= cur.GetSequenceNumber()) {
+        tmp = cur;
+        list.pop_front();
+      } else {
+        if (smallest_applied_log_index < cur.GetAppliedLogIndex()) {
+          list.emplace_front(tmp);
+        }
+        break;
+      }
     }
   }
 
   // purge out dated log index after memtable flushed.
-  void Purge(int64_t applied_log_index, rocksdb::SequenceNumber seqno);
-  void Update(int64_t smallest_applied_log_index, rocksdb::SequenceNumber smallest_flush_seqno);
-  int64_t FindAppliedLogIndex(rocksdb::SequenceNumber seqno) const;
-
- private:
-  std::list<LogIndexAndSequencePair> list_;
-  mutable std::mutex mutex_;
-  int64_t step_length_mask_ = 0;
+  void Purge(int64_t smallest_applied_log_index, rocksdb::SequenceNumber smallest_flush_seqno) {
+    std::lock_guard<std::mutex> guard(mutex_);
+    Purge(list_, smallest_applied_log_index, smallest_flush_seqno);
+    Purge(skip_list_, smallest_applied_log_index, smallest_flush_seqno);
+  }
 };
 
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
