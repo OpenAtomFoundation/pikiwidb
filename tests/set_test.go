@@ -88,10 +88,9 @@ var _ = Describe("Set", Ordered, func() {
 		sUnion = client.SUnion(ctx, "nonexistent_set1", "nonexistent_set2")
 		Expect(sUnion.Err()).NotTo(HaveOccurred())
 		Expect(sUnion.Val()).To(HaveLen(0))
-	})
 
 		//del
-		del := client.Del(ctx,"set1","set2")
+		del := client.Del(ctx, "set1", "set2")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
@@ -119,7 +118,7 @@ var _ = Describe("Set", Ordered, func() {
 		//Expect(sMembers.Val()).To(HaveLen(5))
 
 		//del
-		del := client.Del(ctx,"set1","set2","set")
+		del := client.Del(ctx, "set1", "set2", "set")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 	It("Cmd SADD", func() {
@@ -144,7 +143,7 @@ var _ = Describe("Set", Ordered, func() {
 		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
 
 		//del
-		del := client.Del(ctx,"setSAdd1")
+		del := client.Del(ctx, "setSAdd1")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
@@ -158,7 +157,7 @@ var _ = Describe("Set", Ordered, func() {
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
 		//del
-		del := client.Del(ctx,"setSAdd2")
+		del := client.Del(ctx, "setSAdd2")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 	It("should SInter", func() {
@@ -185,7 +184,7 @@ var _ = Describe("Set", Ordered, func() {
 		Expect(sInter.Val()).To(HaveLen(0))
 
 		//del
-		del := client.Del(ctx,"set1","set2")
+		del := client.Del(ctx, "set1", "set2")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
@@ -212,22 +211,22 @@ var _ = Describe("Set", Ordered, func() {
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(Equal([]string{"c"}))
 		//del
-		del := client.Del(ctx,"set1","set2","set")
+		del := client.Del(ctx, "set1", "set2", "set")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
-        It("should SCard", func() {
-                sAdd := client.SAdd(ctx, "setScard", "Hello")
-                Expect(sAdd.Err()).NotTo(HaveOccurred())
-                Expect(sAdd.Val()).To(Equal(int64(1)))
+	It("should SCard", func() {
+		sAdd := client.SAdd(ctx, "setScard", "Hello")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
 
-                sAdd = client.SAdd(ctx, "setScard", "World")
-                Expect(sAdd.Err()).NotTo(HaveOccurred())
-                Expect(sAdd.Val()).To(Equal(int64(1)))
+		sAdd = client.SAdd(ctx, "setScard", "World")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
 
 		sCard := client.SCard(ctx, "setScard")
-                Expect(sCard.Err()).NotTo(HaveOccurred())
-                Expect(sCard.Val()).To(Equal(int64(2)))
+		Expect(sCard.Err()).NotTo(HaveOccurred())
+		Expect(sCard.Val()).To(Equal(int64(2)))
 
-        })
+	})
 
 })
