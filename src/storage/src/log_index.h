@@ -78,16 +78,13 @@ class LogIndexAndSequenceCollector {
     // We found first pair is greater than both smallest_flush_seqno and smallest_applied_log_index,
     // then we keep previous one, and purge everyone before previous one.
     // More aggressively(we don't do it yet), we can found first pair is greater than smallest_applied_log_index.
-    T tmp;
-    while (list.size() > 1) {
-      auto &cur = list.front();
-      if (smallest_flush_seqno >= cur.GetSequenceNumber()) {
-        tmp = cur;
+    while (list.size() >= 2) {
+      auto cur = list.begin();
+      auto next = std::next(cur);
+      if (smallest_flush_seqno >= cur->GetSequenceNumber() &&
+          smallest_applied_log_index >= next->GetAppliedLogIndex()) {
         list.pop_front();
       } else {
-        if (smallest_applied_log_index < cur.GetAppliedLogIndex()) {
-          list.emplace_front(tmp);
-        }
         break;
       }
     }
