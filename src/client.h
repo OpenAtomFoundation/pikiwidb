@@ -82,7 +82,6 @@ class CmdRes {
 
   void SetRes(CmdRet _ret, const std::string& content = "");
 
- protected:
   inline void RedisAppendContent(std::string& str, const std::string& value) {
     str.append(value.data(), value.size());
     str.append(CRLF);
