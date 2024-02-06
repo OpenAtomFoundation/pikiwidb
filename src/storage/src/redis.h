@@ -6,6 +6,7 @@
 #ifndef SRC_REDIS_H_
 #define SRC_REDIS_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -38,8 +39,6 @@ class Redis {
   virtual ~Redis();
 
   rocksdb::DB* GetDB() { return db_; }
-  auto GetWriteOptions() -> const rocksdb::WriteOptions& { return default_write_options_; }
-  auto GetColumnFamilyHandles() -> const std::vector<rocksdb::ColumnFamilyHandle*>& { return handles_; }
 
   struct KeyStatistics {
     size_t window_size;
@@ -331,6 +330,7 @@ class Redis {
   }
   TaskQueue* GetTaskQueue() const { return storage_->GetTaskQueue(); }
   auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetColumnFamilyHandles() const -> const std::vector<rocksdb::ColumnFamilyHandle*>& { return handles_; }
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
   void UpdateLogIndex(int64_t applied_log_index) {
     log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());

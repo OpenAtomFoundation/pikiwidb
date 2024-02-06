@@ -1,24 +1,32 @@
 #include "src/log_index.h"
 
 #include <cinttypes>
+#include <cstdint>
+#include <optional>
+
+#include "src/redis.h"
+#include "storage/storage.h"
 
 namespace storage {
 
-rocksdb::Status LogIndexOfCF::Init(rocksdb::DB *db, size_t cf_num) {
+rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
   applied_log_index_.resize(cf_num);
-  rocksdb::TablePropertiesCollection collection;
-  auto s = db->GetPropertiesOfAllTables(&collection);
-  if (!s.ok()) {
-    return s;
+  for (int i = 0; i < cf_num; i++) {
+    rocksdb::TablePropertiesCollection collection;
+    auto s = db->GetDB()->GetPropertiesOfAllTables(db->GetColumnFamilyHandle(i), &collection);
+    if (!s.ok()) {
+      return s;
+    }
+    for (const auto &[_, props] : collection) {
+      assert(props->column_family_id == i);
+      auto current_latest_applied_index = LogIndexTablePropertiesCollector::ReadLogIndexFromTableProperties(props);
+      if (!current_latest_applied_index.has_value()) {
+        *current_latest_applied_index = 0;
+      }
+      applied_log_index_[i] = std::max(applied_log_index_[i], *current_latest_applied_index);
+    }
   }
-
-  for (const auto &[name, props] : collection) {
-    int64_t current_lastest_applied_index = 0;
-    auto cf_id = props->column_family_id;
-    LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props, current_lastest_applied_index);
-    applied_log_index_[cf_id] = std::max(applied_log_index_[cf_id], current_lastest_applied_index);
-  }
-  return s;
+  return Status::OK();
 }
 
 void LogIndexAndSequenceCollector::Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno) {
@@ -84,15 +92,17 @@ rocksdb::UserCollectedProperties LogIndexTablePropertiesCollector::GetReadablePr
   return rocksdb::UserCollectedProperties{Materialize()};
 }
 
-void LogIndexTablePropertiesCollector::ReadStatsFromTableProps(
-    const std::shared_ptr<const rocksdb::TableProperties> &table_props, int64_t &applied_log_index) {
+std::optional<int64_t> LogIndexTablePropertiesCollector::ReadLogIndexFromTableProperties(
+    const std::shared_ptr<const rocksdb::TableProperties> &table_props) {
   const auto &user_properties = table_props->user_collected_properties;
   const auto it = user_properties.find(kPropertyName_);
-  if (it != user_properties.end()) {
-    std::string s = it->second;
-    rocksdb::SequenceNumber largest_seqno;
-    sscanf(s.c_str(), "%" PRIi64 "/%" PRIu64 "", &applied_log_index, &largest_seqno);
+  if (it == user_properties.end()) {
+    return std::nullopt;
   }
+  int64_t applied_log_index{};
+  rocksdb::SequenceNumber largest_seqno{};
+  sscanf(it->second.c_str(), "%" PRIi64 "/%" PRIu64 "", &applied_log_index, &largest_seqno);
+  return applied_log_index;
 }
 
 std::pair<std::string, std::string> LogIndexTablePropertiesCollector::Materialize() const {

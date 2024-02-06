@@ -1,18 +1,20 @@
 #pragma once
 
+#include <cstdint>
 #include <list>
 #include <mutex>
+#include <optional>
 
-#include "rocksdb/db.h"
 #include "rocksdb/table_properties.h"
 #include "rocksdb/types.h"
-#include "rocksdb/utilities/table_properties_collectors.h"
 
 namespace storage {
 
+class Redis;
+
 class LogIndexOfCF {
  public:
-  rocksdb::Status Init(rocksdb::DB *db, size_t cf_num);
+  rocksdb::Status Init(Redis *db, size_t cf_num);
 
   inline bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
     applied_log_index_[cf_id] = std::max(cur_log_index, applied_log_index_[cf_id]);
@@ -62,8 +64,8 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
   const char *Name() const override { return "LogIndexTablePropertiesCollector"; }
   rocksdb::UserCollectedProperties GetReadableProperties() const override;
 
-  static void ReadStatsFromTableProps(const std::shared_ptr<const rocksdb::TableProperties> &table_props,
-                                      int64_t &applied_log_index);
+  static std::optional<int64_t> ReadLogIndexFromTableProperties(
+      const std::shared_ptr<const rocksdb::TableProperties> &table_props);
   static const inline std::string kPropertyName_{"latest-applied-log-index/largest-sequence-number"};
 
  private:

@@ -42,6 +42,7 @@ enum ColumnFamilyIndex {
   kZsetsMetaCF = 7,
   kZsetsDataCF = 8,
   kZsetsScoreCF = 9,
+  kColumnFamilyNum
 };
 
 const static char kNeedTransformCharacter = '\u0000';

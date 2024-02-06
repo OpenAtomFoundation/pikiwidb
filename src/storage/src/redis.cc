@@ -15,6 +15,7 @@
 #include "src/redis.h"
 #include "src/strings_filter.h"
 #include "src/zsets_filter.h"
+#include "storage/storage_define.h"
 
 #define ADD_TABLE_PROPERTY_COLLECTOR_FACTORY(type)                                         \
   if (is_write_by_binlog_) {                                                               \
@@ -171,7 +172,12 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   column_families.emplace_back("zset_meta_cf", zset_meta_cf_ops);
   column_families.emplace_back("zset_data_cf", zset_data_cf_ops);
   column_families.emplace_back("zset_score_cf", zset_score_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+
+  auto s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  return log_index_of_.Init(this, kColumnFamilyNum);
 }
 
 Status Redis::GetScanStartPoint(const DataType& type, const Slice& key, const Slice& pattern, int64_t cursor,
