@@ -59,7 +59,7 @@ class TaskQueue : public pstd::noncopyable {
   }
 
  private:
-  std::atomic<int64_t> next_idx_;
+  std::atomic<int64_t> next_idx_{1};
   WriteCallback write_cb_;
   pstd::ThreadPool consumer_;
 };

@@ -16,13 +16,17 @@ class LogIndexOfCF {
  public:
   rocksdb::Status Init(Redis *db, size_t cf_num);
 
-  inline bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
     applied_log_index_[cf_id] = std::max(cur_log_index, applied_log_index_[cf_id]);
-    return cur_log_index == applied_log_index_[cf_id];
+    if (!is_cache_up_[cf_id]) {
+      is_cache_up_[cf_id] = (cur_log_index == applied_log_index_[cf_id]);
+    }
+    return is_cache_up_[cf_id];
   }
 
  private:
   std::vector<int64_t> applied_log_index_;
+  std::vector<bool> is_cache_up_;
 };
 
 class LogIndexAndSequencePair {

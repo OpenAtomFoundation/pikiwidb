@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <optional>
+#include <vector>
 
 #include "src/redis.h"
 #include "storage/storage.h"
@@ -11,6 +12,7 @@ namespace storage {
 
 rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
   applied_log_index_.resize(cf_num);
+  is_cache_up_ = std::vector<bool>(cf_num, false);
   for (int i = 0; i < cf_num; i++) {
     rocksdb::TablePropertiesCollection collection;
     auto s = db->GetDB()->GetPropertiesOfAllTables(db->GetColumnFamilyHandle(i), &collection);

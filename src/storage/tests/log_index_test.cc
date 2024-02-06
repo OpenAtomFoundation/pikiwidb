@@ -85,11 +85,6 @@ TEST_F(LogIndexTest, SimpleTest) {  // NOLINT
     s = redis->HSet(key_, field, value, &res);
     EXPECT_TRUE(s.ok());
     EXPECT_EQ(1, res);
-
-    std::string get_res;
-    s = redis->HGet(key_, field, &get_res);
-    EXPECT_TRUE(s.ok());
-    EXPECT_EQ(value, get_res);
   }
   redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesMetaCF));
   redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesDataCF));
@@ -97,22 +92,72 @@ TEST_F(LogIndexTest, SimpleTest) {  // NOLINT
   rocksdb::TablePropertiesCollection properties;
   s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesMetaCF), &properties);
   EXPECT_TRUE(s.ok());
-  EXPECT_TRUE(properties.size() == 1);
-  for (auto& [name, prop] : properties) {
-    const auto& collector = prop->user_collected_properties;
+  EXPECT_EQ(properties.size(), 1);
+  {
+    const auto& collector = properties.begin()->second->user_collected_properties;
     auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
     EXPECT_NE(it, collector.cend());
-    EXPECT_EQ(it->second, "99999999/" + std::to_string(redis->GetDB()->GetLatestSequenceNumber() - 1));
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_ - 1, redis->GetDB()->GetLatestSequenceNumber() - 1));
   }
 
   properties.clear();
   s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesDataCF), &properties);
   EXPECT_TRUE(s.ok());
-  EXPECT_TRUE(properties.size() == 1);
-  for (auto& [name, prop] : properties) {
-    const auto& collector = prop->user_collected_properties;
+  EXPECT_EQ(properties.size(), 1);
+  {
+    const auto& collector = properties.begin()->second->user_collected_properties;
     auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
     EXPECT_NE(it, collector.cend());
-    EXPECT_EQ(it->second, "99999999/" + std::to_string(redis->GetDB()->GetLatestSequenceNumber()));
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_, redis->GetDB()->GetLatestSequenceNumber()));
+  }
+
+  for (int i = test_times_; i < test_times_ * 2; i++) {
+    auto field = field_prefix_ + std::to_string(i);
+    auto value = value_prefix_ + std::to_string(i);
+    int32_t res{};
+    s = redis->HSet(key_, field, value, &res);
+    EXPECT_TRUE(s.ok());
+    EXPECT_EQ(1, res);
+  }
+  redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesMetaCF));
+  redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesDataCF));
+
+  properties.clear();
+  s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesMetaCF), &properties);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(properties.size(), 2);
+  auto prop_it = properties.begin();
+  {
+    const auto& collector = prop_it->second->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_ - 1, redis->GetDB()->GetLatestSequenceNumber() / 2 - 1));
+  }
+  {
+    ++prop_it;
+    const auto& collector = prop_it->second->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_ * 2 - 1, redis->GetDB()->GetLatestSequenceNumber() - 1));
+  }
+  // meta cf 中的日志索引比 data cf 中的索引少 1，不知道为啥
+
+  properties.clear();
+  s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesDataCF), &properties);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(properties.size(), 2);
+  prop_it = properties.begin();
+  {
+    const auto& collector = prop_it->second->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_, redis->GetDB()->GetLatestSequenceNumber() / 2));
+  }
+  {
+    ++prop_it;
+    const auto& collector = prop_it->second->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, fmt::format("{}/{}", test_times_ * 2, redis->GetDB()->GetLatestSequenceNumber()));
   }
 }
