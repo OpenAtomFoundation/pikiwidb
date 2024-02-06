@@ -72,6 +72,9 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   rocksdb::DBOptions db_ops(storage_options.options);
   db_ops.create_missing_column_families = true;
 
+  db_ops.listeners.push_back(
+      std::make_shared<LogIndexAndSequenceCollectorPurger>(&log_index_collector_, &log_index_and_sequence_of_cf_));
+
   // string column-family options
   rocksdb::ColumnFamilyOptions string_cf_ops(storage_options.options);
   string_cf_ops.compaction_filter_factory = std::make_shared<StringsFilterFactory>();
@@ -177,7 +180,7 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   if (!s.ok()) {
     return s;
   }
-  return log_index_of_.Init(this, kColumnFamilyNum);
+  return log_index_and_sequence_of_cf_.Init(this, kColumnFamilyNum);
 }
 
 Status Redis::GetScanStartPoint(const DataType& type, const Slice& key, const Slice& pattern, int64_t cursor,

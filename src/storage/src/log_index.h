@@ -5,31 +5,21 @@
 #include <mutex>
 #include <optional>
 
+#include "rocksdb/db.h"
+#include "rocksdb/listener.h"
 #include "rocksdb/table_properties.h"
 #include "rocksdb/types.h"
 
 namespace storage {
 
 class Redis;
-
-class LogIndexOfCF {
- public:
-  rocksdb::Status Init(Redis *db, size_t cf_num);
-
-  inline bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
-    applied_log_index_[cf_id] = std::max(cur_log_index, applied_log_index_[cf_id]);
-    return cur_log_index == applied_log_index_[cf_id];
-  }
-
- private:
-  std::vector<int64_t> applied_log_index_;
-};
-
 class LogIndexAndSequencePair {
  public:
+  LogIndexAndSequencePair() {}
   LogIndexAndSequencePair(int64_t applied_log_index, rocksdb::SequenceNumber seqno)
       : applied_log_index_(applied_log_index), seqno_(seqno) {}
-
+  inline void SetAppliedLogIndex(int64_t applied_log_index) { applied_log_index_ = applied_log_index; }
+  inline void SetSequenceNumber(rocksdb::SequenceNumber seqno) { seqno_ = seqno; }
   inline int64_t GetAppliedLogIndex() const { return applied_log_index_; }
   inline rocksdb::SequenceNumber GetSequenceNumber() const { return seqno_; }
 
@@ -38,20 +28,38 @@ class LogIndexAndSequencePair {
   rocksdb::SequenceNumber seqno_ = 0;
 };
 
+class LogIndexAndSequenceOfCF {
+ public:
+  rocksdb::Status Init(Redis *db, size_t cf_num);
+
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index);
+  void SetFlushedSeqno(size_t cf_id, rocksdb::SequenceNumber seqno);
+  int64_t GetSmallestAppliedLogIndex();
+  rocksdb::SequenceNumber GetSmallestFlushedSeqno();
+
+ private:
+  // log index: newest record in memtable.
+  // seqno: newest roceord in sst file.
+  std::vector<LogIndexAndSequencePair> cf_;
+};
+
 class LogIndexAndSequenceCollector {
  public:
-  explicit LogIndexAndSequenceCollector(int64_t step_length = 1) : step_length_(step_length) {}
+  explicit LogIndexAndSequenceCollector(uint8_t step_length_bit = 0) {
+    if (step_length_bit > 0) {
+      step_length_mask_ = 1 << (step_length_bit - 1);
+    }
+  }
 
-  // purge out dated log index after braft do snapshot.
-  void Purge(int64_t applied_log_index);
-  void Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno);
+  // purge out dated log index after memtable flushed.
+  void Purge(int64_t applied_log_index, rocksdb::SequenceNumber seqno);
+  void Update(int64_t smallest_applied_log_index, rocksdb::SequenceNumber smallest_flush_seqno);
   int64_t FindAppliedLogIndex(rocksdb::SequenceNumber seqno) const;
 
  private:
   std::list<LogIndexAndSequencePair> list_;
   mutable std::mutex mutex_;
-  uint64_t num_update_ = 0;
-  uint64_t step_length_ = 1;
+  int64_t step_length_mask_ = 0;
 };
 
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
@@ -64,7 +72,7 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
   const char *Name() const override { return "LogIndexTablePropertiesCollector"; }
   rocksdb::UserCollectedProperties GetReadableProperties() const override;
 
-  static std::optional<int64_t> ReadLogIndexFromTableProperties(
+  static std::optional<LogIndexAndSequencePair> ReadStatsFromTableProps(
       const std::shared_ptr<const rocksdb::TableProperties> &table_props);
   static const inline std::string kPropertyName_{"latest-applied-log-index/largest-sequence-number"};
 
@@ -93,6 +101,17 @@ class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesC
 
  private:
   const LogIndexAndSequenceCollector *collector_;
+};
+
+class LogIndexAndSequenceCollectorPurger : public rocksdb::EventListener {
+ public:
+  explicit LogIndexAndSequenceCollectorPurger(LogIndexAndSequenceCollector *collector, LogIndexAndSequenceOfCF *cf)
+      : collector_(collector), cf_(cf) {}
+  void OnFlushCompleted(rocksdb::DB *db, const rocksdb::FlushJobInfo &flush_job_info) override;
+
+ private:
+  LogIndexAndSequenceCollector *collector_;
+  LogIndexAndSequenceOfCF *cf_;
 };
 
 }  // namespace storage

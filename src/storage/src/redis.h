@@ -336,7 +336,7 @@ class Redis {
     log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
   }
   bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
-    return log_index_of_.CheckIfApplyAndSet(cf_id, cur_log_index);
+    return log_index_and_sequence_of_cf_.CheckIfApplyAndSet(cf_id, cur_log_index);
   }
 
  private:
@@ -345,7 +345,7 @@ class Redis {
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
   LogIndexAndSequenceCollector log_index_collector_;
-  LogIndexOfCF log_index_of_;
+  LogIndexAndSequenceOfCF log_index_and_sequence_of_cf_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
 
