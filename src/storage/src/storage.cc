@@ -2221,23 +2221,24 @@ void Storage::DefaultWriteCallback(const Task& task) {
 
   rocksdb::WriteBatch batch;
   for (const auto& entry : log.entries()) {
-    switch (entry.op_type()) {
-      case OperateType::kPut: {
-        assert(entry.has_value());
-        batch.Put(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
-      } break;
-      case OperateType::kDelete: {
-        assert(!entry.has_value());
-        batch.Delete(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
-      } break;
-      default:
-        assert(0);
+    if (inst->CheckIfApplyAndSet(entry.cf_idx(), task.log_idx_)) {
+      switch (entry.op_type()) {
+        case OperateType::kPut: {
+          assert(entry.has_value());
+          batch.Put(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
+        } break;
+        case OperateType::kDelete: {
+          assert(!entry.has_value());
+          batch.Delete(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
+        } break;
+        default:
+          assert(0);
+      }
     }
   }
 
   auto s = inst->GetDB()->Write(inst->GetWriteOptions(), &batch);
-  int64_t cur_log_index = 99999999;  // TODO(): get real log index
-  inst->UpdateLogIndex(cur_log_index);
+  inst->UpdateLogIndex(task.log_idx_);
   done->SetStatus(std::move(s));
 }
 
