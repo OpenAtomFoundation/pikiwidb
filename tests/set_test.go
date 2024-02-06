@@ -88,6 +88,7 @@ var _ = Describe("Set", Ordered, func() {
 		sUnion = client.SUnion(ctx, "nonexistent_set1", "nonexistent_set2")
 		Expect(sUnion.Err()).NotTo(HaveOccurred())
 		Expect(sUnion.Val()).To(HaveLen(0))
+	})
 
 		//del
 		del := client.Del(ctx,"set1","set2")
@@ -214,4 +215,19 @@ var _ = Describe("Set", Ordered, func() {
 		del := client.Del(ctx,"set1","set2","set")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
+        It("should SCard", func() {
+                sAdd := client.SAdd(ctx, "setScard", "Hello")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                Expect(sAdd.Val()).To(Equal(int64(1)))
+
+                sAdd = client.SAdd(ctx, "setScard", "World")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		sCard := client.SCard(ctx, "setScard")
+                Expect(sCard.Err()).NotTo(HaveOccurred())
+                Expect(sCard.Val()).To(Equal(int64(2)))
+
+        })
+
 })

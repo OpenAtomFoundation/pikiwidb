@@ -68,6 +68,11 @@ PConfig::PConfig() {
   backendHz = 10;
 
   max_client_response_size = 1073741824;
+
+  db_instance_num = 3;
+
+  rocksdb_ttl_second = 0;
+  rocksdb_periodic_second = 0;
 }
 
 bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
@@ -176,6 +181,10 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
 
   cfg.max_client_response_size = parser.GetData<int64_t>("max_client_response_size");
 
+  cfg.db_instance_num = parser.GetData<int>("db-instance-num", 3);
+  cfg.rocksdb_ttl_second = parser.GetData<uint64_t>("rocksdb-ttl-second");
+  cfg.rocksdb_periodic_second = parser.GetData<uint64_t>("rocksdb-periodic-second");
+
   return cfg.CheckArgs();
 }
 
@@ -195,7 +204,9 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(worker_threads_num > 0 && worker_threads_num < 129);  // as redis
   RETURN_IF_FAIL(backend >= kBackEndNone && backend < kBackEndMax);
   RETURN_IF_FAIL(backendHz >= 1 && backendHz <= 50);
-
+  RETURN_IF_FAIL(db_instance_num >= 1);
+  RETURN_IF_FAIL(rocksdb_ttl_second > 0);
+  RETURN_IF_FAIL(rocksdb_periodic_second > 0);
 #undef RETURN_IF_FAIL
 
   return true;

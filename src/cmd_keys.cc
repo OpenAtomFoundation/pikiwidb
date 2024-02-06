@@ -20,7 +20,7 @@ bool DelCmd::DoInitial(PClient* client) {
 }
 
 void DelCmd::DoCmd(PClient* client) {
-  int64_t count = PSTORE.GetBackend()->Del(client->Keys());
+  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->Del(client->Keys());
   if (count >= 0) {
     client->AppendInteger(count);
   } else {
@@ -38,11 +38,14 @@ bool ExistsCmd::DoInitial(PClient* client) {
 }
 
 void ExistsCmd::DoCmd(PClient* client) {
-  int64_t count = PSTORE.GetBackend()->Exists(client->Keys());
+  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->Exists(client->Keys());
   if (count >= 0) {
     client->AppendInteger(count);
-  } else {
-    client->SetRes(CmdRes::kErrOther, "exists internal error");
+    if (PSTORE.ExistsKey(client->Key())) {
+      client->AppendInteger(1);
+    } else {
+      client->SetRes(CmdRes::kErrOther, "exists internal error");
+    }
   }
 }
 

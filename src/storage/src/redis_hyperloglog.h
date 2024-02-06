@@ -3,7 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef SRC_REDIS_HYPERLOGLOG_H_
+#define SRC_REDIS_HYPERLOGLOG_H_
 
 #include <cstdint>
 #include <iostream>
@@ -34,3 +35,5 @@ class HyperLogLog {
 };
 
 }  // namespace storage
+
+#endif  // SRC_REDIS_HYPERLOGLOG_H_

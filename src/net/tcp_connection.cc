@@ -119,7 +119,8 @@ bool TcpConnection::SendPacket(const void* data, size_t size) {
     evbuffer_add(output, data, size);
   } else {
     auto w_obj(weak_from_this());
-    loop_->Execute([w_obj, data, size]() {
+    auto tmp = std::string(static_cast<const char*>(data), size);
+    loop_->Execute([w_obj, tmp = std::move(tmp)]() {
       auto c = w_obj.lock();
       if (!c) {
         return;  // connection already lost
@@ -127,7 +128,7 @@ bool TcpConnection::SendPacket(const void* data, size_t size) {
 
       auto tcp_conn = std::static_pointer_cast<TcpConnection>(c);
       auto output = bufferevent_get_output(tcp_conn->bev_);
-      evbuffer_add(output, data, size);
+      evbuffer_add(output, tmp.data(), tmp.size());
     });
   }
   return true;

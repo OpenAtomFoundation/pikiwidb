@@ -6,9 +6,7 @@
  */
 
 #include "cmd_list.h"
-
-#include <pstd_string.h>
-
+#include "pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -24,7 +22,7 @@ bool LPushCmd::DoInitial(PClient* client) {
 void LPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend()->LPush(client->Key(), list_values, &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -43,7 +41,7 @@ bool RPushCmd::DoInitial(PClient* client) {
 void RPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend()->RPush(client->Key(), list_values, &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->RPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -61,7 +59,7 @@ bool RPopCmd::DoInitial(PClient* client) {
 
 void RPopCmd::DoCmd(PClient* client) {
   std::vector<std::string> elements;
-  storage::Status s = PSTORE.GetBackend()->RPop(client->Key(), 1, &elements);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->RPop(client->Key(), 1, &elements);
   if (s.ok()) {
     client->AppendString(elements[0]);
   } else if (s.IsNotFound()) {
@@ -73,23 +71,30 @@ void RPopCmd::DoCmd(PClient* client) {
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
 
-bool LRangeCmd::DoInitial(PClient* client) {
+LRemCmd::LRemCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LRemCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void LRangeCmd::DoCmd(PClient* client) {
-  std::vector<std::string> ret;
-  int64_t start_index = 0, end_index = 0;
-  if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
+void LRemCmd::DoCmd(PClient* client) {
+  int64_t freq_ = 0;
+  std::string count = client->argv_[2];
+  if (pstd::String2int(count, &freq_) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
   }
-  storage::Status s = PSTORE.GetBackend()->LRange(client->Key(), start_index, end_index, &ret);
-  if (!s.ok() && !s.IsNotFound()) {
-    client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
-    return;
+
+  uint64_t reply_num = 0;
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->LRem(client->Key(), freq_, client->argv_[3], &reply_num);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "lrem cmd error");
   }
-  client->AppendStringVector(ret);
 }
+
 }  // namespace pikiwidb

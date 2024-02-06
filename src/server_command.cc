@@ -21,24 +21,6 @@
 
 namespace pikiwidb {
 
-PError select(const std::vector<PString>& params, UnboundedBuffer* reply) {
-  int newDB = atoi(params[1].c_str());
-
-  auto client = PClient::Current();
-
-  if (client) {
-    if (client->SelectDB(newDB)) {
-      FormatOK(reply);
-    } else {
-      ReplyError(kPErrorInvalidDB, reply);
-    }
-  } else {
-    PSTORE.SelectDB(newDB);
-  }
-
-  return kPErrorOK;
-}
-
 PError dbsize(const std::vector<PString>& params, UnboundedBuffer* reply) {
   FormatInt(static_cast<long>(PSTORE.DBSize()), reply);
   return kPErrorOK;
