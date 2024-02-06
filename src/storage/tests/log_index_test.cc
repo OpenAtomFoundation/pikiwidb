@@ -1,3 +1,4 @@
+#include <cstdint>
 #include <memory>
 #include <string>
 #include "fmt/core.h"
@@ -5,8 +6,10 @@
 
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
+#include "rocksdb/table_properties.h"
 #include "src/log_index.h"
 #include "src/redis.h"
+#include "storage/storage_define.h"
 
 using namespace storage;  // NOLINT
 
@@ -21,12 +24,26 @@ TEST(TablePropertyTest, SimpleTest) {
   auto s = rocksdb::DB::Open(options, kDbPath, &db);
   EXPECT_TRUE(s.ok());
 
-  collector.Update(233333, 322222);
+  std::string key = "table-property-test";
+  s = db->Put(rocksdb::WriteOptions(), key, key);
+  EXPECT_TRUE(s.ok());
+  std::string res;
+  s = db->Get(rocksdb::ReadOptions(), key, &res);
+  EXPECT_TRUE(s.ok());
+  EXPECT_EQ(key, res);
+  collector.Update(233333, db->GetLatestSequenceNumber());
   db->Flush(rocksdb::FlushOptions());
-  std::string property;
-  auto res = db->GetProperty(LogIndexTablePropertiesCollector::kPropertyName_, &property);
-  EXPECT_TRUE(res);
-  fmt::println("{}: {}", LogIndexTablePropertiesCollector::kPropertyName_, property);
+
+  rocksdb::TablePropertiesCollection properties;
+  s = db->GetPropertiesOfAllTables(&properties);
+  EXPECT_TRUE(s.ok());
+  EXPECT_TRUE(properties.size() == 1);
+  for (auto& [name, prop] : properties) {
+    const auto& collector = prop->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, "233333/" + std::to_string(db->GetLatestSequenceNumber()));
+  }
 
   db->Close();
   DeleteFiles(kDbPath);
@@ -53,7 +70,9 @@ class LogIndexTest : public ::testing::Test {
   rocksdb::ReadOptions read_options_;
 };
 
-TEST_F(LogIndexTest, DISABLED_SimpleTest) {  // NOLINT
+TEST_F(LogIndexTest, DoNothing) {}
+
+TEST_F(LogIndexTest, SimpleTest) {  // NOLINT
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
@@ -72,9 +91,28 @@ TEST_F(LogIndexTest, DISABLED_SimpleTest) {  // NOLINT
     EXPECT_TRUE(s.ok());
     EXPECT_EQ(value, get_res);
   }
-  redis->GetDB()->Flush(rocksdb::FlushOptions());
-  std::string property;
-  auto res = redis->GetDB()->GetProperty(LogIndexTablePropertiesCollector::kPropertyName_, &property);
-  EXPECT_TRUE(res);
-  fmt::println("{}: {}", LogIndexTablePropertiesCollector::kPropertyName_, property);
+  redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesMetaCF));
+  redis->GetDB()->Flush(rocksdb::FlushOptions(), redis->GetColumnFamilyHandle(kHashesDataCF));
+
+  rocksdb::TablePropertiesCollection properties;
+  s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesMetaCF), &properties);
+  EXPECT_TRUE(s.ok());
+  EXPECT_TRUE(properties.size() == 1);
+  for (auto& [name, prop] : properties) {
+    const auto& collector = prop->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, "99999999/" + std::to_string(redis->GetDB()->GetLatestSequenceNumber() - 1));
+  }
+
+  properties.clear();
+  s = redis->GetDB()->GetPropertiesOfAllTables(redis->GetColumnFamilyHandle(kHashesDataCF), &properties);
+  EXPECT_TRUE(s.ok());
+  EXPECT_TRUE(properties.size() == 1);
+  for (auto& [name, prop] : properties) {
+    const auto& collector = prop->user_collected_properties;
+    auto it = collector.find(LogIndexTablePropertiesCollector::kPropertyName_);
+    EXPECT_NE(it, collector.cend());
+    EXPECT_EQ(it->second, "99999999/" + std::to_string(redis->GetDB()->GetLatestSequenceNumber()));
+  }
 }
