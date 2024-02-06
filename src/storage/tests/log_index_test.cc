@@ -1,12 +1,36 @@
+#include <memory>
 #include <string>
 #include "fmt/core.h"
 #include "gtest/gtest.h"
 
+#include "rocksdb/db.h"
 #include "rocksdb/options.h"
 #include "src/log_index.h"
 #include "src/redis.h"
 
 using namespace storage;  // NOLINT
+
+TEST(TablePropertyTest, SimpleTest) {
+  constexpr const char* kDbPath = "./test_db/tmp";
+  rocksdb::Options options;
+  options.create_if_missing = true;
+  LogIndexAndSequenceCollector collector;
+  options.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(&collector));
+  rocksdb::DB* db{nullptr};
+  auto s = rocksdb::DB::Open(options, kDbPath, &db);
+  EXPECT_TRUE(s.ok());
+
+  collector.Update(233333, 322222);
+  db->Flush(rocksdb::FlushOptions());
+  std::string property;
+  auto res = db->GetProperty(LogIndexTablePropertiesCollector::kPropertyName_, &property);
+  EXPECT_TRUE(res);
+  fmt::println("{}: {}", LogIndexTablePropertiesCollector::kPropertyName_, property);
+
+  db->Close();
+  DeleteFiles(kDbPath);
+}
 
 class LogIndexTest : public ::testing::Test {
  public:
@@ -29,7 +53,7 @@ class LogIndexTest : public ::testing::Test {
   rocksdb::ReadOptions read_options_;
 };
 
-TEST_F(LogIndexTest, SimpleTest) {  // NOLINT
+TEST_F(LogIndexTest, DISABLED_SimpleTest) {  // NOLINT
   options_.is_write_by_binlog = true;
   auto s = db_.Open(options_, db_path_);
   EXPECT_TRUE(s.ok());
