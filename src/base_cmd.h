@@ -91,6 +91,7 @@ const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
 const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
+const std::string kCmdNameLRange = "lrange";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
