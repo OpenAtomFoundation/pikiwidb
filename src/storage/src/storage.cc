@@ -2207,7 +2207,6 @@ void Storage::DisableWal(const bool is_wal_disable) {
 }
 
 void Storage::DefaultWriteCallback(const Task& task) {
-  int64_t cur_log_index = 99999999;
   ClosureGuard gd(task.done_.get());
   Binlog log;
   auto res = log.ParseFromString(task.data_);
@@ -2237,7 +2236,7 @@ void Storage::DefaultWriteCallback(const Task& task) {
   }
 
   auto s = inst->GetDB()->Write(inst->GetWriteOptions(), &batch);
-  // TODO: get real log index
+  int64_t cur_log_index = 99999999;  // TODO(): get real log index
   inst->UpdateLogIndex(cur_log_index);
   done->SetStatus(std::move(s));
 }

@@ -67,8 +67,6 @@ void LogIndexAndSequenceCollector::Purge(int64_t applied_log_index) {
   }
 }
 
-const std::string LogIndexTablePropertiesCollector::properties_name_ = "lastest_applied_log_index/largest_seqno";
-
 rocksdb::Status LogIndexTablePropertiesCollector::AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value,
                                                              rocksdb::EntryType type, rocksdb::SequenceNumber seq,
                                                              uint64_t file_size) {
@@ -89,7 +87,7 @@ rocksdb::UserCollectedProperties LogIndexTablePropertiesCollector::GetReadablePr
 void LogIndexTablePropertiesCollector::ReadStatsFromTableProps(
     const std::shared_ptr<const rocksdb::TableProperties> &table_props, int64_t &applied_log_index) {
   const auto &user_properties = table_props->user_collected_properties;
-  const auto it = user_properties.find(properties_name_);
+  const auto it = user_properties.find(kPropertyName_);
   if (it != user_properties.end()) {
     std::string s = it->second;
     rocksdb::SequenceNumber largest_seqno;
@@ -109,7 +107,7 @@ std::pair<std::string, std::string> LogIndexTablePropertiesCollector::Materializ
 
   snprintf(buf, 64, "%" PRIi64 "/%" PRIu64 "", applied_log_index, largest_seqno_);
   std::string buf_s = buf;
-  return std::make_pair(properties_name_, buf_s);
+  return std::make_pair(kPropertyName_, buf_s);
 }
 
 }  // namespace storage

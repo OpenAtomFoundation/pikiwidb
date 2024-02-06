@@ -54,7 +54,7 @@ class LogIndexAndSequenceCollector {
 
 class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollector {
  public:
-  LogIndexTablePropertiesCollector(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
+  explicit LogIndexTablePropertiesCollector(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
 
   rocksdb::Status AddUserKey(const rocksdb::Slice &key, const rocksdb::Slice &value, rocksdb::EntryType type,
                              rocksdb::SequenceNumber seq, uint64_t file_size) override;
@@ -64,12 +64,12 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
 
   static void ReadStatsFromTableProps(const std::shared_ptr<const rocksdb::TableProperties> &table_props,
                                       int64_t &applied_log_index);
+  static const inline std::string kPropertyName_{"latest-applied-log-index/largest-sequence-number"};
 
  private:
   std::pair<std::string, std::string> Materialize() const;
 
  private:
-  static const std::string properties_name_;
   const LogIndexAndSequenceCollector *collector_;
   rocksdb::SequenceNumber smallest_seqno_ = 0;
   rocksdb::SequenceNumber largest_seqno_ = 0;
@@ -78,7 +78,8 @@ class LogIndexTablePropertiesCollector : public rocksdb::TablePropertiesCollecto
 
 class LogIndexTablePropertiesCollectorFactory : public rocksdb::TablePropertiesCollectorFactory {
  public:
-  LogIndexTablePropertiesCollectorFactory(const LogIndexAndSequenceCollector *collector) : collector_(collector) {}
+  explicit LogIndexTablePropertiesCollectorFactory(const LogIndexAndSequenceCollector *collector)
+      : collector_(collector) {}
   ~LogIndexTablePropertiesCollectorFactory() override = default;
 
   rocksdb::TablePropertiesCollector *CreateTablePropertiesCollector(
