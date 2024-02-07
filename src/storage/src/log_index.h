@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <cstdint>
 #include <functional>
 #include <list>
@@ -11,6 +12,7 @@
 #include "rocksdb/listener.h"
 #include "rocksdb/table_properties.h"
 #include "rocksdb/types.h"
+#include "storage/storage_define.h"
 
 namespace storage {
 
@@ -32,8 +34,8 @@ class LogIndexAndSequencePair {
 
 class LogIndexOfCF {
   struct LogIndexPair {
-    int64_t applied_log_index = 0;
-    int64_t flushed_log_index = 0;
+    std::atomic<int64_t> applied_log_index = 0;
+    std::atomic<int64_t> flushed_log_index = 0;
   };
 
  public:
@@ -42,17 +44,17 @@ class LogIndexOfCF {
   bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index);
   void SetFlushedLogIndex(size_t cf_id, int64_t log_index);
   int64_t GetSmallestAppliedLogIndex() const {
-    return GetSmallestLogIndex([](const LogIndexPair &p) { return p.applied_log_index; });
+    return GetSmallestLogIndex([](const LogIndexPair &p) { return p.applied_log_index.load(); });
   }
   int64_t GetSmallestFlushedLogIndex() const {
-    return GetSmallestLogIndex([](const LogIndexPair &p) { return p.flushed_log_index; });
+    return GetSmallestLogIndex([](const LogIndexPair &p) { return p.flushed_log_index.load(); });
   }
 
  private:
   int64_t GetSmallestLogIndex(std::function<int64_t(const LogIndexPair &)> f) const;
   // first: newest record in memtable.
   // second: newest roceord in sst file.
-  std::vector<LogIndexPair> cf_;
+  std::array<LogIndexPair, kColumnFamilyNum> cf_;
 };
 
 class LogIndexAndSequenceCollector {

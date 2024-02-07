@@ -10,7 +10,6 @@
 namespace storage {
 
 rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
-  cf_.resize(cf_num);
   for (int i = 0; i < cf_num; i++) {
     rocksdb::TablePropertiesCollection collection;
     auto s = db->GetDB()->GetPropertiesOfAllTables(db->GetColumnFamilyHandle(i), &collection);
@@ -21,8 +20,8 @@ rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
       assert(props->column_family_id == i);
       auto res = LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props);
       if (res.has_value()) {
-        cf_[i].applied_log_index = std::max(cf_[i].applied_log_index, res->GetAppliedLogIndex());
-        cf_[i].flushed_log_index = std::max(cf_[i].flushed_log_index, res->GetAppliedLogIndex());
+        cf_[i].applied_log_index = std::max(cf_[i].applied_log_index.load(), res->GetAppliedLogIndex());
+        cf_[i].flushed_log_index = std::max(cf_[i].flushed_log_index.load(), res->GetAppliedLogIndex());
       }
     }
   }
@@ -30,12 +29,12 @@ rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
 }
 
 bool LogIndexOfCF::CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
-  cf_[cf_id].applied_log_index = std::max(cf_[cf_id].applied_log_index, cur_log_index);
+  cf_[cf_id].applied_log_index = std::max(cf_[cf_id].applied_log_index.load(), cur_log_index);
   return cur_log_index == cf_[cf_id].applied_log_index;
 }
 
 void LogIndexOfCF::SetFlushedLogIndex(size_t cf_id, int64_t log_index) {
-  cf_[cf_id].flushed_log_index = std::max(cf_[cf_id].flushed_log_index, log_index);
+  cf_[cf_id].flushed_log_index = std::max(cf_[cf_id].flushed_log_index.load(), log_index);
 }
 
 int64_t LogIndexOfCF::GetSmallestLogIndex(std::function<int64_t(const LogIndexPair &)> f) const {
