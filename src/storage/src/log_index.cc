@@ -34,7 +34,9 @@ bool LogIndexOfCF::CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
   return cur_log_index == cf_[cf_id].applied_log_index;
 }
 
-void LogIndexOfCF::SetFlushedLogIndex(size_t cf_id, int64_t log_index) { cf_[cf_id].flushed_log_index = log_index; }
+void LogIndexOfCF::SetFlushedLogIndex(size_t cf_id, int64_t log_index) {
+  cf_[cf_id].flushed_log_index = std::max(cf_[cf_id].flushed_log_index, log_index);
+}
 
 int64_t LogIndexOfCF::GetSmallestLogIndex(std::function<int64_t(const LogIndexPair &)> f) const {
   int64_t smallest_log_index = std::numeric_limits<int64_t>::max();

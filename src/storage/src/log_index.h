@@ -32,8 +32,8 @@ class LogIndexAndSequencePair {
 
 class LogIndexOfCF {
   struct LogIndexPair {
-    int64_t applied_log_index;
-    int64_t flushed_log_index;
+    int64_t applied_log_index = 0;
+    int64_t flushed_log_index = 0;
   };
 
  public:
