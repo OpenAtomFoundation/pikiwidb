@@ -81,8 +81,7 @@ class LogIndexAndSequenceCollector {
     while (list.size() >= 2) {
       auto cur = list.begin();
       auto next = std::next(cur);
-      if (smallest_flush_seqno >= cur->GetSequenceNumber() &&
-          smallest_applied_log_index >= next->GetAppliedLogIndex()) {
+      if (smallest_flush_seqno > cur->GetSequenceNumber() && smallest_applied_log_index > next->GetAppliedLogIndex()) {
         list.pop_front();
       } else {
         break;
