@@ -9,7 +9,7 @@
 
 namespace storage {
 
-rocksdb::Status LogIndexAndSequenceOfCF::Init(Redis *db, size_t cf_num) {
+rocksdb::Status LogIndexOfCF::Init(Redis *db, size_t cf_num) {
   cf_.resize(cf_num);
   for (int i = 0; i < cf_num; i++) {
     rocksdb::TablePropertiesCollection collection;
@@ -21,37 +21,27 @@ rocksdb::Status LogIndexAndSequenceOfCF::Init(Redis *db, size_t cf_num) {
       assert(props->column_family_id == i);
       auto res = LogIndexTablePropertiesCollector::ReadStatsFromTableProps(props);
       if (res.has_value()) {
-        cf_[i].SetAppliedLogIndex(std::max(cf_[i].GetAppliedLogIndex(), res->GetAppliedLogIndex()));
-        cf_[i].SetSequenceNumber(std::max(cf_[i].GetSequenceNumber(), res->GetSequenceNumber()));
+        cf_[i].applied_log_index = std::max(cf_[i].applied_log_index, res->GetAppliedLogIndex());
+        cf_[i].flushed_log_index = std::max(cf_[i].flushed_log_index, res->GetAppliedLogIndex());
       }
     }
   }
   return Status::OK();
 }
 
-bool LogIndexAndSequenceOfCF::CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
-  cf_[cf_id].SetAppliedLogIndex(std::max(cf_[cf_id].GetAppliedLogIndex(), cur_log_index));
-  return cur_log_index == cf_[cf_id].GetAppliedLogIndex();
+bool LogIndexOfCF::CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+  cf_[cf_id].applied_log_index = std::max(cf_[cf_id].applied_log_index, cur_log_index);
+  return cur_log_index == cf_[cf_id].applied_log_index;
 }
 
-void LogIndexAndSequenceOfCF::SetFlushedSeqno(size_t cf_id, rocksdb::SequenceNumber seqno) {
-  cf_[cf_id].SetSequenceNumber(seqno);
-}
+void LogIndexOfCF::SetFlushedLogIndex(size_t cf_id, int64_t log_index) { cf_[cf_id].flushed_log_index = log_index; }
 
-int64_t LogIndexAndSequenceOfCF::GetSmallestAppliedLogIndex() const {
-  int64_t smallest_applied_log_index = std::numeric_limits<int64_t>::max();
+int64_t LogIndexOfCF::GetSmallestLogIndex(std::function<int64_t(const LogIndexPair &)> f) const {
+  int64_t smallest_log_index = std::numeric_limits<int64_t>::max();
   for (const auto &it : cf_) {
-    smallest_applied_log_index = std::min(it.GetAppliedLogIndex(), smallest_applied_log_index);
+    smallest_log_index = std::min(f(it), smallest_log_index);
   }
-  return smallest_applied_log_index;
-}
-
-rocksdb::SequenceNumber LogIndexAndSequenceOfCF::GetSmallestFlushedSeqno() const {
-  rocksdb::SequenceNumber smallest_seqno = std::numeric_limits<rocksdb::SequenceNumber>::max();
-  for (const auto &it : cf_) {
-    smallest_seqno = std::min(it.GetSequenceNumber(), smallest_seqno);
-  }
-  return smallest_seqno;
+  return smallest_log_index;
 }
 
 void LogIndexAndSequenceCollector::Update(int64_t applied_log_index, rocksdb::SequenceNumber seqno) {
@@ -151,10 +141,10 @@ std::pair<std::string, std::string> LogIndexTablePropertiesCollector::Materializ
 
 void LogIndexAndSequenceCollectorPurger::OnFlushCompleted(rocksdb::DB *db,
                                                           const rocksdb::FlushJobInfo &flush_job_info) {
-  cf_->SetFlushedSeqno(flush_job_info.cf_id, flush_job_info.largest_seqno);
+  cf_->SetFlushedLogIndex(flush_job_info.cf_id, collector_->FindAppliedLogIndex(flush_job_info.largest_seqno));
   auto smallest_applied_log_index = cf_->GetSmallestAppliedLogIndex();
-  auto smallest_flush_seqno = cf_->GetSmallestFlushedSeqno();
-  collector_->Purge(smallest_applied_log_index, smallest_flush_seqno);
+  auto smallest_flushed_log_index = cf_->GetSmallestFlushedLogIndex();
+  collector_->Purge(smallest_applied_log_index, smallest_flushed_log_index);
 }
 
 }  // namespace storage
