@@ -218,7 +218,7 @@ var _ = Describe("Set", Ordered, func() {
 	It("should SCard", func() {
 		sAdd := client.SAdd(ctx, "setScard", "Hello")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		Expect(sAdd.Val()).To(Equal(int64(1))
+		Expect(sAdd.Val()).To(Equal(int64(1)))
 
 		sAdd = client.SAdd(ctx, "setScard", "World")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
