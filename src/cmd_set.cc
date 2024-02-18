@@ -220,9 +220,8 @@ bool SPopCmd::DoInitial(PClient* client) {
 
 void SPopCmd::DoCmd(PClient* client) {
   std::vector<std::string> delete_members;
-  int64_t cnt;
+  int64_t cnt = 1;
   if ((client->argv_.size()) == 2) {
-    cnt = 1;
   } else if ((client->argv_.size()) == 3) {
     if (client->argv_[2].find(".") != std::string::npos || !pstd::String2int(client->argv_[2], &cnt)) {
       client->SetRes(CmdRes::kInvalidInt);
