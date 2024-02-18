@@ -233,7 +233,7 @@ void SPopCmd::DoCmd(PClient* client) {
   }
 
   storage::Status s = PSTORE.GetBackend(0)->SPop(client->Key(), &delete_members, cnt);
-//storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_members, cnt);
+  // storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_members, cnt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
     return;
