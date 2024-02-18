@@ -75,7 +75,7 @@ class IOThreadPool {
   EventLoop base_;
 
   std::atomic<size_t> worker_num_{0};
-  std::vector<std::jthread> worker_threads_;
+  std::vector<std::thread> worker_threads_;
   std::vector<std::unique_ptr<EventLoop>> worker_loops_;
   mutable std::atomic<size_t> current_worker_loop_{0};
 
@@ -98,11 +98,12 @@ class WorkIOThreadPool : public IOThreadPool {
  private:
   void StartWorkers() override;
 
-  std::vector<std::jthread> writeThreads_;
+  std::vector<std::thread> writeThreads_;
   std::vector<std::unique_ptr<std::mutex>> writeMutex_;
   std::vector<std::unique_ptr<std::condition_variable>> writeCond_;
   std::vector<std::deque<std::shared_ptr<PClient>>> writeQueue_;
   std::atomic<uint64_t> counter_ = 0;
+  bool writeRunning_ = true;
 };
 
 }  // namespace pikiwidb

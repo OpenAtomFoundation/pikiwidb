@@ -59,9 +59,11 @@ void IOThreadPool::Run(int ac, char* av[]) {
   StartWorkers();
   base_.Run();
 
-  //  for (auto& w : worker_threads_) {
-  //    w.join();
-  //  }
+  for (auto& w : worker_threads_) {
+    if (w.joinable()) {
+      w.join();
+    }
+  }
 
   worker_threads_.clear();
 
@@ -107,7 +109,7 @@ void IOThreadPool::StartWorkers() {
 
   for (index = 0; index < worker_loops_.size(); ++index) {
     EventLoop* loop = worker_loops_[index].get();
-    std::jthread t([loop]() {
+    std::thread t([loop]() {
       loop->Init();
       loop->Run();
     });
@@ -190,11 +192,14 @@ void WorkIOThreadPool::StartWorkers() {
     writeCond_.emplace_back(std::make_unique<std::condition_variable>());
     writeQueue_.emplace_back();
 
-    std::jthread t([this, index](const std::stop_token& stopToken) {
-      while (!stopToken.stop_requested()) {
+    std::thread t([this, index]() {
+      while (writeRunning_) {
         std::unique_lock lock(*writeMutex_[index]);
         while (writeQueue_[index].empty()) {
-          writeCond_[index]->wait_for(lock, std::chrono::milliseconds(100));
+          if (!writeRunning_) {
+            goto END;
+          }
+          writeCond_[index]->wait(lock);
         }
         auto client = writeQueue_[index].front();
         if (client->State() == ClientState::kOK) {
@@ -202,6 +207,8 @@ void WorkIOThreadPool::StartWorkers() {
         }
         writeQueue_[index].pop_front();
       }
+    END:
+      INFO("worker write thread {}, goodbye...", index);
     });
 
     INFO("worker write thread {}, starting...", index);
@@ -212,9 +219,21 @@ void WorkIOThreadPool::StartWorkers() {
 void WorkIOThreadPool::Exit() {
   IOThreadPool::Exit();
 
-  for (auto& wt : writeThreads_) {
-    wt.request_stop();
+  writeRunning_ = false;
+  int i = 0;
+  for (auto& cond : writeCond_) {
+    std::unique_lock lock(*writeMutex_[i++]);
+    cond->notify_all();
   }
+  for (auto& wt : writeThreads_) {
+    if (wt.joinable()) {
+      wt.join();
+    }
+  }
+  writeThreads_.clear();
+  writeCond_.clear();
+  writeQueue_.clear();
+  writeMutex_.clear();
 }
 
 }  // namespace pikiwidb

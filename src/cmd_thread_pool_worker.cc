@@ -6,15 +6,15 @@
  */
 
 #include "cmd_thread_pool_worker.h"
-#include <iostream>
+#include "log.h"
 #include "pikiwidb.h"
 
 extern std::unique_ptr<PikiwiDB> g_pikiwidb;
 
 namespace pikiwidb {
 
-void CmdWorkThreadPoolWorker::Work(const std::stop_token &stopToken) {
-  while (!stopToken.stop_requested()) {
+void CmdWorkThreadPoolWorker::Work() {
+  while (running_) {
     LoadWork();
     for (const auto &task : selfTask) {
       if (task->Client()->State() != ClientState::kOK) {  // the client is closed
@@ -41,11 +41,17 @@ void CmdWorkThreadPoolWorker::Work(const std::stop_token &stopToken) {
     }
     selfTask.clear();
   }
+  INFO("slow worker [{}] goodbye...", name_);
 }
+
+void CmdWorkThreadPoolWorker::Stop() { running_ = false; }
 
 void CmdFastWorker::LoadWork() {
   std::unique_lock lock(pool_->fastMutex_);
   while (pool_->fastTasks_.empty()) {
+    if (!running_) {
+      return;
+    }
     pool_->fastCondition_.wait(lock);
   }
 
@@ -58,6 +64,9 @@ void CmdSlowWorker::LoadWork() {
   {
     std::unique_lock lock(pool_->slowMutex_);
     while (pool_->slowTasks_.empty() && loopMore) {  // loopMore is used to get the fast worker
+      if (!running_) {
+        return;
+      }
       pool_->slowCondition_.wait_for(lock, std::chrono::milliseconds(waitTime));
       loopMore = false;
     }

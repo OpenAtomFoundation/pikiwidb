@@ -53,6 +53,9 @@ class CmdThreadPool {
   // start the thread pool
   void Start();
 
+  // stop the thread pool
+  void Stop();
+
   // submit a fast task to the thread pool
   void SubmitFast(const std::shared_ptr<CmdThreadPoolTask> &runner);
 
@@ -68,9 +71,6 @@ class CmdThreadPool {
   // get the thread pool size
   inline int ThreadPollSize() const { return fastThreadNum_ + slowThreadNum_; };
 
-  // stop the thread pool
-  void Stop();
-
   ~CmdThreadPool();
 
  private:
@@ -79,7 +79,8 @@ class CmdThreadPool {
   std::deque<std::shared_ptr<CmdThreadPoolTask>> fastTasks_;  // fast task queue
   std::deque<std::shared_ptr<CmdThreadPoolTask>> slowTasks_;  // slow task queue
 
-  std::vector<std::jthread> thread_;
+  std::vector<std::thread> threads_;
+  std::vector<std::shared_ptr<CmdWorkThreadPoolWorker>> workers_;
   std::string name_;  // thread pool name
   int fastThreadNum_ = 0;
   int slowThreadNum_ = 0;

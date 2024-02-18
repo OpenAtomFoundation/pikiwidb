@@ -22,7 +22,9 @@ class CmdWorkThreadPoolWorker {
     cmd_table_manager_.InitCmdTable();
   }
 
-  void Work(const std::stop_token &stopToken);
+  void Work();
+
+  void Stop();
 
   // load the task from the thread pool
   virtual void LoadWork() = 0;
@@ -34,6 +36,7 @@ class CmdWorkThreadPoolWorker {
   CmdThreadPool *pool_;
   const int onceTask_ = 0;  // the max task num that the worker can get from the thread pool
   const std::string name_;
+  bool running_ = true;
 
   pikiwidb::CmdTableManager cmd_table_manager_;
 };

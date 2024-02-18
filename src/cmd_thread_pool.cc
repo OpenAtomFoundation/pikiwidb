@@ -24,21 +24,24 @@ pstd::Status CmdThreadPool::Init(int fastThread, int slowThread, std::string nam
   name_ = std::move(name);
   fastThreadNum_ = fastThread;
   slowThreadNum_ = slowThread;
-  thread_.reserve(fastThreadNum_ + slowThreadNum_);
+  threads_.reserve(fastThreadNum_ + slowThreadNum_);
+  workers_.reserve(fastThreadNum_ + slowThreadNum_);
   return pstd::Status::OK();
 }
 
 void CmdThreadPool::Start() {
   for (int i = 0; i < fastThreadNum_; ++i) {
-    std::jthread thread(&CmdWorkThreadPoolWorker::Work,
-                        std::make_shared<CmdFastWorker>(this, 2, "fast worker" + std::to_string(i)));
-    thread_.emplace_back(std::move(thread));
+    auto fastWorker = std::make_shared<CmdFastWorker>(this, 2, "fast worker" + std::to_string(i));
+    std::thread thread(&CmdWorkThreadPoolWorker::Work, fastWorker);
+    threads_.emplace_back(std::move(thread));
+    workers_.emplace_back(fastWorker);
     INFO("fast worker [{}] starting ...", std::to_string(i));
   }
   for (int i = 0; i < slowThreadNum_; ++i) {
-    std::jthread thread(&CmdWorkThreadPoolWorker::Work,
-                        std::make_shared<CmdSlowWorker>(this, 2, "slow worker" + std::to_string(i)));
-    thread_.emplace_back(std::move(thread));
+    auto slowWorker = std::make_shared<CmdSlowWorker>(this, 2, "slow worker" + std::to_string(i));
+    std::thread thread(&CmdWorkThreadPoolWorker::Work, slowWorker);
+    threads_.emplace_back(std::move(thread));
+    workers_.emplace_back(slowWorker);
     INFO("slow worker [{}] starting ...", std::to_string(i));
   }
 }
@@ -63,9 +66,28 @@ void CmdThreadPool::doStop() {
   }
   stopped_.store(true);
 
-  for (auto &thread : thread_) {
-    thread.request_stop();
+  for (auto &worker : workers_) {
+    worker->Stop();
   }
+
+  {
+    std::unique_lock fl(fastMutex_);
+    fastCondition_.notify_all();
+  }
+  {
+    std::unique_lock sl(slowMutex_);
+    slowCondition_.notify_all();
+  }
+
+  for (auto &thread : threads_) {
+    if (thread.joinable()) {
+      thread.join();
+    }
+  }
+  threads_.clear();
+  workers_.clear();
+  fastTasks_.clear();
+  slowTasks_.clear();
 }
 
 CmdThreadPool::~CmdThreadPool() { doStop(); }

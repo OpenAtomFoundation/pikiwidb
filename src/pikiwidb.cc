@@ -255,7 +255,7 @@ void PikiwiDB::Run() {
 
   cmd_threads_.Start();
 
-  std::jthread t([this]() {
+  std::thread t([this]() {
     auto slave_loop = slave_threads_.BaseLoop();
     slave_loop->Init();
     slave_threads_.Run(0, nullptr);
@@ -263,13 +263,16 @@ void PikiwiDB::Run() {
 
   worker_threads_.Run(0, nullptr);
 
-  //  t.join();  // wait for slave thread exit
+  if (t.joinable()) {
+    t.join();  // wait for slave thread exit
+  }
   INFO("server exit running");
 }
 
 void PikiwiDB::Stop() {
   slave_threads_.Exit();
   worker_threads_.Exit();
+  cmd_threads_.Stop();
 }
 
 // pikiwidb::CmdTableManager& PikiwiDB::GetCmdTableManager() { return cmd_table_manager_; }
