@@ -146,6 +146,7 @@ enable_testing()
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(src/counter)
+ADD_SUBDIRECTORY(src/praft)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
 

@@ -1,8 +1,12 @@
-#include "raft.h"
+#include "praft.h"
 #include <cassert>
 #include <string>
 #include "client.h"
 #include "config.h"
+#include "pstd_string.h"
+#include "braft/configuration.h"
+#include "event_loop.h"
+#include "pikiwidb.h"
 
 namespace pikiwidb {
 
@@ -12,26 +16,61 @@ PRaft& PRaft::Instance() {
 }
 
 butil::Status PRaft::Init(std::string& cluster_id) {
-  assert(clust_id.size() == RAFT_DBID_LEN);
-  this->_dbid = cluster_id;
+  if (node_ && server_) {
+    return {0, "OK"};
+  }
+
+  server_ = std::make_unique<brpc::Server>();
+  PRaftServiceImpl service(&PRAFT);
+  auto port = g_config.port + RAFT_PORT_OFFSET;
+  // Add your service into RPC server
+  if (server_->AddService(&service, 
+                        brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+      LOG(ERROR) << "Fail to add service";
+      return {EINVAL, "Fail to add service"};
+  }
+  // raft can share the same RPC server. Notice the second parameter, because
+  // adding services into a running server is not allowed and the listen
+  // address of this server is impossible to get before the server starts. You
+  // have to specify the address of the server.
+  if (braft::add_service(server_.get(), port) != 0) {
+      LOG(ERROR) << "Fail to add raft service";
+      return {EINVAL, "Fail to add raft service"};
+  }
+
+  // It's recommended to start the server before Counter is started to avoid
+  // the case that it becomes the leader while the service is unreacheable by
+  // clients.
+  // Notice the default options of server is used here. Check out details from
+  // the doc of brpc if you would like change some options;
+  if (server_->Start(port, NULL) != 0) {
+      LOG(ERROR) << "Fail to start Server";
+      return {EINVAL, "Fail to start Server"};
+  }
+
+  // It's ok to start PRaft;
+  assert(cluster_id.size() == RAFT_DBID_LEN);
+  this->dbid_ = cluster_id;
 
   // FIXME: g_config.ip is default to 127.0.0.0, which may not work in cluster.
-  auto raw_addr = g_config.ip + ":" + std::to_string(g_config.port + RAFT_PORT_OFFSET);
-  butil::EndPoint addr(butil::my_ip(), g_config.port + RAFT_PORT_OFFSET);
+  auto raw_addr = g_config.ip + ":" + std::to_string(port); 
+  butil::EndPoint addr(butil::my_ip(), port);
 
   // Default init in one node.
-  if (node_options_.initial_conf.parse_from(raw_addr) != 0) {
+  if (node_options_.initial_conf.parse_from("") != 0) { // @todo 一开始初始化的时候是只有一个节点的，所以似乎这里不需要使用raw_addr，直接传入空值？
     LOG(ERROR) << "Fail to parse configuration, address: " << raw_addr;
     return {EINVAL, "Fail to parse address."};
   }
 
+  // node_options_.election_timeout_ms = FLAGS_election_timeout_ms;
   node_options_.fsm = this;
   node_options_.node_owns_fsm = false;
+  // node_options_.snapshot_interval_s = FLAGS_snapshot_interval;
   std::string prefix = "local://" + g_config.dbpath;
   node_options_.log_uri = prefix + "/log";
   node_options_.raft_meta_uri = prefix + "/raft_meta";
   node_options_.snapshot_uri = prefix + "/snapshot";
-
+  // node_options_.disable_cli = FLAGS_disable_cli;
   node_ = std::make_unique<braft::Node>(cluster_id, braft::PeerId(addr));
   if (node_->init(node_options_) != 0) {
     node_.reset();
@@ -50,6 +89,30 @@ bool PRaft::IsLeader() const {
   return node_->is_leader();
 }
 
+std::string PRaft::GetLeaderId() const {
+  if (!node_) {
+    LOG(ERROR) << "Node is not initialized";
+    return std::string("Fail to get leader id");
+  }
+  return node_->leader_id().to_string();
+}
+
+std::string PRaft::GetNodeId() const {
+  if (!node_) {
+    LOG(ERROR) << "Node is not initialized";
+    return std::string("Fail to get node id");
+  }
+  return node_->node_id().to_string();
+}
+
+std::string PRaft::GetClusterId() const {
+  if (!node_) {
+    LOG(ERROR) << "Node is not initialized";
+    return std::string("Fail to get cluster id");
+  }
+  return dbid_;
+}
+
 void PRaft::SendNodeAddRequest(PClient *client) {
   assert(client);
 
@@ -63,18 +126,66 @@ void PRaft::SendNodeAddRequest(PClient *client) {
   client->SendPacket(req);
 }
 
-int PRaft::ProcessClusterJoinCmdResponse(const char* start, int len) {
+std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(const char* start, int len) {
   assert(start);
-  auto cli = join_ctx_.GetClient();
-  if (!cli) {
+  auto join_client = join_ctx_.GetClient();
+  if (!join_client) {
     LOG(WARNING) << "No client when processing cluster join cmd response.";
-    return 0;
+    return std::make_tuple(0, true);
   }
 
-  // TODO(KKorpse): Check the response.
-  cli->SetRes(CmdRes::kOK);
-  cli->SendPacket(cli->Message());
-  return len;
+  bool is_disconnet = true;
+  std::string reply(start, len);
+  if (reply.find("+OK") != std::string::npos) {
+    pstd::StringTrimLeft(reply, "+OK");
+    pstd::StringTrim(reply);
+
+    // initialize the slave node
+    auto s = PRAFT.Init(reply);
+    if (!s.ok()) {
+      join_client->SetRes(CmdRes::kErrOther, s.error_str());
+      join_client->SendPacket(join_client->Message());
+      return std::make_tuple(len, is_disconnet);
+    }
+
+    LOG(INFO) << "Joined Raft cluster, node id:" << PRAFT.GetNodeId() << "dbid:" << PRAFT.dbid_;
+    join_client->SetRes(CmdRes::kOK);
+    join_client->SendPacket(join_client->Message());
+    is_disconnet = false;
+  } else if (reply.find("-ERR wrong leader") != std::string::npos) {
+    // Resolve the ip address of the leader
+    pstd::StringTrimLeft(reply, "-ERR wrong leader");
+    pstd::StringTrim(reply);
+    braft::PeerId peerId;
+    peerId.parse(reply);
+
+    // Establish a connection with the leader and send the add request
+    auto on_new_conn = [](TcpConnection* obj) {
+      if (g_pikiwidb) {
+        g_pikiwidb->OnNewConnection(obj);
+      }
+    };
+    auto fail_cb = [&](EventLoop* loop, const char* peer_ip, int port) {
+      PRAFT.OnJoinCmdConnectionFailed(loop, peer_ip, port);
+    };
+
+    auto loop = EventLoop::Self();
+    auto peer_ip = std::string(butil::ip2str(peerId.addr.ip).c_str());
+    auto port = peerId.addr.port;
+    // FIXME: The client here is not smart pointer, may cause undefined behavior.
+    // should use shared_ptr in DoCmd() rather than raw pointer.
+    PRAFT.GetJoinCtx().Set(join_client, peer_ip, port);
+    loop->Connect(peer_ip.c_str(), port, on_new_conn, fail_cb);
+
+    // Not reply any message here, we will reply after the connection is established.
+    join_client->Clear();
+  } else {
+    LOG(ERROR) << "Joined Raft cluster fail, " << start;
+    join_client->SetRes(CmdRes::kErrOther, std::string(start, len));
+    join_client->SendPacket(join_client->Message());
+  }
+
+  return std::make_tuple(len, is_disconnet);
 
   // Redis process cluster join cmd response like this:
   
@@ -171,10 +282,14 @@ void PRaft::OnJoinCmdConnectionFailed([[maybe_unused]] EventLoop* loop, const ch
   }
 }
 
-// Shut this node down.
+// Shut this node and server down.
 void PRaft::ShutDown() {
   if (node_) {
     node_->shutdown(nullptr);
+  }
+
+  if (server_) {
+    server_->Stop(0);
   }
 }
 
@@ -182,6 +297,10 @@ void PRaft::ShutDown() {
 void PRaft::Join() {
   if (node_) {
     node_->join();
+  }
+
+  if (server_) {
+    server_->Join();
   }
 }
 

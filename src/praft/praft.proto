@@ -1,0 +1,6 @@
+syntax="proto2";
+package pikiwidb;
+option cc_generic_services = true;
+
+service PRaftService {
+};

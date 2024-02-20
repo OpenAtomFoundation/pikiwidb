@@ -10,7 +10,7 @@ SET(BRPC_INSTALL_DIR ${THIRD_PARTY_PATH}/install/brpc)
 SET(BRPC_INCLUDE_DIR "${BRPC_INSTALL_DIR}/include" CACHE PATH "brpc include directory." FORCE)
 SET(BRPC_LIBRARIES "${BRPC_INSTALL_DIR}/lib/libbrpc.a" CACHE FILEPATH "brpc library." FORCE)
 
-SET(NUM_OF_PROCESSOR 1)
+SET(NUM_OF_PROCESSOR 8)
 
 # Reference https://stackoverflow.com/questions/45414507/pass-a-list-of-prefix-paths-to-externalproject-add-in-cmake-args
 set(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build")

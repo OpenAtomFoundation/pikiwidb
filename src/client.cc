@@ -17,7 +17,7 @@
 #include "pstd_string.h"
 #include "slow_log.h"
 #include "store.h"
-#include "raft.h"
+#include "praft.h"
 
 namespace pikiwidb {
 
@@ -52,6 +52,10 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
   switch (ret_) {
     case kOK:
       SetLineString("+OK");
+      if (!content.empty()) {
+        AppendStringRaw(content);
+        AppendStringRaw(CRLF);
+      }
       break;
     case kPong:
       SetLineString("+PONG");
@@ -133,6 +137,10 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
     case kInvalidCursor:
       AppendStringRaw("-ERR invalid cursor");
       break;
+    case kWrongLeader:
+      AppendStringRaw("-ERR wrong leader");
+      AppendStringRaw(content);
+      AppendStringRaw(CRLF);
     default:
       break;
   }
@@ -273,7 +281,11 @@ int PClient::handlePacket(const char* start, int bytes) {
 
   if (isJoinCmdTarget()) {
     // Proccees the packet at one turn.
-    return PRAFT.ProcessClusterJoinCmdResponse(start, bytes);
+    auto [len, is_disconnect] = PRAFT.ProcessClusterJoinCmdResponse(start, bytes);
+    if (is_disconnect) {
+      conn->ActiveClose();
+    }
+    return len;
   }
 
   auto parseRet = parser_.ParseRequest(ptr, end);
