@@ -13,7 +13,7 @@
 #include "cmd_kv.h"
 #include "cmd_list.h"
 #include "cmd_set.h"
-#include "cmd_table_manager.h"
+#include "cmd_raft.h"
 
 namespace pikiwidb {
 
@@ -45,6 +45,10 @@ void CmdTableManager::InitCmdTable() {
   // keyspace
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, -2);
+
+  // raft
+  ADD_COMMAND(RaftCluster, -1);
+  ADD_COMMAND(RaftNode, -2);
 
   // kv
   ADD_COMMAND(Get, 2);

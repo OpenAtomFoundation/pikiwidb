@@ -7,16 +7,22 @@
 
 #pragma once
 
-#include <braft/configuration.h>
-#include <braft/raft.h>
-#include <braft/util.h>
-#include <butil/status.h>
-#include <gflags/gflags.h>
+#include "braft/configuration.h"
+#include "braft/raft.h"
+#include "braft/util.h"
+#include "brpc/server.h"
+#include "brpc/controller.h"
+#include "butil/status.h"
+#include "gflags/gflags.h"
 #include <cstddef>
 #include <memory>
 #include <mutex>
+#include <tuple>
 #include "client.h"
 #include "common.h"
+#include "tcp_connection.h"
+#include "event_loop.h"
+#include "praft.pb.h"
 
 namespace pikiwidb {
 
@@ -52,6 +58,7 @@ class JoinCmdContext {
     port_ = 0;
   }
 
+  // @todo the function seems useless
   bool IsEmpty() {
     std::unique_lock<std::mutex> lck(mtx_);
     return client_ == nullptr;
@@ -70,7 +77,7 @@ class JoinCmdContext {
 
 class PRaft : public braft::StateMachine {
  public:
-  PRaft() : node_(nullptr) {}
+  PRaft() : server_(nullptr), node_(nullptr) {}
 
   ~PRaft() override = default;
 
@@ -92,10 +99,14 @@ class PRaft : public braft::StateMachine {
   //===--------------------------------------------------------------------===//
   JoinCmdContext& GetJoinCtx() { return join_ctx_; }
   void SendNodeAddRequest(PClient *client);
-  int ProcessClusterJoinCmdResponse(const char* start, int len);
+  std::tuple<int, bool> ProcessClusterJoinCmdResponse(const char* start, int len);
   void OnJoinCmdConnectionFailed(EventLoop*, const char* peer_ip, int port);
 
   bool IsLeader() const;
+  std::string GetLeaderId() const;
+  std::string GetNodeId() const;
+  std::string GetClusterId() const;
+
   bool IsInitialized() const { return node_ != nullptr; }
 
  private:
@@ -113,12 +124,20 @@ class PRaft : public braft::StateMachine {
   void on_start_following(const ::braft::LeaderChangeContext& ctx) override;
 
  private:
+  std::unique_ptr<brpc::Server> server_; // brpc
   std::unique_ptr<braft::Node> node_;
   braft::NodeOptions node_options_;  // options for raft node
   std::string raw_addr_;             // ip:port of this node
 
   JoinCmdContext join_ctx_;  // context for cluster join command
-  std::string _dbid;         // dbid of cluster,
+  std::string dbid_;         // dbid of cluster,
+};
+
+class PRaftServiceImpl : public PRaftService {
+public:
+    explicit PRaftServiceImpl(PRaft* praft) : praft_(praft) {}
+private:
+    PRaft* praft_;
 };
 
 }  // namespace pikiwidb
