@@ -56,8 +56,10 @@ void CmdFastWorker::LoadWork() {
   }
 
   const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
-  std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
-  pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
+  if (num > 0) {
+    std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
+    pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
+  }
 }
 
 void CmdSlowWorker::LoadWork() {
@@ -72,8 +74,11 @@ void CmdSlowWorker::LoadWork() {
     }
 
     const auto num = std::min(static_cast<int>(pool_->slowTasks_.size()), onceTask_);
-    std::move(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num, std::back_inserter(selfTask));
-    pool_->slowTasks_.erase(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num);
+    if (num > 0) {
+      std::move(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num, std::back_inserter(selfTask));
+      pool_->slowTasks_.erase(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num);
+      return;  // If the slow task is obtained, the fast task is no longer obtained
+    }
   }
 
   {
@@ -81,8 +86,10 @@ void CmdSlowWorker::LoadWork() {
     loopMore = true;
 
     const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
-    std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
-    pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
+    if (num > 0) {
+      std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
+      pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
+    }
   }
 }
 
