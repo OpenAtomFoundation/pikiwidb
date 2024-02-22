@@ -22,5 +22,8 @@ FetchContent_MakeAvailableWithArgs(glog
 )
 
 SET(GLOG_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src CACHE BOOL "" FORCE)
-# SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglog.a CACHE BOOL "" FORCE)
-SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/ CACHE BOOL "" FORCE)
+if(CMAKE_BUILD_TYPE STREQUAL "Release")
+  SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglog.a CACHE BOOL "" FORCE)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglogd.a CACHE BOOL "" FORCE)
+endif()
