@@ -70,7 +70,6 @@ void RPopCmd::DoCmd(PClient* client) {
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
 
-
 bool LRangeCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
