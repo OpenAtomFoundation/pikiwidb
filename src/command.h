@@ -44,7 +44,6 @@ PCommandHandler scan;
 PCommandHandler sort;
 
 // server commands
-PCommandHandler select;
 PCommandHandler dbsize;
 PCommandHandler bgsave;
 PCommandHandler save;

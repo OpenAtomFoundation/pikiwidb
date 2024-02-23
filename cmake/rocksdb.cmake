@@ -24,7 +24,7 @@ FetchContent_MakeAvailableWithArgs(rocksdb
         WITH_LIBURING=OFF
         WITH_LZ4=OFF
         WITH_SNAPPY=OFF
-        WITH_ZLIB=OFF
+        WITH_ZLIB=ON
         WITH_ZSTD=OFF
         WITH_GFLAGS=OFF
         USE_RTTI=ON

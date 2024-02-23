@@ -33,7 +33,6 @@ const PCommandInfo PCommandTable::s_info[] = {
     {"sort", kPAttrRead, -2, &sort},
 
     // server
-    {"select", kPAttrRead, 2, &select},
     {"dbsize", kPAttrRead, 1, &dbsize},
     {"bgsave", kPAttrRead, 1, &bgsave},
     {"save", kPAttrRead, 1, &save},

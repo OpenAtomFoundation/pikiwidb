@@ -53,7 +53,7 @@ var _ = Describe("List", Ordered, func() {
 	BeforeEach(func() {
 		client = s.NewClient()
 		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
-        time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).
@@ -67,42 +67,72 @@ var _ = Describe("List", Ordered, func() {
 	//TODO(dingxiaoshuai) Add more test cases.
 	It("Cmd LPUSH", func() {
 		log.Println("Cmd LPUSH Begin")
-		Expect(client.LPush(ctx, "mylistLPUSH", "world", ).Val()).To(Equal(int64(1)))
-		Expect(client.LPush(ctx, "mylistLPUSH", "hello", ).Val()).To(Equal(int64(2)))
+		Expect(client.LPush(ctx, "mylistLPUSH", "world").Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "mylistLPUSH", "hello").Val()).To(Equal(int64(2)))
 
-		// Expect(client.LRange(ctx,"mylistLPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+		Expect(client.LRange(ctx, "mylistLPUSH", 0, -1).Val()).To(Equal([]string{"hello", "world"}))
+
+		//del
+		del := client.Del(ctx, "mylistLPUSH")
+		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 	It("Cmd RPUSH", func() {
 		log.Println("Cmd RPUSH Begin")
-		Expect(client.LPush(ctx, "mylistRPUSH", "hello", ).Val()).To(Equal(int64(1)))
-		Expect(client.LPush(ctx, "mylistRPUSH", "world", ).Val()).To(Equal(int64(2)))
+		Expect(client.RPush(ctx, "mylistRPUSH", "hello").Val()).To(Equal(int64(1)))
+		Expect(client.RPush(ctx, "mylistRPUSH", "world").Val()).To(Equal(int64(2)))
 
-		// Expect(client.LRange(ctx,"mylistRPUSH",0,-1).Val()).To(Equal([]string{"hello", "world"}))  //After the LRange command is developed, uncomment it to test LRange command.
+		Expect(client.LRange(ctx, "mylistRPUSH", 0, -1).Val()).To(Equal([]string{"hello", "world"}))
+				//del
+				del := client.Del(ctx, "mylistRPUSH")
+				Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("should RPop", func() {
-        rPush := client.RPush(ctx, "list", "one")
-        Expect(rPush.Err()).NotTo(HaveOccurred())
-        rPush = client.RPush(ctx, "list", "two")
-        Expect(rPush.Err()).NotTo(HaveOccurred())
-        rPush = client.RPush(ctx, "list", "three")
-        Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush := client.RPush(ctx, "list", "one")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "two")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "three")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
 
-        rPop := client.RPop(ctx, "list")
-        Expect(rPop.Err()).NotTo(HaveOccurred())
-        Expect(rPop.Val()).To(Equal("three"))
+		rPop := client.RPop(ctx, "list")
+		Expect(rPop.Err()).NotTo(HaveOccurred())
+		Expect(rPop.Val()).To(Equal("three"))
 
-        //lRange := client.LRange(ctx, "list", 0, -1)
-        //Expect(lRange.Err()).NotTo(HaveOccurred())
-        //Expect(lRange.Val()).To(Equal([]string{"one", "two"})) //After the LRange command is developed, uncomment it to test LRange command.
+		lRange := client.LRange(ctx, "list", 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{"one", "two"}))
 
-        err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
-        Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
+		err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
 
-		// del
-		del := client.Del(ctx,"list")
+		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
+		//del
 		Expect(del.Err()).NotTo(HaveOccurred())
-    })
+		del := client.Del(ctx, "list")
+	})
+	It("Cmd LRem", func() {
+
+		rPush := client.RPush(ctx, "list", "hello")
+		rPush = client.RPush(ctx, "list", "hello")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, "list", "key")
+		rPush = client.RPush(ctx, "list", "hello")
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		Expect(lRem.Err()).NotTo(HaveOccurred())
+
+		Expect(lRem.Val()).To(Equal(int64(2)))
+		lRem := client.LRem(ctx, "list", -2, "hello")
+		lRange := client.LRange(ctx, "list", 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{"hello", "key"}))
+
+		//del
+		Expect(del.Err()).NotTo(HaveOccurred())
+		del := client.Del(ctx, "list")
+	})
 	It("should LTrim", func() {
 		rPush := client.RPush(ctx, "list", "one")
 		Expect(rPush.Err()).NotTo(HaveOccurred())
