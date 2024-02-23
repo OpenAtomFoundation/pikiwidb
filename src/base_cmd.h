@@ -93,6 +93,7 @@ const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 const std::string kCmdNameLTrim = "ltrim";
+const std::string kCmdNameLSet = "lset";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

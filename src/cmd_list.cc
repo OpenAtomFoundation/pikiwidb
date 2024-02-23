@@ -136,4 +136,35 @@ void LTrimCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
   }
 }
+LSetCmd::LSetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+bool LSetCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void LSetCmd::DoCmd(PClient* client) {
+  // isVaildNumber ensures that the string is in decimal format,
+  // while strtol ensures that the string is within the range of long type
+  const std::string index_str = client->argv_[2];
+
+  if (IsValidNumber(index_str)) {
+    int64_t val = 0;
+    if (1 != pstd::String2int(index_str, &val)) {
+      client->SetRes(CmdRes::kErrOther, "lset cmd error");  // this will not happend in normal case
+      return;
+    }
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LSet(client->Key(), val, client->argv_[3]);
+    if (s.ok()) {
+      client->SetRes(CmdRes::kOK);
+    } else if (s.IsNotFound()) {
+      client->SetRes(CmdRes::kNotFound);
+    } else if (s.IsCorruption()) {
+      client->SetRes(CmdRes::kOutOfRange);
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+    };
+  } else {
+    client->SetRes(CmdRes::kInvalidInt);
+  }
+}
 }  // namespace pikiwidb
