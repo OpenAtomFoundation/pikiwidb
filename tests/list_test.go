@@ -180,9 +180,28 @@ var _ = Describe("List", Ordered, func() {
 		Expect(lSet.Err()).NotTo(HaveOccurred())
 		Expect(lSet.Val()).To(Equal(OK))
 
-		lRange := client.LRange(ctx, DefaultKey, 0, -1) 
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
 		Expect(lRange.Err()).NotTo(HaveOccurred())
 		Expect(lRange.Val()).To(Equal([]string{s2s["key_4"], s2s["key_5"], s2s["key_3"]}))
+
+		// del
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("should LInsert", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lInsert := client.LInsert(ctx, DefaultKey, "BEFORE", s2s["key_2"], s2s["key_3"])
+		Expect(lInsert.Err()).NotTo(HaveOccurred())
+		Expect(lInsert.Val()).To(Equal(int64(3)))
+
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_1"], s2s["key_3"], s2s["key_2"]}))
 
 		// del
 		del := client.Del(ctx, DefaultKey)

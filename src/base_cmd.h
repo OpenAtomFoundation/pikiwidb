@@ -94,6 +94,7 @@ const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
+const std::string kCmdNameLInsert = "linsert";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

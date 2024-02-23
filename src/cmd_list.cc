@@ -136,8 +136,10 @@ void LTrimCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
   }
 }
+
 LSetCmd::LSetCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
 bool LSetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
@@ -166,5 +168,30 @@ void LSetCmd::DoCmd(PClient* client) {
   } else {
     client->SetRes(CmdRes::kInvalidInt);
   }
+}
+LInsertCmd::LInsertCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LInsertCmd::DoInitial(PClient* client) {
+  if (client->argv_[2] != "BEFORE" && client->argv_[2] != "AFTER") {
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LInsertCmd::DoCmd(PClient* client) {
+  int64_t ret = 0;
+  storage ::BeforeOrAfter before_or_after = storage::Before;
+  if (client->argv_[2] == "AFTER") {
+    before_or_after = storage::After;
+  }
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
+  if (!s.ok() && s.IsNotFound()) {
+    client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+    return;
+  }
+  client->AppendInteger(ret);
 }
 }  // namespace pikiwidb
