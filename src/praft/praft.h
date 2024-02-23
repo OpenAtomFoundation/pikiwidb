@@ -46,7 +46,6 @@ class JoinCmdContext {
     assert(client);
     client_ = client;
     peer_ip_ = peer_ip;
-    ;
     port_ = port;
     return true;
   }
@@ -77,7 +76,7 @@ class JoinCmdContext {
 
 class PRaft : public braft::StateMachine {
  public:
-  PRaft() : server_(nullptr), node_(nullptr) {}
+  PRaft() : server_(nullptr), node_(nullptr) {} 
 
   ~PRaft() override = default;
 
@@ -86,7 +85,7 @@ class PRaft : public braft::StateMachine {
   //===--------------------------------------------------------------------===//
   // Braft API
   //===--------------------------------------------------------------------===//
-  butil::Status Init(std::string& cluster_id);
+  butil::Status Init(std::string& cluster_id, bool initial_conf_is_null);
   butil::Status AddPeer(const std::string& peer);
   butil::Status RemovePeer(const std::string& peer);
   butil::Status RaftRecvEntry();
@@ -133,9 +132,13 @@ class PRaft : public braft::StateMachine {
   std::string dbid_;         // dbid of cluster,
 };
 
-class PRaftServiceImpl : public PRaftService {
+class DummyServiceImpl : public DummyService {
 public:
-    explicit PRaftServiceImpl(PRaft* praft) : praft_(praft) {}
+    explicit DummyServiceImpl(PRaft* praft) : praft_(praft) {}
+    void DummyMethod(::google::protobuf::RpcController* controller,
+                       const ::pikiwidb::DummyRequest* request,
+                       ::pikiwidb::DummyResponse* response,
+                       ::google::protobuf::Closure* done) {}
 private:
     PRaft* praft_;
 };

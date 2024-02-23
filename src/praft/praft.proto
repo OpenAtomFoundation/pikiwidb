@@ -2,5 +2,12 @@ syntax="proto2";
 package pikiwidb;
 option cc_generic_services = true;
 
-service PRaftService {
+message DummyRequest  {
+};
+
+message DummyResponse {
+};
+
+service DummyService  {
+    rpc DummyMethod(DummyRequest) returns (DummyResponse);
 };
