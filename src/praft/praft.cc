@@ -15,13 +15,13 @@ PRaft& PRaft::Instance() {
   return store;
 }
 
-butil::Status PRaft::Init(std::string& cluster_id) {
+butil::Status PRaft::Init(std::string& cluster_id, bool initial_conf_is_null) {
   if (node_ && server_) {
     return {0, "OK"};
   }
 
   server_ = std::make_unique<brpc::Server>();
-  PRaftServiceImpl service(&PRAFT);
+  DummyServiceImpl service(&PRAFT);
   auto port = g_config.port + RAFT_PORT_OFFSET;
   // Add your service into RPC server
   if (server_->AddService(&service, 
@@ -53,12 +53,24 @@ butil::Status PRaft::Init(std::string& cluster_id) {
   this->dbid_ = cluster_id;
 
   // FIXME: g_config.ip is default to 127.0.0.0, which may not work in cluster.
-  auto raw_addr = g_config.ip + ":" + std::to_string(port); 
+  raw_addr_ = g_config.ip + ":" + std::to_string(port); 
   butil::EndPoint addr(butil::my_ip(), port);
 
   // Default init in one node.
-  if (node_options_.initial_conf.parse_from("") != 0) { // @todo 一开始初始化的时候是只有一个节点的，所以似乎这里不需要使用raw_addr，直接传入空值？
-    LOG(ERROR) << "Fail to parse configuration, address: " << raw_addr;
+  /*
+  initial_conf takes effect only when the replication group is started from an empty node. 
+  The Configuration is restored from the snapshot and log files when the data in the replication group is not empty. 
+  initial_conf is used only to create replication groups. 
+  The first node adds itself to initial_conf and then calls add_peer to add other nodes. 
+  Set initial_conf to empty for other nodes. 
+  You can also start empty nodes simultaneously by setting the same inital_conf(ip:port of multiple nodes) for multiple nodes.
+  */
+  std::string initial_conf("");
+  if (!initial_conf_is_null) {
+    initial_conf = raw_addr_ + ":0,";
+  }
+  if (node_options_.initial_conf.parse_from(initial_conf) != 0) {
+    LOG(ERROR) << "Fail to parse configuration, address: " << raw_addr_;
     return {EINVAL, "Fail to parse address."};
   }
 
@@ -116,13 +128,16 @@ std::string PRaft::GetClusterId() const {
 void PRaft::SendNodeAddRequest(PClient *client) {
   assert(client);
 
-  UnboundedBuffer req;
-  req.PushData("RAFT.NODE ADD ", 13);
   // Node id in braft are ip:port, the node id param in RAFT.NODE ADD cmd will be ignored.
   int unused_node_id = 0;
+  auto port = g_config.port + RAFT_PORT_OFFSET;
+  auto raw_addr = g_config.ip + ":" + std::to_string(port);
+  UnboundedBuffer req;
+  req.PushData("RAFT.NODE ADD ", 14);
   req.PushData(std::to_string(unused_node_id).c_str(), std::to_string(unused_node_id).size());
   req.PushData(" ", 1);
-  req.PushData(raw_addr_.data(), raw_addr_.size());
+  req.PushData(raw_addr.data(), raw_addr.size());
+  req.PushData("\r\n", 2);
   client->SendPacket(req);
 }
 
@@ -141,7 +156,7 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(const char* start, in
     pstd::StringTrim(reply);
 
     // initialize the slave node
-    auto s = PRAFT.Init(reply);
+    auto s = PRAFT.Init(reply, true);
     if (!s.ok()) {
       join_client->SetRes(CmdRes::kErrOther, s.error_str());
       join_client->SendPacket(join_client->Message());

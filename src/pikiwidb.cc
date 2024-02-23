@@ -303,7 +303,6 @@ static void closeStd() {
 int main(int ac, char* av[]) {
   [[maybe_unused]] rocksdb::DB* db;
   g_pikiwidb = std::make_unique<PikiwiDB>();
-
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();
     return -1;
