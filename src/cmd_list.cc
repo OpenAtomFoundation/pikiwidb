@@ -69,10 +69,7 @@ void RPopCmd::DoCmd(PClient* client) {
 }
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
-LTrimCmd::LTrimCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
-bool LTrimCmd::DoInitial(PClient* client) {
-  client->SetKey(client->argv_[1]);
+
 
 bool LRangeCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
@@ -119,7 +116,11 @@ void LRemCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "lrem cmd error");
   }
 }
+LTrimCmd::LTrimCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
+bool LTrimCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
   return true;
 }
 void LTrimCmd::DoCmd(PClient* client) {
@@ -129,7 +130,7 @@ void LTrimCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
   }
-  storage::Status s = PSTORE.GetBackend()->LTrim(client->Key(), start_index, end_index);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LTrim(client->Key(), start_index, end_index);
   if (s.ok() || s.IsNotFound()) {
     client->SetRes(CmdRes::kOK);
   } else {
