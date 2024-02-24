@@ -101,7 +101,7 @@ bool InfoCmd::DoInitial(PClient* client) { return true; }
 */
 // @todo The info raft command is only supported for the time being
 void InfoCmd::DoCmd(PClient* client) {
-  if (client->argv_.size() < 1) {
+  if (client->argv_.size() <= 1) {
     return client->SetRes(CmdRes::kWrongNum, client->CmdName());
   }
 
@@ -122,8 +122,12 @@ void InfoCmd::DoCmd(PClient* client) {
 
     std::string message("");
     message += "raft_group_id:" + PRAFT.GetGroupId() + "\r\n";
-    message += "raft_state:" + std::to_string(node_status.state) + "\r\n"; // @todo 
-    message += "raft_role:" + std::to_string(node_status.state) + "\r\n";
+    if (braft::is_active_state(node_status.state)) {
+      message += "raft_state:up\r\n";
+    } else {
+      message += "raft_state:down\r\n";
+    }    
+    message += "raft_role:" + std::string(braft::state2str(node_status.state)) + "\r\n";
     message += "raft_leader_id:" + node_status.leader_id.to_string() + "\r\n";
     message += "raft_current_term:" + std::to_string(node_status.term) + "\r\n";
     // message += "raft_node1:" + node_status.node_info + "\r\n";

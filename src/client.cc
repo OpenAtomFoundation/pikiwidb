@@ -50,10 +50,6 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
   switch (ret_) {
     case kOK:
       SetLineString("+OK");
-      if (!content.empty()) {
-        AppendStringRaw(content);
-        AppendStringRaw(CRLF);
-      }
       break;
     case kPong:
       SetLineString("+PONG");

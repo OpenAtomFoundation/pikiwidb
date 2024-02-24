@@ -54,7 +54,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   // clients.
   // Notice the default options of server is used here. Check out details from
   // the doc of brpc if you would like change some options;
-  if (server_->Start(port, NULL) != 0) {
+  if (server_->Start(port, nullptr) != 0) {
       LOG(ERROR) << "Fail to start Server";
       return {EINVAL, "Fail to start Server"};
   }
@@ -95,7 +95,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   node_options_.fsm = this;
   node_options_.node_owns_fsm = false;
   // node_options_.snapshot_interval_s = FLAGS_snapshot_interval;
-  std::string prefix = "local://" + g_config.dbpath;
+  std::string prefix = "local://" + g_config.dbpath + "_praft";
   node_options_.log_uri = prefix + "/log";
   node_options_.raft_meta_uri = prefix + "/raft_meta";
   node_options_.snapshot_uri = prefix + "/snapshot";
@@ -251,55 +251,6 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(PClient* client, cons
   }
 
   return std::make_tuple(len, is_disconnect);
-
-  // Redis process cluster join cmd response like this:
-  
-  // static void handleNodeAddResponse(redisAsyncContext *c, void *r, void *privdata)
-  // {
-  //     Connection *conn = privdata;
-  //     JoinLinkState *state = ConnGetPrivateData(conn);
-  //     RedisRaftCtx *rr = ConnGetRedisRaftCtx(conn);
-
-  //     redisReply *reply = r;
-
-  //     if (!reply) {
-  //         LOG_WARNING("RAFT.NODE ADD failed: connection dropped.");
-  //         ConnMarkDisconnected(conn);
-  //     } else if (reply->type == REDIS_REPLY_ERROR) {
-  //         /* -MOVED? */
-  //         if (strlen(reply->str) > 6 && !strncmp(reply->str, "MOVED ", 6)) {
-  //             NodeAddr addr;
-  //             if (!parseMovedReply(reply->str, &addr)) {
-  //                 LOG_WARNING("RAFT.NODE ADD failed: invalid MOVED response: %s", reply->str);
-  //             } else {
-  //                 LOG_VERBOSE("Join redirected to leader: %s:%d", addr.host, addr.port);
-  //                 NodeAddrListAddElement(&state->addr, &addr);
-  //             }
-  //         } else if (strlen(reply->str) > 12 && !strncmp(reply->str, "CLUSTERDOWN ", 12)) {
-  //             LOG_WARNING("RAFT.NODE ADD error: %s, retrying.", reply->str);
-  //         } else {
-  //             LOG_WARNING("RAFT.NODE ADD failed: %s", reply->str);
-  //             state->failed = true;
-  //         }
-  //     } else if (reply->type != REDIS_REPLY_ARRAY || reply->elements != 2) {
-  //         LOG_WARNING("RAFT.NODE ADD invalid reply.");
-  //     } else {
-  //         LOG_NOTICE("Joined Raft cluster, node id: %lu, dbid: %.*s",
-  //                    (unsigned long) reply->element[0]->integer,
-  //                    (int) reply->element[1]->len, reply->element[1]->str);
-
-  //         strncpy(rr->snapshot_info.dbid, reply->element[1]->str, reply->element[1]->len);
-  //         rr->snapshot_info.dbid[RAFT_DBID_LEN] = '\0';
-
-  //         rr->config.id = reply->element[0]->integer;
-  //         state->complete_callback(state->req);
-  //         RedisModule_Assert(rr->state == REDIS_RAFT_UP);
-
-  //         ConnAsyncTerminate(conn);
-  //     }
-
-  //     redisAsyncDisconnect(c);
-  // }
 }
 
 butil::Status PRaft::AddPeer(const std::string& peer) {
