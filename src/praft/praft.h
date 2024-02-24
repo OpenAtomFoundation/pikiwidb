@@ -97,14 +97,16 @@ class PRaft : public braft::StateMachine {
   // ClusterJoin command
   //===--------------------------------------------------------------------===//
   JoinCmdContext& GetJoinCtx() { return join_ctx_; }
+  void SendNodeInfoRequest(PClient *client);
   void SendNodeAddRequest(PClient *client);
-  std::tuple<int, bool> ProcessClusterJoinCmdResponse(const char* start, int len);
+  std::tuple<int, bool> ProcessClusterJoinCmdResponse(PClient* client, const char* start, int len);
   void OnJoinCmdConnectionFailed(EventLoop*, const char* peer_ip, int port);
 
   bool IsLeader() const;
   std::string GetLeaderId() const;
   std::string GetNodeId() const;
-  std::string GetClusterId() const;
+  std::string GetGroupId() const;
+  braft::NodeStatus GetNodeStatus() const;
 
   bool IsInitialized() const { return node_ != nullptr; }
 
@@ -120,7 +122,7 @@ class PRaft : public braft::StateMachine {
   void on_error(const ::braft::Error& e) override;
   void on_configuration_committed(const ::braft::Configuration& conf) override;
   void on_stop_following(const ::braft::LeaderChangeContext& ctx) override;
-  void on_start_following(const ::braft::LeaderChangeContext& ctx) override;
+  void on_start_following(const ::braft::LeaderChangeContext& ctx) override;;
 
  private:
   std::unique_ptr<brpc::Server> server_; // brpc
@@ -129,7 +131,7 @@ class PRaft : public braft::StateMachine {
   std::string raw_addr_;             // ip:port of this node
 
   JoinCmdContext join_ctx_;  // context for cluster join command
-  std::string dbid_;         // dbid of cluster,
+  std::string dbid_;         // dbid of group,
 };
 
 class DummyServiceImpl : public DummyService {

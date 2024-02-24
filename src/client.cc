@@ -281,7 +281,7 @@ int PClient::handlePacket(const char* start, int bytes) {
 
   if (isJoinCmdTarget()) {
     // Proccees the packet at one turn.
-    auto [len, is_disconnect] = PRAFT.ProcessClusterJoinCmdResponse(start, bytes);
+    auto [len, is_disconnect] = PRAFT.ProcessClusterJoinCmdResponse(this, start, bytes);
     if (is_disconnect) {
       conn->ActiveClose();
     }
@@ -461,7 +461,7 @@ void PClient::OnConnect() {
     }
   } else if (isJoinCmdTarget()) {
     SetName("ClusterJoinCmdConnection");
-    PRAFT.SendNodeAddRequest(this);
+    PRAFT.SendNodeInfoRequest(this);
   } else {
     if (g_config.password.empty()) {
       SetAuth();
@@ -704,6 +704,7 @@ void PClient::FeedMonitors(const std::vector<std::string>& params) {
     }
   }
 }
+
 void PClient::SetKey(std::vector<std::string>& names) {
   keys_ = std::move(names);  // use std::move clear copy expense
 }

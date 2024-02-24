@@ -39,6 +39,9 @@ void CmdTableManager::InitCmdTable() {
   // server
   ADD_COMMAND(Flushdb, 1);
 
+  // info
+  ADD_COMMAND(Info, -1);
+
   // keyspace
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, 2);

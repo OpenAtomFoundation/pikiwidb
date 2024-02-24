@@ -15,7 +15,7 @@ PRaft& PRaft::Instance() {
   return store;
 }
 
-butil::Status PRaft::Init(std::string& cluster_id, bool initial_conf_is_null) {
+butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   if (node_ && server_) {
     return {0, "OK"};
   }
@@ -49,12 +49,18 @@ butil::Status PRaft::Init(std::string& cluster_id, bool initial_conf_is_null) {
   }
 
   // It's ok to start PRaft;
-  assert(cluster_id.size() == RAFT_DBID_LEN);
-  this->dbid_ = cluster_id;
+  assert(group_id.size() == RAFT_DBID_LEN);
+  this->dbid_ = group_id;
 
   // FIXME: g_config.ip is default to 127.0.0.0, which may not work in cluster.
-  raw_addr_ = g_config.ip + ":" + std::to_string(port); 
-  butil::EndPoint addr(butil::my_ip(), port);
+  raw_addr_ = g_config.ip + ":" + std::to_string(port);
+  butil::ip_t ip;
+  auto ret = butil::str2ip(g_config.ip.c_str(), &ip);
+  if (ret != 0) {
+    LOG(ERROR) << "Fail to covert str_ip to butil::ip_t";
+    return {EINVAL, "Fail to covert str_ip to butil::ip_t"};
+  }
+  butil::EndPoint addr(ip, port);
 
   // Default init in one node.
   /*
@@ -83,7 +89,7 @@ butil::Status PRaft::Init(std::string& cluster_id, bool initial_conf_is_null) {
   node_options_.raft_meta_uri = prefix + "/raft_meta";
   node_options_.snapshot_uri = prefix + "/snapshot";
   // node_options_.disable_cli = FLAGS_disable_cli;
-  node_ = std::make_unique<braft::Node>(cluster_id, braft::PeerId(addr));
+  node_ = std::make_unique<braft::Node>("pikiwidb", braft::PeerId(addr)); // group_id
   if (node_->init(node_options_) != 0) {
     node_.reset();
     LOG(ERROR) << "Fail to init raft node";
@@ -117,12 +123,33 @@ std::string PRaft::GetNodeId() const {
   return node_->node_id().to_string();
 }
 
-std::string PRaft::GetClusterId() const {
+std::string PRaft::GetGroupId() const {
   if (!node_) {
     LOG(ERROR) << "Node is not initialized";
     return std::string("Fail to get cluster id");
   }
   return dbid_;
+}
+
+braft::NodeStatus PRaft::GetNodeStatus() const {
+  braft::NodeStatus node_status;
+  if (!node_) {
+    LOG(ERROR) << "Node is not initialized";
+  } else {
+    node_->get_status(&node_status);
+  }
+
+  return node_status;
+}
+
+// Gets the cluster id, which is used to initialize node
+void PRaft::SendNodeInfoRequest(PClient *client) {
+  assert(client);
+
+  UnboundedBuffer req;
+  req.PushData("INFO raft", 9);
+  req.PushData("\r\n", 2);
+  client->SendPacket(req);
 }
 
 void PRaft::SendNodeAddRequest(PClient *client) {
@@ -141,7 +168,7 @@ void PRaft::SendNodeAddRequest(PClient *client) {
   client->SendPacket(req);
 }
 
-std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(const char* start, int len) {
+std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(PClient* client, const char* start, int len) {
   assert(start);
   auto join_client = join_ctx_.GetClient();
   if (!join_client) {
@@ -149,24 +176,13 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(const char* start, in
     return std::make_tuple(0, true);
   }
 
-  bool is_disconnet = true;
+  bool is_disconnect = true;
   std::string reply(start, len);
   if (reply.find("+OK") != std::string::npos) {
-    pstd::StringTrimLeft(reply, "+OK");
-    pstd::StringTrim(reply);
-
-    // initialize the slave node
-    auto s = PRAFT.Init(reply, true);
-    if (!s.ok()) {
-      join_client->SetRes(CmdRes::kErrOther, s.error_str());
-      join_client->SendPacket(join_client->Message());
-      return std::make_tuple(len, is_disconnet);
-    }
-
     LOG(INFO) << "Joined Raft cluster, node id:" << PRAFT.GetNodeId() << "dbid:" << PRAFT.dbid_;
     join_client->SetRes(CmdRes::kOK);
     join_client->SendPacket(join_client->Message());
-    is_disconnet = false;
+    is_disconnect = false;
   } else if (reply.find("-ERR wrong leader") != std::string::npos) {
     // Resolve the ip address of the leader
     pstd::StringTrimLeft(reply, "-ERR wrong leader");
@@ -194,13 +210,36 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(const char* start, in
 
     // Not reply any message here, we will reply after the connection is established.
     join_client->Clear();
+  } else if (reply.find("raft_group_id") != std::string::npos) {
+    std::string prefix = "raft_group_id:";
+    std::string::size_type prefix_length = prefix.length();
+    std::string::size_type group_id_start = reply.find(prefix);
+    group_id_start += prefix_length;  // 定位到raft_group_id的起始位置
+    std::string::size_type group_id_end = reply.find("\r\n", group_id_start);
+    if (group_id_end != std::string::npos) {
+      std::string raft_group_id = reply.substr(group_id_start, group_id_end - group_id_start);
+      // initialize the slave node
+      auto s = PRAFT.Init(raft_group_id, true);
+      if (!s.ok()) {
+        join_client->SetRes(CmdRes::kErrOther, s.error_str());
+        join_client->SendPacket(join_client->Message());
+        return std::make_tuple(len, is_disconnect);
+      }
+
+      PRAFT.SendNodeAddRequest(client);
+      is_disconnect = false;
+    } else {
+      LOG(ERROR) << "Joined Raft cluster fail, because of invalid raft_group_id";
+      join_client->SetRes(CmdRes::kErrOther, "Invalid raft_group_id");
+      join_client->SendPacket(join_client->Message());
+    }
   } else {
     LOG(ERROR) << "Joined Raft cluster fail, " << start;
     join_client->SetRes(CmdRes::kErrOther, std::string(start, len));
     join_client->SendPacket(join_client->Message());
   }
 
-  return std::make_tuple(len, is_disconnet);
+  return std::make_tuple(len, is_disconnect);
 
   // Redis process cluster join cmd response like this:
   
@@ -331,7 +370,10 @@ void PRaft::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done
 
 int PRaft::on_snapshot_load(braft::SnapshotReader* reader) { return 0; }
 
-void PRaft::on_leader_start(int64_t term) {}
+void PRaft::on_leader_start(int64_t term) {
+  LOG(WARNING) << "Node " << node_->node_id() << "start to be leader, term" << term;
+}
+
 void PRaft::on_leader_stop(const butil::Status& status) {}
 
 void PRaft::on_shutdown() {}
