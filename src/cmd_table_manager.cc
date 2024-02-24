@@ -42,6 +42,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Flushall, 1);
   ADD_COMMAND(Select, 2);
 
+  // info
+  ADD_COMMAND(Info, -1);
+
   // keyspace
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, -2);

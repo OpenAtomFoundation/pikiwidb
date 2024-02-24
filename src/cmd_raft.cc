@@ -49,9 +49,9 @@ bool RaftNodeCmd::DoInitial(PClient* client) { return true; }
  */
 void RaftNodeCmd::DoCmd(PClient* client) {
   // Check whether it is a leader. If it is not a leader, return the leader information
-  // if (!PRAFT.IsLeader()) {
-  //   return client->SetRes(CmdRes::kWrongLeader, PRAFT.GetLeaderId());
-  // }
+  if (!PRAFT.IsLeader()) {
+    return client->SetRes(CmdRes::kWrongLeader, PRAFT.GetLeaderId());
+  }
 
   auto cmd = client->argv_[1];
   if (!strcasecmp(cmd.c_str(), "ADD")) {
@@ -63,7 +63,7 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     // So we do not need to parse and use nodeid like redis;
     auto s = PRAFT.AddPeer(client->argv_[3]);
     if (s.ok()) {
-      client->SetRes(CmdRes::kOK, PRAFT.GetClusterId());
+      client->SetRes(CmdRes::kOK, PRAFT.GetGroupId());
     } else {
       client->SetRes(CmdRes::kErrOther);
     }
@@ -124,18 +124,6 @@ int GetPortFromEndPoint(std::string& endpoint) {
  *   The operation is asynchronous and may take place/retry in the background.
  * Reply:
  *   +OK
- * RAFT.CLUSTER INFO raft
- *   Querying Node Information.
- * Reply:
- *   raft_node_id:595100767
-     raft_state:up
-     raft_role:follower
-     raft_is_voting:yes
-     raft_leader_id:1733428433
-     raft_current_term:1
-     raft_num_nodes:2
-     raft_num_voting_nodes:2
-     raft_node1:id=1733428433,state=connected,voting=yes,addr=localhost,port=5001,last_conn_secs=5,conn_errors=0,conn_oks=1
  */
 void RaftClusterCmd::DoCmd(PClient* client) {
   if (client->argv_.size() < 2) {
@@ -162,7 +150,6 @@ void RaftClusterCmd::DoCmd(PClient* client) {
     } else {
       cluster_id = pstd::RandomHexChars(RAFT_DBID_LEN);
     }
-
     auto s = PRAFT.Init(cluster_id, false);
     if (!s.ok()) {
       return client->SetRes(CmdRes::kErrOther, s.error_str());
