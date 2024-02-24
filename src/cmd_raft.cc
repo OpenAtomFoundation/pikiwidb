@@ -63,11 +63,10 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     // So we do not need to parse and use nodeid like redis;
     auto s = PRAFT.AddPeer(client->argv_[3]);
     if (s.ok()) {
-      client->SetRes(CmdRes::kOK, PRAFT.GetGroupId());
+      client->SetRes(CmdRes::kOK);
     } else {
       client->SetRes(CmdRes::kErrOther);
     }
-
   } else if (!strcasecmp(cmd.c_str(), "REMOVE")) {
     if (client->argv_.size() != 3) {
       return client->SetRes(CmdRes::kWrongNum, client->CmdName());
@@ -80,7 +79,6 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     } else {
       client->SetRes(CmdRes::kErrOther);
     }
-
   } else {
     client->SetRes(CmdRes::kErrOther, "ERR RAFT.NODE supports ADD / REMOVE only");
   }
@@ -154,7 +152,7 @@ void RaftClusterCmd::DoCmd(PClient* client) {
     if (!s.ok()) {
       return client->SetRes(CmdRes::kErrOther, s.error_str());
     }
-    client->SetRes(CmdRes::kOK, "OK " + cluster_id);
+    client->SetRes(CmdRes::kOK);
   } else if (!strcasecmp(cmd.c_str(), "JOIN")) {
     if (client->argv_.size() < 3) {
       return client->SetRes(CmdRes::kWrongNum, client->CmdName());

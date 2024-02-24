@@ -266,6 +266,8 @@ void PikiwiDB::Run() {
 }
 
 void PikiwiDB::Stop() {
+  pikiwidb::PRAFT.ShutDown();
+  pikiwidb::PRAFT.Join();
   slave_threads_.Exit();
   worker_threads_.Exit();
 }
