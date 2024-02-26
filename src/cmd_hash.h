@@ -146,4 +146,15 @@ class HIncrbyFloatCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class HSetNXCmd : public BaseCmd {
+ public:
+  HSetNXCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb
