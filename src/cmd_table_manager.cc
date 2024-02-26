@@ -92,6 +92,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SUnion, -2);
   ADD_COMMAND(SInterStore, -3);
   ADD_COMMAND(SCard, 2);
+  ADD_COMMAND(SMove, 4);
 
   // list
   ADD_COMMAND(LPush, -3);
