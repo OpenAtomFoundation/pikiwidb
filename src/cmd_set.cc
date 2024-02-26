@@ -172,6 +172,7 @@ void SMoveCmd::DoCmd(PClient* client) {
                           ->SMove(client->argv_[1], client->argv_[2], client->argv_[3], &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "smove cmd error");
+    return;
   }
   client->AppendInteger(reply_num);
 }
