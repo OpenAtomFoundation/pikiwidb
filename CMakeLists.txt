@@ -1,3 +1,8 @@
+# Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree. An additional grant
+# of patent rights can be found in the PATENTS file in the same directory.
+
 CMAKE_MINIMUM_REQUIRED(VERSION 3.14)
 PROJECT(PikiwiDB)
 
@@ -124,7 +129,6 @@ SET(EXTERNAL_PROJECT_LOG_ARGS
         LOG_INSTALL 0)
 
 INCLUDE(FetchContent)
-#include(cmake/CmakeLists.txt)
 
 include(findTools)
 include(leveldb)
@@ -138,7 +142,6 @@ include(rocksdb)
 include(zlib)
 include(protobuf)
 include(brpc)
-# ExternalProject_Add_StepTargets(extern_brpc build)
 include(braft)
 
 enable_testing()
@@ -148,9 +151,6 @@ ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(src/counter)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
-
-# 设置依赖关系
-# add_dependencies(counter extern_brpc-build)
 
 #############################################################################
 ###			custom target
