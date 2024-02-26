@@ -440,6 +440,11 @@ Status Storage::HScanx(const Slice& key, const std::string& start_field, const s
   return inst->HScanx(key, start_field, pattern, count, field_values, next_field);
 }
 
+Status Storage::HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res) {
+  auto& inst = GetDBInstance(key);
+  return inst->HRandField(key, count, with_values, res);
+}
+
 Status Storage::PKHScanRange(const Slice& key, const Slice& field_start, const std::string& field_end,
                              const Slice& pattern, int32_t limit, std::vector<FieldValue>* field_values,
                              std::string* next_field) {
