@@ -10,7 +10,6 @@
 #include <string>
 #include <vector>
 
-#include "glog/logging.h"
 #include "rocksdb/compaction_filter.h"
 #include "rocksdb/db.h"
 #include "src/base_data_key_format.h"

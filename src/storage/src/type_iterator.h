@@ -9,7 +9,6 @@
 #include <memory>
 #include <vector>
 
-#include "glog/logging.h"
 #include "rocksdb/db.h"
 #include "rocksdb/options.h"
 #include "rocksdb/slice.h"

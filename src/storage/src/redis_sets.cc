@@ -11,9 +11,9 @@
 #include <random>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
 
 #include "pstd/env.h"
+#include "pstd/log.h"
 #include "src/base_data_value_format.h"
 #include "src/base_filter.h"
 #include "src/scope_record_lock.h"
@@ -1323,7 +1323,7 @@ void Redis::ScanSets() {
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
 
-  LOG(INFO) << "***************Sets Meta Data***************";
+  INFO("***************Sets Meta Data***************");
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kSetsMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedSetsMetaValue parsed_sets_meta_value(meta_iter->value());
@@ -1334,19 +1334,19 @@ void Redis::ScanSets() {
           parsed_sets_meta_value.Etime() - current_time > 0 ? parsed_sets_meta_value.Etime() - current_time : -1;
     }
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
-                             parsed_meta_key.Key().ToString(), parsed_sets_meta_value.Count(),
-                             parsed_sets_meta_value.Etime(), parsed_sets_meta_value.Version(), survival_time);
+    INFO("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+         parsed_meta_key.Key().ToString(), parsed_sets_meta_value.Count(), parsed_sets_meta_value.Etime(),
+         parsed_sets_meta_value.Version(), survival_time);
   }
   delete meta_iter;
 
-  LOG(INFO) << "***************Sets Member Data***************";
+  INFO("***************Sets Member Data***************");
   auto member_iter = db_->NewIterator(iterator_options, handles_[kSetsDataCF]);
   for (member_iter->SeekToFirst(); member_iter->Valid(); member_iter->Next()) {
     ParsedSetsMemberKey parsed_sets_member_key(member_iter->key());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [member : {:<20}] [version : {}]", parsed_sets_member_key.Key().ToString(),
-                             parsed_sets_member_key.member().ToString(), parsed_sets_member_key.Version());
+    INFO("[key : {:<30}] [member : {:<20}] [version : {}]", parsed_sets_member_key.Key().ToString(),
+         parsed_sets_member_key.member().ToString(), parsed_sets_member_key.Version());
   }
   delete member_iter;
 }
