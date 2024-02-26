@@ -115,6 +115,7 @@ void LRemCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "lrem cmd error");
   }
 }
+
 LTrimCmd::LTrimCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
@@ -164,11 +165,12 @@ void LSetCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kOutOfRange);
     } else {
       client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
-    };
+    }
   } else {
     client->SetRes(CmdRes::kInvalidInt);
   }
 }
+
 LInsertCmd::LInsertCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
