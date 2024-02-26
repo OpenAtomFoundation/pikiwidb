@@ -6,6 +6,7 @@
 #ifndef SRC_REDIS_H_
 #define SRC_REDIS_H_
 
+#include <cstdint>
 #include <memory>
 #include <string>
 #include <vector>
@@ -18,6 +19,7 @@
 #include "src/custom_comparator.h"
 #include "src/debug.h"
 #include "src/lock_mgr.h"
+#include "src/log_index.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "src/type_iterator.h"
@@ -327,14 +329,27 @@ class Redis {
     }
     return nullptr;
   }
+  TaskQueue* GetTaskQueue() const { return storage_->GetTaskQueue(); }
+  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
+  auto GetColumnFamilyHandles() const -> const std::vector<rocksdb::ColumnFamilyHandle*>& { return handles_; }
+  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
+  void UpdateLogIndex(int64_t applied_log_index) {
+    log_index_collector_.Update(applied_log_index, db_->GetLatestSequenceNumber());
+  }
+  bool CheckIfApplyAndSet(size_t cf_id, int64_t cur_log_index) {
+    return log_index_of_cf_.CheckIfApplyAndSet(cf_id, cur_log_index);
+  }
 
  private:
   int32_t index_ = 0;
   Storage* const storage_;
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
+  LogIndexAndSequenceCollector log_index_collector_;
+  LogIndexOfCF log_index_of_cf_;
 
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
+
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;
   rocksdb::CompactRangeOptions default_compact_range_options_;
@@ -356,6 +371,9 @@ class Redis {
   Status UpdateSpecificKeyStatistics(const DataType& dtype, const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const DataType& dtype, const std::string& key, uint64_t duration);
   Status AddCompactKeyTaskIfNeeded(const DataType& dtype, const std::string& key, uint64_t count, uint64_t duration);
+
+  // For binlog
+  bool is_write_by_binlog_{false};
 };
 
 }  //  namespace storage
