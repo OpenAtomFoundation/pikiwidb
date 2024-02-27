@@ -67,6 +67,7 @@ void RPopCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
   }
 }
+
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
 
@@ -123,6 +124,7 @@ bool LTrimCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
+
 void LTrimCmd::DoCmd(PClient* client) {
   int64_t start_index = 0, end_index = 0;
 
@@ -145,6 +147,7 @@ bool LSetCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
+
 void LSetCmd::DoCmd(PClient* client) {
   // isVaildNumber ensures that the string is in decimal format,
   // while strtol ensures that the string is within the range of long type
