@@ -195,7 +195,7 @@ void LInsertCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
                           ->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
   if (!s.ok() && s.IsNotFound()) {
-    client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+    client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");  // just a safeguard
     return;
   }
   client->AppendInteger(ret);
