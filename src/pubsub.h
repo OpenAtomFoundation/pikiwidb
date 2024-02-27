@@ -11,6 +11,7 @@
 #include <memory>
 #include <set>
 #include <vector>
+
 #include "common.h"
 
 namespace pikiwidb {

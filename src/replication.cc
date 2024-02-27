@@ -5,18 +5,15 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "replication.h"
-
-#include <unistd.h>
 #include <iostream>  // the child process use stdout for log
 
 #include "client.h"
-#include "common.h"
 #include "config.h"
 #include "event_loop.h"
 #include "log.h"
 #include "net/util.h"
 #include "pikiwidb.h"
+#include "replication.h"
 
 namespace pikiwidb {
 
@@ -134,7 +131,7 @@ void PReplication::onStartBgsave(bool succ) {
   }
 }
 
-void PReplication::SendToSlaves(const std::vector<string>& params) {
+void PReplication::SendToSlaves(const std::vector<PString>& params) {
   if (IsBgsaving()) {  // During the execution of RDB, there are cache changes.
     SaveCommand(params, buffer_);
     return;
@@ -332,7 +329,7 @@ void PReplication::SetRdbSize(std::size_t s) { masterInfo_.rdbSize = s; }
 
 std::size_t PReplication::GetRdbSize() const { return masterInfo_.rdbSize; }
 
-PError replconf(const std::vector<string>& params, UnboundedBuffer* reply) {
+PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 == 0) {
     ReplyError(kPErrorSyntax, reply);
     return kPErrorSyntax;
@@ -389,7 +386,7 @@ void PReplication::OnInfoCommand(UnboundedBuffer& res) {
     }
   }
 
-  std::string slaveInfo(oss.str());
+  PString slaveInfo(oss.str());
 
   char buf[1024] = {};
   bool isMaster = !GetMasterAddr().IsValid();
@@ -422,12 +419,12 @@ void PReplication::OnInfoCommand(UnboundedBuffer& res) {
   res.PushData(buf, n);
 
   {
-    std::string info(masterInfo.str());
+    PString info(masterInfo.str());
     res.PushData(info.c_str(), info.size());
   }
 }
 
-PError slaveof(const std::vector<string>& params, UnboundedBuffer* reply) {
+PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (strncasecmp(params[1].data(), "no", 2) == 0 && strncasecmp(params[2].data(), "one", 3) == 0) {
     PREPL.SetMasterAddr(nullptr, 0);
   } else {
@@ -447,7 +444,7 @@ PError slaveof(const std::vector<string>& params, UnboundedBuffer* reply) {
   return kPErrorOK;
 }
 
-PError sync(const std::vector<string>& params, UnboundedBuffer* reply) {
+PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* cli = PClient::Current();
   auto slave = cli->GetSlaveInfo();
   if (!slave) {

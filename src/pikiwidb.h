@@ -5,16 +5,13 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include <string>
-
 #include "cmd_table_manager.h"
+#include "common.h"
 #include "event_loop.h"
 #include "io_thread_pool.h"
 #include "tcp_connection.h"
 
 #define kPIKIWIDB_VERSION "4.0.0"
-
-using PString = std::string;
 
 class PikiwiDB final {
  public:

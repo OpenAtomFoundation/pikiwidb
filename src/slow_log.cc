@@ -7,7 +7,6 @@
 
 #include <sys/time.h>
 #include <fstream>
-#include <sstream>
 
 #include "log.h"
 #include "slow_log.h"
@@ -38,7 +37,7 @@ void PSlowLog::Begin() {
   beginUs_ = begin.tv_sec * 1000000 + begin.tv_usec;
 }
 
-void PSlowLog::EndAndStat(const std::vector<string>& cmds) {
+void PSlowLog::EndAndStat(const std::vector<PString>& cmds) {
   if (!threshold_ || beginUs_ == 0) {
     return;
   }

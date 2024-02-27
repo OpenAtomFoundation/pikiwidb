@@ -9,12 +9,13 @@ package pikiwidb_test
 
 import (
 	"context"
-	. "github.com/onsi/ginkgo/v2"
-	. "github.com/onsi/gomega"
-	"github.com/redis/go-redis/v9"
 	"log"
 	"strconv"
 	"time"
+
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+	"github.com/redis/go-redis/v9"
 
 	"github.com/OpenAtomFoundation/pikiwidb/tests/util"
 )

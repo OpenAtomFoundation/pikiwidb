@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-using PString = std::string;
+#include "common.h"
 
 namespace pikiwidb {
 

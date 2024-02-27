@@ -27,7 +27,7 @@ class PStore {
   PStore(const PStore&) = delete;
   void operator=(const PStore&) = delete;
 
-  void Init(int dbNum = 3);
+  void Init(int dbNum);
 
   std::unique_ptr<storage::Storage>& GetBackend(int32_t index) { return backends_[index]; };
 

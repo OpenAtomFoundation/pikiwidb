@@ -58,8 +58,7 @@ inline uint32_t rotl32(uint32_t x, uint8_t r) { return (x << r) | (x >> (32 - r)
 #endif      // defined(__GNUC__) || defined(__clang__)
 /* last resort (big-endian w/o __builtin_bswap) */
 #ifndef BYTESWAP
-#  define BYTESWAP(x) \
-    ((((x) & 0xFF) << 24) | (((x) >> 24) & 0xFF) | (((x) & 0x0000FF00) << 8) | (((x) & 0x00FF0000) >> 8))
+#  define BYTESWAP(x) ((((x)&0xFF) << 24) | (((x) >> 24) & 0xFF) | (((x)&0x0000FF00) << 8) | (((x)&0x00FF0000) >> 8))
 #endif
 
 //-----------------------------------------------------------------------------

@@ -5,13 +5,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "log.h"
-
 #include <algorithm>
 #include <memory>
 
 #include "client.h"
 #include "config.h"
+#include "log.h"
 #include "pikiwidb.h"
 #include "pstd_string.h"
 #include "slow_log.h"

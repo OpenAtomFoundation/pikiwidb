@@ -8,18 +8,17 @@
 #pragma once
 
 #include <deque>
-#include <string>
 #include <vector>
+
+#include "common.h"
 
 class Logger;
 
 namespace pikiwidb {
 
-using std::string;
-
 struct SlowLogItem {
   unsigned used;
-  std::vector<string> cmds;
+  std::vector<PString> cmds;
 
   SlowLogItem() : used(0) {}
 
@@ -34,7 +33,7 @@ class PSlowLog {
   void operator=(const PSlowLog&) = delete;
 
   void Begin();
-  void EndAndStat(const std::vector<string>& cmds);
+  void EndAndStat(const std::vector<PString>& cmds);
 
   void SetThreshold(unsigned int);
   void SetLogLimit(std::size_t maxCount);

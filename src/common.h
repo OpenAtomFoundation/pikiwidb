@@ -12,9 +12,8 @@
 #include <cstddef>
 #include <cstdio>
 #include <functional>
-#include <vector>
-
 #include <string>
+#include <vector>
 
 #define CRLF "\r\n"
 

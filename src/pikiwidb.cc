@@ -228,7 +228,6 @@ bool PikiwiDB::Init() {
   auto loop = worker_threads_.BaseLoop();
   loop->ScheduleRepeatedly(1000 / pikiwidb::g_config.hz, PdbCron);
   loop->ScheduleRepeatedly(1000, &PReplication::Cron, &PREPL);
-  //  loop->ScheduleRepeatedly(1, CheckChild);
 
   // master ip
   if (!g_config.masterIp.empty()) {
