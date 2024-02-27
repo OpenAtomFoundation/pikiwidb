@@ -82,9 +82,9 @@ var _ = Describe("List", Ordered, func() {
 		Expect(client.RPush(ctx, "mylistRPUSH", "world").Val()).To(Equal(int64(2)))
 
 		Expect(client.LRange(ctx, "mylistRPUSH", 0, -1).Val()).To(Equal([]string{"hello", "world"}))
-				//del
-				del := client.Del(ctx, "mylistRPUSH")
-				Expect(del.Err()).NotTo(HaveOccurred())
+		//del
+		del := client.Del(ctx, "mylistRPUSH")
+		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("should RPop", func() {
