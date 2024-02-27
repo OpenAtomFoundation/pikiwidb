@@ -11,8 +11,8 @@
 #include <random>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
 
+#include "pstd/log.h"
 #include "src/base_data_key_format.h"
 #include "src/base_data_value_format.h"
 #include "src/base_filter.h"
@@ -1232,8 +1232,7 @@ void Redis::ScanHashes() {
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
 
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " Hashes Meta Data***************";
+  INFO("***************rocksdb instance: {} Hashes Meta Data***************", index_);
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kHashesMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedHashesMetaValue parsed_hashes_meta_value(meta_iter->value());
@@ -1244,21 +1243,21 @@ void Redis::ScanHashes() {
     }
     ParsedBaseMetaKey parsed_meta_key(meta_iter->key());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
-                             parsed_meta_key.Key().ToString(), parsed_hashes_meta_value.Count(),
-                             parsed_hashes_meta_value.Etime(), parsed_hashes_meta_value.Version(), survival_time);
+    INFO("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+         parsed_meta_key.Key().ToString(), parsed_hashes_meta_value.Count(), parsed_hashes_meta_value.Etime(),
+         parsed_hashes_meta_value.Version(), survival_time);
   }
   delete meta_iter;
 
-  LOG(INFO) << "***************Hashes Field Data***************";
+  INFO("***************Hashes Field Data***************");
   auto field_iter = db_->NewIterator(iterator_options, handles_[kHashesDataCF]);
   for (field_iter->SeekToFirst(); field_iter->Valid(); field_iter->Next()) {
     ParsedHashesDataKey parsed_hashes_data_key(field_iter->key());
     ParsedBaseDataValue parsed_internal_value(field_iter->value());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [field : {:<20}] [value : {:<20}] [version : {}]",
-                             parsed_hashes_data_key.Key().ToString(), parsed_hashes_data_key.field().ToString(),
-                             parsed_internal_value.UserValue().ToString(), parsed_hashes_data_key.Version());
+    INFO("[key : {:<30}] [field : {:<20}] [value : {:<20}] [version : {}]", parsed_hashes_data_key.Key().ToString(),
+         parsed_hashes_data_key.field().ToString(), parsed_internal_value.UserValue().ToString(),
+         parsed_hashes_data_key.Version());
   }
   delete field_iter;
 }

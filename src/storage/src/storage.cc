@@ -6,9 +6,8 @@
 #include <algorithm>
 #include <utility>
 
-#include <glog/logging.h>
-
 #include "config.h"
+#include "pstd/log.h"
 #include "pstd/pikiwidb_slot.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
@@ -57,7 +56,7 @@ Storage::Storage() {
 
   Status s = StartBGThread();
   if (!s.ok()) {
-    LOG(FATAL) << "start bg thread failed, " << s.ToString();
+    ERROR("start bg thread failed, ", s.ToString());
   }
 }
 
@@ -87,7 +86,7 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
     insts_.emplace_back(std::make_unique<Redis>(this, index));
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
-      LOG(FATAL) << "open db failed" << s.ToString();
+      ERROR("open db failed", s.ToString());
     }
   }
 
@@ -1297,7 +1296,7 @@ int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& 
     auto iter_end = std::end(DataTypeTag);
     auto pos = std::find(std::begin(DataTypeTag), iter_end, key_type);
     if (pos == iter_end) {
-      LOG(WARNING) << "Invalid key_type: " << key_type;
+      WARN("Invalid key_type: ", key_type);
       return 0;
     }
     std::copy(pos, iter_end, std::back_inserter(types));
@@ -2141,7 +2140,7 @@ Status Storage::StopScanKeyNum() {
 
 rocksdb::DB* Storage::GetDBByIndex(int index) {
   if (index < 0 || index >= db_instance_num_) {
-    LOG(WARNING) << "Invalid DB Index: " << index << "total: " << db_instance_num_;
+    WARN("Invalid DB Index: {} total: {}", index, db_instance_num_);
     return nullptr;
   }
   return insts_[index]->GetDB();

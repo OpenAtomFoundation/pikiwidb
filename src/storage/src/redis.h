@@ -15,6 +15,7 @@
 #include "rocksdb/status.h"
 
 #include "pstd/env.h"
+#include "pstd/log.h"
 #include "src/custom_comparator.h"
 #include "src/debug.h"
 #include "src/lock_mgr.h"
@@ -322,7 +323,7 @@ class Redis {
         return new ZsetsIterator(options, db_, handles_[kZsetsMetaCF], pattern);
         break;
       default:
-        LOG(WARNING) << "Invalid datatype to create iterator";
+        WARN("Invalid datatype to create iterator");
         return nullptr;
     }
     return nullptr;
