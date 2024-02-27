@@ -11,6 +11,7 @@ import (
 	"context"
 	"log"
 	"strconv"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -125,26 +126,122 @@ var _ = Describe("String", Ordered, func() {
 
 		{
 			for k := range s2s {
-				_, e := client.Del(ctx, k).Result()
+				r, e := client.Del(ctx, k).Result()
 				Expect(e).NotTo(HaveOccurred())
-				//TODO(dingxiaoshuai) delete key
-				//Expect(r).To(Equal(1))
+				Expect(r).To(Equal(int64(1)))
 			}
 
 			for k := range s2i {
-				_, e := client.Del(ctx, k).Result()
+				r, e := client.Del(ctx, k).Result()
 				Expect(e).NotTo(HaveOccurred())
-				//TODO(dingxiaoshuai) delete key
-				//Expect(r).To(Equal(1))
+				Expect(r).To(Equal(int64(1)))
 			}
 		}
 	})
 
-	It("Cmd Append", func() {
-		log.Println("Cmd Append Test Begin")
-	})
-
 	It("Cmd INCR", func() {
 		log.Println("Cmd INCR Test Begin")
+	})
+
+	It("Append", func() {
+		client.Del(ctx, DefaultKey) // delete this line if ping cmd valid 。
+		n, err := client.Exists(ctx, DefaultKey).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal(int64(0)))
+
+		appendRes := client.Append(ctx, DefaultKey, "Hello")
+		Expect(appendRes.Err()).NotTo(HaveOccurred())
+		Expect(appendRes.Val()).To(Equal(int64(5)))
+
+		appendRes = client.Append(ctx, DefaultKey, " World")
+		Expect(appendRes.Err()).NotTo(HaveOccurred())
+		Expect(appendRes.Val()).To(Equal(int64(11)))
+
+		get := client.Get(ctx, DefaultKey)
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("Hello World"))
+
+		r, e := client.Del(ctx, DefaultKey).Result()
+		Expect(e).NotTo(HaveOccurred())
+		Expect(r).To(Equal(int64(1)))
+	})
+
+	It("BitCount", func() {
+		r, e := client.Set(ctx, DefaultKey, "foobar", 0).Result()
+		Expect(e).NotTo(HaveOccurred())
+		Expect(r).To(Equal(OK))
+
+		rBitCount, eBitCount := client.BitCount(ctx, DefaultKey, nil).Result()
+		Expect(eBitCount).NotTo(HaveOccurred())
+		Expect(rBitCount).To(Equal(int64(26)))
+
+		bitCount := client.BitCount(ctx, DefaultKey, &redis.BitCount{
+			Start: 0,
+			End:   0,
+		})
+		Expect(bitCount.Err()).NotTo(HaveOccurred())
+		Expect(bitCount.Val()).To(Equal(int64(4)))
+
+		bitCount = client.BitCount(ctx, DefaultKey, &redis.BitCount{
+			Start: 1,
+			End:   1,
+		})
+		Expect(bitCount.Err()).NotTo(HaveOccurred())
+		Expect(bitCount.Val()).To(Equal(int64(6)))
+
+		rDel, eDel := client.Del(ctx, DefaultKey).Result()
+		Expect(eDel).NotTo(HaveOccurred())
+		Expect(rDel).To(Equal(int64(1)))
+	})
+
+	It("should GetSet", func() {
+		incr := client.Incr(ctx, "testKeyGS")
+		Expect(incr.Err()).NotTo(HaveOccurred())
+		Expect(incr.Val()).To(Equal(int64(1)))
+
+		getSet := client.GetSet(ctx, "testKeyGS", "0")
+		Expect(getSet.Err()).NotTo(HaveOccurred())
+		Expect(getSet.Val()).To(Equal("1"))
+
+		get := client.Get(ctx, "testKeyGS")
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("0"))
+	})
+
+	It("MSet & MGet", func() {
+		mSet := client.MSet(ctx, "key1", "hello1", "key2", "hello2")
+		Expect(mSet.Err()).NotTo(HaveOccurred())
+		Expect(mSet.Val()).To(Equal("OK"))
+
+		mGet := client.MGet(ctx, "key1", "key2", "_")
+		Expect(mGet.Err()).NotTo(HaveOccurred())
+		Expect(mGet.Val()).To(Equal([]interface{}{"hello1", "hello2", nil}))
+
+		// MSet struct
+		type set struct {
+			Set1 string                 `redis:"set1"`
+			Set2 int16                  `redis:"set2"`
+			Set3 time.Duration          `redis:"set3"`
+			Set4 interface{}            `redis:"set4"`
+			Set5 map[string]interface{} `redis:"-"`
+		}
+		mSet = client.MSet(ctx, &set{
+			Set1: "val1",
+			Set2: 1024,
+			Set3: 2 * time.Millisecond,
+			Set4: nil,
+			Set5: map[string]interface{}{"k1": 1},
+		})
+		Expect(mSet.Err()).NotTo(HaveOccurred())
+		Expect(mSet.Val()).To(Equal("OK"))
+
+		mGet = client.MGet(ctx, "set1", "set2", "set3", "set4")
+		Expect(mGet.Err()).NotTo(HaveOccurred())
+		Expect(mGet.Val()).To(Equal([]interface{}{
+			"val1",
+			"1024",
+			strconv.Itoa(int(2 * time.Millisecond.Nanoseconds())),
+			"",
+		}))
 	})
 })

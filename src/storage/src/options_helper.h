@@ -3,7 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef SRC_OPTIONS_HELPER_H
+#define SRC_OPTIONS_HELPER_H
 
 #include <cstddef>
 
@@ -69,3 +70,4 @@ static std::unordered_map<std::string, MemberTypeInfo> mutable_cf_options_member
 extern bool ParseOptionMember(const MemberType& member_type, const std::string& value, char* member_address);
 
 }  //  namespace storage
+#endif  //  SRC_OPTIONS_HELPER_H

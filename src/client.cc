@@ -326,7 +326,6 @@ int PClient::handlePacket(const char* start, int bytes) {
 
   DEBUG("client {}, cmd {}", conn->GetUniqueId(), cmdName_);
 
-  PSTORE.SelectDB(db_);
   FeedMonitors(params_);
 
   //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
@@ -403,12 +402,11 @@ PClient* PClient::Current() { return s_current; }
 
 PClient::PClient(TcpConnection* obj)
     : tcp_connection_(std::static_pointer_cast<TcpConnection>(obj->shared_from_this())),
-      db_(0),
+      dbno_(0),
       flag_(0),
       name_("clientxxx"),
       parser_(params_) {
   auth_ = false;
-  SelectDB(0);
   reset();
 }
 
@@ -501,15 +499,6 @@ void PClient::Close() {
     c->ActiveClose();
     tcp_connection_.reset();
   }
-}
-
-bool PClient::SelectDB(int db) {
-  if (PSTORE.SelectDB(db) >= 0) {
-    db_ = db;
-    return true;
-  }
-
-  return false;
 }
 
 void PClient::reset() {
@@ -625,10 +614,17 @@ void PClient::TransferToSlaveThreads() {
     auto slave_loop = tcp_connection->SelectSlaveEventLoop();
     auto id = tcp_connection->GetUniqueId();
     auto event_object = loop->GetEventObject(id);
-    loop->Unregister(event_object);
-    event_object->SetUniqueId(-1);
-    slave_loop->Register(event_object, 0);
-    tcp_connection->ResetEventLoop(slave_loop);
+    auto del_conn = [loop, slave_loop, event_object]() {
+      loop->Unregister(event_object);
+      event_object->SetUniqueId(-1);
+      auto tcp_connection = std::dynamic_pointer_cast<TcpConnection>(event_object);
+      assert(tcp_connection);
+      tcp_connection->ResetEventLoop(slave_loop);
+
+      auto add_conn = [slave_loop, event_object]() { slave_loop->Register(event_object, 0); };
+      slave_loop->Execute(std::move(add_conn));
+    };
+    loop->Execute(std::move(del_conn));
   }
 }
 

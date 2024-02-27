@@ -3,7 +3,8 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#pragma once
+#ifndef SRC_UTIL_H_
+#define SRC_UTIL_H_
 
 #include <dirent.h>
 #include <sys/stat.h>
@@ -23,9 +24,10 @@ int do_mkdir(const char* path, mode_t mode);
 int mkpath(const char* path, mode_t mode);
 int delete_dir(const char* dirname);
 int is_dir(const char* filename);
-int CalculateMetaStartAndEndKey(const std::string& key, std::string* meta_start_key, std::string* meta_end_key);
-int CalculateDataStartAndEndKey(const std::string& key, std::string* data_start_key, std::string* data_end_key);
+int CalculateStartAndEndKey(const std::string& key, std::string* start_key, std::string* end_key);
 bool isTailWildcard(const std::string& pattern);
 void GetFilepath(const char* path, const char* filename, char* filepath);
 bool DeleteFiles(const char* path);
 }  // namespace storage
+
+#endif  //  SRC_UTIL_H_

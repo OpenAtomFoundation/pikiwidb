@@ -44,6 +44,7 @@ const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
 const std::string kCmdNameBitCount = "bitcount";
 const std::string kCmdNameGetRange = "getrange";
+const std::string kCmdNameSetRange = "setrange";
 const std::string kCmdNameDecr = "decr";
 const std::string kCmdNameIncr = "incr";
 
@@ -59,6 +60,7 @@ const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
 const std::string kCmdNameAuth = "auth";
+const std::string kCmdNameSelect = "select";
 
 // hash cmd
 const std::string kCmdNameHSet = "hset";
@@ -72,13 +74,26 @@ const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHScan = "hscan";
 const std::string kCmdNameHVals = "hvals";
+const std::string kCmdNameHIncrbyFloat = "hincrbyfloat";
+const std::string kCmdNameHRandField = "hrandfield";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
 const std::string kCmdNameSAdd = "sadd";
 const std::string kCmdNameSUnionStore = "sunionstore";
+const std::string kCmdNameSInter = "sinter";
 const std::string kCmdNameSRem = "srem";
+const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
+const std::string kCmdNameSCard = "scard";
+const std::string kCmdNameSMove = "smove";
+
+// list cmd
+const std::string kCmdNameLPush = "lpush";
+const std::string kCmdNameRPush = "rpush";
+const std::string kCmdNameRPop = "rpop";
+const std::string kCmdNameLRem = "lrem";
+const std::string kCmdNameLRange = "lrange";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

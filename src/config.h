@@ -8,6 +8,8 @@
 #pragma once
 
 #include <map>
+#include <vector>
+
 #include "pstring.h"
 
 namespace pikiwidb {
@@ -81,6 +83,9 @@ struct PConfig {
 
   int64_t max_client_response_size;
 
+  int db_instance_num;
+  uint64_t rocksdb_ttl_second;
+  uint64_t rocksdb_periodic_second;
   PConfig();
 
   bool CheckArgs() const;
