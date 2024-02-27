@@ -175,7 +175,8 @@ LInsertCmd::LInsertCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
 bool LInsertCmd::DoInitial(PClient* client) {
-  if (client->argv_[2] != "BEFORE" && client->argv_[2] != "AFTER") {
+  if (!pstd::StringEqualCaseInsensitive(client->argv_[2], "BEFORE") &&
+      !pstd::StringEqualCaseInsensitive(client->argv_[2], "AFTER")) {
     return false;
   }
   client->SetKey(client->argv_[1]);
@@ -185,7 +186,7 @@ bool LInsertCmd::DoInitial(PClient* client) {
 void LInsertCmd::DoCmd(PClient* client) {
   int64_t ret = 0;
   storage ::BeforeOrAfter before_or_after = storage::Before;
-  if (client->argv_[2] == "AFTER") {
+  if (pstd::StringEqualCaseInsensitive(client->argv_[2], "AFTER")) {
     before_or_after = storage::After;
   }
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
