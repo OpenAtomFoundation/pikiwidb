@@ -14,9 +14,11 @@
 #include <functional>
 #include <vector>
 
-#include "pstring.h"
+#include <string>
 
 #define CRLF "\r\n"
+
+using PString = std::string;
 
 namespace pikiwidb {
 

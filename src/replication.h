@@ -9,14 +9,16 @@
 
 #include <list>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "memory_file.h"
 #include "net/util.h"
-#include "pstring.h"
 #include "unbounded_buffer.h"
 
 namespace pikiwidb {
+
+using std::string;
 
 template <typename DEST>
 inline void WriteBulkString(const char* str, size_t strLen, DEST& dst) {
@@ -29,7 +31,7 @@ inline void WriteBulkString(const char* str, size_t strLen, DEST& dst) {
 }
 
 template <typename DEST>
-inline void WriteBulkString(const PString& str, DEST& dst) {
+inline void WriteBulkString(const string& str, DEST& dst) {
   WriteBulkString(str.data(), str.size(), dst);
 }
 
@@ -49,7 +51,7 @@ inline void WriteBulkLong(long val, DEST& dst) {
 }
 
 template <typename DEST>
-inline void SaveCommand(const std::vector<PString>& params, DEST& dst) {
+inline void SaveCommand(const std::vector<string>& params, DEST& dst) {
   WriteMultiBulkLong(params.size(), dst);
 
   for (const auto& s : params) {
@@ -123,7 +125,7 @@ class PReplication {
   bool StartBgsave();
   void OnStartBgsave();
   void OnRdbSaveDone();
-  void SendToSlaves(const std::vector<PString>& params);
+  void SendToSlaves(const std::vector<string>& params);
 
   // slave side
   void SaveTmpRdb(const char* data, std::size_t& len);

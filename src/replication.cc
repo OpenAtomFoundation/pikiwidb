@@ -9,12 +9,10 @@
 
 #include <unistd.h>
 #include <iostream>  // the child process use stdout for log
-#include <sstream>
 
 #include "client.h"
 #include "common.h"
 #include "config.h"
-#include "db.h"
 #include "event_loop.h"
 #include "log.h"
 #include "net/util.h"
@@ -87,6 +85,7 @@ void PReplication::OnRdbSaveDone() {
 }
 
 void PReplication::TryBgsave() {
+  return;
   if (IsBgsaving()) {
     return;
   }
@@ -95,22 +94,22 @@ void PReplication::TryBgsave() {
     return;
   }
 
-  int ret = fork();
-  if (ret == 0) {
-    {
-      PDBSaver qdb;
-      qdb.Save(g_config.rdbfullname.c_str());
-      DEBUG("PReplication save rdb done, exiting child");
-    }
-    _exit(0);
-  } else if (ret == -1) {
-    ERROR("PReplication save rdb FATAL ERROR");
-    onStartBgsave(false);
-  } else {
-    INFO("PReplication save rdb START");
-    g_qdbPid = ret;
-    onStartBgsave(true);
-  }
+  //  int ret = fork();
+  //  if (ret == 0) {
+  //    {
+  //      PDBSaver qdb;
+  //      qdb.Save(g_config.rdbfullname.c_str());
+  //      DEBUG("PReplication save rdb done, exiting child");
+  //    }
+  //    _exit(0);
+  //  } else if (ret == -1) {
+  //    ERROR("PReplication save rdb FATAL ERROR");
+  //    onStartBgsave(false);
+  //  } else {
+  //    INFO("PReplication save rdb START");
+  //    g_qdbPid = ret;
+  //    onStartBgsave(true);
+  //  }
 }
 
 void PReplication::onStartBgsave(bool succ) {
@@ -135,7 +134,7 @@ void PReplication::onStartBgsave(bool succ) {
   }
 }
 
-void PReplication::SendToSlaves(const std::vector<PString>& params) {
+void PReplication::SendToSlaves(const std::vector<string>& params) {
   if (IsBgsaving()) {  // During the execution of RDB, there are cache changes.
     SaveCommand(params, buffer_);
     return;
@@ -293,23 +292,24 @@ void PReplication::Cron() {
 }
 
 void PReplication::SaveTmpRdb(const char* data, std::size_t& len) {
-  if (masterInfo_.rdbRecved + len > masterInfo_.rdbSize) {
-    len = masterInfo_.rdbSize - masterInfo_.rdbRecved;
-  }
-
-  rdb_.Write(data, len);
-  masterInfo_.rdbRecved += len;
-
-  if (masterInfo_.rdbRecved == masterInfo_.rdbSize) {
-    INFO("Rdb recv complete, bytes {}", masterInfo_.rdbSize);
-
-    PSTORE.ResetDB();
-
-    PDBLoader loader;
-    loader.Load(slaveRdbFile);
-    masterInfo_.state = kPReplStateOnline;
-    masterInfo_.downSince = 0;
-  }
+  //  if (masterInfo_.rdbRecved + len > masterInfo_.rdbSize) {
+  //    len = masterInfo_.rdbSize - masterInfo_.rdbRecved;
+  //  }
+  //
+  //  rdb_.Write(data, len);
+  //  masterInfo_.rdbRecved += len;
+  //
+  //  if (masterInfo_.rdbRecved == masterInfo_.rdbSize) {
+  //    INFO("Rdb recv complete, bytes {}", masterInfo_.rdbSize);
+  //
+  //    //PSTORE.ResetDB();
+  //
+  //    PDBLoader loader;
+  //    loader.Load(slaveRdbFile);
+  //    masterInfo_.state = kPReplStateOnline;
+  //    masterInfo_.downSince = 0;
+  //  }
+  return;
 }
 
 void PReplication::SetMaster(const std::shared_ptr<PClient>& cli) { master_ = cli; }
@@ -332,7 +332,7 @@ void PReplication::SetRdbSize(std::size_t s) { masterInfo_.rdbSize = s; }
 
 std::size_t PReplication::GetRdbSize() const { return masterInfo_.rdbSize; }
 
-PError replconf(const std::vector<PString>& params, UnboundedBuffer* reply) {
+PError replconf(const std::vector<string>& params, UnboundedBuffer* reply) {
   if (params.size() % 2 == 0) {
     ReplyError(kPErrorSyntax, reply);
     return kPErrorSyntax;
@@ -427,7 +427,7 @@ void PReplication::OnInfoCommand(UnboundedBuffer& res) {
   }
 }
 
-PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
+PError slaveof(const std::vector<string>& params, UnboundedBuffer* reply) {
   if (strncasecmp(params[1].data(), "no", 2) == 0 && strncasecmp(params[2].data(), "one", 3) == 0) {
     PREPL.SetMasterAddr(nullptr, 0);
   } else {
@@ -447,7 +447,7 @@ PError slaveof(const std::vector<PString>& params, UnboundedBuffer* reply) {
   return kPErrorOK;
 }
 
-PError sync(const std::vector<PString>& params, UnboundedBuffer* reply) {
+PError sync(const std::vector<string>& params, UnboundedBuffer* reply) {
   PClient* cli = PClient::Current();
   auto slave = cli->GetSlaveInfo();
   if (!slave) {

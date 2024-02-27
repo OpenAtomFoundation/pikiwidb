@@ -38,7 +38,7 @@ void PSlowLog::Begin() {
   beginUs_ = begin.tv_sec * 1000000 + begin.tv_usec;
 }
 
-void PSlowLog::EndAndStat(const std::vector<PString>& cmds) {
+void PSlowLog::EndAndStat(const std::vector<string>& cmds) {
   if (!threshold_ || beginUs_ == 0) {
     return;
   }

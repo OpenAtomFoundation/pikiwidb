@@ -5,13 +5,16 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
+#include <string>
+
 #include "cmd_table_manager.h"
 #include "event_loop.h"
 #include "io_thread_pool.h"
-#include "pstring.h"
 #include "tcp_connection.h"
 
 #define kPIKIWIDB_VERSION "4.0.0"
+
+using PString = std::string;
 
 class PikiwiDB final {
  public:
@@ -19,7 +22,7 @@ class PikiwiDB final {
   ~PikiwiDB() = default;
 
   bool ParseArgs(int ac, char* av[]);
-  const pikiwidb::PString& GetConfigName() const { return cfg_file_; }
+  const PString& GetConfigName() const { return cfg_file_; }
 
   bool Init();
   void Run();
@@ -31,11 +34,11 @@ class PikiwiDB final {
   pikiwidb::CmdTableManager& GetCmdTableManager();
 
  public:
-  pikiwidb::PString cfg_file_;
+  PString cfg_file_;
   uint16_t port_{0};
-  pikiwidb::PString log_level_;
+  PString log_level_;
 
-  pikiwidb::PString master_;
+  PString master_;
   uint16_t master_port_{0};
 
   static const uint32_t kRunidSize;

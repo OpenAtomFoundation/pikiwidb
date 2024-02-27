@@ -8,8 +8,10 @@
 #pragma once
 
 #include <random>
+#include <string>
 #include <vector>
-#include "pstring.h"
+
+using PString = std::string;
 
 namespace pikiwidb {
 

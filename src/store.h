@@ -10,14 +10,8 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
 #include "common.h"
-#include "dump_interface.h"
-#include "hash.h"
-#include "list.h"
-#include "set.h"
-#include "sorted_set.h"
 #include "storage/storage.h"
 
-#include <folly/concurrency/ConcurrentHashMap.h>
 #include <map>
 #include <memory>
 #include <mutex>
@@ -26,69 +20,6 @@
 
 namespace pikiwidb {
 
-using PSTRING = PString*;
-using PLIST = PList*;
-using PSET = PSet*;
-using PZSET = PSortedSet*;
-using PHASH = PHash*;
-
-using PTimeType = uint64_t;
-
-// ref: https://github.com/redis/redis/blob/7c179f9bf4390512196b3a2b2ad6d0f4cb625c8a/src/server.h#L892C1-L892C1
-static const int kLRUBits = 24;
-// ref: https://github.com/redis/redis/blob/7c179f9bf4390512196b3a2b2ad6d0f4cb625c8a/src/server.h#L893
-static const uint32_t kMaxLRUValue = (1 << kLRUBits) - 1;
-
-uint32_t EstimateIdleTime(uint32_t lru);
-// ref: https://github.com/redis/redis/blob/7c179f9bf4390512196b3a2b2ad6d0f4cb625c8a/src/server.h#L899
-struct PObject {
- public:
-  static uint32_t lruclock;
-
-  unsigned int type : 4;
-  unsigned int encoding : 4;
-  unsigned int lru : kLRUBits; /* LRU time (relative to global lru_clock) or
-                                * LFU data (least significant 8 bits frequency
-                                * and most significant 16 bits access time). */
-
-  void* value = nullptr;
-
-  explicit PObject(PType = kPTypeInvalid);
-  ~PObject();
-
-  PObject(const PObject& obj) = delete;
-  PObject& operator=(const PObject& obj) = delete;
-
-  PObject(PObject&& obj);
-  PObject& operator=(PObject&& obj);
-
-  void Clear();
-  void Reset(void* newvalue = nullptr);
-
-  static PObject CreateString(const PString& value);
-  static PObject CreateString(long value);
-  static PObject CreateList();
-  static PObject CreateSet();
-  static PObject CreateZSet();
-  static PObject CreateHash();
-
-  PSTRING CastString() const { return reinterpret_cast<PSTRING>(value); }
-  PLIST CastList() const { return reinterpret_cast<PLIST>(value); }
-  PSET CastSet() const { return reinterpret_cast<PSET>(value); }
-  PZSET CastSortedSet() const { return reinterpret_cast<PZSET>(value); }
-  PHASH CastHash() const { return reinterpret_cast<PHASH>(value); }
-
- private:
-  void moveFrom(PObject&& obj);
-  void freeValue();
-};
-
-class PClient;
-
-using PDB = folly::ConcurrentHashMap<PString, PObject, my_hash, std::equal_to<PString>>;
-
-const int kMaxDBNum = 65536;
-
 class PStore {
  public:
   static PStore& Instance();
@@ -96,130 +27,16 @@ class PStore {
   PStore(const PStore&) = delete;
   void operator=(const PStore&) = delete;
 
-  void Init(int dbNum = 16);
+  void Init(int dbNum = 3);
 
-  int SelectDB(int dbno);
-  int GetDB() const;
   std::unique_ptr<storage::Storage>& GetBackend(int32_t index) { return backends_[index]; };
 
-  // Key operation
-  bool DeleteKey(const PString& key) const;
-  bool ExistsKey(const PString& key) const;
-  PType KeyType(const PString& key) const;
-  PString RandomKey(PObject** val = nullptr) const;
-  size_t DBSize() const { return dbs_[dbno_].size(); }
-  size_t ScanKey(size_t cursor, size_t count, std::vector<PString>& res) const;
-
-  // iterator
-  PDB::const_iterator begin() const { return dbs_[dbno_].begin(); }
-  PDB::const_iterator end() const { return dbs_[dbno_].end(); }
-
-  const PObject* GetObject(const PString& key) const;
-  PError GetValue(const PString& key, PObject*& value, bool touch = true);
-  PError GetValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid);
-  // do not update lru time
-  PError GetValueByTypeNoTouch(const PString& key, PObject*& value, PType type = kPTypeInvalid);
-
-  PObject* SetValue(const PString& key, PObject&& value);
-  // incr
-  PError Incrby(const PString& key, int64_t value, int64_t* ret);
-  PError Decrby(const PString& key, int64_t value, int64_t* ret);
-  PError Incrbyfloat(const PString& key, std::string value, std::string* ret);
-
-  // for expire key
-  enum ExpireResult : std::int8_t {
-    kNotExpire = 0,
-    kPersist = -1,
-    kExpired = -2,
-    kNotExist = -2,
-  };
-  void SetExpire(const PString& key, uint64_t when) const;
-  int64_t TTL(const PString& key, uint64_t now);
-  bool ClearExpire(const PString& key);
-  int LoopCheckExpire(uint64_t now);
-  void InitExpireTimer();
-
-  // danger cmd
-  void ClearCurrentDB() { dbs_[dbno_].clear(); }
-  void ResetDB();
-
-  // for blocked list
-  bool BlockClient(const PString& key, PClient* client, uint64_t timeout, ListPosition pos, const PString* dstList = 0);
-  size_t UnblockClient(PClient* client);
-  size_t ServeClient(const PString& key, const PLIST& list);
-
-  int LoopCheckBlocked(uint64_t now);
-  void InitBlockedTimer();
-
-  size_t BlockedSize() const;
-
-  static int dirty_;
-
-  // eviction timer for lru
-  void InitEvictionTimer();
-  // for backends
-  void InitDumpBackends();
-  void AddDirtyKey(const PString& key);
-  void AddDirtyKey(const PString& key, const PObject* value);
-
  private:
-  PStore() : dbno_(0) {}
-  // mutex
-  mutable std::shared_mutex mutex_;
+  PStore() = default;
 
-  PError getValueByType(const PString& key, PObject*& value, PType type = kPTypeInvalid, bool touch = true);
-
-  ExpireResult expireIfNeed(const PString& key, uint64_t now);
-
-  class ExpiredDB {
-   public:
-    void SetExpire(const PString& key, uint64_t when);
-    int64_t TTL(const PString& key, uint64_t now);
-    bool ClearExpire(const PString& key);
-    ExpireResult ExpireIfNeed(const PString& key, uint64_t now);
-
-    int LoopCheck(uint64_t now);
-
-   private:
-    using P_EXPIRE_DB = folly::ConcurrentHashMap<PString, uint64_t, my_hash, std::equal_to<PString>>;
-    P_EXPIRE_DB expireKeys_;  // all the keys to be expired, unordered.
-  };
-
-  class BlockedClients {
-   public:
-    bool BlockClient(const PString& key, PClient* client, uint64_t timeout, ListPosition pos,
-                     const PString* dstList = 0);
-    size_t UnblockClient(PClient* client);
-    size_t ServeClient(const PString& key, const PLIST& list);
-
-    int LoopCheck(uint64_t now);
-    size_t Size() const { return blockedClients_.size(); }
-
-   private:
-    using Clients = std::list<std::tuple<std::weak_ptr<PClient>, uint64_t, ListPosition>>;
-    using WaitingList = folly::ConcurrentHashMap<PString, Clients, my_hash, std::equal_to<PString>>;
-
-    WaitingList blockedClients_;
-  };
-
-  PError setValue(const PString& key, PObject& value, bool exclusive = false);
-
-  // Because GetObject() must be const, so mutable them
-  mutable std::vector<PDB> dbs_;
-  mutable std::vector<ExpiredDB> expiredDBs_;
-  std::vector<BlockedClients> blockedClients_;
   std::vector<std::unique_ptr<storage::Storage>> backends_;
-
-  using ToSyncDB = folly::ConcurrentHashMap<PString, const PObject*, my_hash, std::equal_to<PString>>;
-  std::vector<ToSyncDB> waitSyncKeys_;
-  int dbno_ = -1;
 };
 
 #define PSTORE PStore::Instance()
-
-// ugly, but I don't want to write signalModifiedKey() every where
-extern std::vector<PString> g_dirtyKeys;
-extern void Propagate(const std::vector<PString>& params);
-extern void Propagate(int dbno, const std::vector<PString>& params);
 
 }  // namespace pikiwidb

@@ -34,10 +34,10 @@ FlushdbCmd::FlushdbCmd(const std::string& name, int16_t arity)
 bool FlushdbCmd::DoInitial(PClient* client) { return true; }
 
 void FlushdbCmd::DoCmd(PClient* client) {
-  PSTORE.dirty_ += PSTORE.DBSize();
-  PSTORE.ClearCurrentDB();
-  Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
-  client->SetRes(CmdRes::kOK);
+  //  PSTORE.dirty_ += PSTORE.DBSize();
+  //  PSTORE.ClearCurrentDB();
+  //  Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
+  client->AppendString("flushdb cmd in development");
 }
 
 FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
@@ -46,21 +46,21 @@ FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
 bool FlushallCmd::DoInitial(PClient* client) { return true; }
 
 void FlushallCmd::DoCmd(PClient* client) {
-  int currentDB = PSTORE.GetDB();
-  std::vector<PString> param{"flushall"};
-  DEFER {
-    PSTORE.SelectDB(currentDB);
-    Propagate(-1, param);
-    PSTORE.ResetDB();
-  };
-
-  for (int dbno = 0; true; ++dbno) {
-    if (PSTORE.SelectDB(dbno) == -1) {
-      break;
-    }
-    PSTORE.dirty_ += PSTORE.DBSize();
-  }
-  client->SetRes(CmdRes::kOK);
+  //  int currentDB = PSTORE.GetDB();
+  //  std::vector<PString> param{"flushall"};
+  //  DEFER {
+  //    PSTORE.SelectDB(currentDB);
+  //    Propagate(-1, param);
+  //    PSTORE.ResetDB();
+  //  };
+  //
+  //  for (int dbno = 0; true; ++dbno) {
+  //    if (PSTORE.SelectDB(dbno) == -1) {
+  //      break;
+  //    }
+  //    PSTORE.dirty_ += PSTORE.DBSize();
+  //  }
+  client->AppendString("flushall' cmd in development");
 }
 
 SelectCmd::SelectCmd(const std::string& name, int16_t arity)
