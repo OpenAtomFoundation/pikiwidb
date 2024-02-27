@@ -75,6 +75,7 @@ const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHScan = "hscan";
 const std::string kCmdNameHVals = "hvals";
 const std::string kCmdNameHIncrbyFloat = "hincrbyfloat";
+const std::string kCmdNameHRandField = "hrandfield";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
@@ -85,6 +86,7 @@ const std::string kCmdNameSRem = "srem";
 const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSCard = "scard";
+const std::string kCmdNameSMove = "smove";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";

@@ -7,7 +7,6 @@
 
 #include <sys/time.h>
 #include <fstream>
-#include <sstream>
 
 #include "log.h"
 #include "slow_log.h"

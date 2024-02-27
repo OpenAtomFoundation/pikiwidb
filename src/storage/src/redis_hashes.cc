@@ -3,18 +3,22 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
+#include "src/base_key_format.h"
 #include "src/redis.h"
 
 #include <memory>
+#include <numeric>
+#include <random>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
 
+#include "pstd/log.h"
 #include "src/base_data_key_format.h"
 #include "src/base_data_value_format.h"
 #include "src/base_filter.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
+#include "storage/storage_define.h"
 #include "storage/util.h"
 
 namespace storage {
@@ -898,6 +902,79 @@ Status Redis::HScanx(const Slice& key, const std::string& start_field, const std
   return Status::OK();
 }
 
+Status Redis::HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res) {
+  BaseMetaKey base_meta_key(key);
+  std::string meta_value;
+  Status s = db_->Get(default_read_options_, handles_[kHashesMetaCF], base_meta_key.Encode(), &meta_value);
+  if (!s.ok()) {
+    return s;
+  }
+  ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+  auto hlen = parsed_hashes_meta_value.Count();
+  if (parsed_hashes_meta_value.IsStale() || hlen == 0) {
+    return Status::NotFound();
+  }
+
+  if (count >= hlen) {
+    // case 1: count > 0 and >= hlen, return all fv
+    if (!with_values) {
+      return HKeys(key, res);
+    }
+    std::vector<FieldValue> fvs;
+    s = HGetall(key, &fvs);
+    for (auto& [field, value] : fvs) {
+      res->push_back(std::move(field));
+      res->push_back(std::move(value));
+    }
+    return s;
+  }
+
+  std::vector<uint32_t> idxs;
+  if (count == 1) {
+    // special case of case 3
+    idxs.push_back(rand() % hlen);
+  } else if (count < 0) {
+    // case 2: count < 0, allow duplication
+    while (idxs.size() < -count) {
+      idxs.push_back(rand() % hlen);
+    }
+    std::sort(idxs.begin(), idxs.end());
+  } else {
+    // case 3: count > 0 and < hlen, no duplication
+    std::vector<uint32_t> range(hlen);
+    std::iota(range.begin(), range.end(), 0);
+    std::random_device rd;
+    std::mt19937 g(rd());
+    std::shuffle(range.begin(), range.end(), g);
+    idxs.insert(idxs.cend(), range.begin(), range.begin() + count);
+    std::sort(idxs.begin(), idxs.end());
+  }
+
+  HashesDataKey hashes_data_key(key, parsed_hashes_meta_value.Version(), "");
+  Slice prefix = hashes_data_key.Encode();
+  auto tmp_iter = db_->NewIterator(default_read_options_, handles_[kHashesDataCF]);
+  std::unique_ptr<rocksdb::Iterator> iter{tmp_iter};
+  iter->Seek(prefix);
+  uint32_t save_idx{};
+  for (auto idx : idxs) {
+    while (save_idx < idx) {
+      iter->Next();
+      save_idx++;
+    }
+    if (!iter->Valid()) {
+      res->clear();
+      return Status::IOError(fmt::format("Should search for the data starting with {}", prefix.ToString()));
+    }
+    ParsedHashesDataKey datakey(iter->key());
+    res->push_back(datakey.field().ToString());
+    if (with_values) {
+      ParsedBaseDataValue parsed_internal_value(iter->value());
+      res->push_back(parsed_internal_value.UserValue().ToString());
+    }
+  }
+  return Status::OK();
+}
+
 Status Redis::PKHScanRange(const Slice& key, const Slice& field_start, const std::string& field_end,
                            const Slice& pattern, int32_t limit, std::vector<FieldValue>* field_values,
                            std::string* next_field) {
@@ -1155,8 +1232,7 @@ void Redis::ScanHashes() {
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
 
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " Hashes Meta Data***************";
+  INFO("***************rocksdb instance: {} Hashes Meta Data***************", index_);
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kHashesMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedHashesMetaValue parsed_hashes_meta_value(meta_iter->value());
@@ -1167,21 +1243,21 @@ void Redis::ScanHashes() {
     }
     ParsedBaseMetaKey parsed_meta_key(meta_iter->key());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
-                             parsed_meta_key.Key().ToString(), parsed_hashes_meta_value.Count(),
-                             parsed_hashes_meta_value.Etime(), parsed_hashes_meta_value.Version(), survival_time);
+    INFO("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+         parsed_meta_key.Key().ToString(), parsed_hashes_meta_value.Count(), parsed_hashes_meta_value.Etime(),
+         parsed_hashes_meta_value.Version(), survival_time);
   }
   delete meta_iter;
 
-  LOG(INFO) << "***************Hashes Field Data***************";
+  INFO("***************Hashes Field Data***************");
   auto field_iter = db_->NewIterator(iterator_options, handles_[kHashesDataCF]);
   for (field_iter->SeekToFirst(); field_iter->Valid(); field_iter->Next()) {
     ParsedHashesDataKey parsed_hashes_data_key(field_iter->key());
     ParsedBaseDataValue parsed_internal_value(field_iter->value());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [field : {:<20}] [value : {:<20}] [version : {}]",
-                             parsed_hashes_data_key.Key().ToString(), parsed_hashes_data_key.field().ToString(),
-                             parsed_internal_value.UserValue().ToString(), parsed_hashes_data_key.Version());
+    INFO("[key : {:<30}] [field : {:<20}] [value : {:<20}] [version : {}]", parsed_hashes_data_key.Key().ToString(),
+         parsed_hashes_data_key.field().ToString(), parsed_internal_value.UserValue().ToString(),
+         parsed_hashes_data_key.Version());
   }
   delete field_iter;
 }

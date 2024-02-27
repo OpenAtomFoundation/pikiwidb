@@ -82,6 +82,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HScan, -3);
   ADD_COMMAND(HVals, 2);
   ADD_COMMAND(HIncrbyFloat, 4);
+  ADD_COMMAND(HRandField, -2);
 
   // set
   ADD_COMMAND(SIsMember, 3);
@@ -92,6 +93,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SUnion, -2);
   ADD_COMMAND(SInterStore, -3);
   ADD_COMMAND(SCard, 2);
+  ADD_COMMAND(SMove, 4);
 
   // list
   ADD_COMMAND(LPush, -3);
