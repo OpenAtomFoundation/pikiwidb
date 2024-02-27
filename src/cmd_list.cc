@@ -78,7 +78,8 @@ bool LRangeCmd::DoInitial(PClient* client) {
 
 void LRangeCmd::DoCmd(PClient* client) {
   std::vector<std::string> ret;
-  int64_t start_index = 0, end_index = 0;
+  int64_t start_index = 0;
+  int64_t end_index = 0;
   if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
@@ -126,7 +127,8 @@ bool LTrimCmd::DoInitial(PClient* client) {
 }
 
 void LTrimCmd::DoCmd(PClient* client) {
-  int64_t start_index = 0, end_index = 0;
+  int64_t start_index = 0;
+  int64_t end_index = 0;
 
   if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
