@@ -13,13 +13,13 @@ SET(BRPC_LIBRARIES "${BRPC_INSTALL_DIR}/lib/libbrpc.a" CACHE FILEPATH "brpc libr
 SET(NUM_OF_PROCESSOR 1)
 
 # Reference https://stackoverflow.com/questions/45414507/pass-a-list-of-prefix-paths-to-externalproject-add-in-cmake-args
-set(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build")
+set(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build")
 
 # If minimal .a is need, you can set  WITH_DEBUG_SYMBOLS=OFF
 ExternalProject_Add(
         extern_brpc
         ${EXTERNAL_PROJECT_LOG_ARGS}
-        DEPENDS ssl crypto zlib protobuf leveldb gflags glog
+        DEPENDS ssl crypto zlib protobuf leveldb gflags
 #        GIT_REPOSITORY "https://github.com/apache/brpc"
 #        GIT_TAG "0.9.7"
         URL "https://github.com/apache/brpc/archive/1.3.0.tar.gz"
@@ -46,7 +46,7 @@ ExternalProject_Add(
         BUILD_COMMAND $(MAKE) -j ${NUM_OF_PROCESSOR} brpc-static
         INSTALL_COMMAND mkdir -p ${BRPC_INSTALL_DIR}/lib/ COMMAND cp ${BRPC_SOURCES_DIR}/src/extern_brpc/output/lib/libbrpc.a ${BRPC_LIBRARIES} COMMAND cp -r ${BRPC_SOURCES_DIR}/src/extern_brpc/output/include ${BRPC_INCLUDE_DIR}/
 )
-ADD_DEPENDENCIES(extern_brpc ssl crypto zlib protobuf leveldb gflags glog)
+ADD_DEPENDENCIES(extern_brpc ssl crypto zlib protobuf leveldb gflags)
 ADD_LIBRARY(brpc STATIC IMPORTED GLOBAL)
 SET_PROPERTY(TARGET brpc PROPERTY IMPORTED_LOCATION ${BRPC_LIBRARIES})
 ADD_DEPENDENCIES(brpc extern_brpc)
