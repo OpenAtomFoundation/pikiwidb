@@ -19,5 +19,13 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         PRIVATE ${BRPC_INCLUDE_DIR}
 )
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags)
+find_library(COREFOUNDATION_LIBRARY CoreFoundation)
+find_library(CSSERVICES_LIBRARY CoreServices)
+find_library(CFN_LIBRARY CFNetwork)
+find_library(SCY_LIBRARY Security)
+find_library(COREGRAPHICS_LIBRARY CoreGraphics)
+find_library(CORETEXT_LIBRARY CoreText)
+find_library(Foundation_LIBRARY Foundation)
+
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags ${COREFOUNDATION_LIBRARY} ${CSSERVICES_LIBRARY} ${CFN_LIBRARY} ${SCY_LIBRARY} ${COREGRAPHICS_LIBRARY} ${CORETEXT_LIBRARY} ${Foundation_LIBRARY})
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)
