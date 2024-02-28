@@ -111,7 +111,7 @@ PError watch(const std::vector<PString>& params, UnboundedBuffer* reply) {
   }
 
   std::for_each(++params.begin(), params.end(),
-                [client](const PString& s) { PMulti::Instance().Watch(client, PSTORE.GetDB(), s); });
+                [client](const PString& s) { PMulti::Instance().Watch(client, client->GetCurrentDB(), s); });
 
   FormatOK(reply);
   return kPErrorOK;

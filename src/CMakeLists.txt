@@ -19,5 +19,5 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         PRIVATE ${BRPC_INCLUDE_DIR}
 )
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; leveldb; fmt; pikiwidb-folly; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags)
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags)
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)

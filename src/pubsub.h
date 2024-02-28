@@ -11,7 +11,8 @@
 #include <memory>
 #include <set>
 #include <vector>
-#include "pstring.h"
+
+#include "common.h"
 
 namespace pikiwidb {
 

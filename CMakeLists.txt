@@ -130,13 +130,13 @@ SET(EXTERNAL_PROJECT_LOG_ARGS
 
 INCLUDE(FetchContent)
 
+include(gflags)
 include(findTools)
 include(leveldb)
 include(libevent)
 include(llhttp)
 include(fmt)
 include(spdlog)
-include(folly)
 include(gtest)
 include(rocksdb)
 include(zlib)
