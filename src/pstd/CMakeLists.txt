@@ -11,6 +11,7 @@ ADD_SUBDIRECTORY(tests)
 
 TARGET_INCLUDE_DIRECTORIES(pstd
         PRIVATE ${rocksdb_SOURCE_DIR}/include
+        PRIVATE ${GLOG_INCLUDE_DIR}
 )
 
 TARGET_LINK_LIBRARIES(pstd; spdlog pthread)
