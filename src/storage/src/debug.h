@@ -7,10 +7,7 @@
 
 #ifndef NDEBUG
 #  define TRACE(M, ...) fprintf(stderr, "[TRACE] (%s:%d) " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
-#  define DEBUG(M, ...) fprintf(stderr, "[Debug] (%s:%d) " M "\n", __FILE__, __LINE__, ##__VA_ARGS__)
 #else
 #  define TRACE(M, ...) \
-    {}
-#  define DEBUG(M, ...) \
     {}
 #endif  // NDEBUG
