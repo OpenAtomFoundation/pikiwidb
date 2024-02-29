@@ -30,7 +30,7 @@ ELSEIF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
 ENDIF ()
 
 
-############# You should enable sanitizer if you are developing pika #############
+############# You should enable sanitizer if you are developing pikiwidb #############
 # Uncomment the following two lines to enable AddressSanitizer to detect memory leaks and other memory-related bugs.
 # SET(CMAKE_BUILD_TYPE "Debug")
 # SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=address  -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls")
@@ -105,10 +105,10 @@ CMAKE_HOST_SYSTEM_INFORMATION(RESULT CPU_CORE QUERY NUMBER_OF_LOGICAL_CORES)
 MESSAGE(STATUS "CPU core ${CPU_CORE}")
 
 #openssl
-find_package(OpenSSL REQUIRED)
+FIND_PACKAGE(OpenSSL REQUIRED) 
 
-message(STATUS "ssl:" ${OPENSSL_SSL_LIBRARY})
-message(STATUS "crypto:" ${OPENSSL_CRYPTO_LIBRARY})
+MESSAGE(STATUS "ssl:" ${OPENSSL_SSL_LIBRARY})
+MESSAGE(STATUS "crypto:" ${OPENSSL_CRYPTO_LIBRARY})
 
 ADD_LIBRARY(ssl SHARED IMPORTED GLOBAL)
 SET_PROPERTY(TARGET ssl PROPERTY IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY})
@@ -130,30 +130,27 @@ SET(EXTERNAL_PROJECT_LOG_ARGS
 
 INCLUDE(FetchContent)
 
-include(gflags)
-include(findTools)
-include(leveldb)
-include(libevent)
-include(llhttp)
-include(fmt)
-include(spdlog)
-include(gtest)
-include(rocksdb)
-include(zlib)
-include(protobuf)
-include(brpc)
-include(braft)
+INCLUDE(gflags)
+INCLUDE(findTools)
+INCLUDE(leveldb)
+INCLUDE(libevent)
+INCLUDE(llhttp)
+INCLUDE(fmt)
+INCLUDE(spdlog)
+INCLUDE(gtest)
+INCLUDE(rocksdb)
+INCLUDE(zlib)
+INCLUDE(protobuf)
+INCLUDE(brpc)
+INCLUDE(braft)
 
-enable_testing()
+ENABLE_TESTING()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
 ADD_SUBDIRECTORY(src/counter)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
-
-# 设置依赖关系
-# add_dependencies(counter extern_brpc-build)
 
 #############################################################################
 ###			custom target

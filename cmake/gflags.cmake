@@ -3,12 +3,12 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-include_guard()
+INCLUDE_GUARD()
 
-include(cmake/utils.cmake)
+INCLUDE(cmake/utils.cmake)
 
-set(MY_BUILD_TYPE ${CMAKE_BUILD_TYPE})
-set(CMAKE_BUILD_TYPE ${THIRD_PARTY_BUILD_TYPE})
+SET(MY_BUILD_TYPE ${CMAKE_BUILD_TYPE})
+SET(CMAKE_BUILD_TYPE ${THIRD_PARTY_BUILD_TYPE})
 
 FetchContent_DeclareGitHubWithMirror(gflags
   gflags/gflags v2.2.2
@@ -24,12 +24,12 @@ FetchContent_MakeAvailableWithArgs(gflags
   BUILD_TESTING=OFF
 )
 
-find_package(Threads REQUIRED)
+FIND_PACKAGE(Threads REQUIRED)
 
-target_link_libraries(gflags_static Threads::Threads)
+TARGET_LINK_LIBRARIES(gflags_static Threads::Threads)
 
 SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
 SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
 SET(GFLAGS_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
 
-set(CMAKE_BUILD_TYPE ${MY_BUILD_TYPE})
+SET(CMAKE_BUILD_TYPE ${MY_BUILD_TYPE})

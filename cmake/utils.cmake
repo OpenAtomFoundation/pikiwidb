@@ -3,45 +3,45 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-include_guard()
+INCLUDE_GUARD()
 
-include(FetchContent)
+INCLUDE(FetchContent)
 
-macro(parse_var arg key value)
-  string(REGEX REPLACE "^(.+)=(.+)$" "\\1;\\2" REGEX_RESULT ${arg})
-  list(GET REGEX_RESULT 0 ${key})
-  list(GET REGEX_RESULT 1 ${value})
-endmacro()
+MACRO(parse_var arg key value)
+  STRING(REGEX REPLACE "^(.+)=(.+)$" "\\1;\\2" REGEX_RESULT ${arg})
+  LIST(GET REGEX_RESULT 0 ${key})
+  LIST(GET REGEX_RESULT 1 ${value})
+ENDMACRO()
 
-function(FetchContent_MakeAvailableWithArgs dep)
-  if(NOT ${dep}_POPULATED)
-    FetchContent_Populate(${dep})
+FUNCTION(FetchContent_MakeAvailableWithArgs dep)
+  IF (NOT ${dep}_POPULATED)
+    FETCHCONTENT_POPULATE(${dep})
 
-    foreach(arg IN LISTS ARGN)
+    FOREACH(arg IN LISTS ARGN)
       parse_var(${arg} key value)
-      set(${key}_OLD ${${key}})
-      set(${key} ${value} CACHE INTERNAL "")
-    endforeach()
+      SET(${key}_OLD ${${key}})
+      SET(${key} ${value} CACHE INTERNAL "")
+    ENDFOREACH()
 
-    add_subdirectory(${${dep}_SOURCE_DIR} ${${dep}_BINARY_DIR})
+    ADD_SUBDIRECTORY(${${dep}_SOURCE_DIR} ${${dep}_BINARY_DIR})
 
-    foreach(arg IN LISTS ARGN)
+    FOREACH(arg IN LISTS ARGN)
       parse_var(${arg} key value)
-      set(${key} ${${key}_OLD} CACHE INTERNAL "")
-    endforeach()
-  endif()
-endfunction()
+      SET(${key} ${${key}_OLD} CACHE INTERNAL "")
+    ENDFOREACH()
+  ENDIF ()
+ENDFUNCTION()
 
-function(FetchContent_DeclareWithMirror dep url hash)
+FUNCTION(FetchContent_DeclareWithMirror dep url hash)
   FetchContent_Declare(${dep}
     URL ${DEPS_FETCH_PROXY}${url}
     URL_HASH ${hash}
   )
-endfunction()
+ENDFUNCTION()
 
-function(FetchContent_DeclareGitHubWithMirror dep repo tag hash)
+FUNCTION(FetchContent_DeclareGitHubWithMirror dep repo tag hash)
   FetchContent_DeclareWithMirror(${dep}
     https://github.com/${repo}/archive/${tag}.zip
     ${hash}
   )
-endfunction()
+ENDFUNCTION()

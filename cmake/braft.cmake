@@ -12,14 +12,12 @@ SET(BRAFT_LIBRARIES "${BRAFT_INSTALL_DIR}/lib/libbraft.a" CACHE FILEPATH "braft 
 
 SET(NUM_OF_PROCESSOR 1)
 
-set(prefix_path "${THIRD_PARTY_PATH}/install/brpc|${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-src")
+SET(prefix_path "${THIRD_PARTY_PATH}/install/brpc|${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-src")
 
 ExternalProject_Add(
         extern_braft
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS brpc
-#        GIT_REPOSITORY "https://github.com/brpc/braft.git"
-#        GIT_TAG "v1.1.1"
         URL "https://github.com/baidu/braft/archive/v1.1.2.tar.gz"
         PREFIX ${BRAFT_SOURCES_DIR}
         UPDATE_COMMAND ""

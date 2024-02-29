@@ -3,11 +3,11 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-include_guard()
+INCLUDE_GUARD()
 
-include(cmake/utils.cmake)
+INCLUDE(cmake/utils.cmake)
 
-FetchContent_Declare(glog
+FETCHCONTENT_DECLARE(glog
   URL https://github.com/google/glog/archive/v0.6.0.zip
   URL_HASH SHA256=122fb6b712808ef43fbf80f75c52a21c9760683dae470154f02bddfc61135022
   PATCH_COMMAND patch -p1 -s -E -i ${PROJECT_SOURCE_DIR}/cmake/patches/glog_demangle.patch
@@ -22,8 +22,8 @@ FetchContent_MakeAvailableWithArgs(glog
 )
 
 SET(GLOG_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-src/src CACHE BOOL "" FORCE)
-if(CMAKE_BUILD_TYPE STREQUAL "Release")
+IF (CMAKE_BUILD_TYPE STREQUAL "Release")
   SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglog.a CACHE BOOL "" FORCE)
-elseif(CMAKE_BUILD_TYPE STREQUAL "Debug")
+ELSEIF (CMAKE_BUILD_TYPE STREQUAL "Debug")
   SET(GLOG_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/glog-build/libglogd.a CACHE BOOL "" FORCE)
-endif()
+ENDIF()

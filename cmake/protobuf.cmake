@@ -5,11 +5,11 @@
 
 INCLUDE(ExternalProject)
 # Always invoke `FIND_PACKAGE(Protobuf)` for importing function protobuf_generate_cpp
-FIND_PACKAGE(Protobuf QUIET)
-macro(UNSET_VAR VAR_NAME)
+FIND_PACKAGE(Protobuf QUIET) 
+MACRO(UNSET_VAR VAR_NAME)
     UNSET(${VAR_NAME} CACHE)
     UNSET(${VAR_NAME})
-endmacro()
+ENDMACRO() 
 
 UNSET_VAR(PROTOBUF_INCLUDE_DIR)
 UNSET_VAR(PROTOBUF_FOUND)
@@ -22,7 +22,7 @@ UNSET_VAR(Protobuf_PROTOC_EXECUTABLE)
 
 # Print and set the protobuf library information,
 # finish this cmake process and exit from this file.
-macro(PROMPT_PROTOBUF_LIB)
+MACRO(PROMPT_PROTOBUF_LIB)
     SET(protobuf_DEPS ${ARGN})
 
     MESSAGE(STATUS "Protobuf protoc executable: ${PROTOBUF_PROTOC_EXECUTABLE}")
@@ -62,31 +62,32 @@ macro(PROMPT_PROTOBUF_LIB)
     ENDFOREACH ()
 
     RETURN()
-endmacro()
-macro(SET_PROTOBUF_VERSION)
+ENDMACRO()
+
+MACRO(SET_PROTOBUF_VERSION)
     EXEC_PROGRAM(${PROTOBUF_PROTOC_EXECUTABLE} ARGS --version OUTPUT_VARIABLE PROTOBUF_VERSION)
     STRING(REGEX MATCH "[0-9]+.[0-9]+" PROTOBUF_VERSION "${PROTOBUF_VERSION}")
-endmacro()
+ENDMACRO()
 
-set(PROTOBUF_ROOT "" CACHE PATH "Folder contains protobuf")
+SET(PROTOBUF_ROOT "" CACHE PATH "Folder contains protobuf")
 
-if (NOT "${PROTOBUF_ROOT}" STREQUAL "")
-    message("found system protobuf")
+IF (NOT "${PROTOBUF_ROOT}" STREQUAL "")
+    MESSAGE("found system protobuf")
 
-    find_path(PROTOBUF_INCLUDE_DIR google/protobuf/message.h PATHS ${PROTOBUF_ROOT}/include NO_DEFAULT_PATH)
-    find_library(PROTOBUF_LIBRARY protobuf libprotobuf.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
-    find_library(PROTOBUF_LITE_LIBRARY protobuf-lite libprotobuf-lite.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
-    find_library(PROTOBUF_PROTOC_LIBRARY protoc libprotoc.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
-    find_program(PROTOBUF_PROTOC_EXECUTABLE protoc PATHS ${PROTOBUF_ROOT}/bin NO_DEFAULT_PATH)
-    if (PROTOBUF_INCLUDE_DIR AND PROTOBUF_LIBRARY AND PROTOBUF_LITE_LIBRARY AND PROTOBUF_PROTOC_LIBRARY AND PROTOBUF_PROTOC_EXECUTABLE)
-        message(STATUS "Using custom protobuf library in ${PROTOBUF_ROOT}.")
-        SET(PROTOBUF_FOUND true)
+    FIND_PATH(PROTOBUF_INCLUDE_DIR google/protobuf/message.h PATHS ${PROTOBUF_ROOT}/include NO_DEFAULT_PATH)
+    FIND_LIBRARY(PROTOBUF_LIBRARY protobuf libprotobuf.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
+    FIND_LIBRARY(PROTOBUF_LITE_LIBRARY protobuf-lite libprotobuf-lite.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
+    FIND_LIBRARY(PROTOBUF_PROTOC_LIBRARY protoc libprotoc.lib PATHS ${PROTOBUF_ROOT}/lib NO_DEFAULT_PATH)
+    FIND_PROGRAM(PROTOBUF_PROTOC_EXECUTABLE protoc PATHS ${PROTOBUF_ROOT}/bin NO_DEFAULT_PATH)
+    IF (PROTOBUF_INCLUDE_DIR AND PROTOBUF_LIBRARY AND PROTOBUF_LITE_LIBRARY AND PROTOBUF_PROTOC_LIBRARY AND PROTOBUF_PROTOC_EXECUTABLE)
+        MESSAGE(STATUS "Using custom protobuf library in ${PROTOBUF_ROOT}.")
+        SET(PROTOBUF_FOUND TRUE)
         SET_PROTOBUF_VERSION()
         PROMPT_PROTOBUF_LIB()
-    else ()
-        message(WARNING "Cannot find protobuf library in ${PROTOBUF_ROOT}")
-    endif ()
-endif ()
+    ELSE ()
+        MESSAGE(WARNING "Cannot find protobuf library in ${PROTOBUF_ROOT}")
+    ENDIF ()
+ENDIF ()
 
 FUNCTION(build_protobuf TARGET_NAME)
     STRING(REPLACE "extern_" "" TARGET_DIR_NAME "${TARGET_NAME}")
@@ -130,8 +131,6 @@ FUNCTION(build_protobuf TARGET_NAME)
             PREFIX ${PROTOBUF_SOURCES_DIR}
             UPDATE_COMMAND ""
             DEPENDS zlib
-            #            GIT_REPOSITORY  "https://github.com/protocolbuffers/protobuf.git"
-            #            GIT_TAG         "v3.6.1"
             URL "https://github.com/protocolbuffers/protobuf/archive/v3.18.0.tar.gz"
             CONFIGURE_COMMAND mv ../config.sh . COMMAND sh config.sh
             CMAKE_CACHE_ARGS
@@ -147,7 +146,7 @@ ENDFUNCTION()
 SET(PROTOBUF_VERSION 3.18.0)
 
 IF (NOT PROTOBUF_FOUND)
-    message("build protobuf")
+    MESSAGE("build protobuf")
 
     build_protobuf(extern_protobuf)
 
@@ -166,4 +165,3 @@ IF (NOT PROTOBUF_FOUND)
             CACHE FILEPATH "protobuf executable." FORCE)
     PROMPT_PROTOBUF_LIB(extern_protobuf zlib)
 ENDIF (NOT PROTOBUF_FOUND)
-

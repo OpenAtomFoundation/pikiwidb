@@ -13,15 +13,13 @@ SET(BRPC_LIBRARIES "${BRPC_INSTALL_DIR}/lib/libbrpc.a" CACHE FILEPATH "brpc libr
 SET(NUM_OF_PROCESSOR 1)
 
 # Reference https://stackoverflow.com/questions/45414507/pass-a-list-of-prefix-paths-to-externalproject-add-in-cmake-args
-set(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-src")
+SET(prefix_path "${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-src")
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
 # If minimal .a is need, you can set  WITH_DEBUG_SYMBOLS=OFF
-ExternalProject_Add(
+EXTERNALPROJECT_ADD( 
         extern_brpc
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS ssl crypto zlib protobuf leveldb gflags
-#        GIT_REPOSITORY "https://github.com/apache/brpc"
-#        GIT_TAG "0.9.7"
         URL "https://github.com/apache/brpc/archive/1.3.0.tar.gz"
         PREFIX ${BRPC_SOURCES_DIR}
         UPDATE_COMMAND ""
