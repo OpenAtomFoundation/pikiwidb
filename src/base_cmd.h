@@ -24,6 +24,7 @@ namespace pikiwidb {
 // key cmd
 const std::string kCmdNameDel = "del";
 const std::string kCmdNameExists = "exists";
+const std::string kCmdNamePExpire = "pexpire";
 
 // string cmd
 const std::string kCmdNameSet = "set";

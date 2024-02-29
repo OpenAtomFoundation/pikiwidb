@@ -1026,8 +1026,7 @@ Status Storage::ZScan(const Slice& key, int64_t cursor, const std::string& patte
   return inst->ZScan(key, cursor, pattern, count, score_members, next_cursor);
 }
 
-int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Status>* type_status) {
-  type_status->clear();
+int32_t Storage::Expire(const Slice& key, uint64_t ttl) {
   int32_t ret = 0;
   bool is_corruption = false;
 
@@ -1038,7 +1037,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kStrings] = s;
   }
 
   // Hash
@@ -1047,7 +1045,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kHashes] = s;
   }
 
   // Sets
@@ -1056,7 +1053,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kSets] = s;
   }
 
   // Lists
@@ -1065,7 +1061,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kLists] = s;
   }
 
   // Zsets
@@ -1074,7 +1069,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kZSets] = s;
   }
 
   if (is_corruption) {

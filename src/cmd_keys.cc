@@ -6,6 +6,9 @@
  */
 
 #include "cmd_keys.h"
+
+#include <pstd_string.h>
+
 #include "store.h"
 
 namespace pikiwidb {
@@ -46,6 +49,28 @@ void ExistsCmd::DoCmd(PClient* client) {
     //    } else {
     //      client->SetRes(CmdRes::kErrOther, "exists internal error");
     //    }
+  } else {
+    client->SetRes(CmdRes::kErrOther, "exists internal error");
+  }
+}
+
+PExpireCmd::PExpireCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
+
+bool PExpireCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void PExpireCmd::DoCmd(PClient* client) {
+  int64_t msec = 0;
+  if (pstd::String2int(client->argv_[2], &msec) == 0) {
+    client->SetRes(CmdRes ::kInvalidInt);
+    return;
+  }
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expire(client->Key(), msec / 1000);
+  if (res != -1) {
+    client->AppendInteger(res);
   } else {
     client->SetRes(CmdRes::kErrOther, "exists internal error");
   }
