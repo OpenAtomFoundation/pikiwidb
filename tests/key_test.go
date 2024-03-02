@@ -138,4 +138,17 @@ var _ = Describe("Keyspace", Ordered, func() {
 		del := client.Del(ctx, "key")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
+
+	It("should pexpire", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.PExpire(ctx, DefaultKey, 3000*time.Millisecond).Val()).To(Equal(true))
+		// Expect(client.PTTL(ctx, DefaultKey).Val()).NotTo(Equal(time.Duration(-2)))
+
+		time.Sleep(4 * time.Second)
+		// Expect(client.PTTL(ctx, DefaultKey).Val()).To(Equal(time.Duration(-2)))
+		Expect(client.Get(ctx, DefaultKey).Err()).To(MatchError(redis.Nil))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+		Expect(client.Do(ctx, "pexpire", DefaultKey, "err").Err()).To(MatchError("ERR value is not an integer or out of range"))
+	})
 })

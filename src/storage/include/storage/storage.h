@@ -945,7 +945,7 @@ class Storage {
   // Set a timeout on key
   // return -1 operation exception errors happen in database
   // return >=0 success
-  int32_t Expire(const Slice& key, uint64_t ttl, std::map<DataType, Status>* type_status);
+  int32_t Expire(const Slice& key, uint64_t ttl);
 
   // Removes the specified keys
   // return -1 operation exception errors happen in database
