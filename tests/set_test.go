@@ -214,6 +214,7 @@ var _ = Describe("Set", Ordered, func() {
 		del := client.Del(ctx, "set1", "set2", "set")
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
+
 	It("should SCard", func() {
 		sAdd := client.SAdd(ctx, "setScard", "Hello")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
@@ -229,4 +230,25 @@ var _ = Describe("Set", Ordered, func() {
 
 	})
 
+	It("should SMove", func() {
+		sAdd := client.SAdd(ctx, "set1", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "set2", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sMove := client.SMove(ctx, "set1", "set2", "two")
+		Expect(sMove.Err()).NotTo(HaveOccurred())
+		Expect(sMove.Val()).To(Equal(true))
+
+		sIsMember := client.SIsMember(ctx, "set1", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(false))
+
+		sIsMember = client.SIsMember(ctx, "set2", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(true))
+	})
 })
