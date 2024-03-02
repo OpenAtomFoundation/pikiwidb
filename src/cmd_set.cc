@@ -7,9 +7,7 @@
 
 #include "cmd_set.h"
 #include <memory>
-#include <random>
 #include <utility>
-#include "pstd/env.h"
 #include "store.h"
 
 namespace pikiwidb {
