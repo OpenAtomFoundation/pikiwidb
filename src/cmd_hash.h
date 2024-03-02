@@ -157,7 +157,7 @@ class HSetNXCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
-  
+
 class HIncrbyCmd : public BaseCmd {
  public:
   HIncrbyCmd(const std::string &name, int16_t arity);
