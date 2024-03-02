@@ -352,6 +352,31 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   }
 }
 
+HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HIncrbyCmd::DoCmd(PClient* client) {
+  int64_t int_by = 0;
+  if (!pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &int_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return;
+  }
+
+  int64_t temp = 0;
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hincrby cmd error");
+  }
+}
+
 HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
