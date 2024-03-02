@@ -352,6 +352,26 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   }
 }
 
+HSetNXCmd::HSetNXCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HSetNXCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HSetNXCmd::DoCmd(PClient* client) {
+  int32_t temp = 0;
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
+  if (s.ok()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
+  }
+  return;
+}
+
 HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
 

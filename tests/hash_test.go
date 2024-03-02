@@ -214,6 +214,23 @@ var _ = Describe("Hash", Ordered, func() {
 		Expect(hIncrByFloat.Val()).To(Equal(float64(5200)))
 	})
 
+	It("should HSetNX", func() {
+		res := client.Del(ctx, "hash")
+		Expect(res.Err()).NotTo(HaveOccurred())
+
+		hSetNX := client.HSetNX(ctx, "hash", "key", "hello")
+		Expect(hSetNX.Err()).NotTo(HaveOccurred())
+		Expect(hSetNX.Val()).To(Equal(true))
+
+		hSetNX = client.HSetNX(ctx, "hash", "key", "hello")
+		Expect(hSetNX.Err()).NotTo(HaveOccurred())
+		Expect(hSetNX.Val()).To(Equal(false))
+
+		hGet := client.HGet(ctx, "hash", "key")
+		Expect(hGet.Err()).NotTo(HaveOccurred())
+		Expect(hGet.Val()).To(Equal("hello"))
+  })
+
 	It("should HIncrBy", func() {
 		hSet := client.HSet(ctx, "hash", "key", "5")
 		Expect(hSet.Err()).NotTo(HaveOccurred())
