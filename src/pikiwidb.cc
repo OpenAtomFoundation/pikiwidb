@@ -18,14 +18,12 @@
 #include "rocksdb/db.h"
 
 #include "client.h"
-#include "command.h"
 #include "store.h"
 
 #include "config.h"
-#include "db.h"
-#include "pubsub.h"
 #include "slow_log.h"
 
+#include "helper.h"
 #include "pikiwidb.h"
 #include "pikiwidb_logo.h"
 #include "pstd_util.h"
@@ -100,69 +98,69 @@ bool PikiwiDB::ParseArgs(int ac, char* av[]) {
 }
 
 static void PdbCron() {
-  using namespace pikiwidb;
-
-  if (g_qdbPid != -1) {
-    return;
-  }
-
-  if (Now() > (g_lastPDBSave + static_cast<unsigned>(g_config.saveseconds)) * 1000UL &&
-      PStore::dirty_ >= g_config.savechanges) {
-    int ret = fork();
-    if (ret == 0) {
-      {
-        PDBSaver qdb;
-        qdb.Save(g_config.rdbfullname.c_str());
-        std::cerr << "ServerCron child save rdb done, exiting child\n";
-      }  //  make qdb to be destructed before exit
-      _exit(0);
-    } else if (ret == -1) {
-      ERROR("fork qdb save process failed");
-    } else {
-      g_qdbPid = ret;
-    }
-
-    INFO("ServerCron save rdb file {}", g_config.rdbfullname);
-  }
+  //  using namespace pikiwidb;
+  //
+  //  if (g_qdbPid != -1) {
+  //    return;
+  //  }
+  //
+  //  if (Now() > (g_lastPDBSave + static_cast<unsigned>(g_config.saveseconds)) * 1000UL)
+  //  {
+  //    int ret = fork();
+  //    if (ret == 0) {
+  //      {
+  //        PDBSaver qdb;
+  //        qdb.Save(g_config.rdbfullname.c_str());
+  //        std::cerr << "ServerCron child save rdb done, exiting child\n";
+  //      }  //  make qdb to be destructed before exit
+  //      _exit(0);
+  //    } else if (ret == -1) {
+  //      ERROR("fork qdb save process failed");
+  //    } else {
+  //      g_qdbPid = ret;
+  //    }
+  //
+  //    INFO("ServerCron save rdb file {}", g_config.rdbfullname);
+  //  }
 }
 
 static void LoadDBFromDisk() {
-  using namespace pikiwidb;
-
-  PDBLoader loader;
-  loader.Load(g_config.rdbfullname.c_str());
-}
-
-static void CheckChild() {
-  using namespace pikiwidb;
-
-  if (g_qdbPid == -1) {
-    return;
-  }
-
-  int statloc = 0;
-  pid_t pid = wait3(&statloc, WNOHANG, nullptr);
-
-  if (pid != 0 && pid != -1) {
-    int exit = WEXITSTATUS(statloc);
-    int signal = 0;
-
-    if (WIFSIGNALED(statloc)) {
-      signal = WTERMSIG(statloc);
-    }
-
-    if (pid == g_qdbPid) {
-      PDBSaver::SaveDoneHandler(exit, signal);
-      if (PREPL.IsBgsaving()) {
-        PREPL.OnRdbSaveDone();
-      } else {
-        PREPL.TryBgsave();
-      }
-    } else {
-      ERROR("{} is not rdb process", pid);
-      assert(!!!"Is there any back process except rdb?");
-    }
-  }
+  //  using namespace pikiwidb;
+  //
+  //  PDBLoader loader;
+  //  loader.Load(g_config.rdbfullname.c_str());
+  //}
+  //
+  // static void CheckChild() {
+  //  using namespace pikiwidb;
+  //
+  //  if (g_qdbPid == -1) {
+  //    return;
+  //  }
+  //
+  //  int statloc = 0;
+  //  pid_t pid = wait3(&statloc, WNOHANG, nullptr);
+  //
+  //  if (pid != 0 && pid != -1) {
+  //    int exit = WEXITSTATUS(statloc);
+  //    int signal = 0;
+  //
+  //    if (WIFSIGNALED(statloc)) {
+  //      signal = WTERMSIG(statloc);
+  //    }
+  //
+  //    if (pid == g_qdbPid) {
+  //      PDBSaver::SaveDoneHandler(exit, signal);
+  //      if (PREPL.IsBgsaving()) {
+  //        PREPL.OnRdbSaveDone();
+  //      } else {
+  //        PREPL.TryBgsave();
+  //      }
+  //    } else {
+  //      ERROR("{} is not rdb process", pid);
+  //      assert(!!!"Is there any back process except rdb?");
+  //    }
+  //  }
 }
 
 void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
@@ -216,14 +214,7 @@ bool PikiwiDB::Init() {
   worker_threads_.SetWorkerNum(static_cast<size_t>(g_config.worker_threads_num));
   slave_threads_.SetWorkerNum(static_cast<size_t>(g_config.slave_threads_num));
 
-  PCommandTable::Init();
-  PCommandTable::AliasCommand(g_config.aliases);
   PSTORE.Init(g_config.databases);
-  PSTORE.InitExpireTimer();
-  PSTORE.InitBlockedTimer();
-  PSTORE.InitEvictionTimer();
-  PSTORE.InitDumpBackends();
-  PPubsub::Instance().InitPubsubTimer();
 
   // Only if there is no backend, load rdb
   if (g_config.backend == pikiwidb::kBackEndNone) {
@@ -237,7 +228,6 @@ bool PikiwiDB::Init() {
   auto loop = worker_threads_.BaseLoop();
   loop->ScheduleRepeatedly(1000 / pikiwidb::g_config.hz, PdbCron);
   loop->ScheduleRepeatedly(1000, &PReplication::Cron, &PREPL);
-  loop->ScheduleRepeatedly(1, CheckChild);
 
   // master ip
   if (!g_config.masterIp.empty()) {

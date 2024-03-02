@@ -86,6 +86,9 @@ var _ = Describe("Keyspace", Ordered, func() {
 		n, err = client.Exists(ctx, "key1", "key2", "notExistKey").Result()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal(int64(2)))
+
+		_, err = client.Del(ctx, "key1", "key2").Result()
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("Del", func() {

@@ -7,8 +7,8 @@
 #include <memory>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
 
+#include "pstd/log.h"
 #include "src/base_key_format.h"
 #include "src/redis.h"
 #include "src/scope_record_lock.h"
@@ -1198,10 +1198,7 @@ void Redis::ScanStrings() {
   iterator_options.snapshot = snapshot;
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
-
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " "
-            << "String Data***************";
+  INFO("*************** rocksdb instance: {} String Data *************** ", index_);
   auto iter = db_->NewIterator(iterator_options);
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     ParsedBaseKey parsed_strings_key(iter->key());
@@ -1211,9 +1208,9 @@ void Redis::ScanStrings() {
       survival_time =
           parsed_strings_value.Etime() - current_time > 0 ? parsed_strings_value.Etime() - current_time : -1;
     }
-    LOG(INFO) << fmt::format("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
-                             parsed_strings_key.Key().ToString(), parsed_strings_value.UserValue().ToString(),
-                             parsed_strings_value.Etime(), parsed_strings_value.Version(), survival_time);
+    INFO("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+         parsed_strings_key.Key().ToString(), parsed_strings_value.UserValue().ToString(), parsed_strings_value.Etime(),
+         parsed_strings_value.Version(), survival_time);
   }
   delete iter;
 }

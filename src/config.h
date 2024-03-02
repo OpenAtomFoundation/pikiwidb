@@ -8,7 +8,10 @@
 #pragma once
 
 #include <map>
-#include "pstring.h"
+#include <string>
+#include <vector>
+
+#include "common.h"
 
 namespace pikiwidb {
 

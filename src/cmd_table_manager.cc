@@ -83,6 +83,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HVals, 2);
   ADD_COMMAND(HIncrbyFloat, 4);
   ADD_COMMAND(HIncrby, 4);
+  ADD_COMMAND(HRandField, -2);
 
   // set
   ADD_COMMAND(SIsMember, 3);
@@ -101,6 +102,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(RPop, 2);
   ADD_COMMAND(LRem, 4);
   ADD_COMMAND(LRange, 4);
+  ADD_COMMAND(LTrim, 4);
+  ADD_COMMAND(LSet, 4);
+  ADD_COMMAND(LInsert, 5);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

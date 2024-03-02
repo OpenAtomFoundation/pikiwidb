@@ -6,7 +6,6 @@
 #ifndef INCLUDE_CUSTOM_COMPARATOR_H_
 #define INCLUDE_CUSTOM_COMPARATOR_H_
 
-#include "glog/logging.h"
 #include "rocksdb/comparator.h"
 
 #include "src/coding.h"

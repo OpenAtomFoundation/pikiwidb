@@ -10,8 +10,8 @@
 #include <memory>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
 
+#include "pstd/log.h"
 #include "src/base_data_value_format.h"
 #include "src/base_key_format.h"
 #include "src/redis.h"
@@ -1665,8 +1665,7 @@ void Redis::ScanZsets() {
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
 
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " ZSets Meta Data***************";
+  INFO("***************rocksdb instance: {} ZSets Meta Data***************", index_);
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kZsetsMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedBaseMetaKey parsed_meta_key(meta_iter->key());
@@ -1677,14 +1676,13 @@ void Redis::ScanZsets() {
           parsed_zsets_meta_value.Etime() - current_time > 0 ? parsed_zsets_meta_value.Etime() - current_time : -1;
     }
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
-                             parsed_meta_key.Key().ToString(), parsed_zsets_meta_value.Count(),
-                             parsed_zsets_meta_value.Etime(), parsed_zsets_meta_value.Version(), survival_time);
+    INFO("[key : {:<30}] [count : {:<10}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+         parsed_meta_key.Key().ToString(), parsed_zsets_meta_value.Count(), parsed_zsets_meta_value.Etime(),
+         parsed_zsets_meta_value.Version(), survival_time);
   }
   delete meta_iter;
 
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " ZSets Member To Score Data***************";
+  INFO("***************rocksdb instance: {} ZSets Member To Score Data***************", index_);
   auto member_iter = db_->NewIterator(iterator_options, handles_[kZsetsDataCF]);
   for (member_iter->SeekToFirst(); member_iter->Valid(); member_iter->Next()) {
     ParsedZSetsMemberKey parsed_zsets_member_key(member_iter->key());
@@ -1694,21 +1692,18 @@ void Redis::ScanZsets() {
     const void* ptr_tmp = reinterpret_cast<const void*>(&tmp);
     double score = *reinterpret_cast<const double*>(ptr_tmp);
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [member : {:<20}] [score : {:<20}] [version : {}]",
-                             parsed_zsets_member_key.Key().ToString(), parsed_zsets_member_key.member().ToString(),
-                             score, parsed_zsets_member_key.Version());
+    INFO("[key : {:<30}] [member : {:<20}] [score : {:<20}] [version : {}]", parsed_zsets_member_key.Key().ToString(),
+         parsed_zsets_member_key.member().ToString(), score, parsed_zsets_member_key.Version());
   }
   delete member_iter;
 
-  LOG(INFO) << "***************"
-            << "rocksdb instance: " << index_ << " ZSets Score To Member Data***************";
+  INFO("***************rocksdb instance: {} ZSets Score To Member Data***************", index_);
   auto score_iter = db_->NewIterator(iterator_options, handles_[kZsetsScoreCF]);
   for (score_iter->SeekToFirst(); score_iter->Valid(); score_iter->Next()) {
     ParsedZSetsScoreKey parsed_zsets_score_key(score_iter->key());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [score : {:<20}] [member : {:<20}] [version : {}]",
-                             parsed_zsets_score_key.key().ToString(), parsed_zsets_score_key.score(),
-                             parsed_zsets_score_key.member().ToString(), parsed_zsets_score_key.Version());
+    INFO("[key : {:<30}] [score : {:<20}] [member : {:<20}] [version : {}]", parsed_zsets_score_key.key().ToString(),
+         parsed_zsets_score_key.score(), parsed_zsets_score_key.member().ToString(), parsed_zsets_score_key.Version());
   }
   delete score_iter;
 }

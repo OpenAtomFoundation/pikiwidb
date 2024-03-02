@@ -12,11 +12,12 @@
 #include <cstddef>
 #include <cstdio>
 #include <functional>
+#include <string>
 #include <vector>
 
-#include "pstring.h"
-
 #define CRLF "\r\n"
+
+using PString = std::string;
 
 namespace pikiwidb {
 

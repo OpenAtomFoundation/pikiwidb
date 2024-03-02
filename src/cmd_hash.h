@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <string_view>
 #include "base_cmd.h"
 
 namespace pikiwidb {
@@ -155,6 +156,17 @@ class HIncrbyCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
+};
+
+class HRandFieldCmd : public BaseCmd {
+ public:
+  HRandFieldCmd(const std::string &name, int16_t arity);
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  static constexpr std::string_view kWithValueString = "withvalues";
 };
 
 }  // namespace pikiwidb
