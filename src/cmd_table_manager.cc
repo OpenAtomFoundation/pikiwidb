@@ -83,6 +83,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HVals, 2);
   ADD_COMMAND(HIncrbyFloat, 4);
   ADD_COMMAND(HSetNX, 4);
+  ADD_COMMAND(HIncrby, 4);
   ADD_COMMAND(HRandField, -2);
 
   // set

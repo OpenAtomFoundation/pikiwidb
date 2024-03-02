@@ -157,6 +157,17 @@ class HSetNXCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
+  
+class HIncrbyCmd : public BaseCmd {
+ public:
+  HIncrbyCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
 
 class HRandFieldCmd : public BaseCmd {
  public:
