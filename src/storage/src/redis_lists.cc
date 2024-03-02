@@ -6,10 +6,8 @@
 #include <memory>
 
 #include <fmt/core.h>
-#include <glog/logging.h>
-
+#include "pstd/log.h"
 #include "src/base_data_value_format.h"
-#include "src/debug.h"
 #include "src/lists_filter.h"
 #include "src/redis.h"
 #include "src/scope_record_lock.h"
@@ -1097,8 +1095,7 @@ void Redis::ScanLists() {
   iterator_options.fill_cache = false;
   auto current_time = static_cast<int32_t>(time(nullptr));
 
-  LOG(INFO) << "*************** "
-            << "rocksdb instance: " << index_ << " List Meta ***************";
+  INFO("***************rocksdb instance: {} List Meta Data***************", index_);
   auto meta_iter = db_->NewIterator(iterator_options, handles_[kListsMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedListsMetaValue parsed_lists_meta_value(meta_iter->value());
@@ -1109,7 +1106,7 @@ void Redis::ScanLists() {
           parsed_lists_meta_value.Etime() - current_time > 0 ? parsed_lists_meta_value.Etime() - current_time : -1;
     }
 
-    LOG(INFO) << fmt::format(
+    INFO(
         "[key : {:<30}] [count : {:<10}] [left index : {:<10}] [right index : {:<10}] [timestamp : {:<10}] [version : "
         "{}] [survival_time : {}]",
         parsed_meta_key.Key().ToString(), parsed_lists_meta_value.Count(), parsed_lists_meta_value.LeftIndex(),
@@ -1118,16 +1115,14 @@ void Redis::ScanLists() {
   }
   delete meta_iter;
 
-  LOG(INFO) << "*************** "
-            << "rocksdb instance: " << index_ << " List Data***************";
+  INFO("***************rocksdb instance: {} List Data***************", index_);
   auto data_iter = db_->NewIterator(iterator_options, handles_[kListsDataCF]);
   for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
     ParsedListsDataKey parsed_lists_data_key(data_iter->key());
     ParsedBaseDataValue parsed_value(data_iter->value());
 
-    LOG(INFO) << fmt::format("[key : {:<30}] [index : {:<10}] [data : {:<20}] [version : {}]",
-                             parsed_lists_data_key.key().ToString(), parsed_lists_data_key.index(),
-                             parsed_value.UserValue().ToString(), parsed_lists_data_key.Version());
+    INFO("[key : {:<30}] [index : {:<10}] [data : {:<20}] [version : {}]", parsed_lists_data_key.key().ToString(),
+         parsed_lists_data_key.index(), parsed_value.UserValue().ToString(), parsed_lists_data_key.Version());
   }
   delete data_iter;
 }

@@ -146,6 +146,39 @@ void SInterStoreCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
+SCardCmd::SCardCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SCardCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SCardCmd::DoCmd(PClient* client) {
+  int32_t reply_Num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SCard(client->Key(), &reply_Num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
+    return;
+  }
+  client->AppendInteger(reply_Num);
+}
+
+SMoveCmd::SMoveCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SMoveCmd::DoInitial(PClient* client) { return true; }
+
+void SMoveCmd::DoCmd(PClient* client) {
+  int32_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->SMove(client->argv_[1], client->argv_[2], client->argv_[3], &reply_num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, "smove cmd error");
+    return;
+  }
+  client->AppendInteger(reply_num);
+}
+
 SRandMemberCmd::SRandMemberCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 

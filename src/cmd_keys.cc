@@ -41,6 +41,11 @@ void ExistsCmd::DoCmd(PClient* client) {
   int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->Exists(client->Keys());
   if (count >= 0) {
     client->AppendInteger(count);
+    //    if (PSTORE.ExistsKey(client->Key())) {
+    //      client->AppendInteger(1);
+    //    } else {
+    //      client->SetRes(CmdRes::kErrOther, "exists internal error");
+    //    }
   } else {
     client->SetRes(CmdRes::kErrOther, "exists internal error");
   }

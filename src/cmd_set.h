@@ -87,10 +87,31 @@ class SInterStoreCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SCardCmd : public BaseCmd {
+ public:
+  SCardCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SMoveCmd : public BaseCmd {
+ public:
+  SMoveCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 class SRandMemberCmd : public BaseCmd {
  public:
   SRandMemberCmd(const std::string &name, int16_t arity);
-
  protected:
   bool DoInitial(PClient *client) override;
 

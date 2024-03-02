@@ -30,7 +30,7 @@ namespace filesystem = std::filesystem;
 namespace filesystem = std::experimental::filesystem;
 #endif
 
-#include <glog/logging.h>
+#include "log.h"
 
 namespace pstd {
 
@@ -86,9 +86,9 @@ int CreateDir(const std::string& path) {
       return 0;
     }
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
   return -1;
 }
@@ -97,9 +97,9 @@ bool FileExists(const std::string& path) {
   try {
     return filesystem::exists(path);
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
   return false;
 }
@@ -108,9 +108,9 @@ bool DeleteFile(const std::string& fname) {
   try {
     return filesystem::remove(fname);
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
   return false;
 }
@@ -129,9 +129,9 @@ int CreatePath(const std::string& path, mode_t mode) {
     filesystem::permissions(path, static_cast<filesystem::perms>(mode));
     return 0;
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
 
   return -1;
@@ -157,9 +157,9 @@ int RenameFile(const std::string& oldname, const std::string& newname) {
     filesystem::rename(oldname, newname);
     return 0;
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
   return -1;
 }
@@ -181,9 +181,9 @@ int DeleteDir(const std::string& path) {
     }
     return 0;
   } catch (const filesystem::filesystem_error& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   } catch (const std::exception& e) {
-    LOG(WARNING) << e.what();
+    WARN(e.what());
   }
   return -1;
 }
@@ -213,7 +213,7 @@ uint64_t Du(const std::string& path) {
       sum = filesystem::file_size(path);
     }
   } catch (const filesystem::filesystem_error& ex) {
-    LOG(WARNING) << "Error accessing path: " << ex.what();
+    WARN("Error accessing path: {}", ex.what());
   }
 
   return sum;
@@ -343,12 +343,12 @@ class PosixMmapFile : public WritableFile {
 #else
     if (posix_fallocate(fd_, static_cast<int64_t>(file_offset_), static_cast<int64_t>(map_size_)) != 0) {
 #endif
-      LOG(WARNING) << "ftruncate error";
+      WARN("ftruncate error");
       return false;
     }
     void* ptr = mmap(nullptr, map_size_, PROT_READ | PROT_WRITE, MAP_SHARED, fd_, static_cast<int64_t>(file_offset_));
     if (ptr == MAP_FAILED) {  // NOLINT
-      LOG(WARNING) << "mmap failed";
+      WARN("mmap failed");
       return false;
     }
     base_ = reinterpret_cast<char*>(ptr);

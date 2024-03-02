@@ -53,7 +53,7 @@ var _ = Describe("Set", Ordered, func() {
 	BeforeEach(func() {
 		client = s.NewClient()
 		Expect(client.FlushDB(ctx).Err()).NotTo(HaveOccurred())
-        time.Sleep(1 * time.Second)
+		time.Sleep(1 * time.Second)
 	})
 
 	// nodes that run after the spec's subject(It).
@@ -67,52 +67,60 @@ var _ = Describe("Set", Ordered, func() {
 
 	//TODO(dingxiaoshuai) Add more test cases.
 	It("SUnion", func() {
-        sAdd := client.SAdd(ctx, "set1", "a")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set1", "b")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set1", "c")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd := client.SAdd(ctx, "set1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        sAdd = client.SAdd(ctx, "set2", "c")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set2", "d")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set2", "e")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        sUnion := client.SUnion(ctx, "set1", "set2")
-        Expect(sUnion.Err()).NotTo(HaveOccurred())
-        Expect(sUnion.Val()).To(HaveLen(5))
+		sUnion := client.SUnion(ctx, "set1", "set2")
+		Expect(sUnion.Err()).NotTo(HaveOccurred())
+		Expect(sUnion.Val()).To(HaveLen(5))
 
-        sUnion = client.SUnion(ctx, "nonexistent_set1", "nonexistent_set2")
-        Expect(sUnion.Err()).NotTo(HaveOccurred())
-        Expect(sUnion.Val()).To(HaveLen(0))
-    })
+		sUnion = client.SUnion(ctx, "nonexistent_set1", "nonexistent_set2")
+		Expect(sUnion.Err()).NotTo(HaveOccurred())
+		Expect(sUnion.Val()).To(HaveLen(0))
 
-    It("should SUnionStore", func() {
-        sAdd := client.SAdd(ctx, "set1", "a")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set1", "b")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set1", "c")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+		//del
+		del := client.Del(ctx, "set1", "set2")
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
 
-        sAdd = client.SAdd(ctx, "set2", "c")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set2", "d")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set2", "e")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+	It("should SUnionStore", func() {
+		sAdd := client.SAdd(ctx, "set1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        sUnionStore := client.SUnionStore(ctx, "set", "set1", "set2")
-        Expect(sUnionStore.Err()).NotTo(HaveOccurred())
-        Expect(sUnionStore.Val()).To(Equal(int64(5)))
+		sAdd = client.SAdd(ctx, "set2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        //sMembers := client.SMembers(ctx, "set")
-        //Expect(sMembers.Err()).NotTo(HaveOccurred())
-        //Expect(sMembers.Val()).To(HaveLen(5))
-    })
+		sUnionStore := client.SUnionStore(ctx, "set", "set1", "set2")
+		Expect(sUnionStore.Err()).NotTo(HaveOccurred())
+		Expect(sUnionStore.Val()).To(Equal(int64(5)))
+
+		//sMembers := client.SMembers(ctx, "set")
+		//Expect(sMembers.Err()).NotTo(HaveOccurred())
+		//Expect(sMembers.Val()).To(HaveLen(5))
+
+		//del
+		del := client.Del(ctx, "set1", "set2", "set")
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
 	It("Cmd SADD", func() {
 		log.Println("Cmd SADD Begin")
 		Expect(client.SAdd(ctx, "myset", "one", "two").Val()).NotTo(Equal("FooBar"))
@@ -133,6 +141,10 @@ var _ = Describe("Set", Ordered, func() {
 		// sMembers := client.SMembers(ctx, "set")   After the smember command is developed, uncomment it to test smember command.
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
+
+		//del
+		del := client.Del(ctx, "setSAdd1")
+		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("should SAdd strings", func() {
@@ -144,6 +156,9 @@ var _ = Describe("Set", Ordered, func() {
 		// sMembers := client.SMembers(ctx, "set") After the smember command is developed, uncomment it to test smember command.
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
+		//del
+		del := client.Del(ctx, "setSAdd2")
+		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 	It("should SInter", func() {
 		sAdd := client.SAdd(ctx, "set1", "a")
@@ -167,6 +182,10 @@ var _ = Describe("Set", Ordered, func() {
 		sInter = client.SInter(ctx, "nonexistent_set1", "nonexistent_set2")
 		Expect(sInter.Err()).NotTo(HaveOccurred())
 		Expect(sInter.Val()).To(HaveLen(0))
+
+		//del
+		del := client.Del(ctx, "set1", "set2")
+		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("should SInterStore", func() {
@@ -191,6 +210,46 @@ var _ = Describe("Set", Ordered, func() {
 		// sMembers := client.SMembers(ctx, "set")  // After the smember command is developed, uncomment it to test command.
 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
 		// Expect(sMembers.Val()).To(Equal([]string{"c"}))
+		//del
+		del := client.Del(ctx, "set1", "set2", "set")
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("should SCard", func() {
+		sAdd := client.SAdd(ctx, "setScard", "Hello")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		sAdd = client.SAdd(ctx, "setScard", "World")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		sCard := client.SCard(ctx, "setScard")
+		Expect(sCard.Err()).NotTo(HaveOccurred())
+		Expect(sCard.Val()).To(Equal(int64(2)))
+
+	})
+
+	It("should SMove", func() {
+		sAdd := client.SAdd(ctx, "set1", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "set2", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sMove := client.SMove(ctx, "set1", "set2", "two")
+		Expect(sMove.Err()).NotTo(HaveOccurred())
+		Expect(sMove.Val()).To(Equal(true))
+
+		sIsMember := client.SIsMember(ctx, "set1", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(false))
+
+		sIsMember = client.SIsMember(ctx, "set2", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(true))
 	})
 
 	It("should SRem", func() {

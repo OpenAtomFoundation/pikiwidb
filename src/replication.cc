@@ -5,20 +5,15 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "replication.h"
-
-#include <unistd.h>
 #include <iostream>  // the child process use stdout for log
-#include <sstream>
 
 #include "client.h"
-#include "common.h"
 #include "config.h"
-#include "db.h"
 #include "event_loop.h"
 #include "log.h"
 #include "net/util.h"
 #include "pikiwidb.h"
+#include "replication.h"
 
 namespace pikiwidb {
 
@@ -87,6 +82,7 @@ void PReplication::OnRdbSaveDone() {
 }
 
 void PReplication::TryBgsave() {
+  return;
   if (IsBgsaving()) {
     return;
   }
@@ -95,22 +91,22 @@ void PReplication::TryBgsave() {
     return;
   }
 
-  int ret = fork();
-  if (ret == 0) {
-    {
-      PDBSaver qdb;
-      qdb.Save(g_config.rdbfullname.c_str());
-      DEBUG("PReplication save rdb done, exiting child");
-    }
-    _exit(0);
-  } else if (ret == -1) {
-    ERROR("PReplication save rdb FATAL ERROR");
-    onStartBgsave(false);
-  } else {
-    INFO("PReplication save rdb START");
-    g_qdbPid = ret;
-    onStartBgsave(true);
-  }
+  //  int ret = fork();
+  //  if (ret == 0) {
+  //    {
+  //      PDBSaver qdb;
+  //      qdb.Save(g_config.rdbfullname.c_str());
+  //      DEBUG("PReplication save rdb done, exiting child");
+  //    }
+  //    _exit(0);
+  //  } else if (ret == -1) {
+  //    ERROR("PReplication save rdb FATAL ERROR");
+  //    onStartBgsave(false);
+  //  } else {
+  //    INFO("PReplication save rdb START");
+  //    g_qdbPid = ret;
+  //    onStartBgsave(true);
+  //  }
 }
 
 void PReplication::onStartBgsave(bool succ) {
@@ -293,23 +289,24 @@ void PReplication::Cron() {
 }
 
 void PReplication::SaveTmpRdb(const char* data, std::size_t& len) {
-  if (masterInfo_.rdbRecved + len > masterInfo_.rdbSize) {
-    len = masterInfo_.rdbSize - masterInfo_.rdbRecved;
-  }
-
-  rdb_.Write(data, len);
-  masterInfo_.rdbRecved += len;
-
-  if (masterInfo_.rdbRecved == masterInfo_.rdbSize) {
-    INFO("Rdb recv complete, bytes {}", masterInfo_.rdbSize);
-
-    PSTORE.ResetDB();
-
-    PDBLoader loader;
-    loader.Load(slaveRdbFile);
-    masterInfo_.state = kPReplStateOnline;
-    masterInfo_.downSince = 0;
-  }
+  //  if (masterInfo_.rdbRecved + len > masterInfo_.rdbSize) {
+  //    len = masterInfo_.rdbSize - masterInfo_.rdbRecved;
+  //  }
+  //
+  //  rdb_.Write(data, len);
+  //  masterInfo_.rdbRecved += len;
+  //
+  //  if (masterInfo_.rdbRecved == masterInfo_.rdbSize) {
+  //    INFO("Rdb recv complete, bytes {}", masterInfo_.rdbSize);
+  //
+  //    //PSTORE.ResetDB();
+  //
+  //    PDBLoader loader;
+  //    loader.Load(slaveRdbFile);
+  //    masterInfo_.state = kPReplStateOnline;
+  //    masterInfo_.downSince = 0;
+  //  }
+  return;
 }
 
 void PReplication::SetMaster(const std::shared_ptr<PClient>& cli) { master_ = cli; }
@@ -389,7 +386,7 @@ void PReplication::OnInfoCommand(UnboundedBuffer& res) {
     }
   }
 
-  std::string slaveInfo(oss.str());
+  PString slaveInfo(oss.str());
 
   char buf[1024] = {};
   bool isMaster = !GetMasterAddr().IsValid();
@@ -422,7 +419,7 @@ void PReplication::OnInfoCommand(UnboundedBuffer& res) {
   res.PushData(buf, n);
 
   {
-    std::string info(masterInfo.str());
+    PString info(masterInfo.str());
     res.PushData(info.c_str(), info.size());
   }
 }

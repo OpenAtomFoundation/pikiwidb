@@ -10,7 +10,7 @@
 #include <deque>
 #include <vector>
 
-#include "pstring.h"
+#include "common.h"
 
 class Logger;
 

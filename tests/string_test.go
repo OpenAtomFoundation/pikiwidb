@@ -167,27 +167,28 @@ var _ = Describe("String", Ordered, func() {
 	})
 
 	It("BitCount", func() {
-		r, e := client.Set(ctx, DefaultKey, DefaultValue, 0).Result()
+		r, e := client.Set(ctx, DefaultKey, "foobar", 0).Result()
 		Expect(e).NotTo(HaveOccurred())
 		Expect(r).To(Equal(OK))
 
 		rBitCount, eBitCount := client.BitCount(ctx, DefaultKey, nil).Result()
 		Expect(eBitCount).NotTo(HaveOccurred())
-		Expect(rBitCount).To(Equal(int64(21)))
+		Expect(rBitCount).To(Equal(int64(26)))
 
-		//         bitCount = client.BitCount(ctx, "testKeyBC", &redis.BitCount{
-		//             Start: 0,
-		//             End:   0,
-		//         })
-		//         Expect(bitCount.Err()).NotTo(HaveOccurred())
-		//         Expect(bitCount.Val()).To(Equal(int64(4)))
-		//
-		//         bitCount = client.BitCount(ctx, "testKeyBC", &redis.BitCount{
-		//             Start: 1,
-		//             End:   1,
-		//         })
-		//         Expect(bitCount.Err()).NotTo(HaveOccurred())
-		//         Expect(bitCount.Val()).To(Equal(int64(6)))
+		bitCount := client.BitCount(ctx, DefaultKey, &redis.BitCount{
+			Start: 0,
+			End:   0,
+		})
+		Expect(bitCount.Err()).NotTo(HaveOccurred())
+		Expect(bitCount.Val()).To(Equal(int64(4)))
+
+		bitCount = client.BitCount(ctx, DefaultKey, &redis.BitCount{
+			Start: 1,
+			End:   1,
+		})
+		Expect(bitCount.Err()).NotTo(HaveOccurred())
+		Expect(bitCount.Val()).To(Equal(int64(6)))
+
 		rDel, eDel := client.Del(ctx, DefaultKey).Result()
 		Expect(eDel).NotTo(HaveOccurred())
 		Expect(rDel).To(Equal(int64(1)))

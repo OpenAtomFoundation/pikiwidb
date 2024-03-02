@@ -179,7 +179,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   EraseQuotes(cfg.backendPath);
   cfg.backendHz = parser.GetData<int>("backendhz", 10);
 
-  cfg.max_client_response_size = parser.GetData<int64_t>("max_client_response_size");
+  cfg.max_client_response_size = parser.GetData<int64_t>("max-client-response-size", 1073741824);
 
   cfg.db_instance_num = parser.GetData<int>("db-instance-num", 3);
   cfg.rocksdb_ttl_second = parser.GetData<uint64_t>("rocksdb-ttl-second");
@@ -207,6 +207,8 @@ bool PConfig::CheckArgs() const {
   RETURN_IF_FAIL(db_instance_num >= 1);
   RETURN_IF_FAIL(rocksdb_ttl_second > 0);
   RETURN_IF_FAIL(rocksdb_periodic_second > 0);
+  RETURN_IF_FAIL(max_client_response_size > 0);
+
 #undef RETURN_IF_FAIL
 
   return true;

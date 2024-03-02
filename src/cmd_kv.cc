@@ -177,7 +177,7 @@ void BitCountCmd::DoCmd(PClient* client) {
       return;
     }
 
-    s = PSTORE.GetBackend(client->GetCurrentDB())->BitCount(client->Key(), start_offset, end_offset, &count, false);
+    s = PSTORE.GetBackend(client->GetCurrentDB())->BitCount(client->Key(), start_offset, end_offset, &count, true);
   }
 
   if (s.ok() || s.IsNotFound()) {
@@ -505,51 +505,21 @@ bool GetRangeCmd::DoInitial(PClient* client) {
 }
 
 void GetRangeCmd::DoCmd(PClient* client) {
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeString);
-  if (err != kPErrorOK) {
-    if (err == kPErrorNotExist) {
-      client->AppendString("");
-    } else {
-      client->SetRes(CmdRes::kErrOther, "getrange cmd error");
-    }
-    return;
-  }
-
+  PString ret;
   int64_t start = 0;
   int64_t end = 0;
   pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start);
   pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end);
-
-  auto str = GetDecodedString(value);
-  size_t len = str->size();
-
-  // if the start offset is greater than the end offset, return an empty string
-  if (end < start) {
-    client->AppendString("");
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->Getrange(client->Key(), start, end, &ret);
+  if (!s.ok()) {
+    if (s.IsNotFound()) {
+      client->AppendString("");
+      return;
+    }
+    client->SetRes(CmdRes::kErrOther, "getrange cmd error");
     return;
   }
-
-  // calculate the offset
-  // if it is a negative number, start from the end
-  if (start < 0) {
-    start += len;
-  }
-  if (end < 0) {
-    end += len;
-  }
-  if (start < 0) {
-    start = 0;
-  }
-  if (end < 0) {
-    end = 0;
-  }
-  // if the offset exceeds the length of the string, set it to the end of the string.
-  if (end >= len) {
-    end = len - 1;
-  }
-
-  client->AppendString(str->substr(start, end - start + 1));
+  client->AppendString(ret);
 }
 
 SetBitCmd::SetBitCmd(const std::string& name, int16_t arity)
@@ -588,5 +558,31 @@ void SetBitCmd::DoCmd(PClient* client) {
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
+}
+
+SetRangeCmd::SetRangeCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
+
+bool SetRangeCmd::DoInitial(PClient* client) {
+  // setrange key offset value
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SetRangeCmd::DoCmd(PClient* client) {
+  int64_t offset = 0;
+  if (!(pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &offset))) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  int32_t ret = 0;
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->Setrange(client->Key(), offset, client->argv_[3], &ret);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, "setrange cmd error");
+    return;
+  }
+  client->AppendInteger(static_cast<int>(ret));
 }
 }  // namespace pikiwidb

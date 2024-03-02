@@ -164,19 +164,13 @@ void HGetAllCmd::DoCmd(PClient* client) {
     if (!s.ok()) {
       raw.clear();
       total_fv = 0;
-      if (s.IsNotFound()) {
-        client->AppendArrayLen(0);
-      } else {
-        client->SetRes(CmdRes::kErrOther, s.ToString());
-      }
       break;
     } else {
-      client->AppendArrayLenUint64(fvs.size() * 2);
       for (const auto& fv : fvs) {
-        client->AppendStringLenUint64(fv.field.size());
-        client->AppendContent(fv.field);
-        client->AppendStringLenUint64(fv.value.size());
-        client->AppendContent(fv.value);
+        client->RedisAppendLenUint64(raw, fv.field.size(), "$");
+        client->RedisAppendContent(raw, fv.field);
+        client->RedisAppendLenUint64(raw, fv.value.size(), "$");
+        client->RedisAppendContent(raw, fv.value);
       }
       if (raw.size() >= raw_limit) {
         client->SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
@@ -186,6 +180,13 @@ void HGetAllCmd::DoCmd(PClient* client) {
       cursor = next_cursor;
     }
   } while (cursor != 0);
+
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendArrayLen(total_fv * 2);
+    client->AppendStringRaw(raw);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
 }
 
 HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)
@@ -321,4 +322,87 @@ void HValsCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
 }
+
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyFloatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return false;
+  }
+  return true;
+}
+
+void HIncrbyFloatCmd::DoCmd(PClient* client) {
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidFloat);
+    return;
+  }
+  std::string newValue;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendString(newValue);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
+  }
+}
+
+HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HRandFieldCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HRandFieldCmd::DoCmd(PClient* client) {
+  // parse arguments
+  const auto& argv = client->argv_;
+  int64_t count{1};
+  bool with_values{false};
+  if (argv.size() > 2) {
+    // redis checks the integer argument first and then the number of parameters
+    if (pstd::String2int(argv[2], &count) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (argv.size() > 4) {
+      client->SetRes(CmdRes::kSyntaxErr);
+      return;
+    }
+    if (argv.size() > 3) {
+      if (kWithValueString != pstd::StringToLower(argv[3])) {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      with_values = true;
+    }
+  }
+
+  // execute command
+  std::vector<std::string> res;
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HRandField(client->Key(), count, with_values, &res);
+  if (s.IsNotFound()) {
+    client->AppendString("");
+    return;
+  }
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+
+  // reply to client
+  if (argv.size() > 2) {
+    client->AppendArrayLenUint64(res.size());
+  }
+  for (const auto& item : res) {
+    client->AppendString(item);
+  }
+}
+
 }  // namespace pikiwidb
