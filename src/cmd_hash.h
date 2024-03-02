@@ -161,6 +161,7 @@ class HIncrbyCmd : public BaseCmd {
 class HRandFieldCmd : public BaseCmd {
  public:
   HRandFieldCmd(const std::string &name, int16_t arity);
+
  protected:
   bool DoInitial(PClient *client) override;
 
