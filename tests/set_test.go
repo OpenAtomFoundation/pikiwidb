@@ -213,4 +213,21 @@ var _ = Describe("Set", Ordered, func() {
  		// Expect(sMembers.Err()).NotTo(HaveOccurred())
  		// Expect(sMembers.Val()).To(ConsistOf([]string{"three", "two"}))
 	})
+
+	It("should SRandmember", func() {
+	    	sAdd := client.SAdd(ctx, "set", "one")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "two")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "three")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+	    	member, err := client.SRandMember(ctx, "set").Result()
+	    	Expect(err).NotTo(HaveOccurred())
+	    	Expect(member).NotTo(Equal(""))
+
+	    	members, err := client.SRandMemberN(ctx, "set", 2).Result()
+	    	Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(HaveLen(2))
+    	})
 })

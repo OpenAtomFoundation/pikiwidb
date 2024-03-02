@@ -96,8 +96,7 @@ class SRandMemberCmd : public BaseCmd {
 
  private:
   void DoCmd(PClient *client) override;
-  void SRandWithCount(PClient *client, PObject *value, int num_rand);
-  void SRandWithoutCount(PClient *client, PObject *value);
+  int num_rand = 1;
 };
 
 }  // namespace pikiwidb

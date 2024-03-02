@@ -154,102 +154,32 @@ bool SRandMemberCmd::DoInitial(PClient* client) {
     client->SetRes(CmdRes::kWrongNum, client->CmdName());
     return false;
   }
+  else if (client->argv_.size() == 3) {
+    try {
+      this->num_rand = stoi(client->argv_[2]);
+    } catch (const std::invalid_argument& e) {
+      client->SetRes(CmdRes::kInvalidBitInt, "srandmember cmd should have integer num of count.");
+      return false;
+    }
+  }
   client->SetKey(client->argv_[1]);
   return true;
 }
 
 void SRandMemberCmd::DoCmd(PClient* client) {
-  int num_rand = 1;
-  if (client->argv_.size() > 2) {
-    try {
-      num_rand = std::stoi(client->argv_[2]);
-    } catch (const std::invalid_argument& e) {
-      client->SetRes(CmdRes::kInvalidBitInt, "srandmember cmd error");
-      return;
-    }
-  }
-  PObject* value = nullptr;
-  PError err = PSTORE.GetValueByType(client->Key(), value, kPTypeSet);
-  if (err != kPErrorOK && err != kPErrorNotExist) {
-    client->SetRes(CmdRes::kSyntaxErr, "srem cmd error");
-  }
-  if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
-    if (err == kPErrorNotExist) {
-      client->AppendString("");
-      return;
-    }
-    SRandWithoutCount(client, value);
-  } else if (client->argv_.size() == 3) {
-    if (err == kPErrorNotExist) {
-      client->AppendArrayLen(0);
-      return;
-    }
-    SRandWithCount(client, value, num_rand);
-  }
-}
-
-void SRandMemberCmd::SRandWithoutCount(PClient* client, PObject* value) {
-  auto last_seed = pstd::NowMicros();
-  std::default_random_engine engine;
-  engine.seed(last_seed);
-  PSET value_set = value->CastSet();
-  auto pos = static_cast<uint32_t>(engine() % (value_set->size()));
-  auto it = value_set->begin();
-  // The impl. of redis is to randomly find a non-empty hash bucket and
-  // then find a random element in the non-empty bucket (further improvement).
-  std::advance(it, pos);
-  if (it != value_set->end()) {
-    client->AppendString(*it);
-  } else {
-    client->SetRes(CmdRes::kErrOther);
-  }
-}
-
-void SRandMemberCmd::SRandWithCount(PClient* client, PObject* value, int num_rand) {
-  auto last_seed = pstd::NowMicros();
-  std::default_random_engine engine;
-  engine.seed(last_seed);
-  PSET value_set = value->CastSet();
-  uint32_t size = value_set->size();
-  if (size == 0) {
-    client->AppendStringVector({});
+  std::vector<std::string> vec_ret;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SRandmember(client->Key(), this->num_rand, &vec_ret);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "srandmember cmd error");
     return;
   }
-  std::vector<uint32_t> targets;
-  std::unordered_set<uint32_t> unique;
-  if (num_rand < 0) {
-    num_rand = -num_rand;
-    while (targets.size() < num_rand) {
-      engine.seed(last_seed);
-      last_seed = static_cast<int64_t>(engine());
-      targets.push_back(static_cast<uint32_t>(engine() % size));
-    }
-  } else {
-    num_rand = num_rand <= size ? num_rand : size;
-    while (targets.size() < num_rand) {
-      engine.seed(last_seed);
-      last_seed = static_cast<int64_t>(engine());
-      auto pos = static_cast<int32_t>(engine() % size);
-      if (unique.find(pos) == unique.end()) {
-        unique.insert(pos);
-        targets.push_back(pos);
-      }
-    }
+  if (client->argv_.size() == 3) {
+    client->AppendStringVector(vec_ret);
   }
-  std::sort(targets.begin(), targets.end());
-  // pika code is to generate all random numbers in one iteration, so sort was used.
-  // Further optim. will be considered (redis generate different ways under diff. conditions)
-  std::vector<PString> members;
-  auto iter = value_set->begin();
-  uint32_t cur_pos = 0;
-  for (auto index = 0; index < targets.size(); index++) {
-    while (cur_pos < targets[index]) {
-      cur_pos++;
-      iter++;
-    }
-    members.emplace_back(*iter);
+  else if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
+    client->AppendString(vec_ret[0]);
   }
-  std::shuffle(members.begin(), members.end(), engine);
-  client->AppendStringVector(members);
+  return;
 }
+
 }  // namespace pikiwidb
