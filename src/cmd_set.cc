@@ -186,8 +186,7 @@ bool SRandMemberCmd::DoInitial(PClient* client) {
   if (client->argv_.size() > 3) {
     client->SetRes(CmdRes::kWrongNum, client->CmdName());
     return false;
-  }
-  else if (client->argv_.size() == 3) {
+  } else if (client->argv_.size() == 3) {
     try {
       this->num_rand = stoi(client->argv_[2]);
     } catch (const std::invalid_argument& e) {
@@ -208,8 +207,7 @@ void SRandMemberCmd::DoCmd(PClient* client) {
   }
   if (client->argv_.size() == 3) {
     client->AppendStringVector(vec_ret);
-  }
-  else if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
+  } else if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
     client->AppendString(vec_ret[0]);
   }
   return;
