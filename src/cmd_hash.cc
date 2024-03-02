@@ -373,7 +373,7 @@ void HSetNXCmd::DoCmd(PClient* client) {
   }
   return;
 }
-  
+
 HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 
@@ -381,7 +381,7 @@ bool HRandFieldCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
-  
+
 void HRandFieldCmd::DoCmd(PClient* client) {
   // parse arguments
   const auto& argv = client->argv_;
