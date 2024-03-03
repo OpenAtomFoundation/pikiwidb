@@ -205,7 +205,7 @@ void SRandMemberCmd::DoCmd(PClient* client) {
   }
   if (client->argv_.size() == 3) {
     client->AppendStringVector(vec_ret);
-  } else if (client->argv_.size() == 2) {  // srand 只用返回一个元素即可
+  } else if (client->argv_.size() == 2) {  // srand only needs to return one element
     client->AppendString(vec_ret[0]);
   }
   return;
