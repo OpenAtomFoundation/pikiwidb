@@ -92,6 +92,7 @@ class PRaft : public braft::StateMachine {
 
   void ShutDown();
   void Join();
+  void Apply(braft::Task& task);
   
   //===--------------------------------------------------------------------===//
   // ClusterJoin command

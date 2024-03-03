@@ -89,7 +89,7 @@ bool InfoCmd::DoInitial(PClient* client) { return true; }
 * INFO raft
 * Querying Node Information.
 * Reply:
-*   raft_group_id:595100767
+*   raft_node_id:595100767
     raft_state:up
     raft_role:follower
     raft_is_voting:yes
@@ -121,19 +121,19 @@ void InfoCmd::DoCmd(PClient* client) {
     }
 
     std::string message("");
-    message += "raft_group_id:" + PRAFT.GetGroupId() + "\r\n";
+    message += "raft_node_id:" + PRAFT.GetNodeId() + "\r\n";
     if (braft::is_active_state(node_status.state)) {
       message += "raft_state:up\r\n";
     } else {
       message += "raft_state:down\r\n";
     }    
     message += "raft_role:" + std::string(braft::state2str(node_status.state)) + "\r\n";
+    // message += "raft_is_voting:" + node_status.is_voting + "\r\n";
     message += "raft_leader_id:" + node_status.leader_id.to_string() + "\r\n";
     message += "raft_current_term:" + std::to_string(node_status.term) + "\r\n";
-    // message += "raft_node1:" + node_status.node_info + "\r\n";
-    // message += "raft_num_voting_nodes:" + std::to_string(node_status.num_voting_nodes) + "\r\n";
     // message += "raft_num_nodes:" + std::to_string(node_status.num_nodes) + "\r\n";
-    // message += "raft_is_voting:" + node_status.is_voting + "\r\n";
+    // message += "raft_num_voting_nodes:" + std::to_string(node_status.num_voting_nodes) + "\r\n";
+    // message += "raft_node1:" + node_status.node_info + "\r\n";
 
     client->AppendString(message);
   } else {

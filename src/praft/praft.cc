@@ -320,6 +320,12 @@ void PRaft::Join() {
   }
 }
 
+void Apply(braft::Task& task) {
+  if (node_) {
+    node_->apply(task);
+  }
+}
+
 // @braft::StateMachine
 void PRaft::on_apply(braft::Iterator& iter) {
   // A batch of tasks are committed, which must be processed through
