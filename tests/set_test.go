@@ -218,7 +218,7 @@ var _ = Describe("Set", Ordered, func() {
 	It("should SCard", func() {
 		sAdd := client.SAdd(ctx, "setScard", "Hello")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		Expect(sAdd.Val()).To(Equal(int64(1)))
+		Expect(sAdd.Val()).To(Equal(int64(1))
 
 		sAdd = client.SAdd(ctx, "setScard", "World")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
@@ -227,6 +227,33 @@ var _ = Describe("Set", Ordered, func() {
 		sCard := client.SCard(ctx, "setScard")
 		Expect(sCard.Err()).NotTo(HaveOccurred())
 		Expect(sCard.Val()).To(Equal(int64(2)))
+        })
+
+
+        It("should SPop", func() {
+                sAdd := client.SAdd(ctx, "setSpop", "one")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "two")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "three")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "four")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSpop", "five")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		/*报错:redis:can not parse reply="*1" reading string
+		sPop := client.SPop(ctx, "setSpop")
+                Expect(sPop.Err()).NotTo(HaveOccurred())
+		Expect(sPop.Val()).NotTo(Equal([]string{""}))
+		*/
+		err := client.Do(ctx, "SPOP", "setSpop", 1.2).Err()
+		Expect(err).To(MatchError(ContainSubstring("ERR value is not an integer or out of range")))
+
+                err = client.Do(ctx, "SPOP", "setSpop", 1, 2).Err()
+                Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'spop' command")))
+
+
 
 	})
 

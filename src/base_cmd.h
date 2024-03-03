@@ -91,6 +91,7 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSCard = "scard";
 const std::string kCmdNameSMove = "smove";
 const std::string kCmdNameSRandMember = "srandmember";
+const std::string kCmdNameSPop = "spop";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
@@ -101,7 +102,6 @@ const std::string kCmdNameLRange = "lrange";
 const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
-
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
