@@ -320,7 +320,7 @@ void PRaft::Join() {
   }
 }
 
-void Apply(braft::Task& task) {
+void PRaft::Apply(braft::Task& task) {
   if (node_) {
     node_->apply(task);
   }

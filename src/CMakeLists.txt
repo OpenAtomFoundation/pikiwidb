@@ -17,6 +17,8 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
         ${rocksdb_SOURCE_DIR}/include
         PRIVATE ${BRAFT_INCLUDE_DIR}
         PRIVATE ${BRPC_INCLUDE_DIR}
+        PRIVATE ${GFLAGS_INCLUDE_PATH}
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/praft
         )
 
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
@@ -34,5 +36,5 @@ ELSE ()
     MESSAGE(FATAL_ERROR "only support linux or macOS")
 ENDIF ()
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags "${MAC_LIBRARY}")
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rt crypto dl z praft "${MAC_LIBRARY}")
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)

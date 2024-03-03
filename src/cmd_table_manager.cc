@@ -14,6 +14,7 @@
 #include "cmd_list.h"
 #include "cmd_set.h"
 #include "cmd_raft.h"
+#include "cmd_table_manager.h"
 
 namespace pikiwidb {
 
