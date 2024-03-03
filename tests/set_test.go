@@ -242,11 +242,16 @@ var _ = Describe("Set", Ordered, func() {
 		sAdd = client.SAdd(ctx, "setSpop", "five")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-		/*报错:redis:can not parse reply="*1" reading string
-		sPop := client.SPop(ctx, "setSpop")
-                Expect(sPop.Err()).NotTo(HaveOccurred())
-		Expect(sPop.Val()).NotTo(Equal([]string{""}))
+		/*
+		sPopN := client.SPopN(ctx, "setSpop", 3)
+		Expect(sPopN.Err()).NotTo(HaveOccurred())
+		Expect(sPopN.Val()).To(HaveLen(2))
+
+		sMembers := client.SMembers(ctx, "setSpop")
+		Expect(sMembers.Err()).NotTo(HaveOccurred())
+		Expect(sMembers.Val()).To(HaveLen(2))
 		*/
+
 		err := client.Do(ctx, "SPOP", "setSpop", 1.2).Err()
 		Expect(err).To(MatchError(ContainSubstring("ERR value is not an integer or out of range")))
 
