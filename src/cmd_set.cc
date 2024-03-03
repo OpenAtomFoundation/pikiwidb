@@ -193,6 +193,7 @@ bool SRandMemberCmd::DoInitial(PClient* client) {
       return false;
     }
   }
+  return true;
 }
 
 void SRandMemberCmd::DoCmd(PClient* client) {
