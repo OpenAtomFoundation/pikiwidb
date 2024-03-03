@@ -7,8 +7,8 @@
 
 #pragma once
 
-#include <braft/raft.h>
-#include <brpc/server.h>
+#include "braft/raft.h"
+#include "brpc/server.h"
 #include "base_cmd.h"
 
 namespace pikiwidb {

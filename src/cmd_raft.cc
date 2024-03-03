@@ -6,7 +6,7 @@
  */
 
 #include "cmd_raft.h"
-#include <braft/configuration.h>
+#include "braft/configuration.h"
 #include <cassert>
 #include <cstdint>
 #include <string>
