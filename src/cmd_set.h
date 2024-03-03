@@ -109,4 +109,16 @@ class SMoveCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SRandMemberCmd : public BaseCmd {
+ public:
+  SRandMemberCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+  int num_rand = 1;
+};
+
 }  // namespace pikiwidb
