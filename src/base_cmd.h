@@ -102,6 +102,9 @@ const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
 
+//zset cmd
+const std::string kCmdNameZRemRangeByRank = "zremrangebyrank";
+
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset

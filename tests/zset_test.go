@@ -70,4 +70,24 @@ var _ = Describe("Zset", Ordered, func() {
 		log.Println("Cmd ZADD Begin")
 		Expect(client.ZAdd(ctx, "myset", redis.Z{Score: 1, Member: "one"}).Val()).NotTo(Equal("FooBar"))
 	})
+
+	It("should ZRemRangeByRank", func() {
+        err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+        Expect(err).NotTo(HaveOccurred())
+        err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+        Expect(err).NotTo(HaveOccurred())
+        err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+        Expect(err).NotTo(HaveOccurred())
+
+        zRemRangeByRank := client.ZRemRangeByRank(ctx, "zset", 0, 1)
+        Expect(zRemRangeByRank.Err()).NotTo(HaveOccurred())
+        Expect(zRemRangeByRank.Val()).To(Equal(int64(2)))
+
+        vals, err := client.ZRangeWithScores(ctx, "zset", 0, -1).Result()
+        Expect(err).NotTo(HaveOccurred())
+        Expect(vals).To(Equal([]redis.Z{{
+            Score:  3,
+            Member: "three",
+        }}))
+    })
 })
