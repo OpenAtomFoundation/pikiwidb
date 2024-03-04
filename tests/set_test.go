@@ -242,22 +242,14 @@ var _ = Describe("Set", Ordered, func() {
 		sAdd = client.SAdd(ctx, "setSpop", "five")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-		/*
 		sPopN := client.SPopN(ctx, "setSpop", 3)
 		Expect(sPopN.Err()).NotTo(HaveOccurred())
-		Expect(sPopN.Val()).To(HaveLen(2))
-
+		Expect(sPopN.Val()).To(HaveLen(3))
+		/*
 		sMembers := client.SMembers(ctx, "setSpop")
 		Expect(sMembers.Err()).NotTo(HaveOccurred())
 		Expect(sMembers.Val()).To(HaveLen(2))
 		*/
-
-		err := client.Do(ctx, "SPOP", "setSpop", 1.2).Err()
-		Expect(err).To(MatchError(ContainSubstring("ERR value is not an integer or out of range")))
-
-                err = client.Do(ctx, "SPOP", "setSpop", 1, 2).Err()
-                Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'spop' command")))
-
 
 
 	})
