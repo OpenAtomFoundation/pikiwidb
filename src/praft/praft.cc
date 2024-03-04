@@ -33,7 +33,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
 
   server_ = std::make_unique<brpc::Server>();
   DummyServiceImpl service(&PRAFT);
-  auto port = g_config.port + RAFT_PORT_OFFSET;
+  auto port = g_config.port + pikiwidb::g_config.raft_port_offset;
   // Add your service into RPC server
   if (server_->AddService(&service, 
                         brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
@@ -153,6 +153,14 @@ braft::NodeStatus PRaft::GetNodeStatus() const {
   return node_status;
 }
 
+butil::Status PRaft::GetListPeers(std::vector<braft::PeerId>* peers) {
+  if (!node_) {
+    LOG(ERROR) << "Node is not initialized";
+  } else {
+    return node_->list_peers(peers);
+  }
+}
+
 // Gets the cluster id, which is used to initialize node
 void PRaft::SendNodeInfoRequest(PClient *client) {
   assert(client);
@@ -168,7 +176,7 @@ void PRaft::SendNodeAddRequest(PClient *client) {
 
   // Node id in braft are ip:port, the node id param in RAFT.NODE ADD cmd will be ignored.
   int unused_node_id = 0;
-  auto port = g_config.port + RAFT_PORT_OFFSET;
+  auto port = g_config.port + pikiwidb::g_config.raft_port_offset;
   auto raw_addr = g_config.ip + ":" + std::to_string(port);
   UnboundedBuffer req;
   req.PushData("RAFT.NODE ADD ", 14);
@@ -293,7 +301,7 @@ void PRaft::OnJoinCmdConnectionFailed([[maybe_unused]] EventLoop* loop, const ch
   auto cli = join_ctx_.GetClient();
   if (cli) {
     cli->SetRes(CmdRes::kErrOther,
-                "RAFT.NODE ADD failed: connection dropped.  " + std::string(peer_ip) + ":" + std::to_string(port));
+                "ERR failed to connect to cluster for join, please check logs " + std::string(peer_ip) + ":" + std::to_string(port));
     cli->SendPacket(cli->Message());
   }
 }

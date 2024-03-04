@@ -5,17 +5,18 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "cmd_raft.h"
-#include "braft/configuration.h"
 #include <cassert>
 #include <cstdint>
 #include <string>
+
+#include "braft/configuration.h"
 #include "client.h"
+#include "cmd_raft.h"
 #include "event_loop.h"
 #include "pikiwidb.h"
+#include "praft.h"
 #include "pstd_status.h"
 #include "pstd_string.h"
-#include "praft.h"
 
 #define VALID_NODE_ID(x) ((x) > 0)
 
@@ -92,20 +93,20 @@ bool RaftClusterCmd::DoInitial(PClient* client) { return true; }
 // The endpoint must be in the league format of ip:port
 std::string GetIpFromEndPoint(std::string& endpoint) {
   auto pos = endpoint.find(':');
-  assert(pos != std::string::npos);
   if (pos == std::string::npos) {
     return "";
   }
+  
   return endpoint.substr(0, pos);
 }
 
 // The endpoint must be in the league format of ip:port
 int GetPortFromEndPoint(std::string& endpoint) {
   auto pos = endpoint.find(':');
-  assert(pos != std::string::npos);
   if (pos == std::string::npos) {
     return 0;
   }
+
   int ret = 0;
   pstd::String2int(endpoint.substr(pos + 1), &ret);
   return ret;

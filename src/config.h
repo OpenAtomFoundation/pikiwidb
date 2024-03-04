@@ -27,6 +27,7 @@ struct PConfig {
 
   PString ip;
   unsigned short port;
+  unsigned short raft_port_offset;
 
   int timeout;
 

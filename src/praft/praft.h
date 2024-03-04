@@ -7,29 +7,33 @@
 
 #pragma once
 
+#include <cstddef>
+#include <memory>
+#include <mutex>
+#include <tuple>
+#include <vector>
+
 #include "braft/configuration.h"
 #include "braft/raft.h"
 #include "braft/util.h"
 #include "brpc/server.h"
 #include "brpc/controller.h"
 #include "butil/status.h"
-#include "gflags/gflags.h"
-#include <cstddef>
-#include <memory>
-#include <mutex>
-#include <tuple>
 #include "client.h"
 #include "common.h"
-#include "tcp_connection.h"
+#include "config.h"
 #include "event_loop.h"
+#include "gflags/gflags.h"
 #include "praft.pb.h"
+#include "tcp_connection.h"
 
 namespace pikiwidb {
 
 #define RAFT_DBID_LEN 32
-#define RAFT_PORT_OFFSET 10
 
 #define PRAFT PRaft::Instance()
+
+extern PConfig g_config;
 
 class JoinCmdContext {
   friend class PRaft;
@@ -68,10 +72,10 @@ class JoinCmdContext {
   int GetPort() { return port_; }
 
  private:
+  std::mutex mtx_;
   PClient* client_ = nullptr;
   std::string peer_ip_;
   int port_ = 0;
-  std::mutex mtx_;
 };
 
 class PRaft : public braft::StateMachine {
@@ -108,8 +112,9 @@ class PRaft : public braft::StateMachine {
   std::string GetNodeId() const;
   std::string GetGroupId() const;
   braft::NodeStatus GetNodeStatus() const;
+  butil::Status GetListPeers(std::vector<braft::PeerId>* peers);
 
-  bool IsInitialized() const { return node_ != nullptr; }
+  bool IsInitialized() const { return node_ != nullptr && server_ != nullptr; }
 
  private:
   void on_apply(braft::Iterator& iter) override;
