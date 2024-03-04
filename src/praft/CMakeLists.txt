@@ -31,5 +31,3 @@ TARGET_INCLUDE_DIRECTORIES(praft
 TARGET_LINK_LIBRARIES(praft net; dl; fmt; storage; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rocksdb rt crypto dl z)
 
 SET_TARGET_PROPERTIES(praft PROPERTIES LINKER_LANGUAGE CXX)
-                      
-
