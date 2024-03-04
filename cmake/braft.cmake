@@ -10,9 +10,6 @@ SET(BRAFT_INSTALL_DIR ${THIRD_PARTY_PATH}/install/braft)
 SET(BRAFT_INCLUDE_DIR "${BRAFT_INSTALL_DIR}/include" CACHE PATH "braft include directory." FORCE)
 SET(BRAFT_LIBRARIES "${BRAFT_INSTALL_DIR}/lib/libbraft.a" CACHE FILEPATH "braft library." FORCE)
 
-CMAKE_HOST_SYSTEM_INFORMATION(RESULT CPU_CORE QUERY NUMBER_OF_LOGICAL_CORES)
-SET(NUM_OF_PROCESSOR ${CPU_CORE})
-
 SET(prefix_path "${THIRD_PARTY_PATH}/install/brpc|${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build|${THIRD_PARTY_PATH}/install/protobuf|${THIRD_PARTY_PATH}/install/zlib|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-build|${CMAKE_CURRENT_BINARY_DIR}/_deps/leveldb-src")
 
 ExternalProject_Add(
@@ -20,6 +17,7 @@ ExternalProject_Add(
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS brpc
         URL "https://github.com/baidu/braft/archive/v1.1.2.tar.gz"
+        URL_HASH SHA256=bb3705f61874f8488e616ae38464efdec1a20610ddd6cd82468adc814488f14e
         PREFIX ${BRAFT_SOURCES_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
@@ -40,7 +38,7 @@ ExternalProject_Add(
         -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
         -DCMAKE_BUILD_TYPE:STRING=${THIRD_PARTY_BUILD_TYPE}
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND $(MAKE) -j ${NUM_OF_PROCESSOR} braft-static
+        BUILD_COMMAND $(MAKE) -j ${CPU_CORE} braft-static
         INSTALL_COMMAND mkdir -p ${BRAFT_INSTALL_DIR}/lib/ COMMAND cp ${BRAFT_SOURCES_DIR}/src/extern_braft/output/lib/libbraft.a ${BRAFT_LIBRARIES} COMMAND cp -r ${BRAFT_SOURCES_DIR}/src/extern_braft/output/include ${BRAFT_INCLUDE_DIR}/
 )
 ADD_DEPENDENCIES(extern_braft brpc)
