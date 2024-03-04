@@ -108,7 +108,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LTrim, 4);
   ADD_COMMAND(LSet, 4);
   ADD_COMMAND(LInsert, 5);
-  
+
   // zset
   ADD_COMMAND(ZRevRangeByScore, 4);
 }
