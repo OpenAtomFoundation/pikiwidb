@@ -8,8 +8,10 @@
 #pragma once
 
 #include <random>
+#include <string>
 #include <vector>
-#include "pstring.h"
+
+#include "common.h"
 
 namespace pikiwidb {
 

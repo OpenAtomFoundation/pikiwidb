@@ -177,4 +177,38 @@ void SMoveCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
+SRandMemberCmd::SRandMemberCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SRandMemberCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() > 3) {
+    client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    return false;
+  } else if (client->argv_.size() == 3) {
+    try {
+      this->num_rand = stoi(client->argv_[2]);
+    } catch (const std::invalid_argument& e) {
+      client->SetRes(CmdRes::kInvalidBitInt, "srandmember cmd should have integer num of count.");
+      return false;
+    }
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SRandMemberCmd::DoCmd(PClient* client) {
+  std::vector<std::string> vec_ret;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SRandmember(client->Key(), this->num_rand, &vec_ret);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "srandmember cmd error");
+    return;
+  }
+  if (client->argv_.size() == 3) {
+    client->AppendStringVector(vec_ret);
+  } else if (client->argv_.size() == 2) {  // srand only needs to return one element
+    client->AppendString(vec_ret[0]);
+  }
+  return;
+}
+
 }  // namespace pikiwidb

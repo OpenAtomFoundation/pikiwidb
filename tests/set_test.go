@@ -231,24 +231,62 @@ var _ = Describe("Set", Ordered, func() {
 	})
 
 	It("should SMove", func() {
-        sAdd := client.SAdd(ctx, "set1", "one")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
-        sAdd = client.SAdd(ctx, "set1", "two")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd := client.SAdd(ctx, "set1", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set1", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        sAdd = client.SAdd(ctx, "set2", "three")
-        Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set2", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-        sMove := client.SMove(ctx, "set1", "set2", "two")
-        Expect(sMove.Err()).NotTo(HaveOccurred())
-        Expect(sMove.Val()).To(Equal(true))
+		sMove := client.SMove(ctx, "set1", "set2", "two")
+		Expect(sMove.Err()).NotTo(HaveOccurred())
+		Expect(sMove.Val()).To(Equal(true))
 
-	sIsMember := client.SIsMember(ctx, "set1", "two")
-	Expect(sIsMember.Err()).NotTo(HaveOccurred())
-	Expect(sIsMember.Val()).To(Equal(false))
+		sIsMember := client.SIsMember(ctx, "set1", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(false))
 
-	sIsMember = client.SIsMember(ctx, "set2", "two")
-	Expect(sIsMember.Err()).NotTo(HaveOccurred())
-	Expect(sIsMember.Val()).To(Equal(true))
-    })
+		sIsMember = client.SIsMember(ctx, "set2", "two")
+		Expect(sIsMember.Err()).NotTo(HaveOccurred())
+		Expect(sIsMember.Val()).To(Equal(true))
+	})
+
+	It("should SRem", func() {
+		sAdd := client.SAdd(ctx, "set", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sRem := client.SRem(ctx, "set", "one")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(1)))
+
+		sRem = client.SRem(ctx, "set", "four")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(0)))
+
+ 		// sMembers := client.SMembers(ctx, "set")
+ 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+ 		// Expect(sMembers.Val()).To(ConsistOf([]string{"three", "two"}))
+	})
+
+	It("should SRandmember", func() {
+	    	sAdd := client.SAdd(ctx, "set", "one")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "two")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "three")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+	    	member, err := client.SRandMember(ctx, "set").Result()
+	    	Expect(err).NotTo(HaveOccurred())
+	    	Expect(member).NotTo(Equal(""))
+
+	    	members, err := client.SRandMemberN(ctx, "set", 2).Result()
+	    	Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(HaveLen(2))
+    	})
 })

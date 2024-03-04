@@ -5,14 +5,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "log.h"
-
 #include <algorithm>
 #include <memory>
 
 #include "client.h"
-#include "command.h"
 #include "config.h"
+#include "log.h"
 #include "pikiwidb.h"
 #include "pstd_string.h"
 #include "slow_log.h"
@@ -644,7 +642,7 @@ void PClient::FeedMonitors(const std::vector<std::string>& params) {
   }
 
   char buf[512];
-  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", PSTORE.GetDB(), s_current->PeerIP().c_str(),
+  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", s_current->GetCurrentDB(), s_current->PeerIP().c_str(),
                    s_current->PeerPort());
 
   assert(n > 0);
