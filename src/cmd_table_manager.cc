@@ -13,6 +13,7 @@
 #include "cmd_kv.h"
 #include "cmd_list.h"
 #include "cmd_set.h"
+#include "cmd_zset.h"
 #include "cmd_table_manager.h"
 
 namespace pikiwidb {
@@ -101,6 +102,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(RPop, 2);
   ADD_COMMAND(LRem, 4);
   ADD_COMMAND(LRange, 4);
+
+  //zset
+  ADD_COMMAND(ZRevRangeByScore,4);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

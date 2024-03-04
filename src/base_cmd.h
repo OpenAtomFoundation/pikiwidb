@@ -95,6 +95,9 @@ const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 
+//zset cmd
+const std::string kCmdNameZRevRangeByScore = "zrevrangebyscroe";
+
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
   kCmdFlagsReadonly = (1 << 1),          // Doesn't modify the dataset
