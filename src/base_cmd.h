@@ -102,7 +102,7 @@ const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
 
-//zset cmd
+// zset cmd
 const std::string kCmdNameZRemRangeByRank = "zremrangebyrank";
 
 enum CmdFlags {

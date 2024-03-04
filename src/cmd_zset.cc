@@ -1,9 +1,9 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
-* This source code is licensed under the BSD-style license found in the
-* LICENSE file in the root directory of this source tree. An additional grant
-* of patent rights can be found in the PATENTS file in the same directory.
-*/
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
 
 #include "cmd_zset.h"
 
@@ -37,7 +37,8 @@ bool ZRemRangeByRankCmd::DoInitial(pikiwidb::PClient* client) {
 void ZRemRangeByRankCmd::DoCmd(pikiwidb::PClient* client) {
   int32_t ret = 0;
   storage::Status s;
-  s = PSTORE.GetBackend(client->GetCurrentDB())->ZRemrangebyrank(client->Key(), client->argv_[2], client->argv_[3], &ret);
+  s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->ZRemrangebyrank(client->Key(), client->argv_[2], client->argv_[3], &ret);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(ret);
   } else {
@@ -45,4 +46,4 @@ void ZRemRangeByRankCmd::DoCmd(pikiwidb::PClient* client) {
   }
 }
 
-}
+}  // namespace pikiwidb

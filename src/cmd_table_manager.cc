@@ -109,8 +109,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LSet, 4);
   ADD_COMMAND(LInsert, 5);
 
-  //zset
-  ADD_COMMAND(ZRemRangeByRank,4);
+  // zset
+  ADD_COMMAND(ZRemRangeByRank, 4);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
