@@ -1,9 +1,9 @@
 /*
-* Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
-* This source code is licensed under the BSD-style license found in the
-* LICENSE file in the root directory of this source tree. An additional grant
-* of patent rights can be found in the PATENTS file in the same directory.
-*/
+ * Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
 
 #include "cmd_zset.h"
 
@@ -39,10 +39,10 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
 
   int32_t ret = 0;
   std::vector<storage::ScoreMember> scoreMembers;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRevrangebyscore(
-      client->Key(), minScore, maxScore,
-      /* left_close = */ false, /* right_close = */ false,
-      count, offset, &scoreMembers);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())
+          ->ZRevrangebyscore(client->Key(), minScore, maxScore,
+                             /* left_close = */ false, /* right_close = */ false, count, offset, &scoreMembers);
 
   if (s.ok()) {
     for (const auto& scoreMember : scoreMembers) {
@@ -54,4 +54,4 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
   return;
 }
 
-}
+}  // namespace pikiwidb

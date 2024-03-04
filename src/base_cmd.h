@@ -95,7 +95,7 @@ const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 
-//zset cmd
+// zset cmd
 const std::string kCmdNameZRevRangeByScore = "zrevrangebyscroe";
 
 enum CmdFlags {
