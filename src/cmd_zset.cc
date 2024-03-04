@@ -18,27 +18,27 @@ ZRemRangeByRankCmd::ZRemRangeByRankCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
 bool ZRemRangeByRankCmd::DoInitial(pikiwidb::PClient* client) {
-  int64_t start = 0;
-  int64_t end = 0;
-
-  if (pstd::String2int(client->argv_[2].data(), client->argv_[2].size(), &start) == 0) {
-    client->SetRes(CmdRes::kInvalidInt);
-    return false;
-  }
-  if (pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &end) == 0) {
-    client->SetRes(CmdRes::kInvalidInt);
-    return false;
-  }
-
   client->SetKey(client->argv_[1]);
   return true;
 }
 
 void ZRemRangeByRankCmd::DoCmd(pikiwidb::PClient* client) {
   int32_t ret = 0;
+
+  int32_t start = 0;
+  int32_t end = 0;
+
+  if (pstd::String2int(client->argv_[2], &start) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  if (pstd::String2int(client->argv_[3], &end) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
   storage::Status s;
-  s = PSTORE.GetBackend(client->GetCurrentDB())
-          ->ZRemrangebyrank(client->Key(), client->argv_[2], client->argv_[3], &ret);
+  s = PSTORE.GetBackend(client->GetCurrentDB())->ZRemrangebyrank(client->Key(), start, end, &ret);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(ret);
   } else {
