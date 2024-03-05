@@ -62,7 +62,7 @@ void ZAddCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr);
     return;
   }
-  score_members.clear();
+  score_members_.clear();
   double score = 0.0;
   size_t index = 2;
   for (; index < argc; index += 2) {
@@ -70,11 +70,11 @@ void ZAddCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kInvalidFloat);
       return;
     }
-    score_members.push_back({score, client->argv_[index + 1]});
+    score_members_.push_back({score, client->argv_[index + 1]});
   }
   client->SetKey(client->argv_[1]);
   int32_t count = 0;
-  storage::Status s = PSTORE.GetBackend()->ZAdd(client->Key(), score_members, &count);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZAdd(client->Key(), score_members_, &count);
   if (s.ok()) {
     client->AppendInteger(count);
   } else {
@@ -110,8 +110,9 @@ void ZRevrangeCmd::DoCmd(PClient* client) {
     return;
   }
   std::vector<storage::ScoreMember> score_members;
-  storage::Status s = PSTORE.GetBackend()->ZRevrange(client->Key(), static_cast<int32_t>(start),
-                                                     static_cast<int32_t>(stop), &score_members);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())
+          ->ZRevrange(client->Key(), static_cast<int32_t>(start), static_cast<int32_t>(stop), &score_members);
   if (s.ok() || s.IsNotFound()) {
     if (is_ws) {
       char buf[32];
@@ -187,8 +188,8 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
     return;
   }
   std::vector<storage::ScoreMember> score_members;
-  storage::Status s =
-      PSTORE.GetBackend()->ZRangebyscore(client->Key(), min_score, max_score, left_close, right_close, &score_members);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->ZRangebyscore(client->Key(), min_score, max_score, left_close, right_close, &score_members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -198,7 +199,7 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
   size_t end = offset + count;
   if (with_scores) {
     char buf[32];
-    int64_t len;
+    int64_t len = 0;
     client->AppendArrayLen(count * 2);
     for (; start < end; start++) {
       client->AppendStringLenUint64(score_members[start].member.size());

@@ -34,10 +34,10 @@ FlushdbCmd::FlushdbCmd(const std::string& name, int16_t arity)
 bool FlushdbCmd::DoInitial(PClient* client) { return true; }
 
 void FlushdbCmd::DoCmd(PClient* client) {
-  PSTORE.dirty_ += PSTORE.DBSize();
-  PSTORE.ClearCurrentDB();
-  Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
-  client->SetRes(CmdRes::kOK);
+  //  PSTORE.dirty_ += PSTORE.DBSize();
+  //  PSTORE.ClearCurrentDB();
+  //  Propagate(PSTORE.GetDB(), std::vector<PString>{"flushdb"});
+  client->AppendString("flushdb cmd in development");
 }
 
 FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
@@ -46,20 +46,35 @@ FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
 bool FlushallCmd::DoInitial(PClient* client) { return true; }
 
 void FlushallCmd::DoCmd(PClient* client) {
-  int currentDB = PSTORE.GetDB();
-  std::vector<PString> param{"flushall"};
-  DEFER {
-    PSTORE.SelectDB(currentDB);
-    Propagate(-1, param);
-    PSTORE.ResetDB();
-  };
+  //  int currentDB = PSTORE.GetDB();
+  //  std::vector<PString> param{"flushall"};
+  //  DEFER {
+  //    PSTORE.SelectDB(currentDB);
+  //    Propagate(-1, param);
+  //    PSTORE.ResetDB();
+  //  };
+  //
+  //  for (int dbno = 0; true; ++dbno) {
+  //    if (PSTORE.SelectDB(dbno) == -1) {
+  //      break;
+  //    }
+  //    PSTORE.dirty_ += PSTORE.DBSize();
+  //  }
+  client->AppendString("flushall' cmd in development");
+}
 
-  for (int dbno = 0; true; ++dbno) {
-    if (PSTORE.SelectDB(dbno) == -1) {
-      break;
-    }
-    PSTORE.dirty_ += PSTORE.DBSize();
+SelectCmd::SelectCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsAdmin | kCmdFlagsReadonly, kAclCategoryAdmin) {}
+
+bool SelectCmd::DoInitial(PClient* client) { return true; }
+
+void SelectCmd::DoCmd(PClient* client) {
+  int index = atoi(client->argv_[1].c_str());
+  if (index < 0 || index >= g_config.databases) {
+    client->SetRes(CmdRes::kInvalidIndex, kCmdNameSelect + " DB index is out of range");
+    return;
   }
+  client->SetCurrentDB(index);
   client->SetRes(CmdRes::kOK);
 }
 

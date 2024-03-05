@@ -24,6 +24,7 @@ namespace pikiwidb {
 // key cmd
 const std::string kCmdNameDel = "del";
 const std::string kCmdNameExists = "exists";
+const std::string kCmdNamePExpire = "pexpire";
 
 // string cmd
 const std::string kCmdNameSet = "set";
@@ -44,6 +45,7 @@ const std::string kCmdNameBitOp = "bitop";
 const std::string kCmdNameGetBit = "getbit";
 const std::string kCmdNameBitCount = "bitcount";
 const std::string kCmdNameGetRange = "getrange";
+const std::string kCmdNameSetRange = "setrange";
 const std::string kCmdNameDecr = "decr";
 const std::string kCmdNameIncr = "incr";
 
@@ -59,6 +61,7 @@ const std::string kCmdNameConfig = "config";
 const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
 const std::string kCmdNameAuth = "auth";
+const std::string kCmdNameSelect = "select";
 
 // hash cmd
 const std::string kCmdNameHSet = "hset";
@@ -72,6 +75,10 @@ const std::string kCmdNameHLen = "hlen";
 const std::string kCmdNameHStrLen = "hstrlen";
 const std::string kCmdNameHScan = "hscan";
 const std::string kCmdNameHVals = "hvals";
+const std::string kCmdNameHIncrbyFloat = "hincrbyfloat";
+const std::string kCmdNameHSetNX = "hsetnx";
+const std::string kCmdNameHIncrby = "hincrby";
+const std::string kCmdNameHRandField = "hrandfield";
 
 // set cmd
 const std::string kCmdNameSIsMember = "sismember";
@@ -81,11 +88,19 @@ const std::string kCmdNameSInter = "sinter";
 const std::string kCmdNameSRem = "srem";
 const std::string kCmdNameSInterStore = "sinterstore";
 const std::string kCmdNameSUnion = "sunion";
+const std::string kCmdNameSCard = "scard";
+const std::string kCmdNameSMove = "smove";
+const std::string kCmdNameSRandMember = "srandmember";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
 const std::string kCmdNameRPush = "rpush";
 const std::string kCmdNameRPop = "rpop";
+const std::string kCmdNameLRem = "lrem";
+const std::string kCmdNameLRange = "lrange";
+const std::string kCmdNameLTrim = "ltrim";
+const std::string kCmdNameLSet = "lset";
+const std::string kCmdNameLInsert = "linsert";
 
 // zset cmd
 const std::string kCmdNameZAdd = "zadd";

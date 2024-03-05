@@ -37,7 +37,7 @@ void HSetCmd::DoCmd(PClient* client) {
     auto value = client->argv_[i + 1];
     int32_t temp = 0;
     // TODO(century): current bw doesn't support multiple fvs, fix it when necessary
-    s = PSTORE.GetBackend()->HSet(client->Key(), field, value, &temp);
+    s = PSTORE.GetBackend(client->GetCurrentDB())->HSet(client->Key(), field, value, &temp);
     if (s.ok()) {
       ret += temp;
     } else {
@@ -61,7 +61,7 @@ bool HGetCmd::DoInitial(PClient* client) {
 void HGetCmd::DoCmd(PClient* client) {
   PString value;
   auto field = client->argv_[2];
-  storage::Status s = PSTORE.GetBackend()->HGet(client->Key(), field, &value);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HGet(client->Key(), field, &value);
   if (s.ok()) {
     client->AppendString(value);
   } else if (s.IsNotFound()) {
@@ -82,7 +82,7 @@ bool HDelCmd::DoInitial(PClient* client) {
 void HDelCmd::DoCmd(PClient* client) {
   int32_t res{};
   std::vector<std::string> fields(client->argv_.begin() + 2, client->argv_.end());
-  auto s = PSTORE.GetBackend()->HDel(client->Key(), fields, &res);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HDel(client->Key(), fields, &res);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -104,7 +104,7 @@ bool HMSetCmd::DoInitial(PClient* client) {
 }
 
 void HMSetCmd::DoCmd(PClient* client) {
-  storage::Status s = PSTORE.GetBackend()->HMSet(client->Key(), client->Fvs());
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HMSet(client->Key(), client->Fvs());
   if (s.ok()) {
     client->SetRes(CmdRes::kOK);
   } else {
@@ -125,7 +125,7 @@ bool HMGetCmd::DoInitial(PClient* client) {
 
 void HMGetCmd::DoCmd(PClient* client) {
   std::vector<storage::ValueStatus> vss;
-  auto s = PSTORE.GetBackend()->HMGet(client->Key(), client->Fields(), &vss);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HMGet(client->Key(), client->Fields(), &vss);
   if (s.ok() || s.IsNotFound()) {
     client->AppendArrayLenUint64(vss.size());
     for (size_t i = 0; i < vss.size(); ++i) {
@@ -159,23 +159,18 @@ void HGetAllCmd::DoCmd(PClient* client) {
 
   do {
     fvs.clear();
-    s = PSTORE.GetBackend()->HScan(client->Key(), cursor, "*", PIKIWIDB_SCAN_STEP_LENGTH, &fvs, &next_cursor);
+    s = PSTORE.GetBackend(client->GetCurrentDB())
+            ->HScan(client->Key(), cursor, "*", PIKIWIDB_SCAN_STEP_LENGTH, &fvs, &next_cursor);
     if (!s.ok()) {
       raw.clear();
       total_fv = 0;
-      if (s.IsNotFound()) {
-        client->AppendArrayLen(0);
-      } else {
-        client->SetRes(CmdRes::kErrOther, s.ToString());
-      }
       break;
     } else {
-      client->AppendArrayLenUint64(fvs.size() * 2);
       for (const auto& fv : fvs) {
-        client->AppendStringLenUint64(fv.field.size());
-        client->AppendContent(fv.field);
-        client->AppendStringLenUint64(fv.value.size());
-        client->AppendContent(fv.value);
+        client->RedisAppendLenUint64(raw, fv.field.size(), "$");
+        client->RedisAppendContent(raw, fv.field);
+        client->RedisAppendLenUint64(raw, fv.value.size(), "$");
+        client->RedisAppendContent(raw, fv.value);
       }
       if (raw.size() >= raw_limit) {
         client->SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
@@ -185,6 +180,13 @@ void HGetAllCmd::DoCmd(PClient* client) {
       cursor = next_cursor;
     }
   } while (cursor != 0);
+
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendArrayLen(total_fv * 2);
+    client->AppendStringRaw(raw);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
 }
 
 HKeysCmd::HKeysCmd(const std::string& name, int16_t arity)
@@ -197,7 +199,7 @@ bool HKeysCmd::DoInitial(PClient* client) {
 
 void HKeysCmd::DoCmd(PClient* client) {
   std::vector<std::string> fields;
-  auto s = PSTORE.GetBackend()->HKeys(client->Key(), &fields);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HKeys(client->Key(), &fields);
   if (s.ok() || s.IsNotFound()) {
     client->AppendArrayLenUint64(fields.size());
     for (const auto& field : fields) {
@@ -221,7 +223,7 @@ bool HLenCmd::DoInitial(PClient* client) {
 
 void HLenCmd::DoCmd(PClient* client) {
   int32_t len = 0;
-  auto s = PSTORE.GetBackend()->HLen(client->Key(), &len);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HLen(client->Key(), &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
   } else {
@@ -239,7 +241,7 @@ bool HStrLenCmd::DoInitial(PClient* client) {
 
 void HStrLenCmd::DoCmd(PClient* client) {
   int32_t len = 0;
-  auto s = PSTORE.GetBackend()->HStrlen(client->Key(), client->argv_[2], &len);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HStrlen(client->Key(), client->argv_[2], &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
   } else {
@@ -286,7 +288,8 @@ void HScanCmd::DoCmd(PClient* client) {
   // execute command
   std::vector<storage::FieldValue> fvs;
   int64_t next_cursor{};
-  auto status = PSTORE.GetBackend()->HScan(client->Key(), cursor, pattern, count, &fvs, &next_cursor);
+  auto status =
+      PSTORE.GetBackend(client->GetCurrentDB())->HScan(client->Key(), cursor, pattern, count, &fvs, &next_cursor);
   if (!status.ok() && !status.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, status.ToString());
     return;
@@ -312,11 +315,139 @@ bool HValsCmd::DoInitial(PClient* client) {
 
 void HValsCmd::DoCmd(PClient* client) {
   std::vector<std::string> valueVec;
-  storage::Status s = PSTORE.GetBackend()->HVals(client->Key(), &valueVec);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HVals(client->Key(), &valueVec);
   if (s.ok() || s.IsNotFound()) {
     client->AppendStringVector(valueVec);
   } else {
     client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
 }
+
+HIncrbyFloatCmd::HIncrbyFloatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyFloatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return false;
+  }
+  return true;
+}
+
+void HIncrbyFloatCmd::DoCmd(PClient* client) {
+  long double long_double_by = 0;
+  if (-1 == StrToLongDouble(client->argv_[3].c_str(), static_cast<int>(client->argv_[3].size()), &long_double_by)) {
+    client->SetRes(CmdRes::kInvalidFloat);
+    return;
+  }
+  std::string newValue;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendString(newValue);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hvals cmd error");
+  }
+}
+
+HSetNXCmd::HSetNXCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HSetNXCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HSetNXCmd::DoCmd(PClient* client) {
+  int32_t temp = 0;
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
+  if (s.ok()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
+  }
+  return;
+}
+
+HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HIncrbyCmd::DoCmd(PClient* client) {
+  int64_t int_by = 0;
+  if (!pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &int_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return;
+  }
+
+  int64_t temp = 0;
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hincrby cmd error");
+  }
+}
+
+HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
+
+bool HRandFieldCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HRandFieldCmd::DoCmd(PClient* client) {
+  // parse arguments
+  const auto& argv = client->argv_;
+  int64_t count{1};
+  bool with_values{false};
+  if (argv.size() > 2) {
+    // redis checks the integer argument first and then the number of parameters
+    if (pstd::String2int(argv[2], &count) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (argv.size() > 4) {
+      client->SetRes(CmdRes::kSyntaxErr);
+      return;
+    }
+    if (argv.size() > 3) {
+      if (kWithValueString != pstd::StringToLower(argv[3])) {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      with_values = true;
+    }
+  }
+
+  // execute command
+  std::vector<std::string> res;
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HRandField(client->Key(), count, with_values, &res);
+  if (s.IsNotFound()) {
+    client->AppendString("");
+    return;
+  }
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+
+  // reply to client
+  if (argv.size() > 2) {
+    client->AppendArrayLenUint64(res.size());
+  }
+  for (const auto& item : res) {
+    client->AppendString(item);
+  }
+}
+
 }  // namespace pikiwidb

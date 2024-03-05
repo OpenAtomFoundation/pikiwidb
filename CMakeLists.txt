@@ -102,12 +102,10 @@ INCLUDE(FetchContent)
 #include(cmake/CmakeLists.txt)
 
 include(cmake/findTools.cmake)
-include(cmake/leveldb.cmake)
 include(cmake/libevent.cmake)
 include(cmake/llhttp.cmake)
 include(cmake/fmt.cmake)
 include(cmake/spdlog.cmake)
-include(cmake/folly.cmake)
 include(cmake/gtest.cmake)
 include(cmake/rocksdb.cmake)
 

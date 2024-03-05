@@ -19,7 +19,7 @@ class ZAddCmd : public BaseCmd {
 
  private:
   std::string key_;
-  std::vector<storage::ScoreMember> score_members;
+  std::vector<storage::ScoreMember> score_members_;
   void DoCmd(PClient *client) override;
 };
 

@@ -6,9 +6,8 @@
 #include <algorithm>
 #include <utility>
 
-#include <glog/logging.h>
-
 #include "config.h"
+#include "pstd/log.h"
 #include "pstd/pikiwidb_slot.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
@@ -57,7 +56,7 @@ Storage::Storage() {
 
   Status s = StartBGThread();
   if (!s.ok()) {
-    LOG(FATAL) << "start bg thread failed, " << s.ToString();
+    ERROR("start bg thread failed, ", s.ToString());
   }
 }
 
@@ -87,7 +86,7 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
     insts_.emplace_back(std::make_unique<Redis>(this, index));
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
-      LOG(FATAL) << "open db failed" << s.ToString();
+      ERROR("open db failed", s.ToString());
     }
   }
 
@@ -438,6 +437,11 @@ Status Storage::HScanx(const Slice& key, const std::string& start_field, const s
                        std::vector<FieldValue>* field_values, std::string* next_field) {
   auto& inst = GetDBInstance(key);
   return inst->HScanx(key, start_field, pattern, count, field_values, next_field);
+}
+
+Status Storage::HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res) {
+  auto& inst = GetDBInstance(key);
+  return inst->HRandField(key, count, with_values, res);
 }
 
 Status Storage::PKHScanRange(const Slice& key, const Slice& field_start, const std::string& field_end,
@@ -1022,8 +1026,7 @@ Status Storage::ZScan(const Slice& key, int64_t cursor, const std::string& patte
   return inst->ZScan(key, cursor, pattern, count, score_members, next_cursor);
 }
 
-int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Status>* type_status) {
-  type_status->clear();
+int32_t Storage::Expire(const Slice& key, uint64_t ttl) {
   int32_t ret = 0;
   bool is_corruption = false;
 
@@ -1034,7 +1037,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kStrings] = s;
   }
 
   // Hash
@@ -1043,7 +1045,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kHashes] = s;
   }
 
   // Sets
@@ -1052,7 +1053,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kSets] = s;
   }
 
   // Lists
@@ -1061,7 +1061,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kLists] = s;
   }
 
   // Zsets
@@ -1070,7 +1069,6 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl, std::map<DataType, Statu
     ret++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kZSets] = s;
   }
 
   if (is_corruption) {
@@ -1292,7 +1290,7 @@ int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& 
     auto iter_end = std::end(DataTypeTag);
     auto pos = std::find(std::begin(DataTypeTag), iter_end, key_type);
     if (pos == iter_end) {
-      LOG(WARNING) << "Invalid key_type: " << key_type;
+      WARN("Invalid key_type: ", key_type);
       return 0;
     }
     std::copy(pos, iter_end, std::back_inserter(types));
@@ -2136,7 +2134,7 @@ Status Storage::StopScanKeyNum() {
 
 rocksdb::DB* Storage::GetDBByIndex(int index) {
   if (index < 0 || index >= db_instance_num_) {
-    LOG(WARNING) << "Invalid DB Index: " << index << "total: " << db_instance_num_;
+    WARN("Invalid DB Index: {} total: {}", index, db_instance_num_);
     return nullptr;
   }
   return insts_[index]->GetDB();

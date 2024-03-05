@@ -24,6 +24,16 @@ const (
 	Nil          = ""
 )
 
+// cmd
+const (
+	kCmdSelect = "select"
+)
+
+// err
+const (
+	kInvalidIndex = "ERR invalid DB index for 'select DB index is out of range'"
+)
+
 func TestPikiwidb(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Tests Suite")

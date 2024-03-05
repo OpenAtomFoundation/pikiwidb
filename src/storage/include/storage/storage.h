@@ -382,6 +382,9 @@ class Storage {
   Status HScanx(const Slice& key, const std::string& start_field, const std::string& pattern, int64_t count,
                 std::vector<FieldValue>* field_values, std::string* next_field);
 
+  // Return random field(s) and value(s) from the hash value stored at key.
+  Status HRandField(const Slice& key, int64_t count, bool with_values, std::vector<std::string>* res);
+
   // Iterate over a Hash table of fields by specified range
   // return next_field that the user need to use as the start_field argument
   // in the next call
@@ -942,7 +945,7 @@ class Storage {
   // Set a timeout on key
   // return -1 operation exception errors happen in database
   // return >=0 success
-  int32_t Expire(const Slice& key, uint64_t ttl, std::map<DataType, Status>* type_status);
+  int32_t Expire(const Slice& key, uint64_t ttl);
 
   // Removes the specified keys
   // return -1 operation exception errors happen in database

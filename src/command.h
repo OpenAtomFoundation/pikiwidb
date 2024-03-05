@@ -12,7 +12,6 @@
 
 #include "common.h"
 #include "delegate.h"
-#include "pstring.h"
 
 namespace pikiwidb {
 
@@ -44,7 +43,6 @@ PCommandHandler scan;
 PCommandHandler sort;
 
 // server commands
-PCommandHandler select;
 PCommandHandler dbsize;
 PCommandHandler bgsave;
 PCommandHandler save;
@@ -180,42 +178,42 @@ PCommandHandler module;
 // help
 PCommandHandler cmdlist;
 
-extern Delegate<void(UnboundedBuffer&)> g_infoCollector;
-extern void OnMemoryInfoCollect(UnboundedBuffer&);
-extern void OnServerInfoCollect(UnboundedBuffer&);
-extern void OnClientInfoCollect(UnboundedBuffer&);
-
-struct PCommandInfo {
-  PString cmd;
-  int attr = -1;
-  int params = -1;
-  PCommandHandler* handler = nullptr;
-  bool CheckParamsCount(int nParams) const;
-};
-
-class PCommandTable {
- public:
-  PCommandTable();
-
-  static void Init();
-
-  static const PCommandInfo* GetCommandInfo(const PString& cmd);
-  static PError ExecuteCmd(const std::vector<PString>& params, const PCommandInfo* info,
-                           UnboundedBuffer* reply = nullptr);
-  static PError ExecuteCmd(const std::vector<PString>& params, UnboundedBuffer* reply = nullptr);
-
-  static bool AliasCommand(const std::map<PString, PString>& aliases);
-  static bool AliasCommand(const PString& oldKey, const PString& newKey);
-
-  static bool AddCommand(const PString& cmd, const PCommandInfo* info);
-  static const PCommandInfo* DelCommand(const PString& cmd);
-
-  friend PCommandHandler cmdlist;
-
- private:
-  static const PCommandInfo s_info[];
-
-  static std::map<PString, const PCommandInfo*, NocaseComp> s_handlers;
-};
+// extern Delegate<void(UnboundedBuffer&)> g_infoCollector;
+// extern void OnMemoryInfoCollect(UnboundedBuffer&);
+// extern void OnServerInfoCollect(UnboundedBuffer&);
+// extern void OnClientInfoCollect(UnboundedBuffer&);
+//
+// struct PCommandInfo {
+//   PString cmd;
+//   int attr = -1;
+//   int params = -1;
+//   PCommandHandler* handler = nullptr;
+//   bool CheckParamsCount(int nParams) const;
+// };
+//
+// class PCommandTable {
+//  public:
+//   PCommandTable();
+//
+//   static void Init();
+//
+//   static const PCommandInfo* GetCommandInfo(const PString& cmd);
+//   static PError ExecuteCmd(const std::vector<PString>& params, const PCommandInfo* info,
+//                            UnboundedBuffer* reply = nullptr);
+//   static PError ExecuteCmd(const std::vector<PString>& params, UnboundedBuffer* reply = nullptr);
+//
+//   static bool AliasCommand(const std::map<PString, PString>& aliases);
+//   static bool AliasCommand(const PString& oldKey, const PString& newKey);
+//
+//   static bool AddCommand(const PString& cmd, const PCommandInfo* info);
+//   static const PCommandInfo* DelCommand(const PString& cmd);
+//
+//   friend PCommandHandler cmdlist;
+//
+//  private:
+//   static const PCommandInfo s_info[];
+//
+//   static std::map<PString, const PCommandInfo*, NocaseComp> s_handlers;
+// };
 
 }  // namespace pikiwidb

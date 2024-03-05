@@ -5,14 +5,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "log.h"
-
 #include <algorithm>
 #include <memory>
 
 #include "client.h"
-#include "command.h"
 #include "config.h"
+#include "log.h"
 #include "pikiwidb.h"
 #include "pstd_string.h"
 #include "slow_log.h"
@@ -326,7 +324,6 @@ int PClient::handlePacket(const char* start, int bytes) {
 
   DEBUG("client {}, cmd {}", conn->GetUniqueId(), cmdName_);
 
-  PSTORE.SelectDB(db_);
   FeedMonitors(params_);
 
   //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
@@ -403,12 +400,11 @@ PClient* PClient::Current() { return s_current; }
 
 PClient::PClient(TcpConnection* obj)
     : tcp_connection_(std::static_pointer_cast<TcpConnection>(obj->shared_from_this())),
-      db_(0),
+      dbno_(0),
       flag_(0),
       name_("clientxxx"),
       parser_(params_) {
   auth_ = false;
-  SelectDB(0);
   reset();
 }
 
@@ -501,15 +497,6 @@ void PClient::Close() {
     c->ActiveClose();
     tcp_connection_.reset();
   }
-}
-
-bool PClient::SelectDB(int db) {
-  if (PSTORE.SelectDB(db) >= 0) {
-    db_ = db;
-    return true;
-  }
-
-  return false;
 }
 
 void PClient::reset() {
@@ -655,7 +642,7 @@ void PClient::FeedMonitors(const std::vector<std::string>& params) {
   }
 
   char buf[512];
-  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", PSTORE.GetDB(), s_current->PeerIP().c_str(),
+  int n = snprintf(buf, sizeof buf, "+[db%d %s:%d]: \"", s_current->GetCurrentDB(), s_current->PeerIP().c_str(),
                    s_current->PeerPort());
 
   assert(n > 0);
