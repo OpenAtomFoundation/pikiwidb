@@ -227,6 +227,30 @@ var _ = Describe("Set", Ordered, func() {
 		sCard := client.SCard(ctx, "setScard")
 		Expect(sCard.Err()).NotTo(HaveOccurred())
 		Expect(sCard.Val()).To(Equal(int64(2)))
+        })
+
+
+        It("should SPop", func() {
+                sAdd := client.SAdd(ctx, "setSpop", "one")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "two")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "three")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "four")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSpop", "five")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sPopN := client.SPopN(ctx, "setSpop", 3)
+		Expect(sPopN.Err()).NotTo(HaveOccurred())
+		Expect(sPopN.Val()).To(HaveLen(3))
+		/*
+		sMembers := client.SMembers(ctx, "setSpop")
+		Expect(sMembers.Err()).NotTo(HaveOccurred())
+		Expect(sMembers.Val()).To(HaveLen(2))
+		*/
+
 
 	})
 

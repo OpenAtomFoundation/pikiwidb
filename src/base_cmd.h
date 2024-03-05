@@ -91,6 +91,7 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSCard = "scard";
 const std::string kCmdNameSMove = "smove";
 const std::string kCmdNameSRandMember = "srandmember";
+const std::string kCmdNameSPop = "spop";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
