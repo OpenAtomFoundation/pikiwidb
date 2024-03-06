@@ -1,3 +1,8 @@
+# Copyright (c) 2023-present, Qihoo, Inc.  All rights reserved.
+# This source code is licensed under the BSD-style license found in the
+# LICENSE file in the root directory of this source tree. An additional grant
+# of patent rights can be found in the PATENTS file in the same directory.
+
 # nodejs/llhttp
 FETCHCONTENT_DECLARE(
         llhttp
@@ -16,4 +21,5 @@ FETCHCONTENT_DECLARE(
         -DBUILD_SHARED_LIBS=OFF
         BUILD_COMMAND make -j${CPU_CORE}
 )
+
 FETCHCONTENT_MAKEAVAILABLE(llhttp)
