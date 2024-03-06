@@ -151,4 +151,20 @@ var _ = Describe("Keyspace", Ordered, func() {
 
 		Expect(client.Do(ctx, "pexpire", DefaultKey, "err").Err()).To(MatchError("ERR value is not an integer or out of range"))
 	})
+
+	It("should expireat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		// 1293840000 -> 2011-01-01 08:00:00
+		Expect(client.Do(ctx, "expireat", DefaultKey, "1293840000").Val()).To(Equal(int64(1)))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
+
+	It("should pexpirat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		// 1293840000 -> 2011-01-01 08:00:00
+		Expect(client.Do(ctx, "pexpireat", DefaultKey, "1293840000").Val()).To(Equal(int64(1)))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
 })
