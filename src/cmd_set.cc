@@ -8,6 +8,7 @@
 #include "cmd_set.h"
 #include <memory>
 #include <utility>
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -177,4 +178,76 @@ void SMoveCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
+SRandMemberCmd::SRandMemberCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SRandMemberCmd::DoInitial(PClient* client) {
+  if (client->argv_.size() > 3) {
+    client->SetRes(CmdRes::kWrongNum, client->CmdName());
+    return false;
+  } else if (client->argv_.size() == 3) {
+    try {
+      this->num_rand = stoi(client->argv_[2]);
+    } catch (const std::invalid_argument& e) {
+      client->SetRes(CmdRes::kInvalidBitInt, "srandmember cmd should have integer num of count.");
+      return false;
+    }
+  }
+  return true;
+}
+
+void SRandMemberCmd::DoCmd(PClient* client) {
+  std::vector<std::string> vec_ret;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SRandmember(client->Key(), this->num_rand, &vec_ret);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "srandmember cmd error");
+    return;
+  }
+  if (client->argv_.size() == 3) {
+    client->AppendStringVector(vec_ret);
+  } else if (client->argv_.size() == 2) {  // srand only needs to return one element
+    client->AppendString(vec_ret[0]);
+  }
+  return;
+}
+
+SPopCmd::SPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SPopCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> delete_members;
+  if ((client->argv_.size()) == 2) {
+    int64_t cnt = 1;
+    std::vector<std::string> delete_member;
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_member, cnt);
+    if (!s.ok()) {
+      client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+      return;
+    }
+    client->AppendString(delete_member[0]);
+
+  } else if ((client->argv_.size()) == 3) {
+    std::vector<std::string> delete_members;
+    int64_t cnt = 1;
+    if (client->argv_[2].find(".") != std::string::npos || !pstd::String2int(client->argv_[2], &cnt)) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_members, cnt);
+    if (!s.ok()) {
+      client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+      return;
+    }
+    client->AppendStringVector(delete_members);
+
+  } else {
+    client->SetRes(CmdRes::kWrongNum, "spop");
+    return;
+  }
+}
 }  // namespace pikiwidb

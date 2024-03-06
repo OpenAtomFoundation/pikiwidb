@@ -352,6 +352,51 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   }
 }
 
+HSetNXCmd::HSetNXCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HSetNXCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HSetNXCmd::DoCmd(PClient* client) {
+  int32_t temp = 0;
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
+  if (s.ok()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
+  }
+  return;
+}
+
+HIncrbyCmd::HIncrbyCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryHash) {}
+
+bool HIncrbyCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void HIncrbyCmd::DoCmd(PClient* client) {
+  int64_t int_by = 0;
+  if (!pstd::String2int(client->argv_[3].data(), client->argv_[3].size(), &int_by)) {
+    client->SetRes(CmdRes::kInvalidParameter);
+    return;
+  }
+
+  int64_t temp = 0;
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(temp);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "hincrby cmd error");
+  }
+}
+
 HRandFieldCmd::HRandFieldCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryHash) {}
 

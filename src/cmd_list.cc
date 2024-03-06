@@ -10,7 +10,6 @@
 #include "store.h"
 
 namespace pikiwidb {
-
 LPushCmd::LPushCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
@@ -68,6 +67,7 @@ void RPopCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kSyntaxErr, "rpop cmd error");
   }
 }
+
 LRangeCmd::LRangeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
 
@@ -78,7 +78,8 @@ bool LRangeCmd::DoInitial(PClient* client) {
 
 void LRangeCmd::DoCmd(PClient* client) {
   std::vector<std::string> ret;
-  int64_t start_index = 0, end_index = 0;
+  int64_t start_index = 0;
+  int64_t end_index = 0;
   if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
@@ -117,4 +118,88 @@ void LRemCmd::DoCmd(PClient* client) {
   }
 }
 
+LTrimCmd::LTrimCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LTrimCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LTrimCmd::DoCmd(PClient* client) {
+  int64_t start_index = 0;
+  int64_t end_index = 0;
+
+  if (pstd::String2int(client->argv_[2], &start_index) == 0 || pstd::String2int(client->argv_[3], &end_index) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LTrim(client->Key(), start_index, end_index);
+  if (s.ok() || s.IsNotFound()) {
+    client->SetRes(CmdRes::kOK);
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
+  }
+}
+
+LSetCmd::LSetCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LSetCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LSetCmd::DoCmd(PClient* client) {
+  // isVaildNumber ensures that the string is in decimal format,
+  // while strtol ensures that the string is within the range of long type
+  const std::string index_str = client->argv_[2];
+
+  if (IsValidNumber(index_str)) {
+    int64_t val = 0;
+    if (1 != pstd::String2int(index_str, &val)) {
+      client->SetRes(CmdRes::kErrOther, "lset cmd error");  // this will not happend in normal case
+      return;
+    }
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LSet(client->Key(), val, client->argv_[3]);
+    if (s.ok()) {
+      client->SetRes(CmdRes::kOK);
+    } else if (s.IsNotFound()) {
+      client->SetRes(CmdRes::kNotFound);
+    } else if (s.IsCorruption()) {
+      client->SetRes(CmdRes::kOutOfRange);
+    } else {
+      client->SetRes(CmdRes::kSyntaxErr, "lset cmd error");  // just a safeguard
+    }
+  } else {
+    client->SetRes(CmdRes::kInvalidInt);
+  }
+}
+
+LInsertCmd::LInsertCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LInsertCmd::DoInitial(PClient* client) {
+  if (!pstd::StringEqualCaseInsensitive(client->argv_[2], "BEFORE") &&
+      !pstd::StringEqualCaseInsensitive(client->argv_[2], "AFTER")) {
+    return false;
+  }
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LInsertCmd::DoCmd(PClient* client) {
+  int64_t ret = 0;
+  storage ::BeforeOrAfter before_or_after = storage::Before;
+  if (pstd::StringEqualCaseInsensitive(client->argv_[2], "AFTER")) {
+    before_or_after = storage::After;
+  }
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
+  if (!s.ok() && s.IsNotFound()) {
+    client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");  // just a safeguard
+    return;
+  }
+  client->AppendInteger(ret);
+}
 }  // namespace pikiwidb

@@ -45,15 +45,15 @@ void CmdTableManager::InitCmdTable() {
 
   // info
   ADD_COMMAND(Info, -1);
-
-  // keyspace
-  ADD_COMMAND(Del, -2);
-  ADD_COMMAND(Exists, -2);
-
+  
   // raft
   ADD_COMMAND(RaftCluster, -1);
   ADD_COMMAND(RaftNode, -2);
 
+  // keyspace
+  ADD_COMMAND(Del, -2);
+  ADD_COMMAND(Exists, -2);
+  ADD_COMMAND(PExpire, 3);
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
@@ -90,6 +90,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(HScan, -3);
   ADD_COMMAND(HVals, 2);
   ADD_COMMAND(HIncrbyFloat, 4);
+  ADD_COMMAND(HSetNX, 4);
+  ADD_COMMAND(HIncrby, 4);
   ADD_COMMAND(HRandField, -2);
 
   // set
@@ -102,6 +104,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SInterStore, -3);
   ADD_COMMAND(SCard, 2);
   ADD_COMMAND(SMove, 4);
+  ADD_COMMAND(SRandMember, -2);  // Added the count argument since Redis 3.2.0
+  ADD_COMMAND(SPop, -2);
 
   // list
   ADD_COMMAND(LPush, -3);
@@ -109,6 +113,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(RPop, 2);
   ADD_COMMAND(LRem, 4);
   ADD_COMMAND(LRange, 4);
+  ADD_COMMAND(LTrim, 4);
+  ADD_COMMAND(LSet, 4);
+  ADD_COMMAND(LInsert, 5);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

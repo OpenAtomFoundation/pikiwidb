@@ -27,6 +27,15 @@ var _ = Describe("List", Ordered, func() {
 		client *redis.Client
 	)
 
+	s2s := map[string]string{
+		"key_1": "value_1",
+		"key_2": "value_2",
+		"key_3": "value_3",
+		"key_4": "value_4",
+		"key_5": "value_5",
+		"key_6": "value_6",
+	}
+
 	// BeforeAll closures will run exactly once before any of the specs
 	// within the Ordered container.
 	BeforeAll(func() {
@@ -67,70 +76,135 @@ var _ = Describe("List", Ordered, func() {
 	//TODO(dingxiaoshuai) Add more test cases.
 	It("Cmd LPUSH", func() {
 		log.Println("Cmd LPUSH Begin")
-		Expect(client.LPush(ctx, "mylistLPUSH", "world").Val()).To(Equal(int64(1)))
-		Expect(client.LPush(ctx, "mylistLPUSH", "hello").Val()).To(Equal(int64(2)))
 
-		Expect(client.LRange(ctx, "mylistLPUSH", 0, -1).Val()).To(Equal([]string{"hello", "world"}))
+		Expect(client.LPush(ctx, DefaultKey, s2s["key_2"]).Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, DefaultKey, s2s["key_1"]).Val()).To(Equal(int64(2)))
+
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_1"], s2s["key_2"]}))
 
 		//del
-		del := client.Del(ctx, "mylistLPUSH")
+		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 	It("Cmd RPUSH", func() {
 		log.Println("Cmd RPUSH Begin")
-		Expect(client.RPush(ctx, "mylistRPUSH", "hello").Val()).To(Equal(int64(1)))
-		Expect(client.RPush(ctx, "mylistRPUSH", "world").Val()).To(Equal(int64(2)))
+		Expect(client.RPush(ctx, DefaultKey, s2s["key_1"]).Val()).To(Equal(int64(1)))
+		Expect(client.RPush(ctx, DefaultKey, s2s["key_2"]).Val()).To(Equal(int64(2)))
 
-		Expect(client.LRange(ctx, "mylistRPUSH", 0, -1).Val()).To(Equal([]string{"hello", "world"}))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_1"], s2s["key_2"]}))
 		//del
-		del := client.Del(ctx, "mylistRPUSH")
+		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("should RPop", func() {
-		rPush := client.RPush(ctx, "list", "one")
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
-		rPush = client.RPush(ctx, "list", "two")
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
-		rPush = client.RPush(ctx, "list", "three")
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_3"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
 
-		rPop := client.RPop(ctx, "list")
+		rPop := client.RPop(ctx, DefaultKey)
 		Expect(rPop.Err()).NotTo(HaveOccurred())
-		Expect(rPop.Val()).To(Equal("three"))
+		Expect(rPop.Val()).To(Equal(s2s["key_3"]))
 
-		lRange := client.LRange(ctx, "list", 0, -1)
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
 		Expect(lRange.Err()).NotTo(HaveOccurred())
-		Expect(lRange.Val()).To(Equal([]string{"one", "two"}))
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_1"], s2s["key_2"]}))
 
-		err := client.Do(ctx, "RPOP", "list", 1, 2).Err()
+		err := client.Do(ctx, "RPOP", DefaultKey, 1, 2).Err()
+
 		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'rpop' command")))
-
 		//del
-		del := client.Del(ctx, "list")
+		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 
 	It("Cmd LRem", func() {
-		rPush := client.RPush(ctx, "list", "hello")
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
-		rPush = client.RPush(ctx, "list", "hello")
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_1"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
-		rPush = client.RPush(ctx, "list", "key")
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
-		rPush = client.RPush(ctx, "list", "hello")
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_1"])
 		Expect(rPush.Err()).NotTo(HaveOccurred())
 
-		lRem := client.LRem(ctx, "list", -2, "hello")
+		lRem := client.LRem(ctx, DefaultKey, -2, s2s["key_1"])
 		Expect(lRem.Err()).NotTo(HaveOccurred())
 		Expect(lRem.Val()).To(Equal(int64(2)))
 
-		lRange := client.LRange(ctx, "list", 0, -1)
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
 		Expect(lRange.Err()).NotTo(HaveOccurred())
-		Expect(lRange.Val()).To(Equal([]string{"hello", "key"}))
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_1"], s2s["key_2"]}))
 
 		//del
-		del := client.Del(ctx, "list")
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("should LTrim", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_3"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lTrim := client.LTrim(ctx, DefaultKey, 1, -1)
+		Expect(lTrim.Err()).NotTo(HaveOccurred())
+		Expect(lTrim.Val()).To(Equal(OK))
+
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_2"], s2s["key_3"]}))
+		// del
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("should LSet", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_3"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lSet := client.LSet(ctx, DefaultKey, 0, s2s["key_4"])
+		Expect(lSet.Err()).NotTo(HaveOccurred())
+		Expect(lSet.Val()).To(Equal(OK))
+
+		lSet = client.LSet(ctx, DefaultKey, -2, s2s["key_5"])
+		Expect(lSet.Err()).NotTo(HaveOccurred())
+		Expect(lSet.Val()).To(Equal(OK))
+
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_4"], s2s["key_5"], s2s["key_3"]}))
+
+		// del
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("should LInsert", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lInsert := client.LInsert(ctx, DefaultKey, "BEFORE", s2s["key_2"], s2s["key_3"])
+		Expect(lInsert.Err()).NotTo(HaveOccurred())
+		Expect(lInsert.Val()).To(Equal(int64(3)))
+
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_1"], s2s["key_3"], s2s["key_2"]}))
+
+		// del
+		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
 })

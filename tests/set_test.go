@@ -227,6 +227,30 @@ var _ = Describe("Set", Ordered, func() {
 		sCard := client.SCard(ctx, "setScard")
 		Expect(sCard.Err()).NotTo(HaveOccurred())
 		Expect(sCard.Val()).To(Equal(int64(2)))
+        })
+
+
+        It("should SPop", func() {
+                sAdd := client.SAdd(ctx, "setSpop", "one")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "two")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "three")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+                sAdd = client.SAdd(ctx, "setSpop", "four")
+                Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSpop", "five")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sPopN := client.SPopN(ctx, "setSpop", 3)
+		Expect(sPopN.Err()).NotTo(HaveOccurred())
+		Expect(sPopN.Val()).To(HaveLen(3))
+		/*
+		sMembers := client.SMembers(ctx, "setSpop")
+		Expect(sMembers.Err()).NotTo(HaveOccurred())
+		Expect(sMembers.Val()).To(HaveLen(2))
+		*/
+
 
 	})
 
@@ -251,4 +275,42 @@ var _ = Describe("Set", Ordered, func() {
 		Expect(sIsMember.Err()).NotTo(HaveOccurred())
 		Expect(sIsMember.Val()).To(Equal(true))
 	})
+
+	It("should SRem", func() {
+		sAdd := client.SAdd(ctx, "set", "one")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "two")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "set", "three")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sRem := client.SRem(ctx, "set", "one")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(1)))
+
+		sRem = client.SRem(ctx, "set", "four")
+		Expect(sRem.Err()).NotTo(HaveOccurred())
+		Expect(sRem.Val()).To(Equal(int64(0)))
+
+ 		// sMembers := client.SMembers(ctx, "set")
+ 		// Expect(sMembers.Err()).NotTo(HaveOccurred())
+ 		// Expect(sMembers.Val()).To(ConsistOf([]string{"three", "two"}))
+	})
+
+	It("should SRandmember", func() {
+	    	sAdd := client.SAdd(ctx, "set", "one")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "two")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+	    	sAdd = client.SAdd(ctx, "set", "three")
+	    	Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+	    	member, err := client.SRandMember(ctx, "set").Result()
+	    	Expect(err).NotTo(HaveOccurred())
+	    	Expect(member).NotTo(Equal(""))
+
+	    	members, err := client.SRandMemberN(ctx, "set", 2).Result()
+	    	Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(HaveLen(2))
+    	})
 })
