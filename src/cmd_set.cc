@@ -105,6 +105,11 @@ void SRemCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_num);
 }
 
+<<<<<<< HEAD
+=======
+<<<<<<< HEAD
+<<<<<<< HEAD
+>>>>>>> 4619568 (resolve conflict)
 SUnionCmd::SUnionCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
 
@@ -251,4 +256,3 @@ void SPopCmd::DoCmd(PClient* client) {
   }
 }
 }  // namespace pikiwidb
-
