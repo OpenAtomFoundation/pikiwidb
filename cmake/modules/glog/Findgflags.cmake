@@ -3,8 +3,9 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-if(gflags_SOURCE_DIR)
-  message(STATUS "Found gflags in ${gflags_SOURCE_DIR}")
+IF (gflags_SOURCE_DIR)
+  MESSAGE(STATUS "Found gflags in ${gflags_SOURCE_DIR}")
 
-  install(TARGETS gflags_static EXPORT glog-targets)
-endif()
+  # add_library(gflags_static::gflags_static ALIAS gflags_static)
+  INSTALL(TARGETS gflags_static EXPORT glog-targets)
+ENDIF ()

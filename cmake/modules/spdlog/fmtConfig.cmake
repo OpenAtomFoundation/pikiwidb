@@ -3,8 +3,8 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-if(fmt_SOURCE_DIR)
-  message(STATUS "Found fmt in ${fmt_SOURCE_DIR}")
+IF (fmt_SOURCE_DIR)
+  MESSAGE(STATUS "Found fmt in ${fmt_SOURCE_DIR}")
 
-  add_library(fmt::fmt ALIAS fmt)
-endif()
+  ADD_LIBRARY(fmt::fmt ALIAS fmt)
+ENDIF()

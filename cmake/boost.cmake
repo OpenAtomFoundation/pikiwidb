@@ -3,9 +3,9 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-include_guard()
+INCLUDE_GUARD()
 
-include(cmake/utils.cmake)
+INCLUDE(cmake/utils.cmake)
 
 FetchContent_DeclareGitHubWithMirror(pikiwidb-boost
   pikiwidb/boost boost-1.83.0
