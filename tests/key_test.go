@@ -151,4 +151,42 @@ var _ = Describe("Keyspace", Ordered, func() {
 
 		Expect(client.Do(ctx, "pexpire", DefaultKey, "err").Err()).To(MatchError("ERR value is not an integer or out of range"))
 	})
+
+	It("should expireat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.ExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*-1)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
+
+	It("should expireat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.ExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*3)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(1)))
+
+		time.Sleep(4 * time.Second)
+
+		Expect(client.Get(ctx, DefaultKey).Err()).To(MatchError(redis.Nil))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+	})
+
+	It("should pexpirat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*-1)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
+
+	It("should pexpirat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*3)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(1)))
+
+		time.Sleep(4 * time.Second)
+
+		Expect(client.Get(ctx, DefaultKey).Err()).To(MatchError(redis.Nil))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
+
 })
