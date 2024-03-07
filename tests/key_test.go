@@ -154,17 +154,39 @@ var _ = Describe("Keyspace", Ordered, func() {
 
 	It("should expireat", func() {
 		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
-		// 1293840000 -> 2011-01-01 08:00:00
-		Expect(client.Do(ctx, "expireat", DefaultKey, "1293840000").Val()).To(Equal(int64(1)))
+		Expect(client.ExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*-1)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+
+	})
+
+	It("should expireat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.ExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*3)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(1)))
+
+		time.Sleep(4 * time.Second)
+
+		Expect(client.Get(ctx, DefaultKey).Err()).To(MatchError(redis.Nil))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
+	})
+
+	It("should pexpirat", func() {
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*-1)).Val()).To(Equal(true))
 		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
 
 	})
 
 	It("should pexpirat", func() {
 		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
-		// 1293840000 -> 2011-01-01 08:00:00
-		Expect(client.Do(ctx, "pexpireat", DefaultKey, "1293840000").Val()).To(Equal(int64(1)))
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*3)).Val()).To(Equal(true))
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(1)))
+
+		time.Sleep(4 * time.Second)
+
+		Expect(client.Get(ctx, DefaultKey).Err()).To(MatchError(redis.Nil))
 		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(0)))
 
 	})
+
 })
