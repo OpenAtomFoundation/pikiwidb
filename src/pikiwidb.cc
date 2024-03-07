@@ -164,7 +164,7 @@ static void LoadDBFromDisk() {
 }
 
 void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
-  INFO("New connection from {}:{}", obj->GetPeerIp(), obj->GetPeerPort());
+  INFO("New connection from {}:{}", obj->GetPeerIP(), obj->GetPeerPort());
 
   auto client = std::make_shared<pikiwidb::PClient>(obj);
   obj->SetContext(client);
@@ -175,7 +175,7 @@ void PikiwiDB::OnNewConnection(pikiwidb::TcpConnection* obj) {
                           std::placeholders::_3);
   obj->SetMessageCallback(msg_cb);
   obj->SetOnDisconnect([](pikiwidb::TcpConnection* obj) {
-    INFO("disconnect from {}", obj->GetPeerIp());
+    INFO("disconnect from {}", obj->GetPeerIP());
     obj->GetContext<pikiwidb::PClient>()->SetState(pikiwidb::ClientState::kClosed);
   });
   obj->SetNodelay(true);

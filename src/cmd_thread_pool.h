@@ -88,7 +88,7 @@ class CmdThreadPool {
   std::condition_variable fastCondition_;
   std::mutex slowMutex_;
   std::condition_variable slowCondition_;
-  std::atomic<bool> stopped_ = false;
+  std::atomic_bool stopped_ = false;
 };
 
 }  // namespace pikiwidb

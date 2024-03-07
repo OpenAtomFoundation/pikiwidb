@@ -10,7 +10,7 @@ HttpClient::HttpClient() : parser_(HTTP_RESPONSE) {}
 void HttpClient::OnConnect(TcpConnection* conn) {
   assert(loop_ == conn->GetEventLoop());
 
-  INFO("HttpClient::OnConnect to {}:{} in loop {}", conn->GetPeerIp(), conn->GetPeerPort(), loop_->GetName());
+  INFO("HttpClient::OnConnect to {}:{} in loop {}", conn->GetPeerIP(), conn->GetPeerPort(), loop_->GetName());
   never_connected_ = false;
 
   conn_ = std::static_pointer_cast<TcpConnection>(conn->shared_from_this());

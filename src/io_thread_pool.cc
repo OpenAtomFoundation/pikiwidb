@@ -197,9 +197,12 @@ void WorkIOThreadPool::StartWorkers() {
         std::unique_lock lock(*writeMutex_[index]);
         while (writeQueue_[index].empty()) {
           if (!writeRunning_) {
-            goto END;
+            break;
           }
           writeCond_[index]->wait(lock);
+        }
+        if (!writeRunning_) {
+          break;
         }
         auto client = writeQueue_[index].front();
         if (client->State() == ClientState::kOK) {
@@ -207,7 +210,6 @@ void WorkIOThreadPool::StartWorkers() {
         }
         writeQueue_[index].pop_front();
       }
-    END:
       INFO("worker write thread {}, goodbye...", index);
     });
 

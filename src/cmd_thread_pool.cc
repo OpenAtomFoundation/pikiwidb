@@ -35,14 +35,14 @@ void CmdThreadPool::Start() {
     std::thread thread(&CmdWorkThreadPoolWorker::Work, fastWorker);
     threads_.emplace_back(std::move(thread));
     workers_.emplace_back(fastWorker);
-    INFO("fast worker [{}] starting ...", std::to_string(i));
+    INFO("fast worker [{}] starting ...", i);
   }
   for (int i = 0; i < slowThreadNum_; ++i) {
     auto slowWorker = std::make_shared<CmdSlowWorker>(this, 2, "slow worker" + std::to_string(i));
     std::thread thread(&CmdWorkThreadPoolWorker::Work, slowWorker);
     threads_.emplace_back(std::move(thread));
     workers_.emplace_back(slowWorker);
-    INFO("slow worker [{}] starting ...", std::to_string(i));
+    INFO("slow worker [{}] starting ...", i);
   }
 }
 

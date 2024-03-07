@@ -9,8 +9,6 @@
 #include "log.h"
 #include "pikiwidb.h"
 
-extern std::unique_ptr<PikiwiDB> g_pikiwidb;
-
 namespace pikiwidb {
 
 void CmdWorkThreadPoolWorker::Work() {
@@ -28,15 +26,16 @@ void CmdWorkThreadPoolWorker::Work() {
         } else {
           task->Client()->SetRes(CmdRes::kSyntaxErr, "unknown command '" + task->CmdName() + "'");
         }
-        goto END;
+        g_pikiwidb->PushWriteTask(task->Client());
+        continue;
       }
 
       if (!cmdPtr->CheckArg(task->Client()->ParamsSize())) {
         task->Client()->SetRes(CmdRes::kWrongNum, task->CmdName());
-        goto END;
+        g_pikiwidb->PushWriteTask(task->Client());
+        continue;
       }
       task->Run(cmdPtr);
-    END:
       g_pikiwidb->PushWriteTask(task->Client());
     }
     selfTask.clear();

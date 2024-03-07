@@ -449,7 +449,7 @@ void PClient::OnConnect() {
 
 const std::string& PClient::PeerIP() const {
   if (auto c = getTcpConnection(); c) {
-    return c->GetPeerIp();
+    return c->GetPeerIP();
   }
 
   static const std::string kEmpty;
