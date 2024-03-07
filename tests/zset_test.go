@@ -71,26 +71,6 @@ var _ = Describe("Zset", Ordered, func() {
 		Expect(client.ZAdd(ctx, "myset", redis.Z{Score: 1, Member: "one"}).Val()).NotTo(Equal("FooBar"))
 	})
 
-	It("should ZRemRangeByRank", func() {
-        err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
-        Expect(err).NotTo(HaveOccurred())
-        err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
-        Expect(err).NotTo(HaveOccurred())
-        err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
-        Expect(err).NotTo(HaveOccurred())
-
-        zRemRangeByRank := client.ZRemRangeByRank(ctx, "zset", 0, 1)
-        Expect(zRemRangeByRank.Err()).NotTo(HaveOccurred())
-        Expect(zRemRangeByRank.Val()).To(Equal(int64(2)))
-
-        vals, err := client.ZRangeWithScores(ctx, "zset", 0, -1).Result()
-        Expect(err).NotTo(HaveOccurred())
-        Expect(vals).To(Equal([]redis.Z{{
-            Score:  3,
-            Member: "three",
-        }}))
-    })
-
 	It("should ZAdd", func() {
 		Expect(client.Del(ctx, "zset").Err()).NotTo(HaveOccurred())
 		added, err := client.ZAdd(ctx, "zset", redis.Z{
@@ -193,5 +173,25 @@ var _ = Describe("Zset", Ordered, func() {
 		zRevRange = client.ZRevRange(ctx, "zset", -2, -1)
 		Expect(zRevRange.Err()).NotTo(HaveOccurred())
 		Expect(zRevRange.Val()).To(Equal([]string{"two", "one"}))
+	})
+
+	It("should ZRemRangeByRank", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		zRemRangeByRank := client.ZRemRangeByRank(ctx, "zset", 0, 1)
+		Expect(zRemRangeByRank.Err()).NotTo(HaveOccurred())
+		Expect(zRemRangeByRank.Val()).To(Equal(int64(2)))
+
+		vals, err := client.ZRangeWithScores(ctx, "zset", 0, -1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{
+			Score:  3,
+			Member: "three",
+		}}))
 	})
 })
