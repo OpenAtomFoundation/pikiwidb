@@ -217,4 +217,21 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
   }
 }
 
+ZCardCmd::ZCardCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet) {}
+
+bool ZCardCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZCardCmd::DoCmd(PClient* client) {
+  int32_t reply_Num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZCard(client->Key(), &reply_Num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "ZCard cmd error");
+    return;
+  }
+  client->AppendInteger(reply_Num);
+}
 }  // namespace pikiwidb
