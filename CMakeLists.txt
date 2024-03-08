@@ -148,6 +148,7 @@ ENABLE_TESTING()
 
 ADD_SUBDIRECTORY(src/pstd)
 ADD_SUBDIRECTORY(src/net)
+ADD_SUBDIRECTORY(src/praft)
 ADD_SUBDIRECTORY(src/storage)
 ADD_SUBDIRECTORY(src)
 
@@ -200,4 +201,3 @@ ADD_CUSTOM_TARGET(cpplint echo '${LINT_FILES}' | xargs -n12 -P8
   --linelength=120
   --filter=-legal/copyright,-build/header_guard,-runtime/references
 )
-

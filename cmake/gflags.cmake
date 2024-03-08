@@ -7,9 +7,6 @@ INCLUDE_GUARD()
 
 INCLUDE(cmake/utils.cmake)
 
-SET(MY_BUILD_TYPE ${CMAKE_BUILD_TYPE})
-SET(CMAKE_BUILD_TYPE ${THIRD_PARTY_BUILD_TYPE})
-
 FetchContent_DeclareGitHubWithMirror(gflags
   gflags/gflags v2.2.2
   SHA256=19713a36c9f32b33df59d1c79b4958434cb005b5b47dc5400a7a4b078111d9b5
@@ -22,6 +19,7 @@ FetchContent_MakeAvailableWithArgs(gflags
   BUILD_gflags_LIB=ON
   BUILD_gflags_nothreads_LIB=OFF
   BUILD_TESTING=OFF
+  CMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
 )
 
 FIND_PACKAGE(Threads REQUIRED)
@@ -31,5 +29,3 @@ TARGET_LINK_LIBRARIES(gflags_static Threads::Threads)
 SET(GFLAGS_INCLUDE_PATH ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/include)
 SET(GFLAGS_LIBRARY ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
 SET(GFLAGS_LIB ${CMAKE_CURRENT_BINARY_DIR}/_deps/gflags-build/libgflags.a)
-
-SET(CMAKE_BUILD_TYPE ${MY_BUILD_TYPE})

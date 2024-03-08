@@ -26,6 +26,10 @@ const std::string kCmdNameDel = "del";
 const std::string kCmdNameExists = "exists";
 const std::string kCmdNamePExpire = "pexpire";
 
+// raft cmd
+const std::string kCmdNameRaftCluster = "raft.cluster";
+const std::string kCmdNameRaftNode = "raft.node";
+
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
@@ -62,6 +66,7 @@ const std::string kCmdNameFlushdb = "flushdb";
 const std::string kCmdNameFlushall = "flushall";
 const std::string kCmdNameAuth = "auth";
 const std::string kCmdNameSelect = "select";
+const std::string kCmdNameInfo = "info";
 
 // hash cmd
 const std::string kCmdNameHSet = "hset";
@@ -119,6 +124,7 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsRaft = (1 << 15),             // raft
 };
 
 enum AclCategory {
@@ -142,7 +148,8 @@ enum AclCategory {
   kAclCategoryDangerous = (1 << 17),
   kAclCategoryConnection = (1 << 18),
   kAclCategoryTransaction = (1 << 19),
-  kAclCategoryScripting = (1 << 20)
+  kAclCategoryScripting = (1 << 20),
+  kAclCategoryRaft = (1 << 21),
 };
 
 /**

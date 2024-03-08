@@ -8,15 +8,17 @@ AUX_SOURCE_DIRECTORY(. PIKIWIDB_SRC)
 ADD_EXECUTABLE(pikiwidb ${PIKIWIDB_SRC})
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_SOURCE_DIR}/bin)
 
-TARGET_INCLUDE_DIRECTORIES(pikiwidb PRIVATE
-        ${PROJECT_SOURCE_DIR}/src
-        ${PROJECT_SOURCE_DIR}/src/pstd
-        ${PROJECT_SOURCE_DIR}/src/net
-        ${PROJECT_SOURCE_DIR}/src/storage/include
-        ${rocksdb_SOURCE_DIR}/
-        ${rocksdb_SOURCE_DIR}/include
+TARGET_INCLUDE_DIRECTORIES(pikiwidb
+        PRIVATE ${PROJECT_SOURCE_DIR}/src
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/pstd
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/net
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/storage/include
+        PRIVATE ${rocksdb_SOURCE_DIR}/
+        PRIVATE ${rocksdb_SOURCE_DIR}/include
         PRIVATE ${BRAFT_INCLUDE_DIR}
         PRIVATE ${BRPC_INCLUDE_DIR}
+        PRIVATE ${GFLAGS_INCLUDE_PATH}
+        PRIVATE ${PROJECT_SOURCE_DIR}/src/praft
         )
 
 IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
@@ -34,5 +36,6 @@ ELSE ()
     MESSAGE(FATAL_ERROR "only support linux or macOS")
 ENDIF ()
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; braft brpc ssl crypto zlib protobuf leveldb gflags "${MAC_LIBRARY}")
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rt crypto dl z praft "${MAC_LIBRARY}")
+
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)

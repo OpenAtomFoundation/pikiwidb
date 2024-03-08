@@ -48,6 +48,7 @@ class CmdRes {
     kErrOther,
     KIncrByOverFlow,
     kInvalidCursor,
+    kWrongLeader,
   };
 
   CmdRes() = default;
@@ -208,6 +209,8 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void reset();
   bool isPeerMaster() const;
   int uniqueID() const;
+
+  bool isJoinCmdTarget() const;
 
   // TcpConnection's life is undetermined, so use weak ptr for safety.
   std::weak_ptr<TcpConnection> tcp_connection_;
