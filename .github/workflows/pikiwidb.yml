@@ -3,7 +3,7 @@ name: Pikiwidb
 on:
   push:
   pull_request:
-    branches: [ "unstable", "import-braft" ]
+    branches: [ "unstable" ]
 
 jobs:
   check_format:
