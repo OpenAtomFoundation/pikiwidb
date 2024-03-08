@@ -121,7 +121,7 @@ void InfoCmd::DoCmd(PClient* client) {
     }
 
     std::string message("");
-    message += "raft_group_id" + PRAFT.GetGroupId() + "\r\n";
+    message += "raft_group_id:" + PRAFT.GetGroupId() + "\r\n";
     message += "raft_node_id:" + PRAFT.GetNodeId() + "\r\n";
     if (braft::is_active_state(node_status.state)) {
       message += "raft_state:up\r\n";
