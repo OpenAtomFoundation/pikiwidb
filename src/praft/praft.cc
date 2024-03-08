@@ -156,9 +156,9 @@ braft::NodeStatus PRaft::GetNodeStatus() const {
 butil::Status PRaft::GetListPeers(std::vector<braft::PeerId>* peers) {
   if (!node_) {
     LOG(ERROR) << "Node is not initialized";
-  } else {
-    return node_->list_peers(peers);
+    return {EINVAL, "Node is not initialized"};
   }
+  return node_->list_peers(peers);
 }
 
 // Gets the cluster id, which is used to initialize node
