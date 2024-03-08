@@ -1,0 +1,13 @@
+syntax="proto3";
+package pikiwidb;
+option cc_generic_services = true;
+
+message DummyRequest  {
+};
+
+message DummyResponse {
+};
+
+service DummyService  {
+    rpc DummyMethod(DummyRequest) returns (DummyResponse);
+};

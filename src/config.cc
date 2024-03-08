@@ -91,6 +91,7 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
 
   cfg.ip = parser.GetData<PString>("bind", cfg.ip);
   cfg.port = parser.GetData<unsigned short>("port");
+  cfg.raft_port_offset = parser.GetData<unsigned short>("raft-port-offset");
   cfg.timeout = parser.GetData<int>("timeout");
   cfg.dbpath = parser.GetData<PString>("db-path");
 
