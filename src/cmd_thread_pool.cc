@@ -58,9 +58,9 @@ void CmdThreadPool::SubmitSlow(const std::shared_ptr<CmdThreadPoolTask> &runner)
   slowCondition_.notify_one();
 }
 
-void CmdThreadPool::Stop() { doStop(); }
+void CmdThreadPool::Stop() { DoStop(); }
 
-void CmdThreadPool::doStop() {
+void CmdThreadPool::DoStop() {
   if (stopped_.load()) {
     return;
   }
@@ -90,6 +90,6 @@ void CmdThreadPool::doStop() {
   slowTasks_.clear();
 }
 
-CmdThreadPool::~CmdThreadPool() { doStop(); }
+CmdThreadPool::~CmdThreadPool() { DoStop(); }
 
 }  // namespace pikiwidb

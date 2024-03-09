@@ -74,7 +74,7 @@ class CmdThreadPool {
   ~CmdThreadPool();
 
  private:
-  void doStop();
+  void DoStop();
 
   std::deque<std::shared_ptr<CmdThreadPoolTask>> fastTasks_;  // fast task queue
   std::deque<std::shared_ptr<CmdThreadPoolTask>> slowTasks_;  // slow task queue

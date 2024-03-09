@@ -14,7 +14,7 @@ namespace pikiwidb {
 void CmdWorkThreadPoolWorker::Work() {
   while (running_) {
     LoadWork();
-    for (const auto &task : selfTask) {
+    for (const auto &task : selfTask_) {
       if (task->Client()->State() != ClientState::kOK) {  // the client is closed
         continue;
       }
@@ -38,7 +38,7 @@ void CmdWorkThreadPoolWorker::Work() {
       task->Run(cmdPtr);
       g_pikiwidb->PushWriteTask(task->Client());
     }
-    selfTask.clear();
+    selfTask_.clear();
   }
   INFO("slow worker [{}] goodbye...", name_);
 }
@@ -56,7 +56,7 @@ void CmdFastWorker::LoadWork() {
 
   const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
   if (num > 0) {
-    std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
+    std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask_));
     pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
   }
 }
@@ -64,17 +64,17 @@ void CmdFastWorker::LoadWork() {
 void CmdSlowWorker::LoadWork() {
   {
     std::unique_lock lock(pool_->slowMutex_);
-    while (pool_->slowTasks_.empty() && loopMore) {  // loopMore is used to get the fast worker
+    while (pool_->slowTasks_.empty() && loopMore_) {  // loopMore is used to get the fast worker
       if (!running_) {
         return;
       }
-      pool_->slowCondition_.wait_for(lock, std::chrono::milliseconds(waitTime));
-      loopMore = false;
+      pool_->slowCondition_.wait_for(lock, std::chrono::milliseconds(waitTime_));
+      loopMore_ = false;
     }
 
     const auto num = std::min(static_cast<int>(pool_->slowTasks_.size()), onceTask_);
     if (num > 0) {
-      std::move(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num, std::back_inserter(selfTask));
+      std::move(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num, std::back_inserter(selfTask_));
       pool_->slowTasks_.erase(pool_->slowTasks_.begin(), pool_->slowTasks_.begin() + num);
       return;  // If the slow task is obtained, the fast task is no longer obtained
     }
@@ -82,11 +82,11 @@ void CmdSlowWorker::LoadWork() {
 
   {
     std::unique_lock lock(pool_->fastMutex_);
-    loopMore = true;
+    loopMore_ = true;
 
     const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
     if (num > 0) {
-      std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask));
+      std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask_));
       pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
     }
   }

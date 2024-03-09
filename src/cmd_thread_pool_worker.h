@@ -32,7 +32,7 @@ class CmdWorkThreadPoolWorker {
   virtual ~CmdWorkThreadPoolWorker() = default;
 
  protected:
-  std::vector<std::shared_ptr<CmdThreadPoolTask>> selfTask;  // the task that the worker get from the thread pool
+  std::vector<std::shared_ptr<CmdThreadPoolTask>> selfTask_;  // the task that the worker get from the thread pool
   CmdThreadPool *pool_;
   const int onceTask_ = 0;  // the max task num that the worker can get from the thread pool
   const std::string name_;
@@ -60,8 +60,8 @@ class CmdSlowWorker : public CmdWorkThreadPoolWorker {
   void LoadWork() override;
 
  private:
-  bool loopMore = false;
-  int waitTime = 200;
+  bool loopMore_ = false;
+  int waitTime_ = 200;
 };
 
 }  // namespace pikiwidb
