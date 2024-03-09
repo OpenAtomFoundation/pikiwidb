@@ -25,6 +25,8 @@ namespace pikiwidb {
 const std::string kCmdNameDel = "del";
 const std::string kCmdNameExists = "exists";
 const std::string kCmdNamePExpire = "pexpire";
+const std::string kCmdNameExpireat = "expireat";
+const std::string kCmdNamePExpireat = "pexpireat";
 
 // string cmd
 const std::string kCmdNameSet = "set";
@@ -104,6 +106,9 @@ const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
 
 // zset cmd
+const std::string kCmdNameZAdd = "zadd";
+const std::string kCmdNameZRevrange = "zrevrange";
+const std::string kCmdNameZRangebyscore = "zrangebyscore";
 const std::string kCmdNameZRemRangeByScore = "zremrangebyscore";
 
 enum CmdFlags {

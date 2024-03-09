@@ -1508,7 +1508,7 @@ Status Storage::Scanx(const DataType& data_type, const std::string& start_key, c
   return Status::OK();
 }
 
-int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataType, Status>* type_status) {
+int32_t Storage::Expireat(const Slice& key, uint64_t timestamp) {
   Status s;
   int32_t count = 0;
   bool is_corruption = false;
@@ -1519,7 +1519,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kStrings] = s;
   }
 
   s = inst->HashesExpireat(key, timestamp);
@@ -1527,7 +1526,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kHashes] = s;
   }
 
   s = inst->SetsExpireat(key, timestamp);
@@ -1535,7 +1533,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kSets] = s;
   }
 
   s = inst->ListsExpireat(key, timestamp);
@@ -1543,7 +1540,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kLists] = s;
   }
 
   s = inst->ZsetsExpireat(key, timestamp);
@@ -1551,7 +1547,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kZSets] = s;
   }
 
   if (is_corruption) {

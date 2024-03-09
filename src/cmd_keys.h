@@ -43,4 +43,27 @@ class PExpireCmd : public BaseCmd {
  private:
   void DoCmd(PClient* client) override;
 };
+
+class ExpireatCmd : public BaseCmd {
+ public:
+  ExpireatCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class PExpireatCmd : public BaseCmd {
+ public:
+  PExpireatCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
 }  // namespace pikiwidb
