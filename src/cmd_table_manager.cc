@@ -98,6 +98,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SCard, 2);
   ADD_COMMAND(SMove, 4);
   ADD_COMMAND(SRandMember, -2);  // Added the count argument since Redis 3.2.0
+  ADD_COMMAND(SPop, -2);
 
   // list
   ADD_COMMAND(LPush, -3);
@@ -110,7 +111,10 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LInsert, 5);
 
   // zset
-  ADD_COMMAND(ZRevRangeByScore, 4);
+  ADD_COMMAND(ZAdd, -4);
+  ADD_COMMAND(ZRevrange, -4);
+  ADD_COMMAND(ZRangebyscore, -4);
+  ADD_COMMAND(ZRevRangeByScore, -4);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

@@ -121,4 +121,15 @@ class SRandMemberCmd : public BaseCmd {
   int num_rand = 1;
 };
 
+class SPopCmd : public BaseCmd {
+ public:
+  SPopCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

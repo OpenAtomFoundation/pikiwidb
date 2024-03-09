@@ -91,6 +91,7 @@ const std::string kCmdNameSUnion = "sunion";
 const std::string kCmdNameSCard = "scard";
 const std::string kCmdNameSMove = "smove";
 const std::string kCmdNameSRandMember = "srandmember";
+const std::string kCmdNameSPop = "spop";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
@@ -103,7 +104,10 @@ const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
 
 // zset cmd
-const std::string kCmdNameZRevRangeByScore = "zrevrangebyscroe";
+const std::string kCmdNameZAdd = "zadd";
+const std::string kCmdNameZRevrange = "zrevrange";
+const std::string kCmdNameZRangebyscore = "zrangebyscore";
+const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

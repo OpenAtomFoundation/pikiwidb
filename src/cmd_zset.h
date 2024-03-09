@@ -10,6 +10,41 @@
 
 namespace pikiwidb {
 
+class ZAddCmd : public BaseCmd {
+ public:
+  ZAddCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  std::string key_;
+  std::vector<storage::ScoreMember> score_members_;
+  void DoCmd(PClient *client) override;
+};
+
+class ZRevrangeCmd : public BaseCmd {
+ public:
+  ZRevrangeCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZRangebyscoreCmd : public BaseCmd {
+ public:
+  ZRangebyscoreCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 class ZRevRangeByScoreCmd : public BaseCmd {
  public:
   ZRevRangeByScoreCmd(const std::string &name, int16_t arity);
@@ -20,4 +55,5 @@ class ZRevRangeByScoreCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
+
 }  // namespace pikiwidb

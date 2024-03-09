@@ -8,6 +8,7 @@
 #include "cmd_set.h"
 #include <memory>
 #include <utility>
+#include "pstd/pstd_string.h"
 #include "store.h"
 
 namespace pikiwidb {
@@ -192,7 +193,6 @@ bool SRandMemberCmd::DoInitial(PClient* client) {
       return false;
     }
   }
-  client->SetKey(client->argv_[1]);
   return true;
 }
 
@@ -211,4 +211,43 @@ void SRandMemberCmd::DoCmd(PClient* client) {
   return;
 }
 
+SPopCmd::SPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SPopCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> delete_members;
+  if ((client->argv_.size()) == 2) {
+    int64_t cnt = 1;
+    std::vector<std::string> delete_member;
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_member, cnt);
+    if (!s.ok()) {
+      client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+      return;
+    }
+    client->AppendString(delete_member[0]);
+
+  } else if ((client->argv_.size()) == 3) {
+    std::vector<std::string> delete_members;
+    int64_t cnt = 1;
+    if (client->argv_[2].find(".") != std::string::npos || !pstd::String2int(client->argv_[2], &cnt)) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_members, cnt);
+    if (!s.ok()) {
+      client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
+      return;
+    }
+    client->AppendStringVector(delete_members);
+
+  } else {
+    client->SetRes(CmdRes::kWrongNum, "spop");
+    return;
+  }
+}
 }  // namespace pikiwidb
