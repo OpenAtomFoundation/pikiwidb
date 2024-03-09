@@ -236,8 +236,7 @@ void ZRemRangeByScoreCmd::DoCmd(PClient* client) {
 
   int32_t s_ret = 0;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
-                          ->ZRemrangebyscore(client->Key(), min_score, max_score,
-                                             left_close, right_close, &s_ret);
+                          ->ZRemrangebyscore(client->Key(), min_score, max_score, left_close, right_close, &s_ret);
   if (s.ok()) {
     client->AppendInteger(s_ret);
   } else {
