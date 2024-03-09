@@ -6,7 +6,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.14)
 PROJECT(PikiwiDB)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated -g -D'GIT_COMMIT_ID=\"${GIT_COMMIT_ID}\"'")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror=return-type -D'GIT_COMMIT_ID=\"${GIT_COMMIT_ID}\"'")
 
 # Avoid warning about DOWNLOAD_EXTRACT_TIMESTAMP in CMake 3.24:
 IF (CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
@@ -73,7 +73,7 @@ ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
         set(CMAKE_THREAD_LIBS_INIT "-lpthread")
     ELSEIF (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
         SET(CMAKE_EXE_LINKER_FLAGS "-static-libgcc -static-libstdc++")
-        SET(CMAKE_CXX_FLAGS "-pthread -Wl,--no-as-needed -ldl -Wno-restrict")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -Wl,--no-as-needed -ldl")
     ENDIF ()
     ADD_DEFINITIONS(-DOS_LINUX)
 ELSE ()
