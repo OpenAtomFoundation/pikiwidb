@@ -111,6 +111,11 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LTrim, 4);
   ADD_COMMAND(LSet, 4);
   ADD_COMMAND(LInsert, 5);
+  ADD_COMMAND(LPushx, -3);
+  ADD_COMMAND(RPushx, -3);
+  ADD_COMMAND(LPop, 2);
+  ADD_COMMAND(LIndex, 3);
+  ADD_COMMAND(LLen, 2);
 
   // zset
   ADD_COMMAND(ZAdd, -4);
