@@ -109,6 +109,7 @@ const std::string kCmdNameLInsert = "linsert";
 const std::string kCmdNameZAdd = "zadd";
 const std::string kCmdNameZRevrange = "zrevrange";
 const std::string kCmdNameZRangebyscore = "zrangebyscore";
+const std::string kCmdNameZCard = "zcard";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
