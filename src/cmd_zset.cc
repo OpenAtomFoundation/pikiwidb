@@ -269,7 +269,8 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
   }
   std::vector<storage::ScoreMember> score_members;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
-                          ->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count, offset, &score_members);
+                          ->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count,
+                                             offset, &score_members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
