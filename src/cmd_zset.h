@@ -55,9 +55,32 @@ class ZRemRangeByRankCmd : public BaseCmd {
  private:
   void DoCmd(PClient *client) override;
 };
+
 class ZCardCmd : public BaseCmd {
  public:
   ZCardCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class  ZRangeCmd : public BaseCmd {
+ public:
+  ZRangeCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZScoreCmd : public BaseCmd {
+ public:
+  ZScoreCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

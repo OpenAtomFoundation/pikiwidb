@@ -971,6 +971,64 @@ Status Redis::ZRevrangebyscore(const Slice& key, double min, double max, bool le
   return s;
 }
 
+Status Redis::ZRevrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
+                             int64_t count, int64_t offset, std::vector<std::string>* members) {
+  members->clear();
+  rocksdb::ReadOptions read_options;
+  const rocksdb::Snapshot* snapshot = nullptr;
+
+  std::string meta_value;
+  ScopeSnapshot ss(db_, &snapshot);
+  read_options.snapshot = snapshot;
+
+  bool left_no_limit = min.compare("-") == 0;
+  bool right_not_limit = max.compare("+") == 0;
+
+  BaseMetaKey base_meta_key(key);
+  Status s = db_->Get(read_options, handles_[kZsetsMetaCF], base_meta_key.Encode(), &meta_value);
+  if (s.ok()) {
+    ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.Count() == 0) {
+      return Status::NotFound();
+    } else {
+      uint64_t version = parsed_zsets_meta_value.Version();
+      int32_t left = parsed_zsets_meta_value.Count();
+      int64_t skipped = 0;
+      ZSetsMemberKey zsets_member_key(key, version, Slice());
+      KeyStatisticsDurationGuard guard(this, DataType::kZSets, key.ToString());
+      rocksdb::Iterator* iter = db_->NewIterator(read_options, handles_[kZsetsDataCF]);
+      for (iter->SeekForPrev(zsets_member_key.Encode()); iter->Valid() && left > 0; iter->Prev(), --left) {
+        bool left_pass = false;
+        bool right_pass = false;
+        ParsedZSetsMemberKey parsed_zsets_member_key(iter->key());
+        Slice member = parsed_zsets_member_key.member();
+        if (left_no_limit || (left_close && min.compare(member) >= 0) || (!left_close && min.compare(member) > 0)) {
+          left_pass = true;
+        }
+        if (right_not_limit || (right_close && max.compare(member) <= 0) || (!right_close && max.compare(member) < 0)) {
+          right_pass = true;
+        }
+        if (left_pass && right_pass) {
+          // skip offset
+          if (skipped < offset) {
+            ++skipped;
+            continue;
+          }
+          members->push_back(member.ToString());
+          if (count > 0 && members->size() == static_cast<size_t>(count)) {
+            break;
+          }
+        }
+        if (!right_pass) {
+          break;
+        }
+      }
+      delete iter;
+    }
+  }
+  return s;
+}
+
 Status Redis::ZRevrank(const Slice& key, const Slice& member, int32_t* rank) {
   *rank = -1;
   rocksdb::ReadOptions read_options;
