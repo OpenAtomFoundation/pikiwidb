@@ -250,4 +250,64 @@ void SPopCmd::DoCmd(PClient* client) {
     return;
   }
 }
+
+SMembersCmd::SMembersCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SMembersCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SMembersCmd::DoCmd(PClient* client) {
+  std::vector<std::string> delete_members;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SMembers(client->Key(), &delete_members);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "smembers cmd error");
+    return;
+  }
+  client->AppendStringVector(delete_members);
+}
+
+SDiffCmd::SDiffCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SDiffCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+void SDiffCmd::DoCmd(PClient* client) {
+  std::vector<std::string> diff_members;
+  std::vector<std::string> set_name_list;
+  for (int i = 1; i <= client->argv_.size(); i++) {
+    set_name_list.push_back(client->argv_[i]);
+  }
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SDiff(set_name_list, &diff_members);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "sdiff cmd error");
+    return;
+  }
+  client->AppendStringVector(diff_members);
+}
+
+SDiffStoreCmd::SDiffStoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SDiffStoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SDiffStoreCmd::DoCmd(PClient* client) {
+  std::vector<std::string> value_to_dest;
+  int32_t reply_num = 0;
+
+  std::vector<std::string> diff_keys(client->argv_.begin() + 2, client->argv_.end());
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->SDiffstore(client->Key(), diff_keys, value_to_dest, &reply_num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "sdiffstore cmd error");
+    return;
+  }
+  client->AppendInteger(reply_num);
+}
 }  // namespace pikiwidb
