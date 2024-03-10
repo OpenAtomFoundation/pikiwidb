@@ -67,7 +67,7 @@ class ZCardCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class  ZRangeCmd : public BaseCmd {
+class ZRangeCmd : public BaseCmd {
  public:
   ZRangeCmd(const std::string &name, int16_t arity);
 

@@ -1008,7 +1008,7 @@ Status Storage::ZRangebylex(const Slice& key, const Slice& min, const Slice& max
 }
 
 Status Storage::ZRevrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                                             int64_t count, int64_t offset, std::vector<std::string>* members){
+                               int64_t count, int64_t offset, std::vector<std::string>* members) {
   members->clear();
   auto& inst = GetDBInstance(key);
   return inst->ZRevrangebylex(key, min, max, left_close, right_close, count, offset, members);

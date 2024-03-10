@@ -838,7 +838,7 @@ class Storage {
                           int64_t offset, std::vector<ScoreMember>* score_members);
 
   Status ZRevrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                               int64_t count, int64_t offset, std::vector<std::string>* members);
+                        int64_t count, int64_t offset, std::vector<std::string>* members);
 
   // Returns the rank of member in the sorted set stored at key, with the scores
   // ordered from high to low. The rank (or index) is 0-based, which means that

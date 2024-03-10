@@ -348,7 +348,8 @@ void ZRangeCmd::DoCmd(PClient* client) {
               ->ZRevrangebyscore(client->Key(), start, stop, left_close, right_close, count, offset, &score_members);
     } else if (by_lex) {
       s = PSTORE.GetBackend(client->GetCurrentDB())
-              ->ZRevrangebylex(client->Key(), client->argv_[2], client->argv_[3], left_close, right_close, count, offset, &members);
+              ->ZRevrangebylex(client->Key(), client->argv_[2], client->argv_[3], left_close, right_close, count,
+                               offset, &members);
     } else {
       s = PSTORE.GetBackend(client->GetCurrentDB())->ZRevrange(client->Key(), start, stop, &score_members);
     }
@@ -357,7 +358,7 @@ void ZRangeCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
   }
-  //TODO(taota csx) bylex cmd's return.
+  // TODO(taota csx) bylex cmd's return.
   FitLimit(count, offset, static_cast<int64_t>(score_members.size()));
   size_t m_start = offset;
   size_t m_end = offset + count;
