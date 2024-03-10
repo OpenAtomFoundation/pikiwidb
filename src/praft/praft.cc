@@ -9,17 +9,36 @@
 //  praft.cc
 
 #include "praft.h"
+
 #include <cassert>
 #include <memory>
 #include <string>
+
 #include "client.h"
 #include "config.h"
-#include "pstd_string.h"
-#include "braft/configuration.h"
 #include "event_loop.h"
+#include "log.h"
 #include "pikiwidb.h"
+#include "praft.pb.h"
+#include "pstd_string.h"
+
+#define ERROR_LOG_AND_STATUS(msg) \
+  ({                              \
+    ERROR(msg);                   \
+    butil::Status(EINVAL, msg);   \
+  })
 
 namespace pikiwidb {
+
+class DummyServiceImpl : public DummyService {
+ public:
+  explicit DummyServiceImpl(PRaft* praft) : praft_(praft) {}
+  void DummyMethod(::google::protobuf::RpcController* controller, const ::pikiwidb::DummyRequest* request,
+                   ::pikiwidb::DummyResponse* response, ::google::protobuf::Closure* done) {}
+
+ private:
+  PRaft* praft_;
+};
 
 PRaft& PRaft::Instance() {
   static PRaft store;
@@ -35,18 +54,15 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   DummyServiceImpl service(&PRAFT);
   auto port = g_config.port + pikiwidb::g_config.raft_port_offset;
   // Add your service into RPC server
-  if (server_->AddService(&service, 
-                        brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-      LOG(ERROR) << "Fail to add service";
-      return {EINVAL, "Fail to add service"};
+  if (server_->AddService(&service, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+    return ERROR_LOG_AND_STATUS("Failed to add service");
   }
   // raft can share the same RPC server. Notice the second parameter, because
   // adding services into a running server is not allowed and the listen
   // address of this server is impossible to get before the server starts. You
   // have to specify the address of the server.
   if (braft::add_service(server_.get(), port) != 0) {
-      LOG(ERROR) << "Fail to add raft service";
-      return {EINVAL, "Fail to add raft service"};
+    return ERROR_LOG_AND_STATUS("Failed to add raft service");
   }
 
   // It's recommended to start the server before Counter is started to avoid
@@ -55,8 +71,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   // Notice the default options of server is used here. Check out details from
   // the doc of brpc if you would like change some options;
   if (server_->Start(port, nullptr) != 0) {
-      LOG(ERROR) << "Fail to start Server";
-      return {EINVAL, "Fail to start Server"};
+    return ERROR_LOG_AND_STATUS("Failed to start server");
   }
 
   // It's ok to start PRaft;
@@ -68,27 +83,26 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   butil::ip_t ip;
   auto ret = butil::str2ip(g_config.ip.c_str(), &ip);
   if (ret != 0) {
-    LOG(ERROR) << "Fail to covert str_ip to butil::ip_t";
-    return {EINVAL, "Fail to covert str_ip to butil::ip_t"};
+    return ERROR_LOG_AND_STATUS("Failed to convert str_ip to butil::ip_t");
   }
   butil::EndPoint addr(ip, port);
 
   // Default init in one node.
   /*
-  initial_conf takes effect only when the replication group is started from an empty node. 
-  The Configuration is restored from the snapshot and log files when the data in the replication group is not empty. 
-  initial_conf is used only to create replication groups. 
-  The first node adds itself to initial_conf and then calls add_peer to add other nodes. 
-  Set initial_conf to empty for other nodes. 
-  You can also start empty nodes simultaneously by setting the same inital_conf(ip:port of multiple nodes) for multiple nodes.
+  initial_conf takes effect only when the replication group is started from an empty node.
+  The Configuration is restored from the snapshot and log files when the data in the replication group is not empty.
+  initial_conf is used only to create replication groups.
+  The first node adds itself to initial_conf and then calls add_peer to add other nodes.
+  Set initial_conf to empty for other nodes.
+  You can also start empty nodes simultaneously by setting the same inital_conf(ip:port of multiple nodes) for multiple
+  nodes.
   */
-  std::string initial_conf("");
+  std::string initial_conf;
   if (!initial_conf_is_null) {
     initial_conf = raw_addr_ + ":0,";
   }
   if (node_options_.initial_conf.parse_from(initial_conf) != 0) {
-    LOG(ERROR) << "Fail to parse configuration, address: " << raw_addr_;
-    return {EINVAL, "Fail to parse address."};
+    return ERROR_LOG_AND_STATUS("Failed to parse configuration");
   }
 
   // node_options_.election_timeout_ms = FLAGS_election_timeout_ms;
@@ -100,11 +114,10 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   node_options_.raft_meta_uri = prefix + "/raft_meta";
   node_options_.snapshot_uri = prefix + "/snapshot";
   // node_options_.disable_cli = FLAGS_disable_cli;
-  node_ = std::make_unique<braft::Node>("pikiwidb", braft::PeerId(addr)); // group_id
+  node_ = std::make_unique<braft::Node>("pikiwidb", braft::PeerId(addr));  // group_id
   if (node_->init(node_options_) != 0) {
     node_.reset();
-    LOG(ERROR) << "Fail to init raft node";
-    return {EINVAL, "Fail to init raft node"};
+    return ERROR_LOG_AND_STATUS("Failed to init raft node");
   }
 
   return {0, "OK"};
@@ -112,7 +125,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
 
 bool PRaft::IsLeader() const {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
+    ERROR("Node is not initialized");
     return false;
   }
   return node_->is_leader();
@@ -120,24 +133,24 @@ bool PRaft::IsLeader() const {
 
 std::string PRaft::GetLeaderId() const {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return std::string("Fail to get leader id");
+    ERROR("Node is not initialized");
+    return "Fail to get leader id";
   }
   return node_->leader_id().to_string();
 }
 
 std::string PRaft::GetNodeId() const {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return std::string("Fail to get node id");
+    ERROR("Node is not initialized");
+    return "Fail to get node id";
   }
   return node_->node_id().to_string();
 }
 
 std::string PRaft::GetGroupId() const {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return std::string("Fail to get cluster id");
+    ERROR("Node is not initialized");
+    return "Fail to get cluster id";
   }
   return dbid_;
 }
@@ -145,7 +158,7 @@ std::string PRaft::GetGroupId() const {
 braft::NodeStatus PRaft::GetNodeStatus() const {
   braft::NodeStatus node_status;
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
+    ERROR("Node is not initialized");
   } else {
     node_->get_status(&node_status);
   }
@@ -155,14 +168,13 @@ braft::NodeStatus PRaft::GetNodeStatus() const {
 
 butil::Status PRaft::GetListPeers(std::vector<braft::PeerId>* peers) {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return {EINVAL, "Node is not initialized"};
+    ERROR_LOG_AND_STATUS("Node is not initialized");
   }
   return node_->list_peers(peers);
 }
 
 // Gets the cluster id, which is used to initialize node
-void PRaft::SendNodeInfoRequest(PClient *client) {
+void PRaft::SendNodeInfoRequest(PClient* client) {
   assert(client);
 
   UnboundedBuffer req;
@@ -171,7 +183,7 @@ void PRaft::SendNodeInfoRequest(PClient *client) {
   client->SendPacket(req);
 }
 
-void PRaft::SendNodeAddRequest(PClient *client) {
+void PRaft::SendNodeAddRequest(PClient* client) {
   assert(client);
 
   // Node id in braft are ip:port, the node id param in RAFT.NODE ADD cmd will be ignored.
@@ -248,12 +260,12 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(PClient* client, cons
       PRAFT.SendNodeAddRequest(client);
       is_disconnect = false;
     } else {
-      LOG(ERROR) << "Joined Raft cluster fail, because of invalid raft_group_id";
+      ERROR("Joined Raft cluster fail, because of invalid raft_group_id");
       join_client->SetRes(CmdRes::kErrOther, "Invalid raft_group_id");
       join_client->SendPacket(join_client->Message());
     }
   } else {
-    LOG(ERROR) << "Joined Raft cluster fail, " << start;
+    ERROR("Joined Raft cluster fail, str: {}", start);
     join_client->SetRes(CmdRes::kErrOther, std::string(start, len));
     join_client->SendPacket(join_client->Message());
   }
@@ -263,8 +275,7 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(PClient* client, cons
 
 butil::Status PRaft::AddPeer(const std::string& peer) {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return {EINVAL, "Node is not initialized"};
+    ERROR_LOG_AND_STATUS("Node is not initialized");
   }
 
   braft::SynchronizedClosure done;
@@ -281,8 +292,7 @@ butil::Status PRaft::AddPeer(const std::string& peer) {
 
 butil::Status PRaft::RemovePeer(const std::string& peer) {
   if (!node_) {
-    LOG(ERROR) << "Node is not initialized";
-    return {EINVAL, "Node is not initialized"};
+    return ERROR_LOG_AND_STATUS("Node is not initialized");
   }
 
   braft::SynchronizedClosure done;
@@ -300,8 +310,8 @@ butil::Status PRaft::RemovePeer(const std::string& peer) {
 void PRaft::OnJoinCmdConnectionFailed([[maybe_unused]] EventLoop* loop, const char* peer_ip, int port) {
   auto cli = join_ctx_.GetClient();
   if (cli) {
-    cli->SetRes(CmdRes::kErrOther,
-                "ERR failed to connect to cluster for join, please check logs " + std::string(peer_ip) + ":" + std::to_string(port));
+    cli->SetRes(CmdRes::kErrOther, "ERR failed to connect to cluster for join, please check logs " +
+                                       std::string(peer_ip) + ":" + std::to_string(port));
     cli->SendPacket(cli->Message());
   }
 }
