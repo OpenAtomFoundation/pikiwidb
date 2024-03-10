@@ -199,4 +199,20 @@ var _ = Describe("Zset", Ordered, func() {
 		Expect(vals).To(Equal([]string{}))
 	})
 
+	It("should ZCard", func() {
+		err := client.ZAdd(ctx, "zsetZCard", redis.Z{
+			Score:  1,
+			Member: "one",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zsetZCard", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		card, err := client.ZCard(ctx, "zsetZCard").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(card).To(Equal(int64(2)))
+	})
 })

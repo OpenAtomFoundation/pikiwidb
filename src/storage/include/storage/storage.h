@@ -999,7 +999,7 @@ class Storage {
   // return -1 operation exception errors happen in database
   // return 0 if key does not exist
   // return >=1 if the timueout was set
-  int32_t Expireat(const Slice& key, uint64_t timestamp, std::map<DataType, Status>* type_status);
+  int32_t Expireat(const Slice& key, uint64_t timestamp);
 
   // Remove the existing timeout on key, turning the key from volatile (a key
   // with an expire set) to persistent (a key that will never expire as no

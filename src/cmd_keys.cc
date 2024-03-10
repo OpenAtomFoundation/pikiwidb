@@ -72,7 +72,52 @@ void PExpireCmd::DoCmd(PClient* client) {
   if (res != -1) {
     client->AppendInteger(res);
   } else {
-    client->SetRes(CmdRes::kErrOther, "exists internal error");
+    client->SetRes(CmdRes::kErrOther, "pexpire internal error");
+  }
+}
+
+ExpireatCmd::ExpireatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
+
+bool ExpireatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ExpireatCmd::DoCmd(PClient* client) {
+  int64_t time_stamp = 0;
+  if (pstd::String2int(client->argv_[2], &time_stamp) == 0) {
+    client->SetRes(CmdRes ::kInvalidInt);
+    return;
+  }
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expireat(client->Key(), time_stamp);
+  if (res != -1) {
+    client->AppendInteger(res);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "expireat internal error");
+  }
+}
+
+PExpireatCmd::PExpireatCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
+
+bool PExpireatCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+// PExpireatCmd actually invoke Expireat
+void PExpireatCmd::DoCmd(PClient* client) {
+  int64_t time_stamp_ms = 0;
+  if (pstd::String2int(client->argv_[2], &time_stamp_ms) == 0) {
+    client->SetRes(CmdRes ::kInvalidInt);
+    return;
+  }
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expireat(client->Key(), time_stamp_ms / 1000);
+  if (res != -1) {
+    client->AppendInteger(res);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "pexpireat internal error");
   }
 }
 
