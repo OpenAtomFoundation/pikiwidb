@@ -47,6 +47,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, -2);
   ADD_COMMAND(PExpire, 3);
+  ADD_COMMAND(Expireat, 3);
+  ADD_COMMAND(PExpireat, 3);
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
@@ -115,6 +117,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(ZRevrange, -4);
   ADD_COMMAND(ZRangebyscore, -4);
   ADD_COMMAND(ZRemRangeByRank, 4);
+  ADD_COMMAND(ZCard, 2);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {
