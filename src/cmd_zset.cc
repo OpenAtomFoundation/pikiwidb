@@ -226,8 +226,11 @@ bool ZRevRangeByScoreCmd::DoInitial(PClient* client) {
 }
 
 void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
-  double min_score = 0, max_score = 0;
-  bool left_close = true, right_close = true, with_scores = false;
+  double min_score = 0;
+  double max_score = 0;
+  bool right_close = true;
+  bool left_close = true;
+  bool with_scores = false;
   int64_t offset = 0, count = -1;
   int32_t ret = DoScoreStrRange(client->argv_[3], client->argv_[2], &left_close, &right_close, &min_score, &max_score);
   if (ret == -1) {
@@ -296,7 +299,6 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
       client->AppendContent(score_members[start].member);
     }
   }
-  return;
 }
 
 }  // namespace pikiwidb
