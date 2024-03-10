@@ -134,7 +134,7 @@ bool PRaft::IsLeader() const {
 std::string PRaft::GetLeaderId() const {
   if (!node_) {
     ERROR("Node is not initialized");
-    return "Fail to get leader id";
+    return "Failed to get leader id";
   }
   return node_->leader_id().to_string();
 }
@@ -142,7 +142,7 @@ std::string PRaft::GetLeaderId() const {
 std::string PRaft::GetNodeId() const {
   if (!node_) {
     ERROR("Node is not initialized");
-    return "Fail to get node id";
+    return "Failed to get node id";
   }
   return node_->node_id().to_string();
 }
@@ -150,7 +150,7 @@ std::string PRaft::GetNodeId() const {
 std::string PRaft::GetGroupId() const {
   if (!node_) {
     ERROR("Node is not initialized");
-    return "Fail to get cluster id";
+    return "Failed to get cluster id";
   }
   return dbid_;
 }
@@ -203,14 +203,14 @@ std::tuple<int, bool> PRaft::ProcessClusterJoinCmdResponse(PClient* client, cons
   assert(start);
   auto join_client = join_ctx_.GetClient();
   if (!join_client) {
-    LOG(WARNING) << "No client when processing cluster join cmd response.";
+    WARN("No client when processing cluster join cmd response.");
     return std::make_tuple(0, true);
   }
 
   bool is_disconnect = true;
   std::string reply(start, len);
   if (reply.find("+OK") != std::string::npos) {
-    LOG(INFO) << "Joined Raft cluster, node id:" << PRAFT.GetNodeId() << "dbid:" << PRAFT.dbid_;
+    INFO("Joined Raft cluster, node id: {}, dbid: {}", PRAFT.GetNodeId(), PRAFT.dbid_);
     join_client->SetRes(CmdRes::kOK);
     join_client->SendPacket(join_client->Message());
     is_disconnect = false;
@@ -283,7 +283,7 @@ butil::Status PRaft::AddPeer(const std::string& peer) {
   done.wait();
 
   if (!done.status().ok()) {
-    LOG(WARNING) << "Fail to add peer " << peer << " to node " << node_->node_id() << ", status " << done.status();
+    WARN("Failed to add peer {} to node {}, status: {}", peer, node_->node_id().to_string(), done.status().error_str());
     return done.status();
   }
 
@@ -300,7 +300,8 @@ butil::Status PRaft::RemovePeer(const std::string& peer) {
   done.wait();
 
   if (!done.status().ok()) {
-    LOG(WARNING) << "Fail to remove peer " << peer << " from node " << node_->node_id() << ", status " << done.status();
+    WARN("Failed to remove peer {} from node {}, status: {}", peer, node_->node_id().to_string(),
+         done.status().error_str());
     return done.status();
   }
 
@@ -357,7 +358,7 @@ void PRaft::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done
 int PRaft::on_snapshot_load(braft::SnapshotReader* reader) { return 0; }
 
 void PRaft::on_leader_start(int64_t term) {
-  LOG(WARNING) << "Node " << node_->node_id() << "start to be leader, term" << term;
+  WARN("Node {} start to be leader, term={}", node_->node_id().to_string(), term);
 }
 
 void PRaft::on_leader_stop(const butil::Status& status) {}
