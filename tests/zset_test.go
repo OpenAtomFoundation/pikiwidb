@@ -175,21 +175,44 @@ var _ = Describe("Zset", Ordered, func() {
 		Expect(zRevRange.Val()).To(Equal([]string{"two", "one"}))
 	})
 
-        It("should ZCard", func() {
-		err :=client.ZAdd(ctx, "zsetZCard", redis.Z{
-			Score: 1,
+	It("should ZRevRangeByScore", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		vals, err := client.ZRevRangeByScore(
+			ctx, "zset", &redis.ZRangeBy{Max: "+inf", Min: "-inf"}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]string{"three", "two", "one"}))
+
+		vals, err = client.ZRevRangeByScore(
+			ctx, "zset", &redis.ZRangeBy{Max: "2", Min: "(1"}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]string{"two"}))
+
+		vals, err = client.ZRevRangeByScore(
+			ctx, "zset", &redis.ZRangeBy{Max: "(2", Min: "(1"}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]string{}))
+	})
+
+	It("should ZCard", func() {
+		err := client.ZAdd(ctx, "zsetZCard", redis.Z{
+			Score:  1,
 			Member: "one",
 		}).Err()
 		Expect(err).NotTo(HaveOccurred())
-                err =client.ZAdd(ctx, "zsetZCard", redis.Z{
-                        Score: 2,
-                        Member: "two",
-                }).Err()
+		err = client.ZAdd(ctx, "zsetZCard", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
 		Expect(err).NotTo(HaveOccurred())
 
-		card, err :=client.ZCard(ctx, "zsetZCard").Result()
+		card, err := client.ZCard(ctx, "zsetZCard").Result()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(card).To(Equal(int64(2)))
-        })
-
+	})
 })
