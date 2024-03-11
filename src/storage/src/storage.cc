@@ -2209,11 +2209,11 @@ Status Storage::OnBinlogWrite(const pikiwidb::Binlog& log) {
     switch (entry.op_type()) {
       case pikiwidb::OperateType::kPut: {
         assert(entry.has_value());
-        batch.Put(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
+        batch.Put(inst->GetColumnFamilyHandles()[entry.cf_idx()], entry.key(), entry.value());
       } break;
       case pikiwidb::OperateType::kDelete: {
         assert(!entry.has_value());
-        batch.Delete(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
+        batch.Delete(inst->GetColumnFamilyHandles()[entry.cf_idx()], entry.key());
       } break;
       default:
         assert(0);

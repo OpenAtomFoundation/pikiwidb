@@ -8,20 +8,8 @@
 #pragma once
 
 #include <future>
-#include <memory>
-#include <mutex>
-#include <tuple>
-#include <vector>
-#include <string>
 
-#include "braft/configuration.h"
 #include "braft/raft.h"
-#include "braft/util.h"
-#include "brpc/controller.h"
-#include "brpc/server.h"
-#include "butil/status.h"
-
-#include "net/tcp_connection.h"
 #include "rocksdb/status.h"
 
 namespace pikiwidb {
@@ -32,6 +20,7 @@ namespace pikiwidb {
 
 class PClient;
 class EventLoop;
+class Binlog;
 
 class JoinCmdContext {
   friend class PRaft;
@@ -93,8 +82,7 @@ class PRaftWriteDoneClosure : public braft::Closure {
 
 class PRaft : public braft::StateMachine {
  public:
-  PRaft() : server_(nullptr), node_(nullptr) {}
-
+  PRaft() = default;
   ~PRaft() override = default;
 
   static PRaft& Instance();
@@ -109,8 +97,7 @@ class PRaft : public braft::StateMachine {
 
   void ShutDown();
   void Join();
-  void Apply(braft::Task& task);
-  void Apply(std::string&& data, std::promise<rocksdb::Status>&& promise);
+  void AppendLog(const Binlog& log, std::promise<rocksdb::Status>&& promise);
 
   //===--------------------------------------------------------------------===//
   // ClusterJoin command
@@ -145,8 +132,8 @@ class PRaft : public braft::StateMachine {
   void on_start_following(const ::braft::LeaderChangeContext& ctx) override;
 
  private:
-  std::unique_ptr<brpc::Server> server_;  // brpc
-  std::unique_ptr<braft::Node> node_;
+  std::unique_ptr<brpc::Server> server_{nullptr};  // brpc
+  std::unique_ptr<braft::Node> node_{nullptr};
   braft::NodeOptions node_options_;  // options for raft node
   std::string raw_addr_;             // ip:port of this node
 

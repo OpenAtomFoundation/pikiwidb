@@ -13,14 +13,19 @@
 #include <cassert>
 #include <string>
 
-#include "binlog.pb.h"
+#include "braft/util.h"
 #include "brpc/closure_guard.h"
-#include "client.h"
-#include "config.h"
+#include "brpc/server.h"
+
 #include "net/event_loop.h"
-#include "pikiwidb.h"
 #include "pstd/log.h"
 #include "pstd/pstd_string.h"
+
+#include "binlog.pb.h"
+#include "client.h"
+#include "config.h"
+#include "pikiwidb.h"
+#include "rocksdb/status.h"
 #include "store.h"
 
 #define ERROR_LOG_AND_STATUS(msg) \
@@ -340,50 +345,49 @@ void PRaft::Join() {
   }
 }
 
-void PRaft::Apply(braft::Task& task) {
-  if (node_) {
-    node_->apply(task);
+void PRaft::AppendLog(const Binlog& log, std::promise<rocksdb::Status>&& promise) {
+  assert(node_);
+  butil::IOBuf data;
+  butil::IOBufAsZeroCopyOutputStream wrapper(&data);
+  auto done = new PRaftWriteDoneClosure(std::move(promise));
+  if (!log.SerializeToZeroCopyStream(&wrapper)) {
+    done->SetStatus(rocksdb::Status::Incomplete("Failed to serialize binlog"));
+    done->Run();
+    return;
   }
-}
-
-void PRaft::Apply(std::string&& data, std::promise<rocksdb::Status>&& promise) {
-  if (node_) {
-    butil::IOBuf io_data;
-    auto res = io_data.append(data);
-    if (res != 0) {
-      ERROR("Failed to append in IOBuf");
-      return;
-    }
-    auto done = new PRaftWriteDoneClosure(std::move(promise));
-    braft::Task task;
-    task.data = &io_data;
-    task.done = done;
-    node_->apply(task);
-  }
+  DEBUG("append binlog: {}", log.ShortDebugString());
+  braft::Task task;
+  task.data = &data;
+  task.done = done;
+  node_->apply(task);
 }
 
 void PRaft::on_apply(braft::Iterator& iter) {
   // A batch of tasks are committed, which must be processed through
-  // |iter|
   for (; iter.valid(); iter.next()) {
     auto done = iter.done();
-    assert(done);
     brpc::ClosureGuard done_guard(done);
-    auto write_done = dynamic_cast<PRaftWriteDoneClosure*>(done);
 
-    // parse binlog
     Binlog log;
     butil::IOBufAsZeroCopyInputStream wrapper(iter.data());
-    if (!log.ParseFromZeroCopyStream(&wrapper)) {
-      // TODO(): handle error
-      write_done->SetStatus(rocksdb::Status::Incomplete("Failed to parse from protobuf when on_apply"));
+    bool success = log.ParseFromZeroCopyStream(&wrapper);
+    DEBUG("apply binlog: {}", log.ShortDebugString());
+
+    if (!success) {
+      static constexpr std::string_view kMsg = "Failed to parse from protobuf when on_apply";
+      ERROR(kMsg);
+      if (done) {  // in leader
+        dynamic_cast<PRaftWriteDoneClosure*>(done)->SetStatus(rocksdb::Status::Incomplete(kMsg));
+      }
       braft::run_closure_in_bthread(done_guard.release());
       return;
     }
 
     auto s = PSTORE.GetBackend(log.db_id())->OnBinlogWrite(log);
-    write_done->SetStatus(s);
-    //  _applied_index = iter.index();
+    if (done) {  // in leader
+      dynamic_cast<PRaftWriteDoneClosure*>(done)->SetStatus(s);
+    }
+    //  _applied_index = iter.index(); // consider to maintain a member applied_idx
     braft::run_closure_in_bthread(done_guard.release());
   }
 }
