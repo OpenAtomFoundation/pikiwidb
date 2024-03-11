@@ -19,6 +19,7 @@
 #include "storage/slot_indexer.h"
 #include "storage/storage.h"
 #include "storage/util.h"
+#include "binlog.pb.h"
 
 namespace storage {
 extern std::string BitOpOperate(BitOpType op, const std::vector<std::string>& src_values, int64_t max_len);
@@ -2198,6 +2199,39 @@ void Storage::DisableWal(const bool is_wal_disable) {
   for (const auto& inst : insts_) {
     inst->SetWriteWalOptions(is_wal_disable);
   }
+}
+
+void Storage::OnBinlogWrite(const pikiwidb::Binlog& log) {
+  // ClosureGuard gd(task.done_.get());
+  // Binlog log;
+  // auto res = log.ParseFromString(task.data_);
+  // RocksClosure* done = dynamic_cast<RocksClosure*>(task.done_.get());  // NOLINT
+  // assert(done);
+  // if (!res) {
+  //   LOG(ERROR) << "Failed to deserialize binlog";
+  //   done->SetStatus(Status::Incomplete("Failed to deserialize binlog"));
+  //   return;
+  // }
+  // auto& inst = insts_[log.slot_idx()];
+
+  // rocksdb::WriteBatch batch;
+  // for (const auto& entry : log.entries()) {
+  //   switch (entry.op_type()) {
+  //     case OperateType::kPut: {
+  //       assert(entry.has_value());
+  //       batch.Put(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key(), entry.value());
+  //     } break;
+  //     case OperateType::kDelete: {
+  //       assert(!entry.has_value());
+  //       batch.Delete(inst->GetColumnFamilyHandle(entry.cf_idx()), entry.key());
+  //     } break;
+  //     default:
+  //       assert(0);
+  //   }
+  // }
+
+  // auto s = inst->GetDB()->Write(inst->GetWriteOptions(), &batch);
+  // done->SetStatus(std::move(s));
 }
 
 }  //  namespace storage

@@ -25,7 +25,9 @@
 #include "pstd/pstd_mutex.h"
 #include "storage/slot_indexer.h"
 
-#include "braft/raft.h"
+namespace pikiwidb {
+class Binlog;
+}
 
 namespace storage {
 
@@ -1078,6 +1080,7 @@ class Storage {
 
   Status SetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  void OnBinlogWrite(const pikiwidb::Binlog& log);
 
  private:
   std::vector<std::unique_ptr<Redis>> insts_;

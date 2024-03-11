@@ -2,11 +2,14 @@
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
-
-FILE(GLOB PRAFT_PROTO "${CMAKE_CURRENT_SOURCE_DIR}/*.proto")
-EXECUTE_PROCESS(
-    COMMAND ${PROTOBUF_PROTOC_EXECUTABLE} --cpp_out=${CMAKE_CURRENT_SOURCE_DIR} -I=${CMAKE_CURRENT_SOURCE_DIR} ${PRAFT_PROTO}
+ADD_CUSTOM_COMMAND(
+  OUTPUT "${PROTO_OUTPUT_DIR}/binlog.pb.cc"
+  COMMAND ${PROTOBUF_PROTOC_EXECUTABLE}
+  ARGS -I ${CMAKE_CURRENT_SOURCE_DIR}
+    --cpp_out ${PROTO_OUTPUT_DIR}
+    ${CMAKE_CURRENT_SOURCE_DIR}/binlog.proto
 )
+ADD_LIBRARY(binlog_pb STATIC "${PROTO_OUTPUT_DIR}/binlog.pb.cc")
 
 FILE(GLOB PRAFT_SRC
     "${CMAKE_CURRENT_SOURCE_DIR}/*.cc"
