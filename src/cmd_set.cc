@@ -279,7 +279,7 @@ bool SDiffCmd::DoInitial(PClient* client) {
 
 void SDiffCmd::DoCmd(PClient* client) {
   std::vector<std::string> diff_members;
-  std::vector<std::string> diff_keys(client->argv_.begin() + 2, client->argv_.end());
+  std::vector<std::string> diff_keys(client->argv_.begin() + 1, client->argv_.end());
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SDiff(diff_keys, &diff_members);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sdiff cmd error");
