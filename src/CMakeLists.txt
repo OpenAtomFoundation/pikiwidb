@@ -21,21 +21,22 @@ TARGET_INCLUDE_DIRECTORIES(pikiwidb
         PRIVATE ${PROJECT_SOURCE_DIR}/src/praft
         )
 
-IF (CMAKE_SYSTEM_NAME MATCHES "Darwin")
-    FIND_LIBRARY(COREFOUNDATION_LIBRARY CoreFoundation)
-    FIND_LIBRARY(CSSERVICES_LIBRARY CoreServices)
-    FIND_LIBRARY(CFN_LIBRARY CFNetwork)
-    FIND_LIBRARY(SCY_LIBRARY Security)
-    FIND_LIBRARY(COREGRAPHICS_LIBRARY CoreGraphics)
-    FIND_LIBRARY(CORETEXT_LIBRARY CoreText)
-    FIND_LIBRARY(Foundation_LIBRARY Foundation)
-    LIST(APPEND MAC_LIBRARY ${COREFOUNDATION_LIBRARY} ${CSSERVICES_LIBRARY} ${CFN_LIBRARY} ${SCY_LIBRARY} ${COREGRAPHICS_LIBRARY} ${CORETEXT_LIBRARY} ${Foundation_LIBRARY})
-ELSEIF (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    SET(MAC_LIBRARY "")
-ELSE ()
-    MESSAGE(FATAL_ERROR "only support linux or macOS")
-ENDIF ()
 
-TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rt crypto dl z praft "${MAC_LIBRARY}")
+IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    SET(LIB rt)
+ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    SET(LIB
+            "-framework CoreFoundation"
+            "-framework CoreGraphics"
+            "-framework CoreData"
+            "-framework CoreText"
+            "-framework Security"
+            "-framework Foundation"
+            "-Wl,-U,_MallocExtension_ReleaseFreeMemory"
+            "-Wl,-U,_ProfilerStart"
+            "-Wl,-U,_ProfilerStop")
+ENDIF()
+
+TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; pstd braft brpc ssl crypto zlib protobuf leveldb gflags  z praft "${LIB}")
 
 SET_TARGET_PROPERTIES(pikiwidb PROPERTIES LINKER_LANGUAGE CXX)
