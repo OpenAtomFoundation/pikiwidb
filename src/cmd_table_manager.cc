@@ -117,6 +117,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(ZRevrange, -4);
   ADD_COMMAND(ZRangebyscore, -4);
   ADD_COMMAND(ZRemRangeByRank, 4);
+  ADD_COMMAND(ZRevRangeByScore, -4);
   ADD_COMMAND(ZCard, 2);
   ADD_COMMAND(ZScore, 3);
   ADD_COMMAND(ZRange, -4);

@@ -110,6 +110,7 @@ const std::string kCmdNameZAdd = "zadd";
 const std::string kCmdNameZRevrange = "zrevrange";
 const std::string kCmdNameZRangebyscore = "zrangebyscore";
 const std::string kCmdNameZRemRangeByRank = "zremrangebyrank";
+const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
 const std::string kCmdNameZCard = "zcard";
 const std::string kCmdNameZScore = "zscore";
 const std::string kCmdNameZRange = "zrange";

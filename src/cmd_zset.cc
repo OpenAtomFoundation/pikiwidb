@@ -402,4 +402,88 @@ void ZScoreCmd::DoCmd(PClient* client) {
   }
 }
 
+ZRevRangeByScoreCmd::ZRevRangeByScoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRevRangeByScoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
+  double min_score = 0;
+  double max_score = 0;
+  bool right_close = true;
+  bool left_close = true;
+  bool with_scores = false;
+  int64_t offset = 0, count = -1;
+  int32_t ret = DoScoreStrRange(client->argv_[3], client->argv_[2], &left_close, &right_close, &min_score, &max_score);
+  if (ret == -1) {
+    client->SetRes(CmdRes::kErrOther, "min or max is not a float");
+    return;
+  }
+  size_t argc = client->argv_.size();
+  if (argc >= 5) {
+    size_t index = 4;
+    while (index < argc) {
+      if (strcasecmp(client->argv_[index].data(), "withscores") == 0) {
+        with_scores = true;
+      } else if (strcasecmp(client->argv_[index].data(), "limit") == 0) {
+        if (index + 3 > argc) {
+          client->SetRes(CmdRes::kSyntaxErr);
+          return;
+        }
+        index++;
+        if (pstd::String2int(client->argv_[index].data(), client->argv_[index].size(), &offset) == 0) {
+          client->SetRes(CmdRes::kInvalidInt);
+          return;
+        }
+        index++;
+        if (pstd::String2int(client->argv_[index].data(), client->argv_[index].size(), &count) == 0) {
+          client->SetRes(CmdRes::kInvalidInt);
+          return;
+        }
+      } else {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      index++;
+    }
+  }
+
+  if (min_score == storage::ZSET_SCORE_MAX || max_score == storage::ZSET_SCORE_MIN) {
+    client->AppendContent("*0");
+    return;
+  }
+  std::vector<storage::ScoreMember> score_members;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count,
+                                             offset, &score_members);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+  FitLimit(count, offset, static_cast<int64_t>(score_members.size()));
+  size_t start = offset;
+  size_t end = offset + count;
+  if (with_scores) {
+    char buf[32];
+    int64_t len = 0;
+    client->AppendArrayLen(count * 2);
+    for (; start < end; start++) {
+      client->AppendStringLenUint64(score_members[start].member.size());
+      client->AppendContent(score_members[start].member);
+      len = pstd::D2string(buf, sizeof(buf), score_members[start].score);
+      client->AppendStringLen(len);
+      client->AppendContent(buf);
+    }
+  } else {
+    client->AppendArrayLen(count);
+    for (; start < end; start++) {
+      client->AppendStringLenUint64(score_members[start].member.size());
+      client->AppendContent(score_members[start].member);
+    }
+  }
+}
+
 }  // namespace pikiwidb
