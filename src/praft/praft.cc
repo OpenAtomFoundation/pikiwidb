@@ -344,11 +344,29 @@ void PRaft::Apply(braft::Task& task) {
   }
 }
 
-// @braft::StateMachine
+void PRaft::Apply(std::string&& data, std::promise<rocksdb::Status>&& promise) {
+  if (node_) {
+    butil::IOBuf io_data;
+    auto res = io_data.append(data);
+    if (res != 0) {
+      ERROR("Failed to append in IOBuf");
+      return;
+    }
+    auto done = new PRaftWriteDoneClosure(std::move(promise));
+    braft::Task task;
+    task.data = &io_data;
+    task.done = done;
+    node_->apply(task);
+  }
+}
+
 void PRaft::on_apply(braft::Iterator& iter) {
   // A batch of tasks are committed, which must be processed through
   // |iter|
   for (; iter.valid(); iter.next()) {
+    auto done = iter.done();
+    brpc::ClosureGuard done_guard(done);
+    // TODO(longfar): call the right inst's WriteCallback()
   }
 }
 

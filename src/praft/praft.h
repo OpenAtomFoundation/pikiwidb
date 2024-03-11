@@ -76,6 +76,21 @@ class JoinCmdContext {
   int port_ = 0;
 };
 
+class PRaftWriteDoneClosure : public braft::Closure {
+ public:
+  explicit PRaftWriteDoneClosure(std::promise<rocksdb::Status>&& promise) : promise_(std::move(promise)) {}
+
+  void Run() override {
+    promise_.set_value(result_);
+    delete this;
+  }
+  void SetStatus(rocksdb::Status status) { result_ = std::move(status); }
+
+ private:
+  std::promise<rocksdb::Status> promise_;
+  rocksdb::Status result_{rocksdb::Status::Aborted("Unknown error")};
+};
+
 class PRaft : public braft::StateMachine {
  public:
   PRaft() : server_(nullptr), node_(nullptr) {}
@@ -95,6 +110,7 @@ class PRaft : public braft::StateMachine {
   void ShutDown();
   void Join();
   void Apply(braft::Task& task);
+  void Apply(std::string&& data, std::promise<rocksdb::Status>&& promise);
 
   //===--------------------------------------------------------------------===//
   // ClusterJoin command
