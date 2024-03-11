@@ -17,5 +17,6 @@ message BinlogEntry {
 
 message Binlog {
   uint32 db_id = 1;
-  repeated BinlogEntry entries = 2;
+  uint32 slot_idx = 2;
+  repeated BinlogEntry entries = 3;
 }

@@ -210,6 +210,8 @@ class Redis {
   Status SetSmallCompactionThreshold(uint64_t small_compaction_threshold);
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   void GetRocksDBInfo(std::string& info, const char* prefix);
+  auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
+  auto GetColumnFamilyHandle(int32_t idx) const -> rocksdb::ColumnFamilyHandle* { return handles_[idx]; }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
