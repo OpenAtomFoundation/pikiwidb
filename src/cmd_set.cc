@@ -258,6 +258,7 @@ bool SMembersCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
+
 void SMembersCmd::DoCmd(PClient* client) {
   std::vector<std::string> delete_members;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SMembers(client->Key(), &delete_members);
@@ -275,13 +276,11 @@ bool SDiffCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
+
 void SDiffCmd::DoCmd(PClient* client) {
   std::vector<std::string> diff_members;
-  std::vector<std::string> set_name_list;
-  for (int i = 1; i <= client->argv_.size(); i++) {
-    set_name_list.push_back(client->argv_[i]);
-  }
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SDiff(set_name_list, &diff_members);
+  std::vector<std::string> diff_keys(client->argv_.begin() + 2, client->argv_.end());
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SDiff(diff_keys, &diff_members);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sdiff cmd error");
     return;
@@ -300,10 +299,9 @@ bool SDiffStoreCmd::DoInitial(PClient* client) {
 void SDiffStoreCmd::DoCmd(PClient* client) {
   std::vector<std::string> value_to_dest;
   int32_t reply_num = 0;
-
-  std::vector<std::string> diff_keys(client->argv_.begin() + 2, client->argv_.end());
+  std::vector<std::string> diffstore_keys(client->argv_.begin() + 2, client->argv_.end());
   storage::Status s =
-      PSTORE.GetBackend(client->GetCurrentDB())->SDiffstore(client->Key(), diff_keys, value_to_dest, &reply_num);
+      PSTORE.GetBackend(client->GetCurrentDB())->SDiffstore(client->Key(), diffstore_keys, value_to_dest, &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sdiffstore cmd error");
     return;
