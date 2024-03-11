@@ -28,6 +28,10 @@ TARGET_INCLUDE_DIRECTORIES(praft
         PRIVATE ${PROJECT_SOURCE_DIR}/src/praft
 )
 
-TARGET_LINK_LIBRARIES(praft net; dl; fmt; storage; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rocksdb rt crypto dl z)
+IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    SET(PRAFT_LIB ${PRAFT_LIB} rt)
+ENDIF()
+
+TARGET_LINK_LIBRARIES(praft net; dl; fmt; storage; pstd braft brpc ssl crypto zlib protobuf leveldb gflags rocksdb z ${PRAFT_LIB})
 
 SET_TARGET_PROPERTIES(praft PROPERTIES LINKER_LANGUAGE CXX)
