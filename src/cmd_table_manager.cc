@@ -116,11 +116,13 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(ZAdd, -4);
   ADD_COMMAND(ZRevrange, -4);
   ADD_COMMAND(ZRangebyscore, -4);
-  ADD_COMMAND(ZRemRangeByRank, 4);
-  ADD_COMMAND(ZRevRangeByScore, -4);
+  ADD_COMMAND(ZRemrangebyrank, 4);
+  ADD_COMMAND(ZRevrangebyscore, -4);
   ADD_COMMAND(ZCard, 2);
   ADD_COMMAND(ZScore, 3);
   ADD_COMMAND(ZRange, -4);
+  ADD_COMMAND(ZRangebylex,-3);
+  ADD_COMMAND(ZRevrangebylex,-3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

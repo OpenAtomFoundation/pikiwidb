@@ -45,9 +45,9 @@ class ZRangebyscoreCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class ZRemRangeByRankCmd : public BaseCmd {
+class ZRemrangebyrankCmd : public BaseCmd {
  public:
-  ZRemRangeByRankCmd(const std::string &name, int16_t arity);
+  ZRemrangebyrankCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -56,9 +56,9 @@ class ZRemRangeByRankCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class ZRevRangeByScoreCmd : public BaseCmd {
+class ZRevrangebyscoreCmd : public BaseCmd {
  public:
-  ZRevRangeByScoreCmd(const std::string &name, int16_t arity);
+  ZRevrangebyscoreCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
@@ -92,6 +92,28 @@ class ZRangeCmd : public BaseCmd {
 class ZScoreCmd : public BaseCmd {
  public:
   ZScoreCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZRangebylexCmd : public BaseCmd {
+ public:
+  ZRangebylexCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZRevrangebylexCmd : public BaseCmd {
+ public:
+  ZRevrangebylexCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;
