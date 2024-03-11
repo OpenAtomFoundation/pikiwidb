@@ -13,6 +13,7 @@
 #include <cassert>
 #include <string>
 
+#include "binlog.pb.h"
 #include "brpc/closure_guard.h"
 #include "client.h"
 #include "config.h"
@@ -20,6 +21,7 @@
 #include "pikiwidb.h"
 #include "pstd/log.h"
 #include "pstd/pstd_string.h"
+#include "store.h"
 
 #define ERROR_LOG_AND_STATUS(msg) \
   ({                              \
@@ -365,8 +367,24 @@ void PRaft::on_apply(braft::Iterator& iter) {
   // |iter|
   for (; iter.valid(); iter.next()) {
     auto done = iter.done();
+    assert(done);
     brpc::ClosureGuard done_guard(done);
-    // TODO(longfar): call the right inst's WriteCallback()
+    auto write_done = dynamic_cast<PRaftWriteDoneClosure*>(done);
+
+    // parse binlog
+    Binlog log;
+    butil::IOBufAsZeroCopyInputStream wrapper(iter.data());
+    if (!log.ParseFromZeroCopyStream(&wrapper)) {
+      // TODO(): handle error
+      write_done->SetStatus(rocksdb::Status::Incomplete("Failed to parse from protobuf when on_apply"));
+      braft::run_closure_in_bthread(done_guard.release());
+      return;
+    }
+
+    auto s = PSTORE.GetBackend(log.db_id())->OnBinlogWrite(log);
+    write_done->SetStatus(s);
+    //  _applied_index = iter.index();
+    braft::run_closure_in_bthread(done_guard.release());
   }
 }
 
