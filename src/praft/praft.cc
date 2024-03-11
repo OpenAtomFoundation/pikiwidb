@@ -11,16 +11,15 @@
 #include "praft.h"
 
 #include <cassert>
-#include <memory>
 #include <string>
 
+#include "brpc/closure_guard.h"
 #include "client.h"
 #include "config.h"
-#include "event_loop.h"
-#include "log.h"
+#include "net/event_loop.h"
 #include "pikiwidb.h"
-#include "praft.pb.h"
-#include "pstd_string.h"
+#include "pstd/log.h"
+#include "pstd/pstd_string.h"
 
 #define ERROR_LOG_AND_STATUS(msg) \
   ({                              \
@@ -30,15 +29,15 @@
 
 namespace pikiwidb {
 
-class DummyServiceImpl : public DummyService {
- public:
-  explicit DummyServiceImpl(PRaft* praft) : praft_(praft) {}
-  void DummyMethod(::google::protobuf::RpcController* controller, const ::pikiwidb::DummyRequest* request,
-                   ::pikiwidb::DummyResponse* response, ::google::protobuf::Closure* done) {}
+// class DummyServiceImpl : public DummyService {
+//  public:
+//   explicit DummyServiceImpl(PRaft* praft) : praft_(praft) {}
+//   void DummyMethod(::google::protobuf::RpcController* controller, const ::pikiwidb::DummyRequest* request,
+//                    ::pikiwidb::DummyResponse* response, ::google::protobuf::Closure* done) {}
 
- private:
-  PRaft* praft_;
-};
+//  private:
+//   PRaft* praft_;
+// };
 
 PRaft& PRaft::Instance() {
   static PRaft store;
@@ -51,12 +50,12 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   }
 
   server_ = std::make_unique<brpc::Server>();
-  DummyServiceImpl service(&PRAFT);
+  // DummyServiceImpl service(&PRAFT);
   auto port = g_config.port + pikiwidb::g_config.raft_port_offset;
   // Add your service into RPC server
-  if (server_->AddService(&service, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-    return ERROR_LOG_AND_STATUS("Failed to add service");
-  }
+  // if (server_->AddService(&service, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
+  //   return ERROR_LOG_AND_STATUS("Failed to add service");
+  // }
   // raft can share the same RPC server. Notice the second parameter, because
   // adding services into a running server is not allowed and the listen
   // address of this server is impossible to get before the server starts. You

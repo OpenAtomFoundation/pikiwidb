@@ -7,9 +7,8 @@
 
 #include "cmd_table_manager.h"
 #include "common.h"
-#include "event_loop.h"
 #include "io_thread_pool.h"
-#include "tcp_connection.h"
+#include "net/tcp_connection.h"
 #include "praft/praft.h"
 
 #define kPIKIWIDB_VERSION "4.0.0"

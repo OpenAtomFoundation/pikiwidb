@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include <future>
 #include <memory>
 #include <mutex>
 #include <tuple>
@@ -20,15 +21,17 @@
 #include "brpc/server.h"
 #include "butil/status.h"
 
-#include "client.h"
-#include "event_loop.h"
-#include "tcp_connection.h"
+#include "net/tcp_connection.h"
+#include "rocksdb/status.h"
 
 namespace pikiwidb {
 
 #define RAFT_DBID_LEN 32
 
 #define PRAFT PRaft::Instance()
+
+class PClient;
+class EventLoop;
 
 class JoinCmdContext {
   friend class PRaft;
