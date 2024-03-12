@@ -29,6 +29,25 @@ void LPushCmd::DoCmd(PClient* client) {
   }
 }
 
+LPushxCmd::LPushxCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LPushxCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LPushxCmd::DoCmd(PClient* client) {
+  std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
+  uint64_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LPushx(client->Key(), list_values, &reply_num);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
 RPushCmd::RPushCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
 
@@ -45,6 +64,45 @@ void RPushCmd::DoCmd(PClient* client) {
     client->AppendInteger(reply_num);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
+  }
+}
+
+RPushxCmd::RPushxCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool RPushxCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void RPushxCmd::DoCmd(PClient* client) {
+  std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
+  uint64_t reply_num = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->RPushx(client->Key(), list_values, &reply_num);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(reply_num);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+LPopCmd::LPopCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryList) {}
+
+bool LPopCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LPopCmd::DoCmd(PClient* client) {
+  std::vector<std::string> elements;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LPop(client->Key(), 1, &elements);
+  if (s.ok()) {
+    client->AppendString(elements[0]);
+  } else if (s.IsNotFound()) {
+    client->AppendStringLen(-1);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
   }
 }
 
@@ -201,5 +259,50 @@ void LInsertCmd::DoCmd(PClient* client) {
     return;
   }
   client->AppendInteger(ret);
+}
+
+LIndexCmd::LIndexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
+
+bool LIndexCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LIndexCmd::DoCmd(PClient* client) {
+  int64_t freq_ = 0;
+  std::string count = client->argv_[2];
+  if (pstd::String2int(count, &freq_) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  std::string value;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LIndex(client->Key(), freq_, &value);
+  if (s.ok()) {
+    client->AppendString(value);
+  } else if (s.IsNotFound()) {
+    client->AppendStringLen(-1);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+LLenCmd::LLenCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryList) {}
+
+bool LLenCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void LLenCmd::DoCmd(PClient* client) {
+  uint64_t llen = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->LLen(client->Key(), &llen);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(static_cast<int64_t>(llen));
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
 }
 }  // namespace pikiwidb

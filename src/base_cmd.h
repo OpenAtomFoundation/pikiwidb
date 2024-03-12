@@ -97,13 +97,18 @@ const std::string kCmdNameSPop = "spop";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
+const std::string kCmdNameLPushx = "lpushx";
 const std::string kCmdNameRPush = "rpush";
+const std::string kCmdNameRPushx = "rpushx";
+const std::string kCmdNameLPop = "lpop";
 const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
+const std::string kCmdNameLIndex = "lindex";
+const std::string kCmdNameLLen = "llen";
 
 // zset cmd
 const std::string kCmdNameZAdd = "zadd";
