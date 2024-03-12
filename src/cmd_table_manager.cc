@@ -103,7 +103,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SPop, -2);
   ADD_COMMAND(SMembers, 2);
   ADD_COMMAND(SDiff, -2);
-  ADD_COMMAND(SDiffStore, -3);
+  ADD_COMMAND(SDiffstore, -3);
 
   // list
   ADD_COMMAND(LPush, -3);

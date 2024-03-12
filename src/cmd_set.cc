@@ -288,15 +288,15 @@ void SDiffCmd::DoCmd(PClient* client) {
   client->AppendStringVector(diff_members);
 }
 
-SDiffStoreCmd::SDiffStoreCmd(const std::string& name, int16_t arity)
+SDiffstoreCmd::SDiffstoreCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
 
-bool SDiffStoreCmd::DoInitial(PClient* client) {
+bool SDiffstoreCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void SDiffStoreCmd::DoCmd(PClient* client) {
+void SDiffstoreCmd::DoCmd(PClient* client) {
   std::vector<std::string> value_to_dest;
   int32_t reply_num = 0;
   std::vector<std::string> diffstore_keys(client->argv_.begin() + 2, client->argv_.end());

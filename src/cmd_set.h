@@ -154,9 +154,9 @@ class SDiffCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
-class SDiffStoreCmd : public BaseCmd {
+class SDiffstoreCmd : public BaseCmd {
  public:
-  SDiffStoreCmd(const std::string &name, int16_t arity);
+  SDiffstoreCmd(const std::string &name, int16_t arity);
 
  protected:
   bool DoInitial(PClient *client) override;

@@ -96,7 +96,7 @@ const std::string kCmdNameSRandMember = "srandmember";
 const std::string kCmdNameSPop = "spop";
 const std::string kCmdNameSMembers = "smembers";
 const std::string kCmdNameSDiff = "sdiff";
-const std::string kCmdNameSDiffStore = "sdiffstore";
+const std::string kCmdNameSDiffstore = "sdiffstore";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";

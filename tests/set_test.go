@@ -350,21 +350,21 @@ var _ = Describe("Set", Ordered, func() {
 	})
 
 	It("should SDiffStore", func() {
-		sAdd := client.SAdd(ctx, "setSDiffStore1", "a")
+		sAdd := client.SAdd(ctx, "setSDiffstore1", "a")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		sAdd = client.SAdd(ctx, "setSDiffStore1", "b")
+		sAdd = client.SAdd(ctx, "setSDiffstore1", "b")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		sAdd = client.SAdd(ctx, "setSDiffStore1", "c")
-		Expect(sAdd.Err()).NotTo(HaveOccurred())
-
-		sAdd = client.SAdd(ctx, "setSDiffStore2", "c")
-		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		sAdd = client.SAdd(ctx, "setSDiffStore2", "d")
-		Expect(sAdd.Err()).NotTo(HaveOccurred())
-		sAdd = client.SAdd(ctx, "setSDiffStore2", "e")
+		sAdd = client.SAdd(ctx, "setSDiffstore1", "c")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-		sDiffStore := client.SDiffStore(ctx, "setKey", "setSDiffStore1", "setSDiffStore2")
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sDiffStore := client.SDiffStore(ctx, "setKey", "setSDiffstore1", "setSDiffstore2")
 		Expect(sDiffStore.Err()).NotTo(HaveOccurred())
 		Expect(sDiffStore.Val()).To(Equal(int64(2)))
 
