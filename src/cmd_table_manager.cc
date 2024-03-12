@@ -101,6 +101,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SMove, 4);
   ADD_COMMAND(SRandMember, -2);  // Added the count argument since Redis 3.2.0
   ADD_COMMAND(SPop, -2);
+  ADD_COMMAND(SMembers, 2);
+  ADD_COMMAND(SDiff, -2);
+  ADD_COMMAND(SDiffstore, -3);
 
   // list
   ADD_COMMAND(LPush, -3);
