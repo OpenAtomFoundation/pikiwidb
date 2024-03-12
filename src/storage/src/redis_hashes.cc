@@ -119,7 +119,7 @@ Status Redis::HDel(const Slice& key, const std::vector<std::string>& fields, int
     }
   }
 
-  rocksdb::WriteBatch batch;
+	auto batch = Batch::CreateBatch(this, true);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -146,7 +146,7 @@ Status Redis::HDel(const Slice& key, const std::vector<std::string>& fields, int
         if (s.ok()) {
           del_cnt++;
           statistic++;
-          batch.Delete(handles_[kHashesDataCF], hashes_data_key.Encode());
+          batch->Delete(kHashesDataCF, hashes_data_key.Encode());
         } else if (s.IsNotFound()) {
           continue;
         } else {
@@ -158,7 +158,7 @@ Status Redis::HDel(const Slice& key, const std::vector<std::string>& fields, int
         return Status::InvalidArgument("hash size overflow");
       }
       parsed_hashes_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[kHashesMetaCF], base_meta_key.Encode(), meta_value);
+      batch->Put(kHashesMetaCF, base_meta_key.Encode(), meta_value);
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -166,7 +166,7 @@ Status Redis::HDel(const Slice& key, const std::vector<std::string>& fields, int
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+	batch->Commit();
   UpdateSpecificKeyStatistics(DataType::kHashes, key.ToString(), statistic);
   return s;
 }
