@@ -349,7 +349,7 @@ var _ = Describe("Set", Ordered, func() {
 		Expect(sDiff.Val()).To(HaveLen(0))
 	})
 
-	It("should SDiffStore", func() {
+	It("should SDiffstore", func() {
 		sAdd := client.SAdd(ctx, "setSDiffstore1", "a")
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 		sAdd = client.SAdd(ctx, "setSDiffstore1", "b")
