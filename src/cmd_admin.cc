@@ -6,8 +6,8 @@
  */
 
 #include "cmd_admin.h"
-#include "store.h"
 #include "pstd/env.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -35,7 +35,7 @@ FlushdbCmd::FlushdbCmd(const std::string& name, int16_t arity)
 bool FlushdbCmd::DoInitial(PClient* client) { return true; }
 
 void FlushdbCmd::DoCmd(PClient* client) {
-  int  currentDBIndex = client->GetCurrentDB();
+  int currentDBIndex = client->GetCurrentDB();
   PSTORE.GetBackend(currentDBIndex).reset();
 
   std::string db_path_ = g_config.dbpath + std::to_string(currentDBIndex);
