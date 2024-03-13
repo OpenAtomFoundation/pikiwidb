@@ -18,6 +18,7 @@ ExternalProject_Add(
         DEPENDS brpc
 				GIT_REPOSITORY https://github.com/baidu/braft.git
         GIT_TAG master
+				PREFIX ${BRAFT_SOURCES_DIR}
         UPDATE_COMMAND ""
 				CMAKE_ARGS
 					-DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
