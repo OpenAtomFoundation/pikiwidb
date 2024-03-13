@@ -19,7 +19,7 @@ FetchContent_MakeAvailableWithArgs(gflags
   BUILD_gflags_LIB=ON
   BUILD_gflags_nothreads_LIB=OFF
   BUILD_TESTING=OFF
-  CMAKE_BUILD_TYPE=${THIRD_PARTY_BUILD_TYPE}
+	CMAKE_BUILD_TYPE=Release
 )
 
 FIND_PACKAGE(Threads REQUIRED)
