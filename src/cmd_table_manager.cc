@@ -49,6 +49,7 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(PExpire, 3);
   ADD_COMMAND(Expireat, 3);
   ADD_COMMAND(PExpireat, 3);
+  ADD_COMMAND(Pttl, 2);
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
