@@ -119,7 +119,7 @@ Status Redis::HDel(const Slice& key, const std::vector<std::string>& fields, int
     }
   }
 
-	auto batch = Batch::CreateBatch(this, true);
+	auto batch = Batch::CreateBatch(this, is_use_raft_);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -617,7 +617,7 @@ Status Redis::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) {
 }
 
 Status Redis::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
-  auto batch = Batch::CreateBatch(this, true);
+  auto batch = Batch::CreateBatch(this, is_use_raft_);
   ScopeRecordLock l(lock_mgr_, key);
 
   uint64_t version = 0;

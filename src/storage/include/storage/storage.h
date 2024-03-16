@@ -61,6 +61,7 @@ struct StorageOptions {
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
   size_t db_instance_num = 3;  // default = 3
+  bool is_use_raft = true;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 

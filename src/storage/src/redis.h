@@ -356,6 +356,9 @@ class Redis {
   std::atomic_uint64_t small_compaction_duration_threshold_;
   std::unique_ptr<LRUCache<std::string, KeyStatistics>> statistics_store_;
 
+  // For raft
+  bool is_use_raft_;
+
   Status UpdateSpecificKeyStatistics(const DataType& dtype, const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const DataType& dtype, const std::string& key, uint64_t duration);
   Status AddCompactKeyTaskIfNeeded(const DataType& dtype, const std::string& key, uint64_t count, uint64_t duration);
