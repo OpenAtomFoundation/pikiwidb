@@ -26,6 +26,7 @@ IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     SET(LIB rt)
 ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     SET(LIB
+            pthread
             "-framework CoreFoundation"
             "-framework CoreGraphics"
             "-framework CoreData"
@@ -34,7 +35,8 @@ ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
             "-framework Foundation"
             "-Wl,-U,_MallocExtension_ReleaseFreeMemory"
             "-Wl,-U,_ProfilerStart"
-            "-Wl,-U,_ProfilerStop")
+            "-Wl,-U,_ProfilerStop"
+            "-Wl,-U,__Z13GetStackTracePPvii")
 ENDIF()
 
 TARGET_LINK_LIBRARIES(pikiwidb net; dl; fmt; storage; rocksdb; pstd braft brpc ssl crypto zlib protobuf leveldb gflags  z praft "${LIB}")

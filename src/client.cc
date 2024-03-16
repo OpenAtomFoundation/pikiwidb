@@ -424,7 +424,6 @@ PClient::PClient(TcpConnection* obj)
 
 int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int size) {
   int total = 0;
-  LOG(INFO) << start;
   while (total < size) {
     auto processed = handlePacket(start + total, size - total);
     if (processed <= 0) {
