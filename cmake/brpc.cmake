@@ -18,8 +18,8 @@ EXTERNALPROJECT_ADD(
         extern_brpc
         ${EXTERNAL_PROJECT_LOG_ARGS}
         DEPENDS ssl crypto zlib protobuf leveldb gflags
-        URL "https://github.com/apache/brpc/archive/1.3.0.tar.gz"
-        URL_HASH SHA256=b9d638b76725552ed11178c650d7fc95e30f252db7972a93dc309a0698c7d2b8
+        URL https://github.com/apache/brpc/archive/refs/tags/1.8.0.tar.gz
+        URL_HASH SHA256=13ffb2f1f57c679379a20367c744b3e597614a793ec036cd7580aae90798019d
         PREFIX ${BRPC_SOURCES_DIR}
         UPDATE_COMMAND ""
         CMAKE_ARGS -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
