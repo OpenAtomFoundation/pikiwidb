@@ -4,6 +4,7 @@
 # of patent rights can be found in the PATENTS file in the same directory.
 ADD_CUSTOM_COMMAND(
   OUTPUT "${PROTO_OUTPUT_DIR}/binlog.pb.cc"
+  DEPENDS extern_protobuf
   COMMAND ${PROTOBUF_PROTOC_EXECUTABLE}
   ARGS -I ${CMAKE_CURRENT_SOURCE_DIR}
     --cpp_out ${PROTO_OUTPUT_DIR}
