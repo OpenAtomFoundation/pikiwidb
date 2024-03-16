@@ -12,6 +12,7 @@
 #include <mutex>
 #include <tuple>
 #include <vector>
+#include <string>
 
 #include "braft/configuration.h"
 #include "braft/raft.h"
@@ -68,7 +69,7 @@ class JoinCmdContext {
   }
 
   PClient* GetClient() { return client_; }
-  braft::PeerId GetPeerIp() { return peer_ip_; }
+  const std::string& GetPeerIp() { return peer_ip_; }
   int GetPort() { return port_; }
 
  private:
