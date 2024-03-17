@@ -211,5 +211,33 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
 		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*1000)).Err()).NotTo(HaveOccurred())
 		Expect(client.Persist(ctx, DefaultKey).Err()).NotTo(HaveOccurred())
+
+		// del keys
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*1)).Err()).NotTo(HaveOccurred())
+		time.Sleep(2 * time.Second)
+	})
+
+	It("keys", func() {
+		// empty
+		Expect(client.Keys(ctx, "*").Val()).To(Equal([]string{}))
+		Expect(client.Keys(ctx, "dummy").Val()).To(Equal([]string{}))
+		Expect(client.Keys(ctx, "dummy*").Val()).To(Equal([]string{}))
+
+		Expect(client.Set(ctx, "a1", "v1", 0).Val()).To(Equal(OK))
+		Expect(client.Set(ctx, "k1", "v1", 0).Val()).To(Equal(OK))
+		Expect(client.SAdd(ctx, "k2", "v2").Val()).To(Equal(int64(1)))
+		Expect(client.HSet(ctx, "k3", "k3", "v3").Val()).To(Equal(int64(1)))
+		Expect(client.LPush(ctx, "k4", "v4").Val()).To(Equal(int64(1)))
+		Expect(client.ZAdd(ctx, "k5", redis.Z{Score: 1, Member: "v5"}).Val()).To(Equal(int64(1)))
+
+		// all
+		Expect(client.Keys(ctx, "*").Val()).To(Equal([]string{"a1", "k1", "k3", "k4", "k5", "k2"}))
+
+		// pattern
+		Expect(client.Keys(ctx, "k*").Val()).To(Equal([]string{"k1", "k3", "k4", "k5", "k2"}))
+		Expect(client.Keys(ctx, "k1").Val()).To(Equal([]string{"k1"}))
+
+		// del keys
+		Expect(client.Del(ctx, "a1", "k1", "k2", "k3", "k4", "k5").Err()).NotTo(HaveOccurred())
 	})
 })

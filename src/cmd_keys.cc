@@ -146,4 +146,25 @@ void PersistCmd::DoCmd(PClient* client) {
   }
 }
 
+KeysCmd::KeysCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
+
+bool KeysCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void KeysCmd::DoCmd(PClient* client) {
+  std::vector<std::string> keys;
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->Keys(storage::DataType::kAll, client->Key(), &keys);
+  if (s.ok()) {
+    client->AppendArrayLen(keys.size());
+    for (auto k : keys) {
+      client->AppendString(k);
+    }
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
 }  // namespace pikiwidb
