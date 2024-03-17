@@ -121,6 +121,7 @@ enum BeforeOrAfter { Before, After };
 
 enum DataType { kAll, kStrings, kHashes, kSets, kLists, kZSets };
 
+const std::string DataTypeToString[] = {"all", "string", "hash", "set", "list", "zset"};
 const char DataTypeTag[] = {'a', 'k', 'h', 's', 'l', 'z'};
 
 enum class OptionType {
