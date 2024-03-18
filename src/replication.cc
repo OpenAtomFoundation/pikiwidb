@@ -191,12 +191,18 @@ void PReplication::Cron() {
             g_pikiwidb->OnNewConnection(obj);
           }
         };
+
         auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
           WARN("OnCallback: Connect master {}:{} failed", peer_ip, port);
 
           PREPL.SetMasterState(kPReplStateNone);
           if (!masterInfo_.downSince) {
             masterInfo_.downSince = ::time(nullptr);
+          }
+
+          if (on_fail_) {
+            on_fail_(EventLoop::Self(), peer_ip, port);
+            on_fail_ = nullptr;
           }
         };
 
