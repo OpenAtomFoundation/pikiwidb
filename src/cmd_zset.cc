@@ -319,4 +319,93 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
   }
 }
 
+ZRankCmd::ZRankCmd(const std::string &name, int16_t arity) 
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet){}
+
+bool ZRankCmd::DoInitial(PClient *client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRankCmd::DoCmd(PClient *client) {
+  int32_t rank = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRank(client->Key(), client->argv_[2], &rank);
+  if (s.ok()) {
+    client->AppendInteger(rank);
+  } else if (s.IsNotFound()) {
+    client->AppendContent("$-1");
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+ZRevrankCmd::ZRevrankCmd(const std::string &name, int16_t arity) 
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet) {}
+
+bool ZRevrankCmd::DoInitial(PClient *client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRevrankCmd::DoCmd(PClient *client) {
+  int32_t revrank = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRevrank(client->Key(), client->argv_[2], &revrank);
+  if (s.ok()) {
+    client->AppendInteger(revrank);
+  } else if (s.IsNotFound()) {
+    client->AppendContent("$-1");
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+
+ZRemCmd::ZRemCmd(const std::string &name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRemCmd::DoInitial(PClient *client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRemCmd::DoCmd(PClient *client) {
+  auto iter = client->argv_.begin() + 2;
+  std::vector<std::string> members(iter, client->argv_.end());
+  int32_t deleted = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRem(client->Key(), members, &deleted);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(deleted);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+ZIncrbyCmd::ZIncrbyCmd(const std::string &name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZIncrbyCmd::DoInitial(PClient *client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZIncrbyCmd::DoCmd(PClient *client) {
+  double by = .0f;
+  double score = .0f;
+  if (pstd::String2d(client->argv_[2].data(), client->argv_[2].size(), &by) == 0) {
+    client->SetRes(CmdRes::kInvalidFloat);
+    return;
+  }
+
+  std::string member = client->argv_[3];
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZIncrby(client->Key(), member, by, &score);
+  if (s.ok()) {
+    char buf[32];
+    int64_t len = pstd::D2string(buf, sizeof(buf), score);
+    client->AppendStringLen(len);
+    client->AppendContent(buf);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
 }  // namespace pikiwidb

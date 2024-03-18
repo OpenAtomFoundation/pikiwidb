@@ -120,6 +120,10 @@ const std::string kCmdNameZRevrange = "zrevrange";
 const std::string kCmdNameZRangebyscore = "zrangebyscore";
 const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
 const std::string kCmdNameZCard = "zcard";
+const std::string kCmdNameZRank = "zrank";
+const std::string kCmdNameZRevrank = "zrevrank";
+const std::string kCmdNameZRem = "zrem";
+const std::string kCmdNameZIncrby = "zincrby";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
