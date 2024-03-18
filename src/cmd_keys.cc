@@ -121,4 +121,29 @@ void PExpireatCmd::DoCmd(PClient* client) {
   }
 }
 
+PersistCmd::PersistCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
+
+bool PersistCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void PersistCmd::DoCmd(PClient* client) {
+  std::map<storage::DataType, storage::Status> type_status;
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Persist(client->Key(), &type_status);
+  if (res != -1) {
+    client->AppendInteger(res);
+  } else {
+    std::string cnt;
+    for (auto const& s : type_status) {
+      cnt.append(storage::DataTypeToString[s.first]);
+      cnt.append(" - ");
+      cnt.append(s.second.ToString());
+      cnt.append(";");
+    }
+    client->SetRes(CmdRes::kErrOther, cnt);
+  }
+}
+
 }  // namespace pikiwidb

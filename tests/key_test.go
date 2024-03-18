@@ -189,4 +189,27 @@ var _ = Describe("Keyspace", Ordered, func() {
 
 	})
 
+	It("persist", func() {
+		// return 0 if key does not exist
+		Expect(client.Persist(ctx, DefaultKey).Val()).To(Equal(false))
+
+		// return 0 if key does not have an associated timeout
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.Persist(ctx, DefaultKey).Val()).To(Equal(false))
+
+		// return 1 if the timueout was set
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*3)).Val()).To(Equal(true))
+		Expect(client.Persist(ctx, DefaultKey).Val()).To(Equal(true))
+		time.Sleep(5 * time.Second)
+		Expect(client.Exists(ctx, DefaultKey).Val()).To(Equal(int64(1)))
+
+		// multi data type
+		Expect(client.LPush(ctx, DefaultKey, "l").Err()).NotTo(HaveOccurred())
+		Expect(client.HSet(ctx, DefaultKey, "h", "h").Err()).NotTo(HaveOccurred())
+		Expect(client.SAdd(ctx, DefaultKey, "s").Err()).NotTo(HaveOccurred())
+		Expect(client.ZAdd(ctx, DefaultKey, redis.Z{Score: 1, Member: "z"}).Err()).NotTo(HaveOccurred())
+		Expect(client.Set(ctx, DefaultKey, DefaultValue, 0).Val()).To(Equal(OK))
+		Expect(client.PExpireAt(ctx, DefaultKey, time.Now().Add(time.Second*1000)).Err()).NotTo(HaveOccurred())
+		Expect(client.Persist(ctx, DefaultKey).Err()).NotTo(HaveOccurred())
+	})
 })
