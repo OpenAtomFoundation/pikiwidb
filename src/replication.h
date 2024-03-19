@@ -134,6 +134,7 @@ class PReplication {
   void SetMasterAddr(const char* ip, unsigned short port);
   void SetRdbSize(std::size_t s);
   PReplState GetMasterState() const;
+  PClient* GetMaster() const { return master_.lock().get(); }
   SocketAddr GetMasterAddr() const;
   std::size_t GetRdbSize() const;
 

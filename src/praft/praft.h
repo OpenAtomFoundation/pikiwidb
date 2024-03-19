@@ -45,7 +45,7 @@ class ClusterCmdContext {
   ~ClusterCmdContext() = default;
 
   bool Set(ClusterCmdType cluster_cmd_type, PClient* client, const std::string& peer_ip, 
-        int port, std::string node_id = "");
+        int port, std::string peer_id = "");
 
   void Clear();
 
@@ -56,7 +56,7 @@ class ClusterCmdContext {
   PClient* GetClient() { return client_; }
   const std::string& GetPeerIp() { return peer_ip_; }
   int GetPort() { return port_; }
-  const std::string& GetNodeID() { return node_id_; }
+  const std::string& GetPeerID() { return peer_id_; }
 
   void ConnectTargetNode();
 
@@ -66,7 +66,7 @@ class ClusterCmdContext {
   PClient* client_ = nullptr;
   std::string peer_ip_;
   int port_ = 0;
-  std::string node_id_;
+  std::string peer_id_;
 };
 
 class PRaft : public braft::StateMachine {
@@ -87,6 +87,7 @@ class PRaft : public braft::StateMachine {
 
   void ShutDown();
   void Join();
+  void Clear();
   void Apply(braft::Task& task);
 
   //===--------------------------------------------------------------------===//
@@ -105,9 +106,10 @@ class PRaft : public braft::StateMachine {
   void OnClusterCmdConnectionFailed(EventLoop*, const char* peer_ip, int port);
 
   bool IsLeader() const;
-  std::string GetLeaderId() const;
-  std::string GetNodeId() const;
-  std::string GetGroupId() const;
+  std::string GetLeaderID() const;
+  std::string GetNodeID() const;
+  std::string GetPeerID() const;
+  std::string GetGroupID() const;
   braft::NodeStatus GetNodeStatus() const;
   butil::Status GetListPeers(std::vector<braft::PeerId>* peers);
 

@@ -131,8 +131,9 @@ void InfoCmd::InfoRaft(PClient* client) {
   }
 
   std::string message("");
-  message += "raft_group_id:" + PRAFT.GetGroupId() + "\r\n";
-  message += "raft_node_id:" + PRAFT.GetNodeId() + "\r\n";
+  message += "raft_group_id:" + PRAFT.GetGroupID() + "\r\n";
+  message += "raft_node_id:" + PRAFT.GetNodeID() + "\r\n";
+  message += "raft_peer_id:" + PRAFT.GetPeerID() + "\r\n";
   if (braft::is_active_state(node_status.state)) {
     message += "raft_state:up\r\n";
   } else {

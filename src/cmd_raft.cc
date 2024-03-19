@@ -46,7 +46,7 @@ void RaftNodeCmd::DoCmd(PClient* client) {
 void RaftNodeCmd::DoCmdAdd(PClient* client) {
   // Check whether it is a leader. If it is not a leader, return the leader information
   if (!PRAFT.IsLeader()) {
-    client->SetRes(CmdRes::kWrongLeader, PRAFT.GetLeaderId());
+    client->SetRes(CmdRes::kWrongLeader, PRAFT.GetLeaderID());
     return;
   }
 
@@ -79,15 +79,18 @@ void RaftNodeCmd::DoCmdRemove(PClient* client) {
 
   // Check whether it is a leader. If it is not a leader, send remove request to leader
   if (!PRAFT.IsLeader()) {
-    auto node_id = client->argv_[2];
-
     // Get the leader information
-    braft::PeerId peer_id;
-    peer_id.parse(PRAFT.GetLeaderId());
+    braft::PeerId leader_peer_id(PRAFT.GetLeaderID());
+    // @todo There will be an unreasonable address, need to consider how to deal with it
+    if (leader_peer_id.is_empty()) {
+      client->SetRes(CmdRes::kErrOther, "The cluster is electing the leader. \
+        Please run the delete command again");
+      return;
+    }
 
     // Connect target
     auto ret = PRAFT.GetClusterCmdCtx().Set(ClusterCmdContext::ClusterCmdType::REMOVE, client, 
-        butil::ip2str(peer_id.addr.ip).c_str(), peer_id.addr.port - pikiwidb::g_config.raft_port_offset, node_id);
+        butil::ip2str(leader_peer_id.addr.ip).c_str(), leader_peer_id.addr.port - pikiwidb::g_config.raft_port_offset, client->argv_[2]);
     if (!ret) {  // other clients have joined
       return client->SetRes(CmdRes::kErrOther, "Other clients have removed");
     }

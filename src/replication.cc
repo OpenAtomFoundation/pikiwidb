@@ -323,6 +323,8 @@ void PReplication::SetMasterState(PReplState s) { masterInfo_.state = s; }
 
 PReplState PReplication::GetMasterState() const { return masterInfo_.state; }
 
+
+
 SocketAddr PReplication::GetMasterAddr() const { return masterInfo_.addr; }
 
 void PReplication::SetMasterAddr(const char* ip, unsigned short port) {

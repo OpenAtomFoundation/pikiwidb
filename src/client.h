@@ -196,6 +196,7 @@ class PClient : public std::enable_shared_from_this<PClient>, public CmdRes {
   void SetAuth() { auth_ = true; }
   bool GetAuth() const { return auth_; }
   void RewriteCmd(std::vector<std::string>& params) { parser_.SetParams(params); }
+  void Reexecutecommand() { this->executeCommand(); }
 
   // All parameters of this command (including the command itself)
   // e.g：["set","key","value"]
