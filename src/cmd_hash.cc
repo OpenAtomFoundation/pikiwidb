@@ -61,7 +61,7 @@ bool HGetCmd::DoInitial(PClient* client) {
 void HGetCmd::DoCmd(PClient* client) {
   PString value;
   auto field = client->argv_[2];
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HGet(client->Key(), field, &value);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HGet(client->Key(), field, &value);
   if (s.ok()) {
     client->AppendString(value);
   } else if (s.IsNotFound()) {
@@ -104,7 +104,7 @@ bool HMSetCmd::DoInitial(PClient* client) {
 }
 
 void HMSetCmd::DoCmd(PClient* client) {
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HMSet(client->Key(), client->Fvs());
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HMSet(client->Key(), client->Fvs());
   if (s.ok()) {
     client->SetRes(CmdRes::kOK);
   } else {
@@ -315,7 +315,7 @@ bool HValsCmd::DoInitial(PClient* client) {
 
 void HValsCmd::DoCmd(PClient* client) {
   std::vector<std::string> valueVec;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->HVals(client->Key(), &valueVec);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HVals(client->Key(), &valueVec);
   if (s.ok() || s.IsNotFound()) {
     client->AppendStringVector(valueVec);
   } else {

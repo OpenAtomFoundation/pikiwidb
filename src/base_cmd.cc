@@ -11,6 +11,7 @@
 
 namespace pikiwidb {
 
+
 BaseCmd::BaseCmd(std::string name, int16_t arity, uint32_t flag, uint32_t aclCategory) {
   name_ = std::move(name);
   arity_ = arity;
@@ -29,6 +30,12 @@ bool BaseCmd::CheckArg(size_t num) const {
 std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const { return std::vector<std::string>{client->Key()}; }
 
 void BaseCmd::Execute(PClient* client) {
+  if (static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
+    std::lock_guard lock(PSTORE.GetBackend(client->GetCurrentDB())->GetSharedMutex());
+  } else {
+    std::shared_lock sharedlock(PSTORE.GetBackend(client->GetCurrentDB())->GetSharedMutex());
+  }
+
   if (!DoInitial(client)) {
     return;
   }

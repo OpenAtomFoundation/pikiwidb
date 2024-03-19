@@ -11,6 +11,7 @@
 
 #include "common.h"
 #include "storage/storage.h"
+#include "db.h"
 
 #include <map>
 #include <memory>
@@ -29,12 +30,12 @@ class PStore {
 
   void Init(int dbNum);
 
-  std::unique_ptr<storage::Storage>& GetBackend(int32_t index) { return backends_[index]; };
+  std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
 
  private:
   PStore() = default;
 
-  std::vector<std::unique_ptr<storage::Storage>> backends_;
+  std::vector<std::unique_ptr<DB>> backends_;
 };
 
 #define PSTORE PStore::Instance()

@@ -91,6 +91,8 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
   }
 
   slot_indexer_ = std::make_unique<SlotIndexer>(db_instance_num_);
+  db_id_ = storage_options.db_id;
+
   is_opened_.store(true);
   return Status::OK();
 }

@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "client.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -137,6 +138,7 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsSuspend = (1 << 15),          // May change Storage pointer
 };
 
 enum AclCategory {
