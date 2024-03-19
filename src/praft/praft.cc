@@ -67,9 +67,10 @@ void ClusterCmdContext::ConnectTargetNode() {
   }
 
   // reconnect
-  TcpConnectionFailCallback cb = cb = std::bind(&PRaft::OnClusterCmdConnectionFailed, &PRAFT, 
-      std::placeholders::_1, std::placeholders::_2, std::placeholders::_3);  
-  PREPL.SetFailCallback(cb);
+  auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
+    PRAFT.OnClusterCmdConnectionFailed(EventLoop::Self(), peer_ip, port);
+  };
+  PREPL.SetFailCallback(fail_cb);
   PREPL.SetMasterState(kPReplStateNone);
   PREPL.SetMasterAddr(peer_ip_.c_str(), port_);
 }
@@ -153,7 +154,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   node_options_.raft_meta_uri = prefix + "/raft_meta";
   node_options_.snapshot_uri = prefix + "/snapshot";
   // node_options_.disable_cli = FLAGS_disable_cli;
-  node_ = std::make_unique<braft::Node>("pikiwidb", braft::PeerId(addr));  // group_id
+  node_ = std::make_unique<braft::Node>(group_id, braft::PeerId(addr));
   if (node_->init(node_options_) != 0) {
     server_.reset();
     node_.reset();
@@ -320,7 +321,7 @@ int PRaft::ProcessClusterJoinCmdResponse(PClient* client, const char* start, int
         } else if (key == "rocksdb_num") {
           rocksdb_num = std::stoi(value);
         } else if (key == "rockdb_version") {
-          rockdb_version = value;
+          rockdb_version = pstd::StringTrimRight(value, "\r");
         }
       }
     }
@@ -471,6 +472,11 @@ void PRaft::OnClusterCmdConnectionFailed([[maybe_unused]] EventLoop* loop, const
     cli->Clear();
   }
   cluster_cmd_ctx_.Clear();
+
+  // if (PRAFT.IsInitialized()) {
+  //   PRAFT.ShutDown();
+  //   PRAFT.Join();
+  // }
 }
 
 // Shut this node and server down.

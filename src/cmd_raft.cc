@@ -24,7 +24,14 @@ namespace pikiwidb {
 RaftNodeCmd::RaftNodeCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsRaft, kAclCategoryRaft) {}
 
-bool RaftNodeCmd::DoInitial(PClient* client) { return true; }
+bool RaftNodeCmd::DoInitial(PClient* client) { 
+  auto cmd = client->argv_[1];
+  if (strcasecmp(cmd.c_str(), "ADD") && strcasecmp(cmd.c_str(), "REMOVE")) {
+    client->SetRes(CmdRes::kErrOther, "RAFT.NODE supports ADD / REMOVE only");
+    return false;
+  }
+  return true; 
+}
 
 void RaftNodeCmd::DoCmd(PClient* client) {
   auto cmd = client->argv_[1];
@@ -33,9 +40,7 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     DoCmdAdd(client);
   } else if (!strcasecmp(cmd.c_str(), "REMOVE")) {
     DoCmdRemove(client);
-  } else {
-    client->SetRes(CmdRes::kErrOther, "RAFT.NODE supports ADD / REMOVE only");
-  }
+  } 
 }
 
 void RaftNodeCmd::DoCmdAdd(PClient* client) {
@@ -105,26 +110,32 @@ void RaftNodeCmd::DoCmdRemove(PClient* client) {
 RaftClusterCmd::RaftClusterCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsRaft, kAclCategoryRaft) {}
 
-bool RaftClusterCmd::DoInitial(PClient* client) { return true; }
+bool RaftClusterCmd::DoInitial(PClient* client) {
+  auto cmd = client->argv_[1];
+  pstd::StringToUpper(cmd);
+  if (cmd != kInitCmd && cmd != kJoinCmd) {
+    client->SetRes(CmdRes::kErrOther, "RAFT.CLUSTER supports INIT/JOIN only");
+    return false;
+  }
+  return true; 
+}
 
 void RaftClusterCmd::DoCmd(PClient* client) {
   // parse arguments
   if (client->argv_.size() < 2) {
     return client->SetRes(CmdRes::kWrongNum, client->CmdName());
   }
-  auto cmd = client->argv_[1];
 
   if (PRAFT.IsInitialized()) {
     return client->SetRes(CmdRes::kErrOther, "Already cluster member");
   }
 
+  auto cmd = client->argv_[1];
   pstd::StringToUpper(cmd);
   if (cmd == kInitCmd) {
     DoCmdInit(client);
   } else if (cmd == kJoinCmd) {
     DoCmdJoin(client);
-  } else {
-    client->SetRes(CmdRes::kErrOther, "RAFT.CLUSTER supports INIT/JOIN only");
   }
 }
 
