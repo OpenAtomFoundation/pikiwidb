@@ -23,6 +23,7 @@
 #include "rocksdb/table.h"
 
 #include "pstd/pstd_mutex.h"
+#include "pstd/env.h"
 #include "storage/slot_indexer.h"
 
 namespace storage {
@@ -37,10 +38,13 @@ inline const std::string PROPERTY_TYPE_ROCKSDB_BACKGROUND_ERRORS = "rocksdb.back
 inline constexpr size_t BATCH_DELETE_LIMIT = 100;
 inline constexpr size_t COMPACT_THRESHOLD_COUNT = 2000;
 
+inline constexpr uint64_t kNoFlush = std::numeric_limits<uint64_t>::max();
+
 using Options = rocksdb::Options;
 using BlockBasedTableOptions = rocksdb::BlockBasedTableOptions;
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
+using Env = rocksdb::Env;
 
 class Redis;
 enum class OptionType;
@@ -163,6 +167,8 @@ class Storage {
   ~Storage();
 
   Status Open(const StorageOptions& storage_options, const std::string& db_path);
+
+  Status CreateCheckpoint(const std::string& dump_path);
 
   Status LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key);
 

@@ -26,6 +26,9 @@ void GetCmd::DoCmd(PClient* client) {
   uint64_t ttl = -1;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->GetWithTTL(client->Key(), &value, &ttl);
   if (s.ok()) {
+    std::set<int> s{0, 1};
+    TaskContext task(TaskType::kBgSave, s);
+    PSTORE.DoSameThingSpecificDB(task);
     client->AppendString(value);
   } else if (s.IsNotFound()) {
     client->AppendString("");

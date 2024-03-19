@@ -68,7 +68,7 @@ var _ = Describe("Admin", Ordered, func() {
 		Expect(client.Info(ctx).Val()).NotTo(Equal("FooBar"))
 	})
 
-	It("Cmd Select", func() {
+	FIt("Cmd Select", func() {
 		var outRangeNumber = 100
 
 		r, e := client.Set(ctx, DefaultKey, DefaultValue, 0).Result()

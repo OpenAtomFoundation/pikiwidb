@@ -12,9 +12,19 @@
 #include "storage/storage.h"
 
 namespace pikiwidb {
+
+const std::string kCheckpointSubPath = "dump";
+
+struct CheckPointContext {
+  bool checkpoint_in_process = false;
+  time_t last_checkpoint_time = 0;
+  bool last_checkpoint_success = false;
+  std::string checkpoint_path;
+};
+
 class DB {
  public:
-  DB(int db_id, const std::string& db_path);
+  DB(int db_id, const std::string& db_path, const std::string& checkpoint_sub_path);
   std::unique_ptr<storage::Storage>& GetStorage() { return storage_; }
 
   void Lock() { storage_mutex_.lock(); }
@@ -25,10 +35,12 @@ class DB {
 
   void UnLockShared() { storage_mutex_.unlock_shared(); }
 
+  void DoBgSave();
+
  private:
   const int db_id_;
   const std::string db_path_;
-
+  const std::string checkpoint_path_;
   /**
    * If you want to change the pointer that points to storage,
    * you must first acquire a mutex lock.
@@ -46,9 +58,8 @@ class DB {
    * you just need to obtain a shared lock.
    */
   std::shared_mutex checkpoint_mutex_;
-  bool checkpoint_in_process_ = false;
-  int64_t last_checkpoint_time_ = -1;
-  bool last_checkpoint_success_ = false;
+  CheckPointContext checkpoint_context_;
+
 };
 }  // namespace pikiwidb
 

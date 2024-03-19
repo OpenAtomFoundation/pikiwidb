@@ -23,17 +23,35 @@ void PStore::Init(int dbNum) {
   if (g_config.backend == kBackEndNone) {
     return;
   }
-
-  backends_.reserve(dbNum);
+  dbNum_ = dbNum;
+  backends_.reserve(dbNum_);
 
   if (g_config.backend == kBackEndRocksDB) {
-    for (int i = 0; i < dbNum; i++) {
-      auto db = std::make_unique<DB>(i, g_config.dbpath);
+    for (int i = 0; i < dbNum_; i++) {
+      auto db = std::make_unique<DB>(i, g_config.dbpath, kCheckpointSubPath);
       backends_.push_back(std::move(db));
     }
   } else {
     ERROR("unsupport backend!");
     return;
+  }
+}
+
+void PStore::DoSameThingSpecificDB(const TaskContext& task) {
+  auto type = task.type;
+  auto dbs = task.dbs;
+  // 存在访问非法地址的风险
+  for (auto dbnum : dbs) {
+    if (dbnum >= dbNum_ || dbnum < 0) {
+      continue ;
+    }
+
+    switch (type) {
+      case TaskType::kBgSave:
+        auto& db = backends_[dbnum];
+        std::thread t(&DB::DoBgSave, db.get());
+        t.detach();
+    }
   }
 }
 

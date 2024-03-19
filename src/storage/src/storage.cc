@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "rocksdb/utilities/checkpoint.h"
+
 #include "config.h"
 #include "pstd/log.h"
 #include "pstd/pikiwidb_slot.h"
@@ -96,6 +98,50 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
 
   is_opened_.store(true);
   return Status::OK();
+}
+
+Status Storage::CreateCheckpoint(const std::string& dump_path) {
+  for(size_t i = 0; i < db_instance_num_; ++i) {
+    INFO("DB{}'s RocksDB {} begin to generate a checkpoint!", db_id_, i);
+    auto source_dir = dump_path + std::to_string(i);
+    INFO("DB{}'s RocksDB {} checkpoint_path = {}", db_id_, i, source_dir);
+    // atomic write
+    auto tmp_dir = source_dir + ".tmp";
+    INFO("DB{}'s RocksDB {} tmp checkpoint_path = {}", db_id_, i, tmp_dir);
+    // Make sure this temporary directory does not exist
+    if (!pstd::DeleteDirIfExist(tmp_dir)) {
+      WARN("DB{}'s RocksDB {} delete dir fail!", db_id_, i);
+      return Status::IOError("Delete dir {} fail!", tmp_dir);
+    }
+
+
+    // Create checkpoint of this RocksDB
+    rocksdb::Checkpoint *checkpoint = nullptr;
+    auto db = insts_[i]->GetDB();
+    rocksdb::Status s = rocksdb::Checkpoint::Create(db, &checkpoint);
+    if (!s.ok()) {
+      WARN("DB{}'s RocksDB {} create checkpoint object failed!. Error: ", db_id_, i, s.ToString());
+      return s;
+    }
+    // 是否需要传出的 SequenceNumber 、
+    s = checkpoint->CreateCheckpoint(tmp_dir, kNoFlush, nullptr);
+    if (!s.ok()) {
+      WARN("DB{}'s RocksDB {} create checkpoint failed!. Error: {}", db_id_, i, s.ToString());
+      return s;
+    }
+
+    // rename
+    if (!pstd::DeleteDirIfExist(source_dir)) {
+      WARN("DB{}'s RocksDB {} delete dir {} fail!", db_id_, i, source_dir);
+      return Status::IOError("Delete dir {} fail!", source_dir);
+    }
+    if (!pstd::RenameFile(tmp_dir, source_dir)) {
+      WARN("DB{}'s RocksDB {} rename dir {} fail!", db_id_, i, tmp_dir);
+      return Status::IOError("Rename dir {} fail!", tmp_dir);
+    }
+
+    return Status::OK();
+  }
 }
 
 Status Storage::LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key) {

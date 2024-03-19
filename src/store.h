@@ -9,17 +9,30 @@
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
-#include "common.h"
-#include "db.h"
-#include "storage/storage.h"
-
 #include <map>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
 #include <vector>
+#include <set>
+
+#include "common.h"
+#include "db.h"
+#include "storage/storage.h"
 
 namespace pikiwidb {
+enum TaskType {
+  kBgSave,
+};
+
+struct TaskContext {
+  TaskType type;
+  std::set<int> dbs;
+  std::vector<std::string> argv;
+  TaskContext(TaskType t) : type(t) {}
+  TaskContext(TaskType t, const std::set<int>& d) : type(t), dbs(d) {}
+  TaskContext(TaskType t, const std::set<int>& d, const std::vector<std::string>& a) : type(t), dbs(d), argv(a) {}
+};
 
 class PStore {
  public:
@@ -32,9 +45,12 @@ class PStore {
 
   std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
 
+  void DoSameThingSpecificDB(const TaskContext& task);
+
  private:
   PStore() = default;
 
+  int dbNum_ = 0;
   std::vector<std::unique_ptr<DB>> backends_;
 };
 
