@@ -23,7 +23,7 @@ bool DelCmd::DoInitial(PClient* client) {
 }
 
 void DelCmd::DoCmd(PClient* client) {
-  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->Del(client->Keys());
+  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Del(client->Keys());
   if (count >= 0) {
     client->AppendInteger(count);
   } else {
@@ -41,7 +41,7 @@ bool ExistsCmd::DoInitial(PClient* client) {
 }
 
 void ExistsCmd::DoCmd(PClient* client) {
-  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->Exists(client->Keys());
+  int64_t count = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Exists(client->Keys());
   if (count >= 0) {
     client->AppendInteger(count);
     //    if (PSTORE.ExistsKey(client->Key())) {
@@ -68,7 +68,7 @@ void PExpireCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes ::kInvalidInt);
     return;
   }
-  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expire(client->Key(), msec / 1000);
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Expire(client->Key(), msec / 1000);
   if (res != -1) {
     client->AppendInteger(res);
   } else {
@@ -90,7 +90,7 @@ void ExpireatCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes ::kInvalidInt);
     return;
   }
-  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expireat(client->Key(), time_stamp);
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Expireat(client->Key(), time_stamp);
   if (res != -1) {
     client->AppendInteger(res);
   } else {
@@ -113,7 +113,7 @@ void PExpireatCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes ::kInvalidInt);
     return;
   }
-  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expireat(client->Key(), time_stamp_ms / 1000);
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Expireat(client->Key(), time_stamp_ms / 1000);
   if (res != -1) {
     client->AppendInteger(res);
   } else {
@@ -131,7 +131,7 @@ bool PersistCmd::DoInitial(PClient* client) {
 
 void PersistCmd::DoCmd(PClient* client) {
   std::map<storage::DataType, storage::Status> type_status;
-  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Persist(client->Key(), &type_status);
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Persist(client->Key(), &type_status);
   if (res != -1) {
     client->AppendInteger(res);
   } else {

@@ -74,7 +74,8 @@ void ZAddCmd::DoCmd(PClient* client) {
   }
   client->SetKey(client->argv_[1]);
   int32_t count = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZAdd(client->Key(), score_members_, &count);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZAdd(client->Key(), score_members_, &count);
   if (s.ok()) {
     client->AppendInteger(count);
   } else {
@@ -112,7 +113,8 @@ void ZRevrangeCmd::DoCmd(PClient* client) {
   std::vector<storage::ScoreMember> score_members;
   storage::Status s =
       PSTORE.GetBackend(client->GetCurrentDB())
-          ->GetStorage()->ZRevrange(client->Key(), static_cast<int32_t>(start), static_cast<int32_t>(stop), &score_members);
+          ->GetStorage()
+          ->ZRevrange(client->Key(), static_cast<int32_t>(start), static_cast<int32_t>(stop), &score_members);
   if (s.ok() || s.IsNotFound()) {
     if (is_ws) {
       char buf[32];
@@ -189,7 +191,8 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
   }
   std::vector<storage::ScoreMember> score_members;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
-                          ->GetStorage()->ZRangebyscore(client->Key(), min_score, max_score, left_close, right_close, &score_members);
+                          ->GetStorage()
+                          ->ZRangebyscore(client->Key(), min_score, max_score, left_close, right_close, &score_members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -290,7 +293,8 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
   }
   std::vector<storage::ScoreMember> score_members;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
-                          ->GetStorage()->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count,
+                          ->GetStorage()
+                          ->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count,
                                              offset, &score_members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());

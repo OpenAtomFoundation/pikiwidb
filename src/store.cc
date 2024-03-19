@@ -5,14 +5,12 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "store.h"
-#include <cassert>
-#include <limits>
 #include <string>
+
 #include "config.h"
-#include "log.h"
-#include "multi.h"
 #include "db.h"
+#include "log.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -29,8 +27,9 @@ void PStore::Init(int dbNum) {
   backends_.reserve(dbNum);
 
   if (g_config.backend == kBackEndRocksDB) {
-    for (int i= 0; i < dbNum; i++) {
-      backends_.push_back(std::make_unique<DB>(i, g_config.dbpath));
+    for (int i = 0; i < dbNum; i++) {
+      auto db = std::make_unique<DB>(i, g_config.dbpath);
+      backends_.push_back(std::move(db));
     }
   } else {
     ERROR("unsupport backend!");

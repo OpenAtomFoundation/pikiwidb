@@ -82,12 +82,13 @@ static std::string AppendSubDirectory(const std::string& db_path, int index) {
 Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
   db_instance_num_ = storage_options.db_instance_num;
-  for (int index = 0; index < db_instance_num_; index++) {
+  for (size_t index = 0; index < db_instance_num_; index++) {
     insts_.emplace_back(std::make_unique<Redis>(this, index));
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
-      ERROR("open db failed", s.ToString());
+      ERROR("open RocksDB{} failed {}", index, s.ToString());
     }
+    INFO("open RocksDB{} success!", index);
   }
 
   slot_indexer_ = std::make_unique<SlotIndexer>(db_instance_num_);

@@ -37,7 +37,7 @@ void HSetCmd::DoCmd(PClient* client) {
     auto value = client->argv_[i + 1];
     int32_t temp = 0;
     // TODO(century): current bw doesn't support multiple fvs, fix it when necessary
-    s = PSTORE.GetBackend(client->GetCurrentDB())->HSet(client->Key(), field, value, &temp);
+    s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HSet(client->Key(), field, value, &temp);
     if (s.ok()) {
       ret += temp;
     } else {
@@ -82,7 +82,7 @@ bool HDelCmd::DoInitial(PClient* client) {
 void HDelCmd::DoCmd(PClient* client) {
   int32_t res{};
   std::vector<std::string> fields(client->argv_.begin() + 2, client->argv_.end());
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HDel(client->Key(), fields, &res);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HDel(client->Key(), fields, &res);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -125,7 +125,7 @@ bool HMGetCmd::DoInitial(PClient* client) {
 
 void HMGetCmd::DoCmd(PClient* client) {
   std::vector<storage::ValueStatus> vss;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HMGet(client->Key(), client->Fields(), &vss);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HMGet(client->Key(), client->Fields(), &vss);
   if (s.ok() || s.IsNotFound()) {
     client->AppendArrayLenUint64(vss.size());
     for (size_t i = 0; i < vss.size(); ++i) {
@@ -160,6 +160,7 @@ void HGetAllCmd::DoCmd(PClient* client) {
   do {
     fvs.clear();
     s = PSTORE.GetBackend(client->GetCurrentDB())
+            ->GetStorage()
             ->HScan(client->Key(), cursor, "*", PIKIWIDB_SCAN_STEP_LENGTH, &fvs, &next_cursor);
     if (!s.ok()) {
       raw.clear();
@@ -199,7 +200,7 @@ bool HKeysCmd::DoInitial(PClient* client) {
 
 void HKeysCmd::DoCmd(PClient* client) {
   std::vector<std::string> fields;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HKeys(client->Key(), &fields);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HKeys(client->Key(), &fields);
   if (s.ok() || s.IsNotFound()) {
     client->AppendArrayLenUint64(fields.size());
     for (const auto& field : fields) {
@@ -223,7 +224,7 @@ bool HLenCmd::DoInitial(PClient* client) {
 
 void HLenCmd::DoCmd(PClient* client) {
   int32_t len = 0;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HLen(client->Key(), &len);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HLen(client->Key(), &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
   } else {
@@ -241,7 +242,7 @@ bool HStrLenCmd::DoInitial(PClient* client) {
 
 void HStrLenCmd::DoCmd(PClient* client) {
   int32_t len = 0;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HStrlen(client->Key(), client->argv_[2], &len);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HStrlen(client->Key(), client->argv_[2], &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
   } else {
@@ -288,8 +289,9 @@ void HScanCmd::DoCmd(PClient* client) {
   // execute command
   std::vector<storage::FieldValue> fvs;
   int64_t next_cursor{};
-  auto status =
-      PSTORE.GetBackend(client->GetCurrentDB())->HScan(client->Key(), cursor, pattern, count, &fvs, &next_cursor);
+  auto status = PSTORE.GetBackend(client->GetCurrentDB())
+                    ->GetStorage()
+                    ->HScan(client->Key(), cursor, pattern, count, &fvs, &next_cursor);
   if (!status.ok() && !status.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, status.ToString());
     return;
@@ -344,6 +346,7 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
   }
   std::string newValue;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
                           ->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
   if (s.ok() || s.IsNotFound()) {
     client->AppendString(newValue);
@@ -363,7 +366,9 @@ bool HSetNXCmd::DoInitial(PClient* client) {
 void HSetNXCmd::DoCmd(PClient* client) {
   int32_t temp = 0;
   storage::Status s;
-  s = PSTORE.GetBackend(client->GetCurrentDB())->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
+  s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->GetStorage()
+          ->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
   if (s.ok()) {
     client->AppendInteger(temp);
   } else {
@@ -389,7 +394,7 @@ void HIncrbyCmd::DoCmd(PClient* client) {
 
   int64_t temp = 0;
   storage::Status s =
-      PSTORE.GetBackend(client->GetCurrentDB())->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(temp);
   } else {
@@ -431,7 +436,7 @@ void HRandFieldCmd::DoCmd(PClient* client) {
 
   // execute command
   std::vector<std::string> res;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->HRandField(client->Key(), count, with_values, &res);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HRandField(client->Key(), count, with_values, &res);
   if (s.IsNotFound()) {
     client->AppendString("");
     return;

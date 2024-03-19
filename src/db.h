@@ -7,17 +7,23 @@
 
 #include <string>
 
+#include "log.h"
 #include "pstd/noncopyable.h"
 #include "storage/storage.h"
-#include "log.h"
 
 namespace pikiwidb {
-class DB : public pstd::noncopyable {
+class DB {
  public:
-  DB(const int db_id, const std::string& db_path);
+  DB(int db_id, const std::string& db_path);
   std::unique_ptr<storage::Storage>& GetStorage() { return storage_; }
 
-  std::shared_mutex& GetSharedMutex() { return storage_mutex_; }
+  void Lock() { storage_mutex_.lock(); }
+
+  void UnLock() { storage_mutex_.unlock(); }
+
+  void LockShared() { storage_mutex_.lock_shared(); }
+
+  void UnLockShared() { storage_mutex_.unlock_shared(); }
 
  private:
   const int db_id_;
@@ -30,8 +36,8 @@ class DB : public pstd::noncopyable {
    * you just need to obtain a shared lock.
    */
   std::shared_mutex storage_mutex_;
-  bool opened_ = false;
   std::unique_ptr<storage::Storage> storage_;
+  bool opened_ = false;
 
   /**
    * If you want to change the status below，you must first acquire
@@ -44,6 +50,6 @@ class DB : public pstd::noncopyable {
   int64_t last_checkpoint_time_ = -1;
   bool last_checkpoint_success_ = false;
 };
-}
+}  // namespace pikiwidb
 
 #endif  // PIKIWIDB_DB_H
