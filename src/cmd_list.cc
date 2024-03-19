@@ -21,7 +21,8 @@ bool LPushCmd::DoInitial(PClient* client) {
 void LPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPush(client->Key(), list_values, &reply_num);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -40,7 +41,8 @@ bool LPushxCmd::DoInitial(PClient* client) {
 void LPushxCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPushx(client->Key(), list_values, &reply_num);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPushx(client->Key(), list_values, &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
   } else {
@@ -59,7 +61,8 @@ bool RPushCmd::DoInitial(PClient* client) {
 void RPushCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPush(client->Key(), list_values, &reply_num);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
   } else {
@@ -78,7 +81,8 @@ bool RPushxCmd::DoInitial(PClient* client) {
 void RPushxCmd::DoCmd(PClient* client) {
   std::vector<std::string> list_values(client->argv_.begin() + 2, client->argv_.end());
   uint64_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPushx(client->Key(), list_values, &reply_num);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPushx(client->Key(), list_values, &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
   } else {
@@ -142,7 +146,8 @@ void LRangeCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
   }
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LRange(client->Key(), start_index, end_index, &ret);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LRange(client->Key(), start_index, end_index, &ret);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
     return;
@@ -192,7 +197,8 @@ void LTrimCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kInvalidInt);
     return;
   }
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LTrim(client->Key(), start_index, end_index);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LTrim(client->Key(), start_index, end_index);
   if (s.ok() || s.IsNotFound()) {
     client->SetRes(CmdRes::kOK);
   } else {
@@ -219,7 +225,8 @@ void LSetCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kErrOther, "lset cmd error");  // this will not happend in normal case
       return;
     }
-    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LSet(client->Key(), val, client->argv_[3]);
+    storage::Status s =
+        PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LSet(client->Key(), val, client->argv_[3]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
     } else if (s.IsNotFound()) {
@@ -253,7 +260,8 @@ void LInsertCmd::DoCmd(PClient* client) {
     before_or_after = storage::After;
   }
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
-                          ->GetStorage()->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
+                          ->GetStorage()
+                          ->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
   if (!s.ok() && s.IsNotFound()) {
     client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");  // just a safeguard
     return;

@@ -10,8 +10,8 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
 #include "common.h"
-#include "storage/storage.h"
 #include "db.h"
+#include "storage/storage.h"
 
 #include <map>
 #include <memory>
