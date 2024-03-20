@@ -10,6 +10,7 @@
 #include "log.h"
 #include "pstd/noncopyable.h"
 #include "storage/storage.h"
+#include "checkpoint_manager.h"
 
 namespace pikiwidb {
 
@@ -57,6 +58,7 @@ class DB {
    */
   std::shared_mutex checkpoint_mutex_;
   CheckPointContext checkpoint_context_;
+  CheckpointManager checkpoint_manager_;
 
 };
 }  // namespace pikiwidb
