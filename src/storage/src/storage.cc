@@ -123,25 +123,23 @@ Status Storage::CreateCheckpoint(const std::string& dump_path) {
       WARN("DB{}'s RocksDB {} create checkpoint object failed!. Error: ", db_id_, i, s.ToString());
       return s;
     }
-    // 是否需要传出的 SequenceNumber 、
     s = checkpoint->CreateCheckpoint(tmp_dir, kNoFlush, nullptr);
     if (!s.ok()) {
       WARN("DB{}'s RocksDB {} create checkpoint failed!. Error: {}", db_id_, i, s.ToString());
       return s;
     }
 
-    // rename
     if (!pstd::DeleteDirIfExist(source_dir)) {
       WARN("DB{}'s RocksDB {} delete dir {} fail!", db_id_, i, source_dir);
       return Status::IOError("Delete dir {} fail!", source_dir);
     }
-    if (!pstd::RenameFile(tmp_dir, source_dir)) {
+    if (auto status = pstd::RenameFile(tmp_dir, source_dir); status != 0) {
       WARN("DB{}'s RocksDB {} rename dir {} fail!", db_id_, i, tmp_dir);
       return Status::IOError("Rename dir {} fail!", tmp_dir);
     }
-
-    return Status::OK();
+    INFO("DB{}'s RocksDB {} create checkpoint {} success!", db_id_, i, source_dir);
   }
+  return Status::OK();
 }
 
 Status Storage::LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key) {

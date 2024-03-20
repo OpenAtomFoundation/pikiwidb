@@ -13,8 +13,6 @@
 
 namespace pikiwidb {
 
-const std::string kCheckpointSubPath = "dump";
-
 struct CheckPointContext {
   bool checkpoint_in_process = false;
   time_t last_checkpoint_time = 0;
@@ -24,7 +22,7 @@ struct CheckPointContext {
 
 class DB {
  public:
-  DB(int db_id, const std::string& db_path, const std::string& checkpoint_sub_path);
+  DB(int db_id, const std::string& db_path, const std::string& checkpoint_path);
   std::unique_ptr<storage::Storage>& GetStorage() { return storage_; }
 
   void Lock() { storage_mutex_.lock(); }

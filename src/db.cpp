@@ -9,9 +9,9 @@ extern pikiwidb::PConfig g_config;
 
 namespace pikiwidb {
 
-DB::DB(int db_id, const std::string &db_path, const std::string& checkpoint_sub_path) : db_id_(db_id),
+DB::DB(int db_id, const std::string &db_path, const std::string& checkpoint_path) : db_id_(db_id),
                                                                                         db_path_(db_path + std::to_string(db_id) + '/'),
-                                                                                        checkpoint_path_(db_path + checkpoint_sub_path + '/' + std::to_string(db_id)){
+                                                                                        checkpoint_path_(checkpoint_path + '/' + std::to_string(db_id)){
   storage::StorageOptions storage_options;
   storage_options.options.create_if_missing = true;
   storage_options.db_instance_num = g_config.db_instance_num;
@@ -22,6 +22,10 @@ DB::DB(int db_id, const std::string &db_path, const std::string& checkpoint_sub_
   storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
   storage_ = std::make_unique<storage::Storage>();
   storage_->Open(storage_options, db_path_);
+  if (!pstd::FileExists(checkpoint_path_)) {
+    pstd::CreateDir(checkpoint_path_);
+    INFO("Cteate file {} ", checkpoint_path_);
+  }
   opened_ = true;
   INFO("Open DB{} success!", db_id);
 }

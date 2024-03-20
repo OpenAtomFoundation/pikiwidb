@@ -45,13 +45,17 @@ class PStore {
 
   std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
 
-  void DoSameThingSpecificDB(const TaskContext& task);
+  void DoSameThingSpecificDB(const TaskContext task);
 
  private:
   PStore() = default;
 
   int dbNum_ = 0;
   std::vector<std::unique_ptr<DB>> backends_;
+
+  PString dumpPath_;
+
+  // 实现 checkpoint 管理器。
 };
 
 #define PSTORE PStore::Instance()
