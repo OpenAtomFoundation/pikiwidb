@@ -30,9 +30,7 @@ std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const { return std
 
 void BaseCmd::Execute(PClient* client) {
   auto dbNum = client->GetCurrentDB();
-  if (static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
-    PSTORE.GetBackend(dbNum)->Lock();
-  } else {
+  if (!static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
     PSTORE.GetBackend(dbNum)->LockShared();
   }
 
@@ -41,9 +39,7 @@ void BaseCmd::Execute(PClient* client) {
   }
   DoCmd(client);
 
-  if (static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
-    PSTORE.GetBackend(dbNum)->UnLock();
-  } else {
+  if (!static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
     PSTORE.GetBackend(dbNum)->UnLockShared();
   }
 }
