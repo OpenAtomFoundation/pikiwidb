@@ -18,7 +18,7 @@ std::shared_ptr<PClient> CmdThreadPoolTask::Client() { return client_; }
 CmdThreadPool::CmdThreadPool(std::string name) : name_(std::move(name)) {}
 
 pstd::Status CmdThreadPool::Init(int fastThread, int slowThread, std::string name) {
-  if (fastThread < 0) {
+  if (fastThread <= 0) {
     return pstd::Status::InvalidArgument("thread num must be positive");
   }
   name_ = std::move(name);

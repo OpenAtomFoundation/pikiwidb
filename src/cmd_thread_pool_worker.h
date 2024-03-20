@@ -60,8 +60,8 @@ class CmdSlowWorker : public CmdWorkThreadPoolWorker {
   void LoadWork() override;
 
  private:
-  bool loopMore_ = false;
-  int waitTime_ = 200;
+  bool loopMore_ = false;  // When the slow queue is empty, try to get the fast queue
+  int waitTime_ = 200;     // When the slow queue is empty, wait 200 ms to check again
 };
 
 }  // namespace pikiwidb

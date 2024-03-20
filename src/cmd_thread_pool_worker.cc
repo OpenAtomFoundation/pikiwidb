@@ -40,7 +40,7 @@ void CmdWorkThreadPoolWorker::Work() {
     }
     selfTask_.clear();
   }
-  INFO("slow worker [{}] goodbye...", name_);
+  INFO("worker [{}] goodbye...", name_);
 }
 
 void CmdWorkThreadPoolWorker::Stop() { running_ = false; }
@@ -54,11 +54,12 @@ void CmdFastWorker::LoadWork() {
     pool_->fastCondition_.wait(lock);
   }
 
-  const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
-  if (num > 0) {
-    std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask_));
-    pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
+  if (pool_->fastTasks_.empty()) {
+    return;
   }
+  const auto num = std::min(static_cast<int>(pool_->fastTasks_.size()), onceTask_);
+  std::move(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num, std::back_inserter(selfTask_));
+  pool_->fastTasks_.erase(pool_->fastTasks_.begin(), pool_->fastTasks_.begin() + num);
 }
 
 void CmdSlowWorker::LoadWork() {
