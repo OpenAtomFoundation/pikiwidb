@@ -55,6 +55,8 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
     switch (type_ref) {
       case TaskType::kBgSave:
         auto& db = backends_[dbnum];
+
+        // 应该将这里的逻辑换到 checkpoint manager 中去。
         std::thread t(&DB::DoBgSave, db.get());
         t.detach();
     }

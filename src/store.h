@@ -18,6 +18,7 @@
 
 #include "common.h"
 #include "db.h"
+#include "checkpoint_manager.h"
 #include "storage/storage.h"
 
 namespace pikiwidb {
@@ -33,9 +34,11 @@ struct TaskContext {
   TaskContext(TaskType t, const std::set<int>& d) : type(t), dbs(d) {}
   TaskContext(TaskType t, const std::set<int>& d, const std::vector<std::string>& a) : type(t), dbs(d), argv(a) {}
 };
+class CheckpointManager;
 
 class PStore {
  public:
+  friend class CheckpointManager;
   static PStore& Instance();
 
   PStore(const PStore&) = delete;
