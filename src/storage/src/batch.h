@@ -87,7 +87,7 @@ class BinlogBatch : public Batch {
 
  private:
   pikiwidb::Binlog binlog_;
-  uint32_t seconds_;
+  uint32_t seconds_ = 10;
 };
 
 inline auto Batch::CreateBatch(Redis* redis, bool use_binlog) -> std::unique_ptr<Batch> {

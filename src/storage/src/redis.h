@@ -358,8 +358,8 @@ class Redis {
   std::unique_ptr<LRUCache<std::string, KeyStatistics>> statistics_store_;
 
   // For raft
-  bool is_use_raft_;
-  uint32_t raft_timeout_;
+  bool is_use_raft_ = false;
+  uint32_t raft_timeout_ = 10;
 
   Status UpdateSpecificKeyStatistics(const DataType& dtype, const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const DataType& dtype, const std::string& key, uint64_t duration);
