@@ -45,7 +45,7 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
   auto& argv_ref = task.argv;
   for (auto dbnum : dbs_ref) {
     if (dbnum >= dbNum_ || dbnum < 0) {
-      continue ;
+      continue;
     }
 
     switch (type_ref) {
@@ -57,7 +57,7 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
 }
 
 void PStore::FinishCheckpoint(bool sync) {
-  for(auto& db : backends_) {
+  for (auto& db : backends_) {
     db->FinishCheckpointDone(sync);
   }
 }

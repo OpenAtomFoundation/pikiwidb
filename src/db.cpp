@@ -11,10 +11,11 @@ namespace pikiwidb {
 
 struct CheckPointInfo;
 
-DB::DB(int db_index, const std::string &db_path, const std::string& dump_parent_path) : db_index_(db_index),
-                                                                                    db_path_(db_path + std::to_string(db_index_) + '/'),
-                                                                             dump_parent_path_(dump_parent_path),
-                                                                                        dump_path_(dump_parent_path + std::to_string(db_index_)){
+DB::DB(int db_index, const std::string& db_path, const std::string& dump_parent_path)
+    : db_index_(db_index),
+      db_path_(db_path + std::to_string(db_index_) + '/'),
+      dump_parent_path_(dump_parent_path),
+      dump_path_(dump_parent_path + std::to_string(db_index_)) {
   storage::StorageOptions storage_options;
   storage_options.options.create_if_missing = true;
   storage_options.db_instance_num = g_config.db_instance_num;
@@ -63,7 +64,5 @@ void DB::CreateCheckpoint() {
   checkpoint_manager_->CreateCheckpoint();
 }
 
-void DB::FinishCheckpointDone(bool sync) {
-  checkpoint_manager_->Finish(sync);
-}
+void DB::FinishCheckpointDone(bool sync) { checkpoint_manager_->Finish(sync); }
 }  // namespace pikiwidb

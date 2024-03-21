@@ -12,13 +12,13 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <shared_mutex>
 #include <vector>
-#include <set>
 
+#include "checkpoint_manager.h"
 #include "common.h"
 #include "db.h"
-#include "checkpoint_manager.h"
 #include "storage/storage.h"
 
 namespace pikiwidb {
@@ -33,8 +33,10 @@ struct TaskContext {
   bool sync;
   TaskContext(TaskType t, bool sync = false) : type(t), sync(sync) {}
   TaskContext(TaskType t, const std::set<int>& d, bool sync = false) : type(t), dbs(d), sync(sync) {}
-  TaskContext(TaskType t, const std::set<int>& d, const std::vector<std::string>& a, bool sync = false) : type(t), dbs(d), argv(a), sync(sync){}
+  TaskContext(TaskType t, const std::set<int>& d, const std::vector<std::string>& a, bool sync = false)
+      : type(t), dbs(d), argv(a), sync(sync) {}
 };
+class CheckpointManager;
 
 class CheckpointManager;
 
@@ -60,7 +62,7 @@ class PStore {
   int dbNum_ = 0;
   std::vector<std::unique_ptr<DB>> backends_;
 
-  PString dumpPath_; // 由配置文件传入，当前为 ./dump
+  PString dumpPath_;  // 由配置文件传入，当前为 ./dump
 };
 
 #define PSTORE PStore::Instance()

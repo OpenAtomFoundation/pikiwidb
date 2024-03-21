@@ -26,6 +26,7 @@ void GetCmd::DoCmd(PClient* client) {
   uint64_t ttl = -1;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->GetWithTTL(client->Key(), &value, &ttl);
   if (s.ok()) {
+    // 借用一下命令，get 命令可以同步 checkpoint
     std::set<int> s{0, 1};
     TaskContext task(TaskType::kBgSave, s);
     PSTORE.DoSameThingSpecificDB(task);
@@ -49,6 +50,7 @@ bool SetCmd::DoInitial(PClient* client) {
 void SetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Set(client->Key(), client->argv_[2]);
   if (s.ok()) {
+    // 借用一下命令，set 命令可以异步 checkpoint
     std::set<int> s{2, 1};
     TaskContext task(TaskType::kBgSave, s);
     PSTORE.DoSameThingSpecificDB(task);

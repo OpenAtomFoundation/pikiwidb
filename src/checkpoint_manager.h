@@ -5,10 +5,10 @@
 #ifndef PIKIWIDB_CHECKPOINT_MANAGER_H
 #define PIKIWIDB_CHECKPOINT_MANAGER_H
 
-#include <utility>
-#include <thread>
-#include <vector>
 #include <future>
+#include <thread>
+#include <utility>
+#include <vector>
 
 #include "rocksdb/db.h"
 #include "rocksdb/utilities/checkpoint.h"
@@ -32,7 +32,8 @@ struct CheckpointEntry {
 class CheckpointManager {
  public:
   CheckpointManager() = default;
-  ~CheckpointManager() = default;;
+  ~CheckpointManager() = default;
+  ;
 
   void Init(int instNum, const std::string& dump_dir, DB* db);
 

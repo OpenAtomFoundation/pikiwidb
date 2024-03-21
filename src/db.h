@@ -65,7 +65,6 @@ class DB {
   std::shared_mutex checkpoint_mutex_;
   bool checkpoint_in_process = false;
   std::unique_ptr<CheckpointManager> checkpoint_manager_;
-
 };
 }  // namespace pikiwidb
 
