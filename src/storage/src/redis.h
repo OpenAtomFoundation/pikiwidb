@@ -270,8 +270,6 @@ class Redis {
   Status ZRevrange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members);
   Status ZRevrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int64_t count,
                           int64_t offset, std::vector<ScoreMember>* score_members);
-  Status ZRevrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                        int64_t count, int64_t offset, std::vector<std::string>* members);
   Status ZRevrank(const Slice& key, const Slice& member, int32_t* rank);
   Status ZScore(const Slice& key, const Slice& member, double* score);
   Status ZGetAll(const Slice& key, double weight, std::map<std::string, double>* value_to_dest);

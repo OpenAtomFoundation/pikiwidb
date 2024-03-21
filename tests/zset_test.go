@@ -288,4 +288,102 @@ var _ = Describe("Zset", Ordered, func() {
 			Member: "three",
 		}}))
 	})
+
+	It("should ZRangeByScoreWithScoresMap", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		vals, err := client.ZRangeByScoreWithScores(ctx, "zset", &redis.ZRangeBy{
+			Min: "-inf",
+			Max: "+inf",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{
+			Score:  1,
+			Member: "one",
+		}, {
+			Score:  2,
+			Member: "two",
+		}, {
+			Score:  3,
+			Member: "three",
+		}}))
+
+		vals, err = client.ZRangeByScoreWithScores(ctx, "zset", &redis.ZRangeBy{
+			Min: "1",
+			Max: "2",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{
+			Score:  1,
+			Member: "one",
+		}, {
+			Score:  2,
+			Member: "two",
+		}}))
+
+		vals, err = client.ZRangeByScoreWithScores(ctx, "zset", &redis.ZRangeBy{
+			Min: "(1",
+			Max: "2",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{Score: 2, Member: "two"}}))
+
+		vals, err = client.ZRangeByScoreWithScores(ctx, "zset", &redis.ZRangeBy{
+			Min: "(1",
+			Max: "(2",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{}))
+	})
+
+	It("should ZRangeByLex", func() {
+		err := client.ZAdd(ctx, "zsetrangebylex", redis.Z{
+			Score:  0,
+			Member: "a",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zsetrangebylex", redis.Z{
+			Score:  0,
+			Member: "b",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zsetrangebylex", redis.Z{
+			Score:  0,
+			Member: "c",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		zRangeByLex := client.ZRangeByLex(ctx, "zsetrangebylex", &redis.ZRangeBy{
+			Min: "-",
+			Max: "+",
+		})
+		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
+		Expect(zRangeByLex.Val()).To(Equal([]string{"a", "b", "c"}))
+
+		zRangeByLex = client.ZRangeByLex(ctx, "zsetrangebylex", &redis.ZRangeBy{
+			Min: "[a",
+			Max: "[b",
+		})
+		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
+		Expect(zRangeByLex.Val()).To(Equal([]string{"a", "b"}))
+
+		zRangeByLex = client.ZRangeByLex(ctx, "zsetrangebylex", &redis.ZRangeBy{
+			Min: "(a",
+			Max: "[b",
+		})
+		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
+		Expect(zRangeByLex.Val()).To(Equal([]string{"b"}))
+
+		zRangeByLex = client.ZRangeByLex(ctx, "zsetrangebylex", &redis.ZRangeBy{
+			Min: "(a",
+			Max: "(b",
+		})
+		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
+		Expect(zRangeByLex.Val()).To(Equal([]string{}))
+	})
 })
