@@ -168,7 +168,7 @@ class Storage {
 
   Status Open(const StorageOptions& storage_options, const std::string& db_path);
 
-  Status CreateCheckpoint(const std::string& dump_path);
+  Status CreateCheckpoint(const std::string& dump_path, int index);
 
   Status LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key);
 

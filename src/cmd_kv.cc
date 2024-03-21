@@ -29,6 +29,7 @@ void GetCmd::DoCmd(PClient* client) {
     std::set<int> s{0, 1};
     TaskContext task(TaskType::kBgSave, s);
     PSTORE.DoSameThingSpecificDB(task);
+    PSTORE.FinishCheckpoint(true);
     client->AppendString(value);
   } else if (s.IsNotFound()) {
     client->AppendString("");
@@ -48,6 +49,10 @@ bool SetCmd::DoInitial(PClient* client) {
 void SetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Set(client->Key(), client->argv_[2]);
   if (s.ok()) {
+    std::set<int> s{2, 1};
+    TaskContext task(TaskType::kBgSave, s);
+    PSTORE.DoSameThingSpecificDB(task);
+    PSTORE.FinishCheckpoint(false);
     client->SetRes(CmdRes::kOK);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());

@@ -19,22 +19,18 @@ PStore& PStore::Instance() {
   return store;
 }
 
-void PStore::Init(int dbNum) {
+void PStore::Init() {
   if (g_config.backend == kBackEndNone) {
     return;
   }
 
   dumpPath_ = g_config.dumppath;
-  if (!pstd::FileExists(dumpPath_)) {
-    pstd::CreateDir(dumpPath_);
-    INFO("create file {} ", dumpPath_);
-  }
 
-  dbNum_ = dbNum;
+  dbNum_ = g_config.databases;
   backends_.reserve(dbNum_);
   if (g_config.backend == kBackEndRocksDB) {
     for (int i = 0; i < dbNum_; i++) {
-      auto db = std::make_unique<DB>(i, g_config.dbpath, g_config.dumppath);
+      auto db = std::make_unique<DB>(i, g_config.dbpath, dumpPath_);
       backends_.push_back(std::move(db));
     }
   } else {
@@ -55,11 +51,14 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
     switch (type_ref) {
       case TaskType::kBgSave:
         auto& db = backends_[dbnum];
-
-        // 应该将这里的逻辑换到 checkpoint manager 中去。
-        std::thread t(&DB::DoBgSave, db.get());
-        t.detach();
+        db->CreateCheckpoint();
     }
+  }
+}
+
+void PStore::FinishCheckpoint(bool sync) {
+  for(auto& db : backends_) {
+    db->FinishCheckpointDone(sync);
   }
 }
 
