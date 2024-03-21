@@ -1103,8 +1103,8 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
-  size_t db_instance_num_;
-  int db_id_;
+  size_t db_instance_num_ = 3;
+  int db_id_ = 0;
 };
 
 }  //  namespace storage

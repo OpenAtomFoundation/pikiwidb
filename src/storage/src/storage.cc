@@ -89,6 +89,7 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
       ERROR("open RocksDB{} failed {}", index, s.ToString());
+      return Status::IOError();
     }
     INFO("open RocksDB{} success!", index);
   }

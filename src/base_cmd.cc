@@ -29,10 +29,9 @@ bool BaseCmd::CheckArg(size_t num) const {
 std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const { return std::vector<std::string>{client->Key()}; }
 
 void BaseCmd::Execute(PClient* client) {
-  if (static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
-    PSTORE.GetBackend(client->GetCurrentDB())->Lock();
-  } else {
-    PSTORE.GetBackend(client->GetCurrentDB())->LockShared();
+  auto dbIndex = client->GetCurrentDB();
+  if (!isExclusive()) {
+    PSTORE.GetBackend(dbIndex)->LockShared();
   }
 
   if (!DoInitial(client)) {
@@ -40,10 +39,8 @@ void BaseCmd::Execute(PClient* client) {
   }
   DoCmd(client);
 
-  if (static_cast<bool>(flag_ & kCmdFlagsSuspend)) {
-    PSTORE.GetBackend(client->GetCurrentDB())->UnLock();
-  } else {
-    PSTORE.GetBackend(client->GetCurrentDB())->UnLockShared();
+  if (!isExclusive()) {
+    PSTORE.GetBackend(dbIndex)->UnLockShared();
   }
 }
 

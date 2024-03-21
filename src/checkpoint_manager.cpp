@@ -21,16 +21,10 @@ void CheckpointManager::Init(int instNum, const std::string& dump_parent_dir, DB
     checkpoint_entry.checkpoint_path = dump_parent_dir_ + '/' + std::to_string(db->GetDbIndex());
     INFO("checkpoint_entry.checkpoint_path = {}", checkpoint_entry.checkpoint_path);
   }
-
-  init_ = true;
 }
 
 void CheckpointManager::CreateCheckpoint() {
-  if (!init_) {
-    return;
-  }
   res_.clear();
-  INFO("dump_parent_dir_ = {}", dump_parent_dir_);
 
   if (!pstd::FileExists(dump_parent_dir_)) {
     if (0 != pstd::CreatePath(dump_parent_dir_)) {
@@ -49,11 +43,9 @@ void CheckpointManager::CreateCheckpoint() {
   }
 }
 
-void CheckpointManager::Finish(bool sync) {
-  if (sync) {
-    for (auto& r : res_) {
-      r.get();
-    }
+void CheckpointManager::WaitForCheckpointDone() {
+  for (auto& r : res_) {
+    r.get();
   }
 }
 

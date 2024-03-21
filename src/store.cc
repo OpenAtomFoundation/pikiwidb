@@ -25,6 +25,7 @@ void PStore::Init() {
   }
 
   dumpPath_ = g_config.dumppath;
+  backends_.reserve(dbNum_);
 
   dbNum_ = g_config.databases;
   backends_.reserve(dbNum_);
@@ -35,7 +36,6 @@ void PStore::Init() {
     }
   } else {
     ERROR("unsupport backend!");
-    return;
   }
 }
 
@@ -56,9 +56,9 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
   }
 }
 
-void PStore::FinishCheckpoint(bool sync) {
+void PStore::WaitForCheckpointDone() {
   for (auto& db : backends_) {
-    db->FinishCheckpointDone(sync);
+    db->WaitForCheckpointDone();
   }
 }
 

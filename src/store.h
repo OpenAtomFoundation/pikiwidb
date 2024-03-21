@@ -9,6 +9,11 @@
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
+
+#include "common.h"
+#include "db.h"
+#include "storage/storage.h"
+
 #include <map>
 #include <memory>
 #include <mutex>
@@ -54,15 +59,24 @@ class PStore {
 
   void DoSameThingSpecificDB(const TaskContext task);
 
-  void FinishCheckpoint(bool sync);
+  void WaitForCheckpointDone();
+
+  std::shared_mutex& SharedMutex() { return dbs_mutex_; }
+
 
  private:
   PStore() = default;
 
   int dbNum_ = 0;
-  std::vector<std::unique_ptr<DB>> backends_;
-
   PString dumpPath_;  // 由配置文件传入，当前为 ./dump
+
+  /**
+   * If you want to access all the DBs at the same time,
+   * then you must hold the lock.
+   * For example: you want to execute flushall or bgsave.
+   */
+  std::shared_mutex dbs_mutex_;
+  std::vector<std::unique_ptr<DB>> backends_;
 };
 
 #define PSTORE PStore::Instance()

@@ -1,6 +1,9 @@
-//
-// Created by dingxiaoshuai on 2024/3/18.
-//
+/*
+ * Copyright (c) 2024-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
 
 #ifndef PIKIWIDB_DB_H
 #define PIKIWIDB_DB_H
@@ -23,6 +26,7 @@ struct CheckPointContext {
 class DB {
  public:
   DB(int db_index, const std::string& db_path, const std::string& dump_path);
+
   std::unique_ptr<storage::Storage>& GetStorage() { return storage_; }
 
   void Lock() { storage_mutex_.lock(); }
@@ -37,7 +41,7 @@ class DB {
 
   [[maybe_unused]] void DoBgSave(CheckPointInfo&, const std::string&, int i);
 
-  void FinishCheckpointDone(bool sync);
+  void WaitForCheckpointDone();
 
   int GetDbIndex() { return db_index_; }
 
@@ -63,7 +67,6 @@ class DB {
    * you just need to obtain a shared lock.
    */
   std::shared_mutex checkpoint_mutex_;
-  bool checkpoint_in_process = false;
   std::unique_ptr<CheckpointManager> checkpoint_manager_;
 };
 }  // namespace pikiwidb

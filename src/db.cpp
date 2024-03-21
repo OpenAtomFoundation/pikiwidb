@@ -1,6 +1,9 @@
-//
-// Created by dingxiaoshuai on 2024/3/18.
-//
+/*
+ * Copyright (c) 2024-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
 
 #include "db.h"
 #include "config.h"
@@ -50,19 +53,12 @@ void DB::DoBgSave(CheckPointInfo& checkpoint_info, const std::string& path, int 
   }
 
   // 用于测试是否能够同步等待。
-  sleep(2);
+  sleep(5);
 }
 
 void DB::CreateCheckpoint() {
-  {
-    std::lock_guard lock(checkpoint_mutex_);
-    if (checkpoint_in_process) {
-      return;
-    }
-    checkpoint_in_process = true;
-  }
   checkpoint_manager_->CreateCheckpoint();
 }
 
-void DB::FinishCheckpointDone(bool sync) { checkpoint_manager_->Finish(sync); }
+void DB::WaitForCheckpointDone() { checkpoint_manager_->WaitForCheckpointDone(); }
 }  // namespace pikiwidb

@@ -27,10 +27,10 @@ void GetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->GetWithTTL(client->Key(), &value, &ttl);
   if (s.ok()) {
     // 借用一下命令，get 命令可以同步 checkpoint
-    std::set<int> s{0, 1};
-    TaskContext task(TaskType::kBgSave, s);
+    std::set<int> set{0, 1};
+    TaskContext task(TaskType::kBgSave, set);
     PSTORE.DoSameThingSpecificDB(task);
-    PSTORE.FinishCheckpoint(true);
+    PSTORE.WaitForCheckpointDone();
     client->AppendString(value);
   } else if (s.IsNotFound()) {
     client->AppendString("");
@@ -51,10 +51,9 @@ void SetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Set(client->Key(), client->argv_[2]);
   if (s.ok()) {
     // 借用一下命令，set 命令可以异步 checkpoint
-    std::set<int> s{2, 1};
-    TaskContext task(TaskType::kBgSave, s);
+    std::set<int> set{2, 1};
+    TaskContext task(TaskType::kBgSave, set);
     PSTORE.DoSameThingSpecificDB(task);
-    PSTORE.FinishCheckpoint(false);
     client->SetRes(CmdRes::kOK);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());

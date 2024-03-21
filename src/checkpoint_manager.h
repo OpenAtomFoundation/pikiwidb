@@ -39,7 +39,7 @@ class CheckpointManager {
 
   void CreateCheckpoint();
 
-  void Finish(bool sync);
+  void WaitForCheckpointDone();
 
  private:
   int checkpoint_num_;
@@ -47,7 +47,6 @@ class CheckpointManager {
   std::vector<CheckpointEntry> checkpoint_entries_;
   std::vector<std::future<void>> res_;
   DB* db_ = nullptr;
-  bool init_ = false;
 };
 }  // namespace pikiwidb
 
