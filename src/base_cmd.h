@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "client.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -137,6 +138,7 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsExclusive = (1 << 15),        // May change Storage pointer, like pika's kCmdFlagsSuspend
 };
 
 enum AclCategory {
@@ -271,6 +273,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   //  std::shared_ptr<std::string> GetResp();
 
   uint32_t GetCmdId() const;
+
+  bool isExclusive() { return static_cast<bool>(flag_ & kCmdFlagsExclusive); }
 
  protected:
   // Execute a specific command
