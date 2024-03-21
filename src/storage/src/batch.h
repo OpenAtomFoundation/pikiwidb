@@ -1,3 +1,10 @@
+/*
+ * Copyright (c) 2024-present, Qihoo, Inc.  All rights reserved.
+ * This source code is licensed under the BSD-style license found in the
+ * LICENSE file in the root directory of this source tree. An additional grant
+ * of patent rights can be found in the PATENTS file in the same directory.
+ */
+
 #pragma once
 
 #include <chrono>
@@ -47,7 +54,7 @@ class RocksBatch : public Batch {
 
 class BinlogBatch : public Batch {
  public:
-  BinlogBatch(int32_t index, int32_t seconds = 10) : seconds_(seconds) {
+  BinlogBatch(int32_t index, uint32_t seconds = 10) : seconds_(seconds) {
     binlog_.set_db_id(0);
     binlog_.set_slot_idx(index);
   }
@@ -71,10 +78,6 @@ class BinlogBatch : public Batch {
     std::promise<Status> promise;
     auto future = promise.get_future();
     pikiwidb::PRaft::Instance().AppendLog(binlog_, std::move(promise));
-    if (seconds_ == -1) {  // if do not require timeout
-      return future.get();
-    }
-
     auto status = future.wait_for(std::chrono::seconds(seconds_));
     if (status == std::future_status::timeout) {
       return Status::Incomplete("Wait for write timeout");
@@ -84,12 +87,12 @@ class BinlogBatch : public Batch {
 
  private:
   pikiwidb::Binlog binlog_;
-  int32_t seconds_;
+  uint32_t seconds_;
 };
 
 inline auto Batch::CreateBatch(Redis* redis, bool use_binlog) -> std::unique_ptr<Batch> {
   if (use_binlog) {
-    return std::make_unique<BinlogBatch>(redis->GetIndex());
+    return std::make_unique<BinlogBatch>(redis->GetIndex(), redis->GetRaftTimeout());
   }
   return std::make_unique<RocksBatch>(redis->GetDB(), redis->GetWriteOptions(), redis->GetColumnFamilyHandles());
 }

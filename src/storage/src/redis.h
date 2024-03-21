@@ -212,6 +212,7 @@ class Redis {
   void GetRocksDBInfo(std::string& info, const char* prefix);
   auto GetWriteOptions() const -> const rocksdb::WriteOptions& { return default_write_options_; }
   auto GetColumnFamilyHandles() const -> const std::vector<rocksdb::ColumnFamilyHandle*>& { return handles_; }
+  auto GetRaftTimeout() const -> uint32_t { return raft_timeout_; }
 
   // Sets Commands
   Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
@@ -358,6 +359,7 @@ class Redis {
 
   // For raft
   bool is_use_raft_;
+  uint32_t raft_timeout_;
 
   Status UpdateSpecificKeyStatistics(const DataType& dtype, const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const DataType& dtype, const std::string& key, uint64_t duration);
