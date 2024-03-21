@@ -38,10 +38,10 @@ void FlushdbCmd::DoCmd(PClient* client) {
   int currentDBIndex = client->GetCurrentDB();
   PSTORE.GetBackend(currentDBIndex).reset();
 
-  std::string db_path_ = g_config.dbpath + std::to_string(currentDBIndex);
-  std::string path_temp_ = db_path_;
-  path_temp_.append("_deleting/");
-  pstd::RenameFile(db_path_, path_temp_);
+  std::string db_path = g_config.dbpath + std::to_string(currentDBIndex);
+  std::string path_temp = db_path;
+  path_temp.append("_deleting/");
+  pstd::RenameFile(db_path, path_temp);
 
   PSTORE.GetBackend(currentDBIndex) = std::make_unique<storage::Storage>();
   storage::StorageOptions storage_options;
@@ -50,9 +50,9 @@ void FlushdbCmd::DoCmd(PClient* client) {
   storage_options.options.ttl = g_config.rocksdb_ttl_second;
   storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
 
-  storage::Status s = PSTORE.GetBackend(currentDBIndex)->Open(storage_options, db_path_.data());
+  storage::Status s = PSTORE.GetBackend(currentDBIndex)->Open(storage_options, db_path.data());
   assert(s.ok());
-  pstd::DeleteDir(path_temp_);
+  pstd::DeleteDir(path_temp);
   client->SetRes(CmdRes::kOK);
 }
 
@@ -65,10 +65,10 @@ void FlushallCmd::DoCmd(PClient* client) {
   for (size_t i = 0; i < g_config.databases; ++i) {
     PSTORE.GetBackend(i).reset();
 
-    std::string db_path_ = g_config.dbpath + std::to_string(i);
-    std::string path_temp_ = db_path_;
-    path_temp_.append("_deleting/");
-    pstd::RenameFile(db_path_, path_temp_);
+    std::string db_path = g_config.dbpath + std::to_string(i);
+    std::string path_temp = db_path;
+    path_temp.append("_deleting/");
+    pstd::RenameFile(db_path, path_temp);
 
     PSTORE.GetBackend(i) = std::make_unique<storage::Storage>();
     storage::StorageOptions storage_options;
@@ -77,9 +77,9 @@ void FlushallCmd::DoCmd(PClient* client) {
     storage_options.options.ttl = g_config.rocksdb_ttl_second;
     storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
 
-    storage::Status s = PSTORE.GetBackend(i)->Open(storage_options, db_path_.data());
+    storage::Status s = PSTORE.GetBackend(i)->Open(storage_options, db_path.data());
     assert(s.ok());
-    pstd::DeleteDir(path_temp_);
+    pstd::DeleteDir(path_temp);
   }
   client->SetRes(CmdRes::kOK);
 }
