@@ -362,7 +362,7 @@ void ZRangeCmd::DoCmd(PClient* client) {
   std::string lex_min;
   std::string lex_max;
   if (by_lex) {
-    ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close,&lex_min,&lex_max);
+    ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &lex_min, &lex_max);
     if (ret == -1) {
       client->SetRes(CmdRes::kErrOther, "min or max not valid string range item");
       return;
@@ -550,7 +550,7 @@ bool ZRangebylexCmd::DoInitial(PClient* client) {
 }
 
 void ZRangebylexCmd::DoCmd(PClient* client) {
-  if(strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
+  if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
     client->AppendContent("*0");
   }
 
@@ -568,8 +568,7 @@ void ZRangebylexCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
-  } else if ( argc == 4 ) {
-
+  } else if (argc == 4) {
   } else {
     client->SetRes(CmdRes::kSyntaxErr);
     return;
@@ -577,7 +576,7 @@ void ZRangebylexCmd::DoCmd(PClient* client) {
 
   std::string min_member;
   std::string max_member;
-  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close,&min_member,&max_member);
+  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_member, &max_member);
   if (ret == -1) {
     client->SetRes(CmdRes::kErrOther, "min or max not valid string range item");
     return;
@@ -611,7 +610,7 @@ bool ZRevrangebylexCmd::DoInitial(PClient* client) {
 }
 
 void ZRevrangebylexCmd::DoCmd(PClient* client) {
-  if(strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
+  if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
     client->AppendContent("*0");
   }
 
@@ -629,8 +628,7 @@ void ZRevrangebylexCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
-  } else if ( argc == 4 ) {
-
+  } else if (argc == 4) {
   } else {
     client->SetRes(CmdRes::kSyntaxErr);
     return;
@@ -638,7 +636,7 @@ void ZRevrangebylexCmd::DoCmd(PClient* client) {
 
   std::string min_member;
   std::string max_member;
-  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close,&min_member,&max_member);
+  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_member, &max_member);
   std::vector<std::string> members;
   storage::Status s;
   s = PSTORE.GetBackend(client->GetCurrentDB())
