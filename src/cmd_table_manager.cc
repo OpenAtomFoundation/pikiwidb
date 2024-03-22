@@ -50,6 +50,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Expireat, 3);
   ADD_COMMAND(PExpireat, 3);
   ADD_COMMAND(Persist, 2);
+  ADD_COMMAND(Keys, 2);
+
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
