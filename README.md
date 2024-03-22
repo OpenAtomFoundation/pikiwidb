@@ -1,6 +1,5 @@
 # PikiwiDB
-![9f9fb32f12d9fef69d1e248b607f4e23](https://github.com/OpenAtomFoundation/pikiwidb/assets/73943232/1772dbcf-6789-4d55-8844-8f0feacbbfab)
-
+![](docs/images/pikiwidb-logo.png)
 [中文](README_CN.md)
 
 A C++11 implementation of Redis Server, use RocksDB for persist storage.(not including cluster yet)

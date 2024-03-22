@@ -1,5 +1,5 @@
 # PikiwiDB
-
+![](docs/images/pikiwidb-logo.png)
 [Click me switch to English](README.en.md)
 
 C++11实现的增强版Redis服务器,使用RocksDB作为持久化存储引擎。(集群支持尚正在计划中)
