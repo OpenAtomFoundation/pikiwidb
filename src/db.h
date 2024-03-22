@@ -16,13 +16,6 @@
 #include "storage/storage.h"
 namespace pikiwidb {
 
-struct CheckPointContext {
-  bool checkpoint_in_process = false;
-  time_t last_checkpoint_time = 0;
-  bool last_checkpoint_success = false;
-  std::string checkpoint_path;
-};
-
 class DB {
  public:
   DB(int db_index, const std::string& db_path, const std::string& dump_path);
@@ -60,13 +53,6 @@ class DB {
   std::unique_ptr<storage::Storage> storage_;
   bool opened_ = false;
 
-  /**
-   * If you want to change the status below，you must first acquire
-   * a mutex lock.
-   * If you only want to access the status below,
-   * you just need to obtain a shared lock.
-   */
-  std::shared_mutex checkpoint_mutex_;
   std::unique_ptr<CheckpointManager> checkpoint_manager_;
 };
 }  // namespace pikiwidb

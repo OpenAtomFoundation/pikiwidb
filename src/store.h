@@ -9,7 +9,6 @@
 
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
-
 #include "common.h"
 #include "db.h"
 #include "storage/storage.h"
@@ -28,7 +27,7 @@
 
 namespace pikiwidb {
 enum TaskType {
-  kBgSave,
+  kCheckpoint,
 };
 
 struct TaskContext {
@@ -62,7 +61,6 @@ class PStore {
   void WaitForCheckpointDone();
 
   std::shared_mutex& SharedMutex() { return dbs_mutex_; }
-
 
  private:
   PStore() = default;

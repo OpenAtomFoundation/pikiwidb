@@ -47,11 +47,11 @@ void PStore::DoSameThingSpecificDB(const TaskContext task) {
     if (dbnum >= dbNum_ || dbnum < 0) {
       continue;
     }
-
     switch (type_ref) {
-      case TaskType::kBgSave:
+      case TaskType::kCheckpoint:
         auto& db = backends_[dbnum];
         db->CreateCheckpoint();
+        break;
     }
   }
 }

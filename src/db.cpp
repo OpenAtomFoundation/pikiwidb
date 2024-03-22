@@ -45,20 +45,19 @@ void DB::DoBgSave(CheckPointInfo& checkpoint_info, const std::string& path, int 
   // 2）Create the storage's checkpoint 。
   auto status = storage_->CreateCheckpoint(path, i);
 
-  // 3) write the status
-  if (status.ok()) {
-    checkpoint_info.last_checkpoint_success = true;
-    checkpoint_info.last_checkpoint_time = time(nullptr);
-    // others
-  }
-
   // 用于测试是否能够同步等待。
   sleep(5);
+
+  // 3) write the status
+  if (status.ok()) {
+    checkpoint_info.finish_checkpoint_time = time(nullptr);
+    checkpoint_info.last_checkpoint_success = true;
+    checkpoint_info.checkpoint_in_process = false;
+    // others
+  }
 }
 
-void DB::CreateCheckpoint() {
-  checkpoint_manager_->CreateCheckpoint();
-}
+void DB::CreateCheckpoint() { checkpoint_manager_->CreateCheckpoint(); }
 
 void DB::WaitForCheckpointDone() { checkpoint_manager_->WaitForCheckpointDone(); }
 }  // namespace pikiwidb

@@ -28,7 +28,7 @@ void GetCmd::DoCmd(PClient* client) {
   if (s.ok()) {
     // 借用一下命令，get 命令可以同步 checkpoint
     std::set<int> set{0, 1};
-    TaskContext task(TaskType::kBgSave, set);
+    TaskContext task(TaskType::kCheckpoint, set);
     PSTORE.DoSameThingSpecificDB(task);
     PSTORE.WaitForCheckpointDone();
     client->AppendString(value);
@@ -52,7 +52,7 @@ void SetCmd::DoCmd(PClient* client) {
   if (s.ok()) {
     // 借用一下命令，set 命令可以异步 checkpoint
     std::set<int> set{2, 1};
-    TaskContext task(TaskType::kBgSave, set);
+    TaskContext task(TaskType::kCheckpoint, set);
     PSTORE.DoSameThingSpecificDB(task);
     client->SetRes(CmdRes::kOK);
   } else {
