@@ -1,5 +1,5 @@
 # PikiwiDB
-
+![](docs/images/pikiwidb-logo.png)
 [中文](README_CN.md)
 
 A C++11 implementation of Redis Server, use RocksDB for persist storage.(not including cluster yet)
