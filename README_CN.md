@@ -1,5 +1,7 @@
 # PikiwiDB
 
+![9f9fb32f12d9fef69d1e248b607f4e23](https://github.com/OpenAtomFoundation/pikiwidb/assets/73943232/31a62cc5-de0b-4dfb-b4d9-010874da5bdb)
+
 [Click me switch to English](README.en.md)
 
 C++11实现的增强版Redis服务器,使用RocksDB作为持久化存储引擎。(集群支持尚正在计划中)
