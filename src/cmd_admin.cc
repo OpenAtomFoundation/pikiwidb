@@ -8,6 +8,7 @@
 #include "cmd_admin.h"
 #include "pstd/env.h"
 #include "store.h"
+#include "db.h"
 
 namespace pikiwidb {
 
@@ -30,56 +31,60 @@ bool CmdConfigSet::DoInitial(PClient* client) { return true; }
 void CmdConfigSet::DoCmd(PClient* client) { client->AppendString("config cmd in development"); }
 
 FlushdbCmd::FlushdbCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsAdmin | kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryAdmin) {}
+    : BaseCmd(name, arity, kCmdFlagsExclusive | kCmdFlagsAdmin | kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryAdmin) {}
 
 bool FlushdbCmd::DoInitial(PClient* client) { return true; }
 
 void FlushdbCmd::DoCmd(PClient* client) {
   int currentDBIndex = client->GetCurrentDB();
-  PSTORE.GetBackend(currentDBIndex).reset();
+  PSTORE.GetBackend(currentDBIndex).get()->Lock();
+  PSTORE.GetBackend(currentDBIndex)->GetStorage().reset();
 
   std::string db_path = g_config.dbpath + std::to_string(currentDBIndex);
   std::string path_temp = db_path;
   path_temp.append("_deleting/");
   pstd::RenameFile(db_path, path_temp);
 
-  PSTORE.GetBackend(currentDBIndex) = std::make_unique<storage::Storage>();
+  PSTORE.GetBackend(currentDBIndex)->GetStorage() = std::make_unique<storage::Storage>();
   storage::StorageOptions storage_options;
   storage_options.options.create_if_missing = true;
   storage_options.db_instance_num = g_config.db_instance_num;
   storage_options.options.ttl = g_config.rocksdb_ttl_second;
   storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
 
-  storage::Status s = PSTORE.GetBackend(currentDBIndex)->Open(storage_options, db_path.data());
+  storage::Status s = PSTORE.GetBackend(currentDBIndex)->GetStorage()->Open(storage_options, db_path.data());
   assert(s.ok());
   pstd::DeleteDir(path_temp);
+  PSTORE.GetBackend(currentDBIndex).get()->UnLock();
   client->SetRes(CmdRes::kOK);
 }
 
 FlushallCmd::FlushallCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsAdmin | kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryAdmin) {}
+    : BaseCmd(name, arity, kCmdFlagsExclusive | kCmdFlagsAdmin | kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryAdmin) {}
 
 bool FlushallCmd::DoInitial(PClient* client) { return true; }
 
 void FlushallCmd::DoCmd(PClient* client) {
   for (size_t i = 0; i < g_config.databases; ++i) {
-    PSTORE.GetBackend(i).reset();
+    PSTORE.GetBackend(i).get()->Lock();
+    PSTORE.GetBackend(i)->GetStorage().reset();
 
     std::string db_path = g_config.dbpath + std::to_string(i);
     std::string path_temp = db_path;
     path_temp.append("_deleting/");
     pstd::RenameFile(db_path, path_temp);
 
-    PSTORE.GetBackend(i) = std::make_unique<storage::Storage>();
+    PSTORE.GetBackend(i)->GetStorage() = std::make_unique<storage::Storage>();
     storage::StorageOptions storage_options;
     storage_options.options.create_if_missing = true;
     storage_options.db_instance_num = g_config.db_instance_num;
     storage_options.options.ttl = g_config.rocksdb_ttl_second;
     storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
 
-    storage::Status s = PSTORE.GetBackend(i)->Open(storage_options, db_path.data());
+    storage::Status s = PSTORE.GetBackend(i)->GetStorage()->Open(storage_options, db_path.data());
     assert(s.ok());
     pstd::DeleteDir(path_temp);
+    PSTORE.GetBackend(i).get()->UnLock();
   }
   client->SetRes(CmdRes::kOK);
 }
