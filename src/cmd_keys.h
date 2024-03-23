@@ -34,36 +34,36 @@ class ExistsCmd : public BaseCmd {
 };
 
 class TypeCmd : public BaseCmd {
-  public:
-   TypeCmd(const std::string& name, int16_t arity);
+ public:
+  TypeCmd(const std::string& name, int16_t arity);
 
-  protected:
-   bool DoInitial(PClient* client) override;
+ protected:
+  bool DoInitial(PClient* client) override;
 
-  private:
-   void DoCmd(PClient* client) override;
+ private:
+  void DoCmd(PClient* client) override;
 };
 
 class ExpireCmd : public BaseCmd {
-  public:
-   ExpireCmd(const std::string& name, int16_t arity);
+ public:
+  ExpireCmd(const std::string& name, int16_t arity);
 
-  protected:
-   bool DoInitial(PClient* client) override;
+ protected:
+  bool DoInitial(PClient* client) override;
 
-  private:
-   void DoCmd(PClient* client) override;
+ private:
+  void DoCmd(PClient* client) override;
 };
 
 class TtlCmd : public BaseCmd {
-  public:
-   TtlCmd(const std::string& name, int16_t arity);
+ public:
+  TtlCmd(const std::string& name, int16_t arity);
 
-  protected:
-   bool DoInitial(PClient* client) override;
+ protected:
+  bool DoInitial(PClient* client) override;
 
-  private:
-   void DoCmd(PClient* client) override;
+ private:
+  void DoCmd(PClient* client) override;
 };
 
 class PExpireCmd : public BaseCmd {
