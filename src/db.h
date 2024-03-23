@@ -18,7 +18,7 @@ namespace pikiwidb {
 
 class DB {
  public:
-  DB(int db_index, const std::string& db_path, const std::string& dump_path);
+  DB(int db_index, const std::string& db_path);
 
   std::unique_ptr<storage::Storage>& GetStorage() { return storage_; }
 
@@ -30,9 +30,9 @@ class DB {
 
   void UnLockShared() { storage_mutex_.unlock_shared(); }
 
-  void CreateCheckpoint();
+  void CreateCheckpoint(const std::string& path);
 
-  [[maybe_unused]] void DoBgSave(CheckPointInfo&, const std::string&, int i);
+  [[maybe_unused]] void DoBgSave(CheckpointInfo&, const std::string&, int i);
 
   void WaitForCheckpointDone();
 

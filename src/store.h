@@ -26,21 +26,25 @@
 #include "storage/storage.h"
 
 namespace pikiwidb {
+
 enum TaskType {
   kCheckpoint,
 };
 
+enum TaskArg {
+  kCheckpointPath,
+};
+
 struct TaskContext {
   TaskType type;
-  std::set<int> dbs;
-  std::vector<std::string> argv;
-  bool sync;
-  TaskContext(TaskType t, bool sync = false) : type(t), sync(sync) {}
-  TaskContext(TaskType t, const std::set<int>& d, bool sync = false) : type(t), dbs(d), sync(sync) {}
-  TaskContext(TaskType t, const std::set<int>& d, const std::vector<std::string>& a, bool sync = false)
-      : type(t), dbs(d), argv(a), sync(sync) {}
+  int db;
+  std::map<TaskArg, std::string> args;
+  TaskContext(TaskType t) : type(t) {}
+  TaskContext(TaskType t, int d) : type(t), db(d) {}
+  TaskContext(TaskType t, int d, const std::map<TaskArg, std::string>& a) : type(t), db(d), args(a) {}
 };
-class CheckpointManager;
+
+using TasksVector = std::vector<TaskContext>;
 
 class CheckpointManager;
 
@@ -56,7 +60,7 @@ class PStore {
 
   std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
 
-  void DoSameThingSpecificDB(const TaskContext task);
+  void DoSomeThingSpecificDB(const TasksVector task);
 
   void WaitForCheckpointDone();
 
@@ -64,9 +68,9 @@ class PStore {
 
  private:
   PStore() = default;
+  void trimSlash(std::string& dirName);
 
   int dbNum_ = 0;
-  PString dumpPath_;  // 由配置文件传入，当前为 ./dump
 
   /**
    * If you want to access all the DBs at the same time,

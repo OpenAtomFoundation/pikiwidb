@@ -103,7 +103,16 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
 
 Status Storage::CreateCheckpoint(const std::string& dump_path, int i) {
   INFO("DB{}'s RocksDB {} begin to generate a checkpoint!", db_id_, i);
-  auto source_dir = AppendSubDirectory(dump_path, i);
+  auto source_dir = AppendSubDirectory(dump_path, db_id_);
+  if (!pstd::FileExists(source_dir)) {
+    if (0 != pstd::CreatePath(source_dir)) {
+      WARN("Create Dir {} fail!", source_dir);
+      return Status::IOError("CreatePath() fail! dir_name : {} ", source_dir);
+    }
+    INFO("Create Dir {} success!", source_dir);
+  }
+
+  source_dir = AppendSubDirectory(source_dir, i);
 
   auto tmp_dir = source_dir + ".tmp";
   // 1) Make sure the temporary directory does not exist

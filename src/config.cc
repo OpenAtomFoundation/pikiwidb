@@ -93,7 +93,6 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.port = parser.GetData<unsigned short>("port");
   cfg.timeout = parser.GetData<int>("timeout");
   cfg.dbpath = parser.GetData<PString>("db-path");
-  cfg.dumppath = parser.GetData<PString>("dump-path");
 
   cfg.loglevel = parser.GetData<PString>("loglevel", cfg.loglevel);
   cfg.logdir = parser.GetData<PString>("logfile", cfg.logdir);
