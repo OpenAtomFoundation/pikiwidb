@@ -83,8 +83,7 @@ void RaftNodeCmd::DoCmdRemove(PClient* client) {
     braft::PeerId leader_peer_id(PRAFT.GetLeaderID());
     // @todo There will be an unreasonable address, need to consider how to deal with it
     if (leader_peer_id.is_empty()) {
-      client->SetRes(CmdRes::kErrOther, "The cluster is electing the leader. \
-        Please run the delete command again");
+      client->SetRes(CmdRes::kErrOther, "The leader address of the cluster is incorrect, try again or delete the node from another node");
       return;
     }
 
