@@ -1,8 +1,8 @@
 # PikiwiDB
-
+![](docs/images/pikiwidb-logo.png)
 [Click me switch to English](README.en.md)
 
-C++11实现的增强版Redis服务器,使用Leveldb作为持久化存储引擎。(集群支持尚正在计划中)
+C++11实现的增强版Redis服务器,使用RocksDB作为持久化存储引擎。(集群支持尚正在计划中)
 
 ## 环境需求
 * C++11、CMake
@@ -39,7 +39,7 @@ C++11实现的增强版Redis服务器,使用Leveldb作为持久化存储引擎�
  这些特性PikiwiDB都有:-)
 
 ## 持久化：内存不再是上限
- Leveldb可以配置为PikiwiDB的持久化存储引擎，可以存储更多的数据。
+ RocksDB可以配置为PikiwiDB的持久化存储引擎，可以存储更多的数据。
 
 
 ## 命令列表

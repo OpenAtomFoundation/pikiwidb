@@ -29,10 +29,19 @@ bool BaseCmd::CheckArg(size_t num) const {
 std::vector<std::string> BaseCmd::CurrentKey(PClient* client) const { return std::vector<std::string>{client->Key()}; }
 
 void BaseCmd::Execute(PClient* client) {
+  auto dbIndex = client->GetCurrentDB();
+  if (!isExclusive()) {
+    PSTORE.GetBackend(dbIndex)->LockShared();
+  }
+
   if (!DoInitial(client)) {
     return;
   }
   DoCmd(client);
+
+  if (!isExclusive()) {
+    PSTORE.GetBackend(dbIndex)->UnLockShared();
+  }
 }
 
 std::string BaseCmd::ToBinlog(uint32_t exec_time, uint32_t term_id, uint64_t logic_id, uint32_t filenum,
