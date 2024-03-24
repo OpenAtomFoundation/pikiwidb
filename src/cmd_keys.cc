@@ -64,7 +64,7 @@ bool TypeCmd::DoInitial(PClient* client) {
 
 void TypeCmd::DoCmd(PClient* client) {
   std::vector<std::string> types(1);
-  rocksdb::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetType(client->Key(), true, types);
+  rocksdb::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->GetType(client->Key(), true, types);
   if (s.ok()) {
     client->AppendContent("+" + types[0]);
   } else {
@@ -82,7 +82,7 @@ bool ExpireCmd::DoInitial(PClient* client) {
 
 void ExpireCmd::DoCmd(PClient* client) {
   uint64_t sec = 0;
-  auto res = PSTORE.GetBackend(client->GetCurrentDB())->Expire(client->Key(), sec);
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Expire(client->Key(), sec);
   if (res != -1) {
     client->AppendInteger(res);
   } else {
@@ -101,7 +101,7 @@ bool TtlCmd::DoInitial(PClient* client) {
 void TtlCmd::DoCmd(PClient* client) {
   std::map<storage::DataType, int64_t> type_timestamp;
   std::map<storage::DataType, rocksdb::Status> type_status;
-  type_timestamp = PSTORE.GetBackend(client->GetCurrentDB())->TTL(client->Key(), &type_status);
+  type_timestamp = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->TTL(client->Key(), &type_status);
   for (const auto& item : type_timestamp) {
     if (item.second == -3) {
       client->SetRes(CmdRes::kErrOther, "ttl internal error");
