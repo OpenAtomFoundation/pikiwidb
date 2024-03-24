@@ -156,7 +156,7 @@ bool KeysCmd::DoInitial(PClient* client) {
 
 void KeysCmd::DoCmd(PClient* client) {
   std::vector<std::string> keys;
-  auto s = PSTORE.GetBackend(client->GetCurrentDB())->Keys(storage::DataType::kAll, client->Key(), &keys);
+  auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Keys(storage::DataType::kAll, client->Key(), &keys);
   if (s.ok()) {
     client->AppendArrayLen(keys.size());
     for (auto k : keys) {
