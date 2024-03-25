@@ -23,9 +23,7 @@ std::size_t UnboundedBuffer::PushData(const void* pData, std::size_t nSize) {
   return nBytes;
 }
 
-std::size_t UnboundedBuffer::PushData(const std::string_view& data) {
-  return PushData(data.data(), data.size());
-}
+std::size_t UnboundedBuffer::PushData(const std::string_view& data) { return PushData(data.data(), data.size()); }
 
 std::size_t UnboundedBuffer::PushDataAt(const void* pData, std::size_t nSize, std::size_t offset) {
   if (!pData || nSize == 0) {

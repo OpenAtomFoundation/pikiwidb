@@ -8,8 +8,8 @@
 #pragma once
 
 #include <cstring>
-#include <vector>
 #include <string_view>
+#include <vector>
 
 namespace pikiwidb {
 
