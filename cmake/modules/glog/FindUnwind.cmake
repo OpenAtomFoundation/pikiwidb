@@ -3,9 +3,9 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-if(unwind_SOURCE_DIR)
-  message(STATUS "Found unwind in ${unwind_SOURCE_DIR}")
+IF (unwind_SOURCE_DIR)
+  MESSAGE(STATUS "Found unwind in ${unwind_SOURCE_DIR}")
 
-  add_library(unwind::unwind ALIAS unwind)
-  install(TARGETS unwind EXPORT glog-targets)
-endif()
+  ADD_LIBRARY(unwind::unwind ALIAS unwind)
+  INSTALL(TARGETS unwind EXPORT glog-targets)
+ENDIF()

@@ -12,7 +12,6 @@ import (
 	"log"
 	"strconv"
 	"time"
-
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/redis/go-redis/v9"

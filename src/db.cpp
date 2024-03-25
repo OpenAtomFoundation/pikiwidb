@@ -25,13 +25,13 @@ DB::DB(int db_index, const std::string& db_path)
   storage_options.options.ttl = g_config.rocksdb_ttl_second;
   storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
   storage_ = std::make_unique<storage::Storage>();
-  storage_->Open(storage_options, db_path_);
 
-  checkpoint_manager_ = std::make_unique<CheckpointManager>();
-  checkpoint_manager_->Init(g_config.db_instance_num, this);
-
+  if (auto s = storage_->Open(storage_options, db_path_); !s.ok()) {
+    ERROR("Storage open failed! {}", s.ToString());
+    abort();
+  }
   opened_ = true;
-  INFO("Open DB{} success!", db_index_);
+  INFO("Open DB{} success!", db_id);
 }
 
 void DB::DoBgSave(CheckpointInfo& checkpoint_info, const std::string& path, int i) {
@@ -48,4 +48,5 @@ void DB::DoBgSave(CheckpointInfo& checkpoint_info, const std::string& path, int 
 void DB::CreateCheckpoint(const std::string& path) { checkpoint_manager_->CreateCheckpoint(path); }
 
 void DB::WaitForCheckpointDone() { checkpoint_manager_->WaitForCheckpointDone(); }
+  
 }  // namespace pikiwidb

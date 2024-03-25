@@ -29,6 +29,7 @@ void PStore::Init() {
   dbNum_ = g_config.databases;
   backends_.reserve(dbNum_);
   if (g_config.backend == kBackEndRocksDB) {
+
     for (int i = 0; i < dbNum_; i++) {
       auto db = std::make_unique<DB>(i, g_config.dbpath);
       backends_.push_back(std::move(db));
@@ -68,6 +69,7 @@ void PStore::WaitForCheckpointDone() {
 void PStore::trimSlash(std::string& dirName) {
   while (dirName.back() == '/') {
     dirName.pop_back();
+    
   }
 }
 

@@ -256,6 +256,8 @@ void PikiwiDB::Run() {
 }
 
 void PikiwiDB::Stop() {
+  pikiwidb::PRAFT.ShutDown();
+  pikiwidb::PRAFT.Join();
   slave_threads_.Exit();
   worker_threads_.Exit();
 }
@@ -293,7 +295,6 @@ static void closeStd() {
 int main(int ac, char* av[]) {
   [[maybe_unused]] rocksdb::DB* db;
   g_pikiwidb = std::make_unique<PikiwiDB>();
-
   if (!g_pikiwidb->ParseArgs(ac - 1, av + 1)) {
     Usage();
     return -1;

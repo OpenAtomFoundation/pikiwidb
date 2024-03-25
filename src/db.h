@@ -43,6 +43,7 @@ class DB {
   const std::string db_path_;
   const std::string dump_parent_path_;
   const std::string dump_path_;
+
   /**
    * If you want to change the pointer that points to storage,
    * you must first acquire a mutex lock.
@@ -54,6 +55,7 @@ class DB {
   bool opened_ = false;
 
   std::unique_ptr<CheckpointManager> checkpoint_manager_;
+  
 };
 }  // namespace pikiwidb
 

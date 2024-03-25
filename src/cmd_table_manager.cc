@@ -13,6 +13,7 @@
 #include "cmd_kv.h"
 #include "cmd_list.h"
 #include "cmd_set.h"
+#include "cmd_raft.h"
 #include "cmd_table_manager.h"
 #include "cmd_zset.h"
 
@@ -42,6 +43,13 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Flushdb, 1);
   ADD_COMMAND(Flushall, 1);
   ADD_COMMAND(Select, 2);
+
+  // info
+  ADD_COMMAND(Info, -1);
+  
+  // raft
+  ADD_COMMAND(RaftCluster, -1);
+  ADD_COMMAND(RaftNode, -2);
 
   // keyspace
   ADD_COMMAND(Del, -2);

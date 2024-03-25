@@ -3,9 +3,9 @@
 # LICENSE file in the root directory of this source tree. An additional grant
 # of patent rights can be found in the PATENTS file in the same directory.
 
-include_guard()
+INCLUDE_GUARD()
 
-FetchContent_Declare(
+FETCHCONTENT_DECLARE(
         rocksdb
         GIT_REPOSITORY https://github.com/facebook/rocksdb.git
         GIT_TAG v8.3.3

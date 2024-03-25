@@ -24,6 +24,7 @@
 #include "common.h"
 #include "db.h"
 #include "storage/storage.h"
+#include "braft/raft.h"
 
 namespace pikiwidb {
 
@@ -63,6 +64,7 @@ class PStore {
   void DoSomeThingSpecificDB(const TasksVector task);
 
   void WaitForCheckpointDone();
+
 
   std::shared_mutex& SharedMutex() { return dbs_mutex_; }
 

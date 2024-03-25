@@ -10,8 +10,13 @@
 #include "event_loop.h"
 #include "io_thread_pool.h"
 #include "tcp_connection.h"
+#include "praft/praft.h"
 
 #define kPIKIWIDB_VERSION "4.0.0"
+
+namespace pikiwidb {
+class PRaft;
+}  // namespace pikiwidb
 
 class PikiwiDB final {
  public:

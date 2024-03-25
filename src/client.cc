@@ -15,6 +15,7 @@
 #include "pstd_string.h"
 #include "slow_log.h"
 #include "store.h"
+#include "praft.h"
 
 namespace pikiwidb {
 
@@ -130,6 +131,10 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
     case kInvalidCursor:
       AppendStringRaw("-ERR invalid cursor");
       break;
+    case kWrongLeader:
+      AppendStringRaw("-ERR wrong leader");
+      AppendStringRaw(content);
+      AppendStringRaw(CRLF);
     default:
       break;
   }
@@ -266,6 +271,15 @@ int PClient::handlePacket(const char* start, int bytes) {
     if (recved != -1) {
       return recved;
     }
+  }
+
+  if (isJoinCmdTarget()) {
+    // Proccees the packet at one turn.
+    auto [len, is_disconnect] = PRAFT.ProcessClusterJoinCmdResponse(this, start, bytes);
+    if (is_disconnect) {
+      conn->ActiveClose();
+    }
+    return len;
   }
 
   auto parseRet = parser_.ParseRequest(ptr, end);
@@ -410,7 +424,6 @@ PClient::PClient(TcpConnection* obj)
 
 int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int size) {
   int total = 0;
-
   while (total < size) {
     auto processed = handlePacket(start + total, size - total);
     if (processed <= 0) {
@@ -437,6 +450,9 @@ void PClient::OnConnect() {
     if (g_config.masterauth.empty()) {
       SetAuth();
     }
+  } else if (isJoinCmdTarget()) {
+    SetName("ClusterJoinCmdConnection");
+    PRAFT.SendNodeInfoRequest(this);
   } else {
     if (g_config.password.empty()) {
       SetAuth();
@@ -507,6 +523,10 @@ void PClient::reset() {
 bool PClient::isPeerMaster() const {
   const auto& repl_addr = PREPL.GetMasterAddr();
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
+}
+
+bool PClient::isJoinCmdTarget() const {
+  return PRAFT.GetJoinCtx().GetPeerIp() == PeerIP() && PRAFT.GetJoinCtx().GetPort() == PeerPort();
 }
 
 int PClient::uniqueID() const {
@@ -673,6 +693,7 @@ void PClient::FeedMonitors(const std::vector<std::string>& params) {
     }
   }
 }
+
 void PClient::SetKey(std::vector<std::string>& names) {
   keys_ = std::move(names);  // use std::move clear copy expense
 }
