@@ -245,7 +245,7 @@ size_t FormatInt(long value, UnboundedBuffer* reply) {
   int len = snprintf(val, sizeof val, "%ld" CRLF, value);
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData(":", 1);
+  reply->PushData(":");
   reply->PushData(val, len);
 
   return reply->ReadableSize() - oldSize;
@@ -256,9 +256,9 @@ size_t FormatSingle(const char* str, size_t len, UnboundedBuffer* reply) {
     return 0;
   }
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("+", 1);
+  reply->PushData("+");
   reply->PushData(str, len);
-  reply->PushData(CRLF, 2);
+  reply->PushData(CRLF);
 
   return reply->ReadableSize() - oldSize;
 }
@@ -271,7 +271,7 @@ size_t FormatBulk(const char* str, size_t len, UnboundedBuffer* reply) {
   }
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("$", 1);
+  reply->PushData("$");
 
   char val[32];
   int tmp = snprintf(val, sizeof val - 1, "%lu" CRLF, len);
@@ -294,7 +294,7 @@ size_t PreFormatMultiBulk(size_t nBulk, UnboundedBuffer* reply) {
   }
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("*", 1);
+  reply->PushData("*");
 
   char val[32];
   int tmp = snprintf(val, sizeof val - 1, "%lu" CRLF, nBulk);
@@ -321,7 +321,7 @@ size_t FormatNull(UnboundedBuffer* reply) {
   }
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("$-1" CRLF, 5);
+  reply->PushData("$-1" CRLF);
 
   return reply->ReadableSize() - oldSize;
 }
@@ -332,7 +332,7 @@ size_t FormatNullArray(UnboundedBuffer* reply) {
   }
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("*-1" CRLF, 5);
+  reply->PushData("*-1" CRLF);
 
   return reply->ReadableSize() - oldSize;
 }
@@ -343,7 +343,7 @@ size_t FormatOK(UnboundedBuffer* reply) {
   }
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData("+OK" CRLF, 5);
+  reply->PushData("+OK" CRLF);
 
   return reply->ReadableSize() - oldSize;
 }
@@ -356,7 +356,7 @@ size_t Format1(UnboundedBuffer* reply) {
   const char* val = ":1\r\n";
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData(val, 4);
+  reply->PushData(val);
 
   return reply->ReadableSize() - oldSize;
 }
@@ -369,7 +369,7 @@ size_t Format0(UnboundedBuffer* reply) {
   const char* val = ":0\r\n";
 
   size_t oldSize = reply->ReadableSize();
-  reply->PushData(val, 4);
+  reply->PushData(val);
 
   return reply->ReadableSize() - oldSize;
 }

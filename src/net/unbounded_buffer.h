@@ -8,6 +8,7 @@
 #pragma once
 
 #include <cstring>
+#include <string_view>
 #include <vector>
 
 namespace pikiwidb {
@@ -18,6 +19,7 @@ class UnboundedBuffer {
 
   std::size_t PushDataAt(const void* pData, std::size_t nSize, std::size_t offset = 0);
   std::size_t PushData(const void* pData, std::size_t nSize);
+  std::size_t PushData(const std::string_view& data);
   std::size_t Write(const void* pData, std::size_t nSize);
   void AdjustWritePtr(std::size_t nBytes) { writePos_ += nBytes; }
 

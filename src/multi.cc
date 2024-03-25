@@ -129,7 +129,7 @@ PError multi(const std::vector<PString>& params, UnboundedBuffer* reply) {
   if (PMulti::Instance().Multi(client)) {
     FormatOK(reply);
   } else {
-    reply->PushData("-ERR MULTI calls can not be nested\r\n", sizeof "-ERR MULTI calls can not be nested\r\n" - 1);
+    reply->PushData("-ERR MULTI calls can not be nested\r\n");
   }
 
   return kPErrorOK;
@@ -151,7 +151,7 @@ PError exec(const std::vector<PString>& params, UnboundedBuffer* reply) {
 PError discard(const std::vector<PString>& params, UnboundedBuffer* reply) {
   PClient* client = PClient::Current();
   if (!client->IsFlagOn(kClientFlagMulti)) {
-    reply->PushData("-ERR DISCARD without MULTI\r\n", sizeof "-ERR DISCARD without MULTI\r\n" - 1);
+    reply->PushData("-ERR DISCARD without MULTI\r\n");
   } else {
     PMulti::Instance().Discard(client);
     FormatOK(reply);
