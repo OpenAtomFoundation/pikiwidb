@@ -16,28 +16,63 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <shared_mutex>
 #include <vector>
 
+#include "checkpoint_manager.h"
+#include "common.h"
+#include "db.h"
+#include "storage/storage.h"
 #include "braft/raft.h"
 
 namespace pikiwidb {
 
+enum TaskType {
+  kCheckpoint,
+};
+
+enum TaskArg {
+  kCheckpointPath,
+};
+
+struct TaskContext {
+  TaskType type;
+  int db;
+  std::map<TaskArg, std::string> args;
+  TaskContext(TaskType t) : type(t) {}
+  TaskContext(TaskType t, int d) : type(t), db(d) {}
+  TaskContext(TaskType t, int d, const std::map<TaskArg, std::string>& a) : type(t), db(d), args(a) {}
+};
+
+using TasksVector = std::vector<TaskContext>;
+
+class CheckpointManager;
+
 class PStore {
  public:
+  friend class CheckpointManager;
   static PStore& Instance();
 
   PStore(const PStore&) = delete;
   void operator=(const PStore&) = delete;
 
-  void Init(int dbNum);
+  void Init();
 
   std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
+
+  void DoSomeThingSpecificDB(const TasksVector task);
+
+  void WaitForCheckpointDone();
+
 
   std::shared_mutex& SharedMutex() { return dbs_mutex_; }
 
  private:
   PStore() = default;
+  void trimSlash(std::string& dirName);
+
+  int dbNum_ = 0;
 
   /**
    * If you want to access all the DBs at the same time,

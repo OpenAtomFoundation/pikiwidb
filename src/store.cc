@@ -19,20 +19,57 @@ PStore& PStore::Instance() {
   return store;
 }
 
-void PStore::Init(int dbNum) {
+void PStore::Init() {
   if (g_config.backend == kBackEndNone) {
     return;
   }
 
-  backends_.reserve(dbNum);
+  backends_.reserve(dbNum_);
 
+  dbNum_ = g_config.databases;
+  backends_.reserve(dbNum_);
   if (g_config.backend == kBackEndRocksDB) {
-    for (int i = 0; i < dbNum; i++) {
+
+    for (int i = 0; i < dbNum_; i++) {
       auto db = std::make_unique<DB>(i, g_config.dbpath);
       backends_.push_back(std::move(db));
     }
   } else {
     ERROR("unsupport backend!");
+  }
+}
+
+void PStore::DoSomeThingSpecificDB(const TasksVector tasks) {
+  std::for_each(tasks.begin(), tasks.end(), [this](const auto& task) {
+    switch (task.type) {
+      case kCheckpoint:
+        if (task.db < 0 || task.db >= dbNum_) {
+          WARN("The database index is out of range.");
+          return;
+        }
+        auto& db = backends_[task.db];
+        if (auto s = task.args.find(kCheckpointPath); s == task.args.end()) {
+          WARN("The critical parameter 'path' is missing in the checkpoint.");
+          return;
+        }
+        auto path = task.args.find(kCheckpointPath)->second;
+        trimSlash(path);
+        db->CreateCheckpoint(path);
+        break;
+    };
+  });
+}
+
+void PStore::WaitForCheckpointDone() {
+  for (auto& db : backends_) {
+    db->WaitForCheckpointDone();
+  }
+}
+
+void PStore::trimSlash(std::string& dirName) {
+  while (dirName.back() == '/') {
+    dirName.pop_back();
+    
   }
 }
 

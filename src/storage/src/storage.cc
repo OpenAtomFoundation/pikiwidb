@@ -6,6 +6,8 @@
 #include <algorithm>
 #include <utility>
 
+#include "rocksdb/utilities/checkpoint.h"
+
 #include "config.h"
 #include "pstd/log.h"
 #include "pstd/pikiwidb_slot.h"
@@ -96,6 +98,63 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
   db_id_ = storage_options.db_id;
 
   is_opened_.store(true);
+  return Status::OK();
+}
+
+Status Storage::CreateCheckpoint(const std::string& dump_path, int i) {
+  INFO("DB{}'s RocksDB {} begin to generate a checkpoint!", db_id_, i);
+  auto source_dir = AppendSubDirectory(dump_path, db_id_);
+  if (!pstd::FileExists(source_dir)) {
+    if (0 != pstd::CreatePath(source_dir)) {
+      WARN("Create Dir {} fail!", source_dir);
+      return Status::IOError("CreatePath() fail! dir_name : {} ", source_dir);
+    }
+    INFO("Create Dir {} success!", source_dir);
+  }
+
+  source_dir = AppendSubDirectory(source_dir, i);
+
+  auto tmp_dir = source_dir + ".tmp";
+  // 1) Make sure the temporary directory does not exist
+  if (!pstd::DeleteDirIfExist(tmp_dir)) {
+    WARN("DB{}'s RocksDB {} delete dir fail!", db_id_, i);
+    return Status::IOError("DeleteDirIfExist() fail! dir_name : {} ", tmp_dir);
+  }
+
+  // 2) Create checkpoint of this RocksDB
+  rocksdb::Checkpoint* checkpoint = nullptr;
+  auto db = insts_[i]->GetDB();
+  rocksdb::Status s = rocksdb::Checkpoint::Create(db, &checkpoint);
+  if (!s.ok()) {
+    WARN("DB{}'s RocksDB {} create checkpoint object failed!. Error: ", db_id_, i, s.ToString());
+    return s;
+  }
+
+  // 3) Create a checkpoint
+  std::unique_ptr<rocksdb::Checkpoint> checkpoint_guard(checkpoint);
+  s = checkpoint->CreateCheckpoint(tmp_dir, kNoFlush, nullptr);
+  if (!s.ok()) {
+    WARN("DB{}'s RocksDB {} create checkpoint failed!. Error: {}", db_id_, i, s.ToString());
+    return s;
+  }
+
+  // 4) Make sure the source directory does not exist
+  if (!pstd::DeleteDirIfExist(source_dir)) {
+    WARN("DB{}'s RocksDB {} delete dir {} fail!", db_id_, i, source_dir);
+    return Status::IOError("DeleteDirIfExist() fail! dir_name : {} ", source_dir);
+  }
+
+  // 5) Rename the temporary directory to source directory
+  if (auto status = pstd::RenameFile(tmp_dir, source_dir); status != 0) {
+    WARN("DB{}'s RocksDB {} rename temporary directory {} to source directory {} fail!", db_id_, i, tmp_dir,
+         source_dir);
+    if (!pstd::DeleteDirIfExist(tmp_dir)) {
+      WARN("DB{}'s RocksDB {} fail to delete the rename failed directory {} ", db_id_, i, tmp_dir);
+    }
+    return Status::IOError("Rename dir {} fail!", tmp_dir);
+  }
+
+  INFO("DB{}'s RocksDB {} create checkpoint {} success!", db_id_, i, source_dir);
   return Status::OK();
 }
 

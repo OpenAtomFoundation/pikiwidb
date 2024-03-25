@@ -214,7 +214,7 @@ bool PikiwiDB::Init() {
   worker_threads_.SetWorkerNum(static_cast<size_t>(g_config.worker_threads_num));
   slave_threads_.SetWorkerNum(static_cast<size_t>(g_config.slave_threads_num));
 
-  PSTORE.Init(g_config.databases);
+  PSTORE.Init();
 
   // Only if there is no backend, load rdb
   if (g_config.backend == pikiwidb::kBackEndNone) {
