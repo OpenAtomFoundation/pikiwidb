@@ -122,17 +122,17 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 		Expect(sAdd.Val()).To(Equal(int64(1)))
 
-		Type := client.Type(ctx, "key").Val()
-		Expect(Type.Err()).NotTo(HaveOccurred())
-		Expect(Type.Val()).To(Equal("string"))
+		n, err = client.Type(ctx, "key").Val()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal("string"))
 
-		Type := client.Type(ctx, "mlist").Val()
-		Expect(Type.Err()).NotTo(HaveOccurred())
-		Expect(Type.Val()).To(Equal("list"))
+		n, err = client.Type(ctx, "mlist").Val()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal("list"))
 
-		Type := client.Type(ctx, "mset").Val()
-		Expect(Type.Err()).NotTo(HaveOccurred())
-		Expect(Type.Val()).To(Equal("set"))
+		n, err = client.Type(ctx, "mset").Val()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(n).To(Equal("set"))
 	})
 
 	It("Expire", func() {
