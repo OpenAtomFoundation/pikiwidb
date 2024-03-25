@@ -191,12 +191,18 @@ void PReplication::Cron() {
             g_pikiwidb->OnNewConnection(obj);
           }
         };
+
         auto fail_cb = [&](EventLoop*, const char* peer_ip, int port) {
           WARN("OnCallback: Connect master {}:{} failed", peer_ip, port);
 
           PREPL.SetMasterState(kPReplStateNone);
           if (!masterInfo_.downSince) {
             masterInfo_.downSince = ::time(nullptr);
+          }
+
+          if (on_fail_) {
+            on_fail_(EventLoop::Self(), peer_ip, port);
+            on_fail_ = nullptr;
           }
         };
 
@@ -207,19 +213,21 @@ void PReplication::Cron() {
       } break;
 
       case kPReplStateConnected:
-        if (!g_config.masterauth.empty()) {
-          if (auto master = master_.lock()) {
-            UnboundedBuffer req;
-            req.PushData("auth ", 5);
-            req.PushData(g_config.masterauth.data(), g_config.masterauth.size());
-            req.PushData("\r\n", 2);
-            master->SendPacket(req);
-            INFO("send auth with password {}", g_config.masterauth);
+        // @todo
+        break;
+        // if (!g_config.masterauth.empty()) {
+        //   if (auto master = master_.lock()) {
+        //     UnboundedBuffer req;
+        //     req.PushData("auth ", 5);
+        //     req.PushData(g_config.masterauth.data(), g_config.masterauth.size());
+        //     req.PushData("\r\n", 2);
+        //     master->SendPacket(req);
+        //     INFO("send auth with password {}", g_config.masterauth);
 
-            masterInfo_.state = kPReplStateWaitAuth;
-            break;
-          }
-        }
+        //     masterInfo_.state = kPReplStateWaitAuth;
+        //     break;
+        //   }
+        // }
         // fall through to next case.
 
       case kPReplStateWaitAuth: {
@@ -314,6 +322,8 @@ void PReplication::SetMaster(const std::shared_ptr<PClient>& cli) { master_ = cl
 void PReplication::SetMasterState(PReplState s) { masterInfo_.state = s; }
 
 PReplState PReplication::GetMasterState() const { return masterInfo_.state; }
+
+
 
 SocketAddr PReplication::GetMasterAddr() const { return masterInfo_.addr; }
 

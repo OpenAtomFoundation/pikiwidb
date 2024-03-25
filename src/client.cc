@@ -196,7 +196,6 @@ static int ProcessMaster(const char* start, const char* end) {
       // discard all requests before sync;
       // or continue serve with old data? TODO
       return static_cast<int>(end - start);
-
     case kPReplStateWaitAuth:
       if (end - start >= 5) {
         if (strncasecmp(start, "+OK\r\n", 5) == 0) {
@@ -266,20 +265,20 @@ int PClient::handlePacket(const char* start, int bytes) {
   const char* ptr = start;
 
   if (isPeerMaster()) {
-    //  check slave state
-    auto recved = ProcessMaster(start, end);
-    if (recved != -1) {
-      return recved;
+    if (isClusterCmdTarget()) {
+      // Proccees the packet at one turn.
+      int len = PRAFT.ProcessClusterCmdResponse(this, start, bytes); // @todo
+      if (len > 0) {
+        return len;
+      }
+    } else {
+      // Proccees the packet at one turn.
+      //  check slave state
+      auto recved = ProcessMaster(start, end);
+      if (recved != -1) {
+        return recved;
+      }
     }
-  }
-
-  if (isJoinCmdTarget()) {
-    // Proccees the packet at one turn.
-    auto [len, is_disconnect] = PRAFT.ProcessClusterJoinCmdResponse(this, start, bytes);
-    if (is_disconnect) {
-      conn->ActiveClose();
-    }
-    return len;
   }
 
   auto parseRet = parser_.ParseRequest(ptr, end);
@@ -450,9 +449,10 @@ void PClient::OnConnect() {
     if (g_config.masterauth.empty()) {
       SetAuth();
     }
-  } else if (isJoinCmdTarget()) {
-    SetName("ClusterJoinCmdConnection");
-    PRAFT.SendNodeInfoRequest(this);
+
+    if (isClusterCmdTarget()) {
+      PRAFT.SendNodeRequest(this);
+    }
   } else {
     if (g_config.password.empty()) {
       SetAuth();
@@ -525,8 +525,8 @@ bool PClient::isPeerMaster() const {
   return repl_addr.GetIP() == PeerIP() && repl_addr.GetPort() == PeerPort();
 }
 
-bool PClient::isJoinCmdTarget() const {
-  return PRAFT.GetJoinCtx().GetPeerIp() == PeerIP() && PRAFT.GetJoinCtx().GetPort() == PeerPort();
+bool PClient::isClusterCmdTarget() const {
+  return PRAFT.GetClusterCmdCtx().GetPeerIp() == PeerIP() && PRAFT.GetClusterCmdCtx().GetPort() == PeerPort();
 }
 
 int PClient::uniqueID() const {

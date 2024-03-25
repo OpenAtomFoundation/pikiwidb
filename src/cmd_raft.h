@@ -23,7 +23,7 @@ namespace pikiwidb {
  *   -MOVED <slot> <addr>:<port> ||
  *   *2
  *   :<new node id>
- *   :<dbid>
+ *   :<group_id>
  *
  * RAFT.NODE REMOVE [id] 
  *   Remove an existing node from the cluster.
@@ -54,7 +54,7 @@ class RaftNodeCmd : public BaseCmd {
  *   Initializes a new Raft cluster.
  *   <id> is an optional 32 character string, if set, cluster will use it for the id
  * Reply:
- *   +OK [dbid]
+ *   +OK [group_id]
  *
  * RAFT.CLUSTER JOIN [addr:port]
  *   Join an existing cluster.
