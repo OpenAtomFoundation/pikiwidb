@@ -35,10 +35,6 @@ const std::string kCmdNameKeys = "keys";
 const std::string kCmdNameRaftCluster = "raft.cluster";
 const std::string kCmdNameRaftNode = "raft.node";
 
-// raft cmd
-const std::string kCmdNameRaftCluster = "raft.cluster";
-const std::string kCmdNameRaftNode = "raft.node";
-
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
