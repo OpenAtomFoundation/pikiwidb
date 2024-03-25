@@ -82,15 +82,19 @@ static std::string AppendSubDirectory(const std::string& db_path, int index) {
 Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
   db_instance_num_ = storage_options.db_instance_num;
-  for (int index = 0; index < db_instance_num_; index++) {
+  for (size_t index = 0; index < db_instance_num_; index++) {
     insts_.emplace_back(std::make_unique<Redis>(this, index));
     Status s = insts_.back()->Open(storage_options, AppendSubDirectory(db_path, index));
     if (!s.ok()) {
-      ERROR("open db failed", s.ToString());
+      ERROR("open RocksDB{} failed {}", index, s.ToString());
+      return Status::IOError();
     }
+    INFO("open RocksDB{} success!", index);
   }
 
   slot_indexer_ = std::make_unique<SlotIndexer>(db_instance_num_);
+  db_id_ = storage_options.db_id;
+
   is_opened_.store(true);
   return Status::OK();
 }
@@ -1508,7 +1512,7 @@ Status Storage::Scanx(const DataType& data_type, const std::string& start_key, c
   return Status::OK();
 }
 
-int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataType, Status>* type_status) {
+int32_t Storage::Expireat(const Slice& key, uint64_t timestamp) {
   Status s;
   int32_t count = 0;
   bool is_corruption = false;
@@ -1519,7 +1523,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kStrings] = s;
   }
 
   s = inst->HashesExpireat(key, timestamp);
@@ -1527,7 +1530,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kHashes] = s;
   }
 
   s = inst->SetsExpireat(key, timestamp);
@@ -1535,7 +1537,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kSets] = s;
   }
 
   s = inst->ListsExpireat(key, timestamp);
@@ -1543,7 +1544,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kLists] = s;
   }
 
   s = inst->ZsetsExpireat(key, timestamp);
@@ -1551,7 +1551,6 @@ int32_t Storage::Expireat(const Slice& key, uint64_t timestamp, std::map<DataTyp
     count++;
   } else if (!s.IsNotFound()) {
     is_corruption = true;
-    (*type_status)[DataType::kZSets] = s;
   }
 
   if (is_corruption) {

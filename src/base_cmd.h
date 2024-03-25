@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "client.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -25,6 +26,14 @@ namespace pikiwidb {
 const std::string kCmdNameDel = "del";
 const std::string kCmdNameExists = "exists";
 const std::string kCmdNamePExpire = "pexpire";
+const std::string kCmdNameExpireat = "expireat";
+const std::string kCmdNamePExpireat = "pexpireat";
+const std::string kCmdNamePersist = "persist";
+const std::string kCmdNameKeys = "keys";
+
+// raft cmd
+const std::string kCmdNameRaftCluster = "raft.cluster";
+const std::string kCmdNameRaftNode = "raft.node";
 
 // raft cmd
 const std::string kCmdNameRaftCluster = "raft.cluster";
@@ -97,16 +106,31 @@ const std::string kCmdNameSCard = "scard";
 const std::string kCmdNameSMove = "smove";
 const std::string kCmdNameSRandMember = "srandmember";
 const std::string kCmdNameSPop = "spop";
+const std::string kCmdNameSMembers = "smembers";
+const std::string kCmdNameSDiff = "sdiff";
+const std::string kCmdNameSDiffstore = "sdiffstore";
 
 // list cmd
 const std::string kCmdNameLPush = "lpush";
+const std::string kCmdNameLPushx = "lpushx";
 const std::string kCmdNameRPush = "rpush";
+const std::string kCmdNameRPushx = "rpushx";
+const std::string kCmdNameLPop = "lpop";
 const std::string kCmdNameRPop = "rpop";
 const std::string kCmdNameLRem = "lrem";
 const std::string kCmdNameLRange = "lrange";
 const std::string kCmdNameLTrim = "ltrim";
 const std::string kCmdNameLSet = "lset";
 const std::string kCmdNameLInsert = "linsert";
+const std::string kCmdNameLIndex = "lindex";
+const std::string kCmdNameLLen = "llen";
+
+// zset cmd
+const std::string kCmdNameZAdd = "zadd";
+const std::string kCmdNameZRevrange = "zrevrange";
+const std::string kCmdNameZRangebyscore = "zrangebyscore";
+const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
+const std::string kCmdNameZCard = "zcard";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset
@@ -124,7 +148,8 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
-  kCmdFlagsRaft = (1 << 15),             // raft
+  kCmdFlagsExclusive = (1 << 15),        // May change Storage pointer, like pika's kCmdFlagsSuspend
+  kCmdFlagsRaft = (1 << 16),             // raft
 };
 
 enum AclCategory {
@@ -260,6 +285,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   //  std::shared_ptr<std::string> GetResp();
 
   uint32_t GetCmdId() const;
+
+  bool isExclusive() { return static_cast<bool>(flag_ & kCmdFlagsExclusive); }
 
  protected:
   // Execute a specific command

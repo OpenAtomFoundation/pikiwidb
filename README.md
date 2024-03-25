@@ -1,8 +1,8 @@
 # PikiwiDB
-
+![](docs/images/pikiwidb-logo.png)
 [中文](README_CN.md)
 
-A C++11 implementation of Redis Server, use Leveldb for persist storage.(not including cluster yet)
+A C++11 implementation of Redis Server, use RocksDB for persist storage.(not including cluster yet)
 
 ## Requirements
 * C++11
@@ -13,7 +13,7 @@ A C++11 implementation of Redis Server, use Leveldb for persist storage.(not inc
  I added three commands(ldel, skeys, hgets) for demonstration.
 
 ## Persistence: Not limited to memory
- Leveldb can be configured as backend for PikiwiDB.
+ RocksDB can be configured as backend for PikiwiDB.
 
 ## Fully compatible with redis
  You can test PikiwiDB with redis-cli, redis-benchmark, or use redis as master with PikiwiDB as slave or conversely, it also can work with redis sentinel.

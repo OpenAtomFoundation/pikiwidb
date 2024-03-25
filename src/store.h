@@ -10,6 +10,7 @@
 #define GLOG_NO_ABBREVIATED_SEVERITIES
 
 #include "common.h"
+#include "db.h"
 #include "storage/storage.h"
 
 #include <map>
@@ -31,12 +32,20 @@ class PStore {
 
   void Init(int dbNum);
 
-  std::unique_ptr<storage::Storage>& GetBackend(int32_t index) { return backends_[index]; };
+  std::unique_ptr<DB>& GetBackend(int32_t index) { return backends_[index]; };
+
+  std::shared_mutex& SharedMutex() { return dbs_mutex_; }
 
  private:
   PStore() = default;
 
-  std::vector<std::unique_ptr<storage::Storage>> backends_;
+  /**
+   * If you want to access all the DBs at the same time,
+   * then you must hold the lock.
+   * For example: you want to execute flushall or bgsave.
+   */
+  std::shared_mutex dbs_mutex_;
+  std::vector<std::unique_ptr<DB>> backends_;
 };
 
 #define PSTORE PStore::Instance()

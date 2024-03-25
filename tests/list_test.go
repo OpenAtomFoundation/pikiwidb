@@ -86,6 +86,22 @@ var _ = Describe("List", Ordered, func() {
 		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
+
+	It("Cmd LPUSHX", func() {
+		Expect(client.LPushX(ctx, DefaultKey, s2s["key_1"]).Val()).To(Equal(int64(0)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{}))
+
+		Expect(client.LPush(ctx, DefaultKey, s2s["key_2"]).Val()).To(Equal(int64(1)))
+		Expect(client.LPushX(ctx, DefaultKey, s2s["key_3"]).Val()).To(Equal(int64(2)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_3"], s2s["key_2"]}))
+
+		Expect(client.LPushX(ctx, DefaultKey, s2s["key_4"], s2s["key_5"]).Val()).To(Equal(int64(4)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_5"], s2s["key_4"], s2s["key_3"], s2s["key_2"]}))
+
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
 	It("Cmd RPUSH", func() {
 		log.Println("Cmd RPUSH Begin")
 		Expect(client.RPush(ctx, DefaultKey, s2s["key_1"]).Val()).To(Equal(int64(1)))
@@ -93,6 +109,44 @@ var _ = Describe("List", Ordered, func() {
 
 		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_1"], s2s["key_2"]}))
 		//del
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("Cmd RPUSHX", func() {
+		Expect(client.RPushX(ctx, DefaultKey, s2s["key_1"]).Val()).To(Equal(int64(0)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{}))
+
+		Expect(client.RPush(ctx, DefaultKey, s2s["key_2"]).Val()).To(Equal(int64(1)))
+		Expect(client.RPushX(ctx, DefaultKey, s2s["key_3"]).Val()).To(Equal(int64(2)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_2"], s2s["key_3"]}))
+
+		Expect(client.RPushX(ctx, DefaultKey, s2s["key_4"], s2s["key_5"]).Val()).To(Equal(int64(4)))
+		Expect(client.LRange(ctx, DefaultKey, 0, -1).Val()).To(Equal([]string{s2s["key_2"], s2s["key_3"], s2s["key_4"], s2s["key_5"]}))
+
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("Cmd LPop", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_3"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lPop := client.LPop(ctx, DefaultKey)
+		Expect(lPop.Err()).NotTo(HaveOccurred())
+		Expect(lPop.Val()).To(Equal(s2s["key_1"]))
+
+		lRange := client.LRange(ctx, DefaultKey, 0, -1)
+		Expect(lRange.Err()).NotTo(HaveOccurred())
+		Expect(lRange.Val()).To(Equal([]string{s2s["key_2"], s2s["key_3"]}))
+
+		err := client.Do(ctx, "LPOP", DefaultKey, 1, 2).Err()
+		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'lpop' command")))
+
 		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
@@ -204,6 +258,58 @@ var _ = Describe("List", Ordered, func() {
 		Expect(lRange.Val()).To(Equal([]string{s2s["key_1"], s2s["key_3"], s2s["key_2"]}))
 
 		// del
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("SHOULD LIndex", func() {
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_3"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lIndex := client.LIndex(ctx, DefaultKey, 0)
+		Expect(lIndex.Err()).NotTo(HaveOccurred())
+		Expect(lIndex.Val()).To(Equal(s2s["key_1"]))
+
+		lIndex = client.LIndex(ctx, DefaultKey, 1)
+		Expect(lIndex.Err()).NotTo(HaveOccurred())
+		Expect(lIndex.Val()).To(Equal(s2s["key_2"]))
+
+		lIndex = client.LIndex(ctx, DefaultKey, -1)
+		Expect(lIndex.Err()).NotTo(HaveOccurred())
+		Expect(lIndex.Val()).To(Equal(s2s["key_3"]))
+
+		lIndex = client.LIndex(ctx, DefaultKey, 4)
+		Expect(lIndex.Err()).To(Equal(redis.Nil))
+		Expect(lIndex.Val()).To(Equal(""))
+
+		err := client.Do(ctx, "lindex", DefaultKey, 1, 2).Err()
+		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'lindex' command")))
+
+		del := client.Del(ctx, DefaultKey)
+		Expect(del.Err()).NotTo(HaveOccurred())
+	})
+
+	It("SHOULD LLen", func() {
+		lLen := client.LLen(ctx, DefaultKey)
+		Expect(lLen.Err()).NotTo(HaveOccurred())
+		Expect(lLen.Val()).To(Equal(int64(0)))
+
+		rPush := client.RPush(ctx, DefaultKey, s2s["key_1"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+		rPush = client.RPush(ctx, DefaultKey, s2s["key_2"])
+		Expect(rPush.Err()).NotTo(HaveOccurred())
+
+		lLen = client.LLen(ctx, DefaultKey)
+		Expect(lLen.Err()).NotTo(HaveOccurred())
+		Expect(lLen.Val()).To(Equal(int64(2)))
+
+		err := client.Do(ctx, "llen", DefaultKey, 1).Err()
+		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'llen' command")))
+
 		del := client.Del(ctx, DefaultKey)
 		Expect(del.Err()).NotTo(HaveOccurred())
 	})
