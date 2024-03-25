@@ -31,7 +31,7 @@ DB::DB(int db_index, const std::string& db_path)
     abort();
   }
   opened_ = true;
-  INFO("Open DB{} success!", db_id);
+  INFO("Open DB{} success!", db_index_);
 }
 
 void DB::DoBgSave(CheckpointInfo& checkpoint_info, const std::string& path, int i) {
