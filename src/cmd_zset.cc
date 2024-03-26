@@ -319,15 +319,15 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
   }
 }
 
-ZRankCmd::ZRankCmd(const std::string &name, int16_t arity) 
-    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet){}
+ZRankCmd::ZRankCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet) {}
 
-bool ZRankCmd::DoInitial(PClient *client) {
+bool ZRankCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void ZRankCmd::DoCmd(PClient *client) {
+void ZRankCmd::DoCmd(PClient* client) {
   int32_t rank = 0;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRank(client->Key(), client->argv_[2], &rank);
   if (s.ok()) {
@@ -339,15 +339,15 @@ void ZRankCmd::DoCmd(PClient *client) {
   }
 }
 
-ZRevrankCmd::ZRevrankCmd(const std::string &name, int16_t arity) 
+ZRevrankCmd::ZRevrankCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet) {}
 
-bool ZRevrankCmd::DoInitial(PClient *client) {
+bool ZRevrankCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void ZRevrankCmd::DoCmd(PClient *client) {
+void ZRevrankCmd::DoCmd(PClient* client) {
   int32_t revrank = 0;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->ZRevrank(client->Key(), client->argv_[2], &revrank);
   if (s.ok()) {
@@ -359,16 +359,15 @@ void ZRevrankCmd::DoCmd(PClient *client) {
   }
 }
 
-
-ZRemCmd::ZRemCmd(const std::string &name, int16_t arity)
+ZRemCmd::ZRemCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
 
-bool ZRemCmd::DoInitial(PClient *client) {
+bool ZRemCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void ZRemCmd::DoCmd(PClient *client) {
+void ZRemCmd::DoCmd(PClient* client) {
   auto iter = client->argv_.begin() + 2;
   std::vector<std::string> members(iter, client->argv_.end());
   int32_t deleted = 0;
@@ -380,15 +379,15 @@ void ZRemCmd::DoCmd(PClient *client) {
   }
 }
 
-ZIncrbyCmd::ZIncrbyCmd(const std::string &name, int16_t arity)
+ZIncrbyCmd::ZIncrbyCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
 
-bool ZIncrbyCmd::DoInitial(PClient *client) {
+bool ZIncrbyCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void ZIncrbyCmd::DoCmd(PClient *client) {
+void ZIncrbyCmd::DoCmd(PClient* client) {
   double by = .0f;
   double score = .0f;
   if (pstd::String2d(client->argv_[2].data(), client->argv_[2].size(), &by) == 0) {
