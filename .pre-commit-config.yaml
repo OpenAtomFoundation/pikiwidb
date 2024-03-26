@@ -1,0 +1,15 @@
+repos:
+-   repo: https://github.com/compilerla/conventional-pre-commit
+    rev: 47923ce11be4a936cd216d427d985dd342adb751
+    hooks:
+    -   id: conventional-pre-commit
+        stages: [commit-msg]
+-   repo: local
+    hooks:
+    -   id: custom-hook
+        name: Build
+        entry: ./build.sh
+        language: system
+        stages: [commit]
+        args: [--debug]
+        pass_filenames: false

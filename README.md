@@ -66,3 +66,11 @@ Run this command, compare with redis use pipeline commands, try it.
 
 ![](docs/images/pikiwidb-wechat.png)
 
+## Contributing
+
+1. Install pre-commit hook, run following commands under project root directory:
+
+```bash
+pip install pre-commit
+pre-commit install
+```
