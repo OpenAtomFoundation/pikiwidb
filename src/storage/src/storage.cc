@@ -104,14 +104,6 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
 Status Storage::CreateCheckpoint(const std::string& dump_path, int i) {
   INFO("DB{}'s RocksDB {} begin to generate a checkpoint!", db_id_, i);
   auto source_dir = AppendSubDirectory(dump_path, db_id_);
-  if (!pstd::FileExists(source_dir)) {
-    if (0 != pstd::CreatePath(source_dir)) {
-      WARN("Create Dir {} fail!", source_dir);
-      return Status::IOError("CreatePath() fail! dir_name : {} ", source_dir);
-    }
-    INFO("Create Dir {} success!", source_dir);
-  }
-
   source_dir = AppendSubDirectory(source_dir, i);
 
   auto tmp_dir = source_dir + ".tmp";
@@ -132,7 +124,7 @@ Status Storage::CreateCheckpoint(const std::string& dump_path, int i) {
 
   // 3) Create a checkpoint
   std::unique_ptr<rocksdb::Checkpoint> checkpoint_guard(checkpoint);
-  s = checkpoint->CreateCheckpoint(tmp_dir, kNoFlush, nullptr);
+  s = checkpoint->CreateCheckpoint(tmp_dir, kFlush, nullptr);
   if (!s.ok()) {
     WARN("DB{}'s RocksDB {} create checkpoint failed!. Error: {}", db_id_, i, s.ToString());
     return s;

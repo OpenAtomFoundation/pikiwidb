@@ -25,7 +25,7 @@ namespace pikiwidb {
  *   :<new node id>
  *   :<dbid>
  *
- * RAFT.NODE REMOVE [id] 
+ * RAFT.NODE REMOVE [id]
  *   Remove an existing node from the cluster.
  * Reply:
  *   -NOCLUSTER ||
@@ -45,6 +45,7 @@ class RaftNodeCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
   void DoCmdAdd(PClient *client);
   void DoCmdRemove(PClient *client);
+  void DoCmdSnapshot(PClient *client);
 
   static constexpr std::string_view kAddCmd = "ADD";
   static constexpr std::string_view kRemoveCmd = "REMOVE";

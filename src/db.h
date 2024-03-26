@@ -55,7 +55,6 @@ class DB {
   bool opened_ = false;
 
   std::unique_ptr<CheckpointManager> checkpoint_manager_;
-  
 };
 }  // namespace pikiwidb
 

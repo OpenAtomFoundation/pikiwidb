@@ -6,9 +6,9 @@
  */
 
 #include "cmd_admin.h"
-#include "store.h"
 #include "braft/raft.h"
 #include "praft.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -80,7 +80,7 @@ void SelectCmd::DoCmd(PClient* client) {
   client->SetRes(CmdRes::kOK);
 }
 
-InfoCmd::InfoCmd(const std::string& name, int16_t arity) 
+InfoCmd::InfoCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsAdmin | kCmdFlagsReadonly, kAclCategoryAdmin) {}
 
 bool InfoCmd::DoInitial(PClient* client) { return true; }
@@ -127,7 +127,7 @@ void InfoCmd::DoCmd(PClient* client) {
       message += "raft_state:up\r\n";
     } else {
       message += "raft_state:down\r\n";
-    }    
+    }
     message += "raft_role:" + std::string(braft::state2str(node_status.state)) + "\r\n";
     // message += "raft_is_voting:" + node_status.is_voting + "\r\n";
     message += "raft_leader_id:" + node_status.leader_id.to_string() + "\r\n";
@@ -141,9 +141,10 @@ void InfoCmd::DoCmd(PClient* client) {
       if (!status.ok()) {
         return client->SetRes(CmdRes::kErrOther, status.error_str());
       }
-      
+
       for (int i = 0; i < peers.size(); i++) {
-        message += "raft_node" + std::to_string(i) + ":addr=" + butil::ip2str(peers[i].addr.ip).c_str() + ",port=" + std::to_string(peers[i].addr.port) + "\r\n";
+        message += "raft_node" + std::to_string(i) + ":addr=" + butil::ip2str(peers[i].addr.ip).c_str() +
+                   ",port=" + std::to_string(peers[i].addr.port) + "\r\n";
       }
     }
 

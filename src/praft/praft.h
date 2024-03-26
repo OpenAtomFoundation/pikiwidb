@@ -7,11 +7,12 @@
 
 #pragma once
 
+#include <filesystem>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <tuple>
 #include <vector>
-#include <string>
 
 #include "braft/configuration.h"
 #include "braft/raft.h"
@@ -88,6 +89,7 @@ class PRaft : public braft::StateMachine {
   butil::Status AddPeer(const std::string& peer);
   butil::Status RemovePeer(const std::string& peer);
   butil::Status RaftRecvEntry();
+  butil::Status DoSnapshot();
 
   void ShutDown();
   void Join();
@@ -124,6 +126,11 @@ class PRaft : public braft::StateMachine {
   void on_configuration_committed(const ::braft::Configuration& conf) override;
   void on_stop_following(const ::braft::LeaderChangeContext& ctx) override;
   void on_start_following(const ::braft::LeaderChangeContext& ctx) override;
+
+ private:
+  void add_all_files(const std::filesystem::path& dir, braft::SnapshotWriter* writer, const std::string& path);
+
+  void recursive_copy(const std::filesystem::path& source, const std::filesystem::path& destination);
 
  private:
   std::unique_ptr<brpc::Server> server_;  // brpc

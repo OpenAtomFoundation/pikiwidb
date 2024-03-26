@@ -41,6 +41,7 @@ inline constexpr size_t BATCH_DELETE_LIMIT = 100;
 inline constexpr size_t COMPACT_THRESHOLD_COUNT = 2000;
 
 inline constexpr uint64_t kNoFlush = std::numeric_limits<uint64_t>::max();
+inline constexpr uint64_t kFlush = 0;
 
 using Options = rocksdb::Options;
 using BlockBasedTableOptions = rocksdb::BlockBasedTableOptions;
