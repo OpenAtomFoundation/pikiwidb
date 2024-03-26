@@ -295,7 +295,7 @@ void ZRemrangebyrankCmd::DoCmd(PClient* client) {
   }
 
   storage::Status s;
-  s = PSTORE.GetBackend(client->GetCurrentDB())->ZRemrangebyrank(client->Key(), start, end, &ret);
+  s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZRemrangebyrank(client->Key(), start, end, &ret);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(ret);
   } else {
@@ -384,22 +384,28 @@ void ZRangeCmd::DoCmd(PClient* client) {
   if (!is_rev) {
     if (by_score) {
       s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
               ->ZRangebyscore(client->Key(), start, stop, left_close, right_close, &score_members);
     } else if (by_lex) {
       s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
               ->ZRangebylex(client->Key(), lex_min, lex_max, left_close, right_close, &lex_members);
     } else {
-      s = PSTORE.GetBackend(client->GetCurrentDB())->ZRange(client->Key(), start, stop, &score_members);
+      s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZRange(client->Key(), start, stop, &score_members);
     }
   } else {
     if (by_score) {
       s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
               ->ZRevrangebyscore(client->Key(), start, stop, left_close, right_close, &score_members);
     } else if (by_lex) {
       s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
               ->ZRangebylex(client->Key(), lex_min, lex_max, left_close, right_close, &lex_members);
     } else {
-      s = PSTORE.GetBackend(client->GetCurrentDB())->ZRevrange(client->Key(), start, stop, &score_members);
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRevrange(client->Key(), start, stop, &score_members);
     }
   }
   if (!s.ok() && !s.IsNotFound()) {
@@ -452,7 +458,7 @@ void ZScoreCmd::DoCmd(PClient* client) {
   double score = 0;
 
   storage::Status s;
-  s = PSTORE.GetBackend(client->GetCurrentDB())->ZScore(client->Key(), client->argv_[2], &score);
+  s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZScore(client->Key(), client->argv_[2], &score);
   if (s.ok() || s.IsNotFound()) {
     client->AppendString(std::to_string(score));
   } else {
@@ -588,6 +594,7 @@ void ZRangebylexCmd::DoCmd(PClient* client) {
   std::vector<std::string> members;
   storage::Status s;
   s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->GetStorage()
           ->ZRangebylex(client->Key(), min_member, max_member, left_close, right_close, &members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
@@ -644,6 +651,7 @@ void ZRevrangebylexCmd::DoCmd(PClient* client) {
   std::vector<std::string> members;
   storage::Status s;
   s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->GetStorage()
           ->ZRangebylex(client->Key(), min_member, max_member, left_close, right_close, &members);
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
