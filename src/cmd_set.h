@@ -132,4 +132,37 @@ class SPopCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class SMembersCmd : public BaseCmd {
+ public:
+  SMembersCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SDiffCmd : public BaseCmd {
+ public:
+  SDiffCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class SDiffstoreCmd : public BaseCmd {
+ public:
+  SDiffstoreCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

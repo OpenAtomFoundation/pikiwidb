@@ -53,7 +53,7 @@ Redis::~Redis() {
 
 Status Redis::Open(const StorageOptions& storage_options, const std::string& db_path) {
   is_use_raft_ = storage_options.is_use_raft;
-  raft_timeout_ = storage_options.raft_timeout;
+  raft_timeout_ = storage_options.raft_timeout_s;
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
 

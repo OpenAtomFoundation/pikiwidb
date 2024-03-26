@@ -22,6 +22,7 @@
 #include "rocksdb/status.h"
 #include "rocksdb/table.h"
 
+#include "pstd/env.h"
 #include "pstd/pstd_mutex.h"
 #include "storage/slot_indexer.h"
 
@@ -41,10 +42,13 @@ inline const std::string PROPERTY_TYPE_ROCKSDB_BACKGROUND_ERRORS = "rocksdb.back
 inline constexpr size_t BATCH_DELETE_LIMIT = 100;
 inline constexpr size_t COMPACT_THRESHOLD_COUNT = 2000;
 
+inline constexpr uint64_t kNoFlush = std::numeric_limits<uint64_t>::max();
+
 using Options = rocksdb::Options;
 using BlockBasedTableOptions = rocksdb::BlockBasedTableOptions;
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
+using Env = rocksdb::Env;
 
 class Redis;
 enum class OptionType;
@@ -61,8 +65,9 @@ struct StorageOptions {
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
   size_t db_instance_num = 3;  // default = 3
+  int db_id;
   bool is_use_raft = true;
-  uint32_t raft_timeout = 10;
+  uint32_t raft_timeout_s = 10;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -127,6 +132,7 @@ enum BeforeOrAfter { Before, After };
 
 enum DataType { kAll, kStrings, kHashes, kSets, kLists, kZSets };
 
+const std::string DataTypeToString[] = {"all", "string", "hash", "set", "list", "zset"};
 const char DataTypeTag[] = {'a', 'k', 'h', 's', 'l', 'z'};
 
 enum class OptionType {
@@ -167,6 +173,8 @@ class Storage {
   ~Storage();
 
   Status Open(const StorageOptions& storage_options, const std::string& db_path);
+
+  Status CreateCheckpoint(const std::string& dump_path, int index);
 
   Status LoadCursorStartKey(const DataType& dtype, int64_t cursor, char* type, std::string* start_key);
 
@@ -1005,7 +1013,7 @@ class Storage {
   // return -1 operation exception errors happen in database
   // return 0 if key does not exist
   // return >=1 if the timueout was set
-  int32_t Expireat(const Slice& key, uint64_t timestamp, std::map<DataType, Status>* type_status);
+  int32_t Expireat(const Slice& key, uint64_t timestamp);
 
   // Remove the existing timeout on key, turning the key from volatile (a key
   // with an expire set) to persistent (a key that will never expire as no
@@ -1102,7 +1110,8 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
-  int32_t db_instance_num_;
+  size_t db_instance_num_ = 3;
+  int db_id_ = 0;
 };
 
 }  //  namespace storage

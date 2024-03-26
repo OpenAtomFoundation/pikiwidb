@@ -364,7 +364,7 @@ void PRaft::on_apply(braft::Iterator& iter) {
       return;
     }
 
-    auto s = PSTORE.GetBackend(log.db_id())->OnBinlogWrite(log);
+    auto s = PSTORE.GetBackend(log.db_id())->GetStorage()->OnBinlogWrite(log);
     if (done) {  // in leader
       dynamic_cast<PRaftWriteDoneClosure*>(done)->SetStatus(s);
     }

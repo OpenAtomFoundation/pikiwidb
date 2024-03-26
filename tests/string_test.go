@@ -195,15 +195,15 @@ var _ = Describe("String", Ordered, func() {
 	})
 
 	It("should GetSet", func() {
-		incr := client.Incr(ctx, "testKeyGS")
+		incr := client.Incr(ctx, DefaultKey)
 		Expect(incr.Err()).NotTo(HaveOccurred())
 		Expect(incr.Val()).To(Equal(int64(1)))
 
-		getSet := client.GetSet(ctx, "testKeyGS", "0")
+		getSet := client.GetSet(ctx, DefaultKey, "0")
 		Expect(getSet.Err()).NotTo(HaveOccurred())
 		Expect(getSet.Val()).To(Equal("1"))
 
-		get := client.Get(ctx, "testKeyGS")
+		get := client.Get(ctx, DefaultKey)
 		Expect(get.Err()).NotTo(HaveOccurred())
 		Expect(get.Val()).To(Equal("0"))
 	})

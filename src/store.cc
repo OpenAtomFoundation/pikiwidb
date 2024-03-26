@@ -5,13 +5,13 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
-#include "store.h"
-#include <cassert>
-#include <limits>
 #include <string>
+
 #include "config.h"
+#include "db.h"
 #include "log.h"
-#include "multi.h"
+#include "store.h"
+
 namespace pikiwidb {
 
 PStore& PStore::Instance() {
@@ -19,38 +19,57 @@ PStore& PStore::Instance() {
   return store;
 }
 
-void PStore::Init(int dbNum) {
+void PStore::Init() {
   if (g_config.backend == kBackEndNone) {
     return;
   }
 
-  backends_.resize(dbNum);
+  backends_.reserve(dbNum_);
 
+  dbNum_ = g_config.databases;
+  backends_.reserve(dbNum_);
   if (g_config.backend == kBackEndRocksDB) {
-    for (size_t i = 0; i < dbNum; ++i) {
-      std::unique_ptr<storage::Storage> db = std::make_unique<storage::Storage>();
-      storage::StorageOptions storage_options;
-      storage_options.options.create_if_missing = true;
-      storage_options.db_instance_num = g_config.db_instance_num;
 
-      // options for CF
-      storage_options.options.ttl = g_config.rocksdb_ttl_second;
-      storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
-
-      PString dbpath = g_config.dbpath + std::to_string(i) + '/';
-
-      storage::Status s = db->Open(storage_options, dbpath.data());
-      if (!s.ok()) {
-        assert(false);
-      } else {
-        INFO("Open RocksDB {} success", dbpath);
-      }
-
-      backends_[i] = std::move(db);
+    for (int i = 0; i < dbNum_; i++) {
+      auto db = std::make_unique<DB>(i, g_config.dbpath);
+      backends_.push_back(std::move(db));
     }
   } else {
-    // ERROR: unsupport backend
-    return;
+    ERROR("unsupport backend!");
+  }
+}
+
+void PStore::DoSomeThingSpecificDB(const TasksVector tasks) {
+  std::for_each(tasks.begin(), tasks.end(), [this](const auto& task) {
+    switch (task.type) {
+      case kCheckpoint:
+        if (task.db < 0 || task.db >= dbNum_) {
+          WARN("The database index is out of range.");
+          return;
+        }
+        auto& db = backends_[task.db];
+        if (auto s = task.args.find(kCheckpointPath); s == task.args.end()) {
+          WARN("The critical parameter 'path' is missing in the checkpoint.");
+          return;
+        }
+        auto path = task.args.find(kCheckpointPath)->second;
+        trimSlash(path);
+        db->CreateCheckpoint(path);
+        break;
+    };
+  });
+}
+
+void PStore::WaitForCheckpointDone() {
+  for (auto& db : backends_) {
+    db->WaitForCheckpointDone();
+  }
+}
+
+void PStore::trimSlash(std::string& dirName) {
+  while (dirName.back() == '/') {
+    dirName.pop_back();
+    
   }
 }
 
