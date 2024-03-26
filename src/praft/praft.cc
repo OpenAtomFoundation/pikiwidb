@@ -8,17 +8,18 @@
 //
 //  praft.cc
 
-#include "praft.h"
-
 #include <cassert>
 #include <memory>
 #include <string>
+
+#include "braft/snapshot.h"
 
 #include "client.h"
 #include "config.h"
 #include "event_loop.h"
 #include "log.h"
 #include "pikiwidb.h"
+#include "praft.h"
 #include "praft.pb.h"
 #include "pstd_string.h"
 
@@ -308,6 +309,16 @@ butil::Status PRaft::RemovePeer(const std::string& peer) {
   return {0, "OK"};
 }
 
+butil::Status PRaft::DoSnapshot() {
+  if (!node_) {
+    return ERROR_LOG_AND_STATUS("Node is not initialized");
+  }
+  braft::SynchronizedClosure done;
+  node_->snapshot(&done);
+  done.wait();
+  return {0, "OK"};
+}
+
 void PRaft::OnJoinCmdConnectionFailed([[maybe_unused]] EventLoop* loop, const char* peer_ip, int port) {
   auto cli = join_ctx_.GetClient();
   if (cli) {
@@ -345,6 +356,46 @@ void PRaft::Apply(braft::Task& task) {
   }
 }
 
+void PRaft::add_all_files(const std::filesystem::path& dir, braft::SnapshotWriter* writer, const std::string& path) {
+  for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+    if (entry.is_directory()) {
+      if (entry.path() != "." && entry.path() != "..") {
+        INFO("dir_path = {}", entry.path().string());
+        add_all_files(entry.path(), writer, path);
+      }
+    } else {
+      INFO("file_path = {}", std::filesystem::relative(entry.path(), path).string());
+      if (writer->add_file(std::filesystem::relative(entry.path(), path)) != 0) {
+        WARN("出出出出 错错错错错错 啦啦啦啦啦啦");
+      }
+    }
+  }
+}
+
+void PRaft::recursive_copy(const std::filesystem::path& source, const std::filesystem::path& destination) {
+  if (std::filesystem::is_regular_file(source)) {
+    if (source.filename() == "__raft_snapshot_meta") {
+      return;
+    } else if (source.extension() == ".sst") {
+      // Create a hard link
+      INFO("hard link success! source_file = {} , destination_file = {}", source.string(), destination.string());
+      ::link(source.c_str(), destination.c_str());
+    } else {
+      // Copy the file
+      INFO("copy success! source_file = {} , destination_file = {}", source.string(), destination.string());
+      std::filesystem::copy_file(source, destination, std::filesystem::copy_options::overwrite_existing);
+    }
+  } else {
+    if (!pstd::FileExists(destination)) {
+      pstd::CreateDir(destination);
+    }
+
+    for (const auto& entry : std::filesystem::directory_iterator(source)) {
+      recursive_copy(entry.path(), destination / entry.path().filename());
+    }
+  }
+}
+
 // @braft::StateMachine
 void PRaft::on_apply(braft::Iterator& iter) {
   // A batch of tasks are committed, which must be processed through
@@ -353,9 +404,33 @@ void PRaft::on_apply(braft::Iterator& iter) {
   }
 }
 
-void PRaft::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done) {}
+void PRaft::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done) {
+  brpc::ClosureGuard done_guard(done);
+  TasksVector tasks;
+  tasks.reserve(g_config.databases);
+  for (auto i = 0; i < g_config.databases; ++i) {
+    tasks.push_back({TaskType::kCheckpoint, i, {{TaskArg::kCheckpointPath, writer->get_path()}}});
+  }
+  PSTORE.DoSomeThingSpecificDB(tasks);
+  PSTORE.WaitForCheckpointDone();
+  auto writer_path = writer->get_path();
+  add_all_files(writer_path, writer, writer_path);
+}
 
-int PRaft::on_snapshot_load(braft::SnapshotReader* reader) { return 0; }
+int PRaft::on_snapshot_load(braft::SnapshotReader* reader) {
+  CHECK(!IsLeader()) << "Leader is not supposed to load snapshot";
+  auto reader_path = reader->get_path();  // xx/snapshot_0000001
+  auto db_path = g_config.dbpath;
+  PSTORE.Clear();
+  for (int i = 0; i < g_config.databases; i++) {
+    auto sub_path = db_path + std::to_string(i);
+    pstd::DeleteDirIfExist(sub_path);
+  }
+  db_path.pop_back();
+  recursive_copy(reader_path, db_path);
+  PSTORE.Init();
+  return 0;
+}
 
 void PRaft::on_leader_start(int64_t term) {
   WARN("Node {} start to be leader, term={}", node_->node_id().to_string(), term);

@@ -36,6 +36,8 @@ void RaftNodeCmd::DoCmd(PClient* client) {
     DoCmdAdd(client);
   } else if (!strcasecmp(cmd.c_str(), "REMOVE")) {
     DoCmdRemove(client);
+  } else if (!strcasecmp(cmd.c_str(), "DSS")) {
+    DoCmdSnapshot(client);
   } else {
     client->SetRes(CmdRes::kErrOther, "RAFT.NODE supports ADD / REMOVE only");
   }
@@ -67,6 +69,13 @@ void RaftNodeCmd::DoCmdRemove(PClient* client) {
     client->SetRes(CmdRes::kOK);
   } else {
     client->SetRes(CmdRes::kErrOther, fmt::format("Failed to remove peer: {}", s.error_str()));
+  }
+}
+
+void RaftNodeCmd::DoCmdSnapshot(PClient* client) {
+  auto s = PRAFT.DoSnapshot();
+  if (s.ok()) {
+    client->SetRes(CmdRes::kOK);
   }
 }
 

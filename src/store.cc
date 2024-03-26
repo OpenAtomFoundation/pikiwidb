@@ -29,7 +29,6 @@ void PStore::Init() {
   dbNum_ = g_config.databases;
   backends_.reserve(dbNum_);
   if (g_config.backend == kBackEndRocksDB) {
-
     for (int i = 0; i < dbNum_; i++) {
       auto db = std::make_unique<DB>(i, g_config.dbpath);
       backends_.push_back(std::move(db));
@@ -38,6 +37,8 @@ void PStore::Init() {
     ERROR("unsupport backend!");
   }
 }
+
+void PStore::Clear() { backends_.clear(); }
 
 void PStore::DoSomeThingSpecificDB(const TasksVector tasks) {
   std::for_each(tasks.begin(), tasks.end(), [this](const auto& task) {
@@ -69,7 +70,6 @@ void PStore::WaitForCheckpointDone() {
 void PStore::trimSlash(std::string& dirName) {
   while (dirName.back() == '/') {
     dirName.pop_back();
-    
   }
 }
 

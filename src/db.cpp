@@ -30,6 +30,8 @@ DB::DB(int db_index, const std::string& db_path)
     ERROR("Storage open failed! {}", s.ToString());
     abort();
   }
+  checkpoint_manager_ = std::make_unique<CheckpointManager>();
+  checkpoint_manager_->Init(g_config.db_instance_num, this);
   opened_ = true;
   INFO("Open DB{} success!", db_index_);
 }
@@ -45,8 +47,14 @@ void DB::DoBgSave(CheckpointInfo& checkpoint_info, const std::string& path, int 
   checkpoint_info.checkpoint_in_process = false;
 }
 
-void DB::CreateCheckpoint(const std::string& path) { checkpoint_manager_->CreateCheckpoint(path); }
+void DB::CreateCheckpoint(const std::string& path) {
+  if (0 != pstd::CreatePath(path + '/' + std::to_string(db_index_))) {
+    WARN("Create dir {} fail !", path + '/' + std::to_string(db_index_));
+    return;
+  }
+  checkpoint_manager_->CreateCheckpoint(path);
+}
 
 void DB::WaitForCheckpointDone() { checkpoint_manager_->WaitForCheckpointDone(); }
-  
+
 }  // namespace pikiwidb

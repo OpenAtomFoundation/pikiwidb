@@ -12,10 +12,10 @@
 #include "config.h"
 #include "log.h"
 #include "pikiwidb.h"
+#include "praft.h"
 #include "pstd_string.h"
 #include "slow_log.h"
 #include "store.h"
-#include "praft.h"
 
 namespace pikiwidb {
 
