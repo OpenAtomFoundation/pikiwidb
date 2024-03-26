@@ -57,6 +57,7 @@ struct StorageOptions {
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
   size_t db_instance_num = 3;  // default = 3
+  int db_id;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -121,6 +122,7 @@ enum BeforeOrAfter { Before, After };
 
 enum DataType { kAll, kStrings, kHashes, kSets, kLists, kZSets };
 
+const std::string DataTypeToString[] = {"all", "string", "hash", "set", "list", "zset"};
 const char DataTypeTag[] = {'a', 'k', 'h', 's', 'l', 'z'};
 
 enum class OptionType {
@@ -1095,7 +1097,8 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
-  int32_t db_instance_num_;
+  size_t db_instance_num_ = 3;
+  int db_id_ = 0;
 };
 
 }  //  namespace storage
