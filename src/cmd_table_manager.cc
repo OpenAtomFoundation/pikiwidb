@@ -134,6 +134,10 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(ZRange, -4);
   ADD_COMMAND(ZRangebylex, -3);
   ADD_COMMAND(ZRevrangebylex, -3);
+  ADD_COMMAND(ZRank, 3);
+  ADD_COMMAND(ZRevrank, 3);
+  ADD_COMMAND(ZRem, -3);
+  ADD_COMMAND(ZIncrby, 4);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

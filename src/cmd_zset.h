@@ -122,4 +122,48 @@ class ZRevrangebylexCmd : public BaseCmd {
   void DoCmd(PClient *client) override;
 };
 
+class ZRankCmd : public BaseCmd {
+ public:
+  ZRankCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZRevrankCmd : public BaseCmd {
+ public:
+  ZRevrankCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZRemCmd : public BaseCmd {
+ public:
+  ZRemCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
+class ZIncrbyCmd : public BaseCmd {
+ public:
+  ZIncrbyCmd(const std::string &name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient *client) override;
+
+ private:
+  void DoCmd(PClient *client) override;
+};
+
 }  // namespace pikiwidb

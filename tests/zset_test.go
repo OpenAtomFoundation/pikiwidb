@@ -386,4 +386,72 @@ var _ = Describe("Zset", Ordered, func() {
 		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
 		Expect(zRangeByLex.Val()).To(Equal([]string{}))
 	})
+
+	It("should ZRank", func() {
+		err := client.ZAdd(ctx, "zrank", redis.Z{
+			Score:  1,
+			Member: "one",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zrank", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		rank, err := client.ZRank(ctx, "zrank", "two").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rank).To(Equal(int64(1)))
+	})
+
+	It("should ZRevrank", func() {
+		err := client.ZAdd(ctx, "zrevrank", redis.Z{
+			Score:  1,
+			Member: "one",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zrevrank", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		revrank, err := client.ZRevRank(ctx, "zrevrank", "one").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(revrank).To(Equal(int64(1)))
+	})
+
+	It("should ZRem", func() {
+		err := client.ZAdd(ctx, "zrem", redis.Z{
+			Score:  1,
+			Member: "one",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zrem", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		rem, err := client.ZRem(ctx, "zrem", "one").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rem).To(Equal(int64(1)))
+	})
+
+	It("should ZIncrby", func() {
+		err := client.ZAdd(ctx, "zincrby", redis.Z{
+			Score:  1,
+			Member: "one",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zincrby", redis.Z{
+			Score:  2,
+			Member: "two",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		rem, err := client.ZIncrBy(ctx, "zincrby", 5, "one").Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rem).To(Equal(float64(6)))
+	})
 })
