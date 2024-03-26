@@ -110,6 +110,7 @@ class PRaft : public braft::StateMachine {
 
   bool IsLeader() const;
   std::string GetLeaderId() const;
+  std::string GetLeaderAddress() const;
   std::string GetNodeId() const;
   std::string GetGroupId() const;
   braft::NodeStatus GetNodeStatus() const;

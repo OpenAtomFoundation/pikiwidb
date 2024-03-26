@@ -5,17 +5,19 @@
  * of patent rights can be found in the PATENTS file in the same directory.
  */
 
+#include "client.h"
+
 #include <algorithm>
 #include <memory>
 
-#include "client.h"
+#include "fmt/core.h"
+#include "praft/praft.h"
+#include "pstd/log.h"
+#include "pstd/pstd_string.h"
+
+#include "base_cmd.h"
 #include "config.h"
-#include "log.h"
 #include "pikiwidb.h"
-#include "pstd_string.h"
-#include "slow_log.h"
-#include "store.h"
-#include "praft.h"
 
 namespace pikiwidb {
 
@@ -403,6 +405,11 @@ void PClient::executeCommand() {
 
   if (!cmdPtr->CheckArg(params_.size())) {
     SetRes(CmdRes::kWrongNum, CmdName());
+    return;
+  }
+
+  if (cmdPtr->HasFlag(kCmdFlagsWrite) && PRAFT.IsInitialized() && !PRAFT.IsLeader()) {
+    SetRes(CmdRes::kErrOther, fmt::format("MOVED {}", PRAFT.GetLeaderAddress()));
     return;
   }
 

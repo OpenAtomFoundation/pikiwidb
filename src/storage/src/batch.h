@@ -75,6 +75,9 @@ class BinlogBatch : public Batch {
   }
 
   Status Commit() override {
+    // FIXME(longfar): We should make sure that in non-RAFT mode, the code doesn't run here
+    assert(pikiwidb::PRaft::Instance().IsInitialized());
+    assert(pikiwidb::PRaft::Instance().IsLeader());
     std::promise<Status> promise;
     auto future = promise.get_future();
     pikiwidb::PRaft::Instance().AppendLog(binlog_, std::move(promise));

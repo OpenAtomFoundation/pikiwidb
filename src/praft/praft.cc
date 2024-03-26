@@ -126,6 +126,16 @@ std::string PRaft::GetLeaderId() const {
   return node_->leader_id().to_string();
 }
 
+std::string PRaft::GetLeaderAddress() const {
+  if (!node_) {
+    ERROR("Node is not initialized");
+    return "Failed to get leader id";
+  }
+  auto id = node_->leader_id();
+  auto addr = butil::endpoint2str(id.addr);
+  return addr.c_str();
+}
+
 std::string PRaft::GetNodeId() const {
   if (!node_) {
     ERROR("Node is not initialized");
@@ -328,6 +338,7 @@ void PRaft::Join() {
 
 void PRaft::AppendLog(const Binlog& log, std::promise<rocksdb::Status>&& promise) {
   assert(node_);
+  assert(node_->is_leader());
   butil::IOBuf data;
   butil::IOBufAsZeroCopyOutputStream wrapper(&data);
   auto done = new PRaftWriteDoneClosure(std::move(promise));
