@@ -16,6 +16,7 @@
 #include <vector>
 
 #include "client.h"
+#include "store.h"
 
 namespace pikiwidb {
 
@@ -28,6 +29,7 @@ const std::string kCmdNamePExpire = "pexpire";
 const std::string kCmdNameExpireat = "expireat";
 const std::string kCmdNamePExpireat = "pexpireat";
 const std::string kCmdNamePersist = "persist";
+const std::string kCmdNameKeys = "keys";
 
 // string cmd
 const std::string kCmdNameSet = "set";
@@ -118,8 +120,13 @@ const std::string kCmdNameLLen = "llen";
 const std::string kCmdNameZAdd = "zadd";
 const std::string kCmdNameZRevrange = "zrevrange";
 const std::string kCmdNameZRangebyscore = "zrangebyscore";
-const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
+const std::string kCmdNameZRemrangebyrank = "zremrangebyrank";
+const std::string kCmdNameZRevrangebyscore = "zrevrangebyscore";
 const std::string kCmdNameZCard = "zcard";
+const std::string kCmdNameZScore = "zscore";
+const std::string kCmdNameZRange = "zrange";
+const std::string kCmdNameZRangebylex = "zrangebylex";
+const std::string kCmdNameZRevrangebylex = "zrevrangebylex";
 const std::string kCmdNameZRank = "zrank";
 const std::string kCmdNameZRevrank = "zrevrank";
 const std::string kCmdNameZRem = "zrem";
@@ -141,6 +148,7 @@ enum CmdFlags {
   kCmdFlagsProtected = (1 << 12),        // Don't accept in scripts
   kCmdFlagsModuleNoCluster = (1 << 13),  // No cluster mode support
   kCmdFlagsNoMulti = (1 << 14),          // Cannot be pipelined
+  kCmdFlagsExclusive = (1 << 15),        // May change Storage pointer, like pika's kCmdFlagsSuspend
 };
 
 enum AclCategory {
@@ -275,6 +283,8 @@ class BaseCmd : public std::enable_shared_from_this<BaseCmd> {
   //  std::shared_ptr<std::string> GetResp();
 
   uint32_t GetCmdId() const;
+
+  bool isExclusive() { return static_cast<bool>(flag_ & kCmdFlagsExclusive); }
 
  protected:
   // Execute a specific command

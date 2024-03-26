@@ -50,6 +50,8 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Expireat, 3);
   ADD_COMMAND(PExpireat, 3);
   ADD_COMMAND(Persist, 2);
+  ADD_COMMAND(Keys, 2);
+
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
@@ -125,8 +127,13 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(ZAdd, -4);
   ADD_COMMAND(ZRevrange, -4);
   ADD_COMMAND(ZRangebyscore, -4);
-  ADD_COMMAND(ZRevRangeByScore, -4);
+  ADD_COMMAND(ZRemrangebyrank, 4);
+  ADD_COMMAND(ZRevrangebyscore, -4);
   ADD_COMMAND(ZCard, 2);
+  ADD_COMMAND(ZScore, 3);
+  ADD_COMMAND(ZRange, -4);
+  ADD_COMMAND(ZRangebylex, -3);
+  ADD_COMMAND(ZRevrangebylex, -3);
   ADD_COMMAND(ZRank, 3);
   ADD_COMMAND(ZRevrank, 3);
   ADD_COMMAND(ZRem, -3);
