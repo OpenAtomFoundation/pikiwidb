@@ -4,6 +4,7 @@
 //  of patent rights can be found in the PATENTS file in the same directory.
 
 #include <algorithm>
+#include <string_view>
 #include <utility>
 
 #include "binlog.pb.h"
@@ -2273,7 +2274,9 @@ Status Storage::OnBinlogWrite(const pikiwidb::Binlog& log) {
         batch.Delete(inst->GetColumnFamilyHandles()[entry.cf_idx()], entry.key());
       } break;
       default:
-        assert(0);
+        static constexpr std::string_view msg = "Unknown operate type in binlog";
+        ERROR(msg);
+        return Status::Incomplete(msg);
     }
   }
 
