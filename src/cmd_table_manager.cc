@@ -50,6 +50,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(Expireat, 3);
   ADD_COMMAND(PExpireat, 3);
   ADD_COMMAND(Pttl, 2);
+  ADD_COMMAND(Persist, 2);
+  ADD_COMMAND(Keys, 2);
+
   // kv
   ADD_COMMAND(Get, 2);
   ADD_COMMAND(Set, -3);
@@ -102,6 +105,9 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(SMove, 4);
   ADD_COMMAND(SRandMember, -2);  // Added the count argument since Redis 3.2.0
   ADD_COMMAND(SPop, -2);
+  ADD_COMMAND(SMembers, 2);
+  ADD_COMMAND(SDiff, -2);
+  ADD_COMMAND(SDiffstore, -3);
 
   // list
   ADD_COMMAND(LPush, -3);
@@ -112,13 +118,23 @@ void CmdTableManager::InitCmdTable() {
   ADD_COMMAND(LTrim, 4);
   ADD_COMMAND(LSet, 4);
   ADD_COMMAND(LInsert, 5);
+  ADD_COMMAND(LPushx, -3);
+  ADD_COMMAND(RPushx, -3);
+  ADD_COMMAND(LPop, 2);
+  ADD_COMMAND(LIndex, 3);
+  ADD_COMMAND(LLen, 2);
 
   // zset
   ADD_COMMAND(ZAdd, -4);
   ADD_COMMAND(ZRevrange, -4);
   ADD_COMMAND(ZRangebyscore, -4);
-  ADD_COMMAND(ZRevRangeByScore, -4);
+  ADD_COMMAND(ZRemrangebyrank, 4);
+  ADD_COMMAND(ZRevrangebyscore, -4);
   ADD_COMMAND(ZCard, 2);
+  ADD_COMMAND(ZScore, 3);
+  ADD_COMMAND(ZRange, -4);
+  ADD_COMMAND(ZRangebylex, -3);
+  ADD_COMMAND(ZRevrangebylex, -3);
 }
 
 std::pair<BaseCmd*, CmdRes::CmdRet> CmdTableManager::GetCommand(const std::string& cmdName, PClient* client) {

@@ -96,4 +96,58 @@ class LInsertCmd : public BaseCmd {
   void DoCmd(PClient* client) override;
 };
 
+class LPushxCmd : public BaseCmd {
+ public:
+  LPushxCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class RPushxCmd : public BaseCmd {
+ public:
+  RPushxCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class LPopCmd : public BaseCmd {
+ public:
+  LPopCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class LIndexCmd : public BaseCmd {
+ public:
+  LIndexCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
+
+class LLenCmd : public BaseCmd {
+ public:
+  LLenCmd(const std::string& name, int16_t arity);
+
+ protected:
+  bool DoInitial(PClient* client) override;
+
+ private:
+  void DoCmd(PClient* client) override;
+};
 }  // namespace pikiwidb

@@ -22,7 +22,7 @@ bool SIsMemberCmd::DoInitial(PClient* client) {
 }
 void SIsMemberCmd::DoCmd(PClient* client) {
   int32_t reply_Num = 0;  // only change to 1 if ismember . key not exist it is 0
-  PSTORE.GetBackend(client->GetCurrentDB())->SIsmember(client->Key(), client->argv_[2], &reply_Num);
+  PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SIsmember(client->Key(), client->argv_[2], &reply_Num);
 
   client->AppendInteger(reply_Num);
 }
@@ -39,7 +39,7 @@ bool SAddCmd::DoInitial(PClient* client) {
 void SAddCmd::DoCmd(PClient* client) {
   const std::vector<std::string> members(client->argv_.begin() + 2, client->argv_.end());
   int32_t ret = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SAdd(client->Key(), members, &ret);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SAdd(client->Key(), members, &ret);
   if (s.ok()) {
     client->AppendInteger(ret);
   } else {
@@ -60,8 +60,9 @@ void SUnionStoreCmd::DoCmd(PClient* client) {
   std::vector<std::string> keys(client->Keys().begin() + 1, client->Keys().end());
   std::vector<std::string> value_to_dest;
   int32_t ret = 0;
-  storage::Status s =
-      PSTORE.GetBackend(client->GetCurrentDB())->SUnionstore(client->Keys().at(0), keys, value_to_dest, &ret);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
+                          ->SUnionstore(client->Keys().at(0), keys, value_to_dest, &ret);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sunionstore cmd error");
   }
@@ -79,7 +80,7 @@ bool SInterCmd::DoInitial(PClient* client) {
 
 void SInterCmd::DoCmd(PClient* client) {
   std::vector<std::string> res_vt;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SInter(client->Keys(), &res_vt);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SInter(client->Keys(), &res_vt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "sinter cmd error");
     return;
@@ -98,7 +99,8 @@ bool SRemCmd::DoInitial(PClient* client) {
 void SRemCmd::DoCmd(PClient* client) {
   std::vector<std::string> to_delete_members(client->argv_.begin() + 2, client->argv_.end());
   int32_t reply_num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SRem(client->Key(), to_delete_members, &reply_num);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SRem(client->Key(), to_delete_members, &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "srem cmd error");
   }
@@ -116,7 +118,7 @@ bool SUnionCmd::DoInitial(PClient* client) {
 
 void SUnionCmd::DoCmd(PClient* client) {
   std::vector<std::string> res_vt;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SUnion(client->Keys(), &res_vt);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SUnion(client->Keys(), &res_vt);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "sunion cmd error");
   }
@@ -136,8 +138,9 @@ void SInterStoreCmd::DoCmd(PClient* client) {
   int32_t reply_num = 0;
 
   std::vector<std::string> inter_keys(client->argv_.begin() + 2, client->argv_.end());
-  storage::Status s =
-      PSTORE.GetBackend(client->GetCurrentDB())->SInterstore(client->Key(), inter_keys, value_to_dest, &reply_num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
+                          ->SInterstore(client->Key(), inter_keys, value_to_dest, &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "sinterstore cmd error");
     return;
@@ -154,7 +157,7 @@ bool SCardCmd::DoInitial(PClient* client) {
 }
 void SCardCmd::DoCmd(PClient* client) {
   int32_t reply_Num = 0;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SCard(client->Key(), &reply_Num);
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SCard(client->Key(), &reply_Num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "scard cmd error");
     return;
@@ -170,6 +173,7 @@ bool SMoveCmd::DoInitial(PClient* client) { return true; }
 void SMoveCmd::DoCmd(PClient* client) {
   int32_t reply_num = 0;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
                           ->SMove(client->argv_[1], client->argv_[2], client->argv_[3], &reply_num);
   if (!s.ok()) {
     client->SetRes(CmdRes::kErrOther, "smove cmd error");
@@ -198,7 +202,8 @@ bool SRandMemberCmd::DoInitial(PClient* client) {
 
 void SRandMemberCmd::DoCmd(PClient* client) {
   std::vector<std::string> vec_ret;
-  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SRandmember(client->Key(), this->num_rand, &vec_ret);
+  storage::Status s =
+      PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SRandmember(client->Key(), this->num_rand, &vec_ret);
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "srandmember cmd error");
     return;
@@ -224,7 +229,8 @@ void SPopCmd::DoCmd(PClient* client) {
   if ((client->argv_.size()) == 2) {
     int64_t cnt = 1;
     std::vector<std::string> delete_member;
-    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_member, cnt);
+    storage::Status s =
+        PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SPop(client->Key(), &delete_member, cnt);
     if (!s.ok()) {
       client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
       return;
@@ -238,7 +244,8 @@ void SPopCmd::DoCmd(PClient* client) {
       client->SetRes(CmdRes::kInvalidInt);
       return;
     }
-    storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->SPop(client->Key(), &delete_members, cnt);
+    storage::Status s =
+        PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SPop(client->Key(), &delete_members, cnt);
     if (!s.ok()) {
       client->SetRes(CmdRes::kSyntaxErr, "spop cmd error");
       return;
@@ -249,5 +256,64 @@ void SPopCmd::DoCmd(PClient* client) {
     client->SetRes(CmdRes::kWrongNum, "spop");
     return;
   }
+}
+
+SMembersCmd::SMembersCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SMembersCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SMembersCmd::DoCmd(PClient* client) {
+  std::vector<std::string> delete_members;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SMembers(client->Key(), &delete_members);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "smembers cmd error");
+    return;
+  }
+  client->AppendStringVector(delete_members);
+}
+
+SDiffCmd::SDiffCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySet) {}
+
+bool SDiffCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SDiffCmd::DoCmd(PClient* client) {
+  std::vector<std::string> diff_members;
+  std::vector<std::string> diff_keys(client->argv_.begin() + 1, client->argv_.end());
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->SDiff(diff_keys, &diff_members);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "sdiff cmd error");
+    return;
+  }
+  client->AppendStringVector(diff_members);
+}
+
+SDiffstoreCmd::SDiffstoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySet) {}
+
+bool SDiffstoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void SDiffstoreCmd::DoCmd(PClient* client) {
+  std::vector<std::string> value_to_dest;
+  int32_t reply_num = 0;
+  std::vector<std::string> diffstore_keys(client->argv_.begin() + 2, client->argv_.end());
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
+                          ->SDiffstore(client->Key(), diffstore_keys, value_to_dest, &reply_num);
+  if (!s.ok()) {
+    client->SetRes(CmdRes::kSyntaxErr, "sdiffstore cmd error");
+    return;
+  }
+  client->AppendInteger(reply_num);
 }
 }  // namespace pikiwidb

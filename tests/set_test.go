@@ -313,4 +313,64 @@ var _ = Describe("Set", Ordered, func() {
 	    	Expect(err).NotTo(HaveOccurred())
 		Expect(members).To(HaveLen(2))
     	})
+
+	It("should SMembers", func() {
+		sAdd := client.SAdd(ctx, "setSMembers", "Hello")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSMembers", "World")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sMembers := client.SMembers(ctx, "setSMembers")
+		Expect(sMembers.Err()).NotTo(HaveOccurred())
+		Expect(sMembers.Val()).To(ConsistOf([]string{"Hello", "World"}))
+	})
+
+	It("should SDiff", func() {
+		sAdd := client.SAdd(ctx, "setSDiff1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiff1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiff1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "setSDiff2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiff2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiff2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sDiff := client.SDiff(ctx, "setSDiff1", "setSDiff2")
+		Expect(sDiff.Err()).NotTo(HaveOccurred())
+		Expect(sDiff.Val()).To(ConsistOf([]string{"a", "b"}))
+
+		sDiff = client.SDiff(ctx, "nonexistent_setSDiff1", "nonexistent_setSDiff2")
+		Expect(sDiff.Err()).NotTo(HaveOccurred())
+		Expect(sDiff.Val()).To(HaveLen(0))
+	})
+
+	It("should SDiffstore", func() {
+		sAdd := client.SAdd(ctx, "setSDiffstore1", "a")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore1", "b")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore1", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "c")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "d")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		sAdd = client.SAdd(ctx, "setSDiffstore2", "e")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+		sDiffStore := client.SDiffStore(ctx, "setKey", "setSDiffstore1", "setSDiffstore2")
+		Expect(sDiffStore.Err()).NotTo(HaveOccurred())
+		Expect(sDiffStore.Val()).To(Equal(int64(2)))
+
+		sMembers := client.SMembers(ctx, "setKey")
+		Expect(sMembers.Err()).NotTo(HaveOccurred())
+		Expect(sMembers.Val()).To(ConsistOf([]string{"a", "b"}))
+	})
+
 })
