@@ -132,6 +132,7 @@ std::string PRaft::GetLeaderAddress() const {
     return "Failed to get leader id";
   }
   auto id = node_->leader_id();
+  id.addr.port -= g_config.raft_port_offset; 
   auto addr = butil::endpoint2str(id.addr);
   return addr.c_str();
 }
