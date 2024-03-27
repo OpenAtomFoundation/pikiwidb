@@ -130,6 +130,9 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
     case kInvalidCursor:
       AppendStringRaw("-ERR invalid cursor");
       break;
+    case kmultikey:
+      AppendStringRaw("-ERR WRONGTYPE Operation against a key holding the wrong kind of value");
+      break;
     default:
       break;
   }

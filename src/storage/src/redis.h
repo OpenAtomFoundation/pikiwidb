@@ -308,19 +308,19 @@ class Redis {
     options.iterate_upper_bound = upper_bound;
     switch (type) {
       case 'k':
-        return new StringsIterator(options, db_, handles_[kStringsCF], pattern);
+        return new StringsIterator(options, db_, handles_[kMetaCF], pattern);
         break;
       case 'h':
-        return new HashesIterator(options, db_, handles_[kHashesMetaCF], pattern);
+        return new HashesIterator(options, db_, handles_[kMetaCF], pattern);
         break;
       case 's':
-        return new SetsIterator(options, db_, handles_[kSetsMetaCF], pattern);
+        return new SetsIterator(options, db_, handles_[kMetaCF], pattern);
         break;
       case 'l':
-        return new ListsIterator(options, db_, handles_[kListsMetaCF], pattern);
+        return new ListsIterator(options, db_, handles_[kMetaCF], pattern);
         break;
       case 'z':
-        return new ZsetsIterator(options, db_, handles_[kZsetsMetaCF], pattern);
+        return new ZsetsIterator(options, db_, handles_[kMetaCF], pattern);
         break;
       default:
         WARN("Invalid datatype to create iterator");

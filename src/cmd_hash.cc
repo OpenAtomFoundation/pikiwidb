@@ -33,20 +33,21 @@ void HSetCmd::DoCmd(PClient* client) {
   auto fvs = client->Fvs();
 
   for (size_t i = 2; i < client->argv_.size(); i += 2) {
-    auto field = client->argv_[i];
-    auto value = client->argv_[i + 1];
-    int32_t temp = 0;
-    // TODO(century): current bw doesn't support multiple fvs, fix it when necessary
-    s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HSet(client->Key(), field, value, &temp);
-    if (s.ok()) {
-      ret += temp;
-    } else {
-      // FIXME(century): need txn, if bw crashes, it should rollback
-      client->SetRes(CmdRes::kErrOther);
-      return;
+      auto field = client->argv_[i];
+      auto value = client->argv_[i + 1];
+      int32_t temp = 0;
+      // TODO(century): current bw doesn't support multiple fvs, fix it when necessary
+      s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HSet(client->Key(), field, value, &temp);
+      if (s.ok()) {
+          ret += temp;
+      } else if (s.IsInvalidArgument()) {
+          client->SetRes(CmdRes::kmultikey);
+      } else {
+        // FIXME(century): need txn, if bw crashes, it should rollback
+        client->SetRes(CmdRes::kErrOther);
+        return;
     }
   }
-
   client->AppendInteger(ret);
 }
 

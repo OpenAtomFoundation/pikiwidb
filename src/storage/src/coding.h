@@ -26,6 +26,15 @@ namespace storage {
 static const bool kLittleEndian = STORAGE_PLATFORM_IS_LITTLE_ENDIAN;
 #undef STORAGE_PLATFORM_IS_LITTLE_ENDIAN
 
+inline void EncodeFixed8(char* buf, char type) {
+  if (kLittleEndian) {
+      memcpy(buf, &type, sizeof(type));
+  } else {
+    uint8_t converted_value = static_cast<uint8_t>(type);
+    buf[0] = converted_value;
+  }
+}
+
 inline void EncodeFixed32(char* buf, uint32_t value) {
   if (kLittleEndian) {
     memcpy(buf, &value, sizeof(value));
