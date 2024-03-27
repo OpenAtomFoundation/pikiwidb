@@ -40,13 +40,14 @@ void HSetCmd::DoCmd(PClient* client) {
     s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HSet(client->Key(), field, value, &temp);
     if (s.ok()) {
       ret += temp;
+    } else if (s.IsInvalidArgument()) {
+      client->SetRes(CmdRes::kmultikey);
     } else {
       // FIXME(century): need txn, if bw crashes, it should rollback
       client->SetRes(CmdRes::kErrOther);
       return;
     }
   }
-
   client->AppendInteger(ret);
 }
 

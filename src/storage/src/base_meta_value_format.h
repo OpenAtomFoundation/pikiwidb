@@ -59,17 +59,26 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
   explicit ParsedBaseMetaValue(std::string* internal_value_str) : ParsedInternalValue(internal_value_str) {
     if (internal_value_str->size() >= kBaseMetaValueSuffixLength) {
       int offset = 0;
-      user_value_ = Slice(internal_value_str->data(), internal_value_str->size() - kBaseMetaValueSuffixLength);
+      type_ = Slice(internal_value_str->data(), 1);
+      offset += 1;
+      // std::cout << "type: " << type_.ToStringView() << std::endl;
+      user_value_ = Slice(internal_value_str->data() + 1, internal_value_str->size() - kBaseMetaValueSuffixLength - 1);
+      // std::cout << "user_value: " << user_value_.ToStringView() << std::endl;
+      // std::cout << "user_value_size: " << user_value_.size() << std::endl;
       offset += user_value_.size();
       version_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "version:" << version_ << std::endl;
       offset += sizeof(version_);
       memcpy(reserve_, internal_value_str->data() + offset, sizeof(reserve_));
       offset += sizeof(reserve_);
       ctime_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "ctime: " << ctime_ << std::endl;
       offset += sizeof(ctime_);
       etime_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "etime: " << etime_ << std::endl;
     }
-    count_ = DecodeFixed32(internal_value_str->data());
+    count_ = DecodeFixed32(internal_value_str->data() + 1);
+    // std::cout << "count: " << count_ << std::endl;
   }
 
   // Use this constructor in rocksdb::CompactionFilter::Filter();
@@ -134,11 +143,13 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
 
   int32_t Count() { return count_; }
 
+  bool IsType(Slice c) { return type_.ToStringView() == c.ToStringView(); }
+
   void SetCount(int32_t count) {
     count_ = count;
     if (value_) {
       char* dst = const_cast<char*>(value_->data());
-      EncodeFixed32(dst, count_);
+      EncodeFixed32(dst + 1, count_);
     }
   }
 
@@ -155,7 +166,7 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
     count_ += delta;
     if (value_) {
       char* dst = const_cast<char*>(value_->data());
-      EncodeFixed32(dst, count_);
+      EncodeFixed32(dst + 1, count_);
     }
   }
 

@@ -130,6 +130,7 @@ class ParsedInternalValue {
   virtual void SetEtimeToValue() = 0;
   virtual void SetCtimeToValue() = 0;
   std::string* value_ = nullptr;
+  Slice type_;
   Slice user_value_;
   uint64_t version_ = 0;
   uint64_t ctime_ = 0;
