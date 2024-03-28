@@ -167,4 +167,59 @@ void KeysCmd::DoCmd(PClient* client) {
   }
 }
 
+PttlCmd::PttlCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
+
+bool PttlCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+// like Blackwidow , Floyd still possible has same key in different data structure
+void PttlCmd::DoCmd(PClient* client) {
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  auto type_timestamp = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->TTL(client->Key(), &type_status);
+  for (const auto& item : type_timestamp) {
+    // mean operation exception errors happen in database
+    if (item.second == -3) {
+      client->SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    if (type_timestamp[storage::kStrings] == -1) {
+      client->AppendInteger(-1);
+    } else {
+      client->AppendInteger(type_timestamp[storage::kStrings] * 1000);
+    }
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    if (type_timestamp[storage::kHashes] == -1) {
+      client->AppendInteger(-1);
+    } else {
+      client->AppendInteger(type_timestamp[storage::kHashes] * 1000);
+    }
+  } else if (type_timestamp[storage::kLists] != -2) {
+    if (type_timestamp[storage::kLists] == -1) {
+      client->AppendInteger(-1);
+    } else {
+      client->AppendInteger(type_timestamp[storage::kLists] * 1000);
+    }
+  } else if (type_timestamp[storage::kSets] != -2) {
+    if (type_timestamp[storage::kSets] == -1) {
+      client->AppendInteger(-1);
+    } else {
+      client->AppendInteger(type_timestamp[storage::kSets] * 1000);
+    }
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    if (type_timestamp[storage::kZSets] == -1) {
+      client->AppendInteger(-1);
+    } else {
+      client->AppendInteger(type_timestamp[storage::kZSets] * 1000);
+    }
+  } else {
+    // this key not exist
+    client->AppendInteger(-2);
+  }
+}
+
 }  // namespace pikiwidb
