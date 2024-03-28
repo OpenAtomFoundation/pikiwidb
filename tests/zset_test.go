@@ -386,4 +386,27 @@ var _ = Describe("Zset", Ordered, func() {
 		Expect(zRangeByLex.Err()).NotTo(HaveOccurred())
 		Expect(zRangeByLex.Val()).To(Equal([]string{}))
 	})
+
+	It("should ZRemRangeByScore", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		zRemRangeByScore := client.ZRemRangeByScore(ctx, "zset", "-inf", "(2")
+		Expect(zRemRangeByScore.Err()).NotTo(HaveOccurred())
+		Expect(zRemRangeByScore.Val()).To(Equal(int64(1)))
+
+		vals, err := client.ZRangeWithScores(ctx, "zset", 0, -1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{
+			Score:  2,
+			Member: "two",
+		}, {
+			Score:  3,
+			Member: "three",
+		}}))
+	})
 })

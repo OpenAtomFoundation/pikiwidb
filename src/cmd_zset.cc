@@ -668,4 +668,34 @@ void ZRevrangebylexCmd::DoCmd(PClient* client) {
   }
 }
 
+ZRemrangebyscoreCmd::ZRemrangebyscoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRemrangebyscoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRemrangebyscoreCmd::DoCmd(PClient* client) {
+  double min_score = 0;
+  double max_score = 0;
+  bool left_close = true;
+  bool right_close = true;
+  int32_t ret = DoScoreStrRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_score, &max_score);
+  if (ret == -1) {
+    client->SetRes(CmdRes::kErrOther, "min or max is not a float");
+    return;
+  }
+
+  int32_t s_ret = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
+                          ->ZRemrangebyscore(client->Key(), min_score, max_score, left_close, right_close, &s_ret);
+  if (s.ok()) {
+    client->AppendInteger(s_ret);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
 }  // namespace pikiwidb
