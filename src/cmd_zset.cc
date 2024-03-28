@@ -78,6 +78,8 @@ void ZAddCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZAdd(client->Key(), score_members_, &count);
   if (s.ok()) {
     client->AppendInteger(count);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -134,6 +136,8 @@ void ZRevrangeCmd::DoCmd(PClient* client) {
         client->AppendContent(sm.member);
       }
     }
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -193,6 +197,11 @@ void ZRangebyscoreCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
                           ->GetStorage()
                           ->ZRangebyscore(client->Key(), min_score, max_score, left_close, right_close, &score_members);
+
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+    return;
+  }
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -231,6 +240,10 @@ bool ZCardCmd::DoInitial(PClient* client) {
 void ZCardCmd::DoCmd(PClient* client) {
   int32_t reply_Num = 0;
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZCard(client->Key(), &reply_Num);
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+    return;
+  }
   if (!s.ok()) {
     client->SetRes(CmdRes::kSyntaxErr, "ZCard cmd error");
     return;
@@ -296,6 +309,9 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
                           ->GetStorage()
                           ->ZRevrangebyscore(client->Key(), min_score, max_score, left_close, right_close, count,
                                              offset, &score_members);
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+  }
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;

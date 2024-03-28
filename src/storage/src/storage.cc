@@ -1085,56 +1085,39 @@ int32_t Storage::Expire(const Slice& key, uint64_t ttl) {
 int64_t Storage::Del(const std::vector<std::string>& keys) {
   Status s;
   int64_t count = 0;
-  bool is_corruption = false;
-
   for (const auto& key : keys) {
     auto& inst = GetDBInstance(key);
     // Strings
     Status s = inst->StringsDel(key);
     if (s.ok()) {
       count++;
-    } else if (!s.IsNotFound()) {
-      is_corruption = true;
     }
 
     // Hashes
     s = inst->HashesDel(key);
     if (s.ok()) {
       count++;
-    } else if (!s.IsNotFound()) {
-      is_corruption = true;
     }
 
     // Sets
     s = inst->SetsDel(key);
     if (s.ok()) {
       count++;
-    } else if (!s.IsNotFound()) {
-      is_corruption = true;
     }
 
     // Lists
     s = inst->ListsDel(key);
     if (s.ok()) {
       count++;
-    } else if (!s.IsNotFound()) {
-      is_corruption = true;
     }
 
     // ZSets
     s = inst->ZsetsDel(key);
     if (s.ok()) {
       count++;
-    } else if (!s.IsNotFound()) {
-      is_corruption = true;
     }
   }
-
-  if (is_corruption) {
-    return -1;
-  } else {
-    return count;
-  }
+  return count;
 }
 
 int64_t Storage::DelByType(const std::vector<std::string>& keys, const DataType& type) {

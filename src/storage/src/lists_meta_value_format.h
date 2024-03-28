@@ -11,6 +11,8 @@
 #include "src/base_value_format.h"
 #include "storage/storage_define.h"
 
+#define TYPE_SIZE 1
+
 namespace storage {
 
 const uint64_t InitalLeftIndex = 9223372036854775807;
@@ -78,23 +80,33 @@ class ParsedListsMetaValue : public ParsedInternalValue {
     assert(internal_value_str->size() >= kListsMetaValueSuffixLength);
     if (internal_value_str->size() >= kListsMetaValueSuffixLength) {
       int offset = 0;
+      type_ = Slice(internal_value_str->data(), 1);
+      // std::cout << "type_: " << type_.ToStringView() << std::endl;
+      offset += 1;
       user_value_ =
-          rocksdb::Slice(internal_value_str->data(), internal_value_str->size() - kListsMetaValueSuffixLength);
+          rocksdb::Slice(internal_value_str->data() + 1, internal_value_str->size() - kListsMetaValueSuffixLength - 1);
       offset += user_value_.size();
+      // std::cout << "user_value_: " << user_value_.ToStringView() << std::endl;
       version_ = DecodeFixed64(internal_value_str->data() + offset);
       offset += kVersionLength;
+      // std::cout << "version: " << version_ << std::endl;
       left_index_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "left_index_: " << left_index_ << std::endl;
       offset += kListValueIndexLength;
       right_index_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "right_index_: " << right_index_ << std::endl;
       offset += kListValueIndexLength;
       memcpy(reserve_, internal_value_str->data() + offset, sizeof(reserve_));
       offset += kSuffixReserveLength;
       ctime_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "ctime: " << ctime_ << std::endl;
       offset += kTimestampLength;
       etime_ = DecodeFixed64(internal_value_str->data() + offset);
+      // std::cout << "etime: " << etime_ << std::endl;
       offset += kTimestampLength;
     }
-    count_ = DecodeFixed64(internal_value_str->data());
+    count_ = DecodeFixed64(internal_value_str->data() + 1);
+    // std::cout << "count: " << count_ << std::endl;
   }
 
   // Use this constructor in rocksdb::CompactionFilter::Filter();
@@ -103,8 +115,10 @@ class ParsedListsMetaValue : public ParsedInternalValue {
     assert(internal_value_slice.size() >= kListsMetaValueSuffixLength);
     if (internal_value_slice.size() >= kListsMetaValueSuffixLength) {
       int offset = 0;
-      user_value_ =
-          rocksdb::Slice(internal_value_slice.data(), internal_value_slice.size() - kListsMetaValueSuffixLength);
+      type_ = Slice(internal_value_slice.data(), 1);
+      offset += 1;
+      user_value_ = rocksdb::Slice(internal_value_slice.data() + 1,
+                                   internal_value_slice.size() - kListsMetaValueSuffixLength - 1);
       offset += user_value_.size();
       version_ = DecodeFixed64(internal_value_slice.data() + offset);
       offset += kVersionLength;
@@ -119,7 +133,7 @@ class ParsedListsMetaValue : public ParsedInternalValue {
       etime_ = DecodeFixed64(internal_value_slice.data() + offset);
       offset += kTimestampLength;
     }
-    count_ = DecodeFixed64(internal_value_slice.data());
+    count_ = DecodeFixed64(internal_value_slice.data() + 1);
   }
 
   void StripSuffix() override {
@@ -134,6 +148,7 @@ class ParsedListsMetaValue : public ParsedInternalValue {
       EncodeFixed64(dst, version_);
     }
   }
+  bool IsType(Slice c) { return type_.ToStringView() == c.ToStringView(); }
 
   void SetCtimeToValue() override {
     if (value_) {
@@ -175,7 +190,7 @@ class ParsedListsMetaValue : public ParsedInternalValue {
     count_ = count;
     if (value_) {
       char* dst = const_cast<char*>(value_->data());
-      EncodeFixed64(dst, count_);
+      EncodeFixed64(dst + TYPE_SIZE, count_);
     }
   }
 
@@ -183,7 +198,7 @@ class ParsedListsMetaValue : public ParsedInternalValue {
     count_ += delta;
     if (value_) {
       char* dst = const_cast<char*>(value_->data());
-      EncodeFixed64(dst, count_);
+      EncodeFixed64(dst + TYPE_SIZE, count_);
     }
   }
 

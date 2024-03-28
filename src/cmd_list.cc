@@ -25,6 +25,8 @@ void LPushCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "lpush cmd error");
   }
@@ -45,6 +47,8 @@ void LPushxCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPushx(client->Key(), list_values, &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -65,6 +69,8 @@ void RPushCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPush(client->Key(), list_values, &reply_num);
   if (s.ok()) {
     client->AppendInteger(reply_num);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "rpush cmd error");
   }
@@ -85,6 +91,8 @@ void RPushxCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPushx(client->Key(), list_values, &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -103,6 +111,8 @@ void LPopCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LPop(client->Key(), 1, &elements);
   if (s.ok()) {
     client->AppendString(elements[0]);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else if (s.IsNotFound()) {
     client->AppendStringLen(-1);
   } else {
@@ -123,6 +133,8 @@ void RPopCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->RPop(client->Key(), 1, &elements);
   if (s.ok()) {
     client->AppendString(elements[0]);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else if (s.IsNotFound()) {
     client->AppendStringLen(-1);
   } else {
@@ -148,6 +160,10 @@ void LRangeCmd::DoCmd(PClient* client) {
   }
   storage::Status s =
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LRange(client->Key(), start_index, end_index, &ret);
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+    return;
+  }
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kSyntaxErr, "lrange cmd error");
     return;
@@ -176,6 +192,8 @@ void LRemCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LRem(client->Key(), freq_, client->argv_[3], &reply_num);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(reply_num);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "lrem cmd error");
   }
@@ -201,6 +219,8 @@ void LTrimCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LTrim(client->Key(), start_index, end_index);
   if (s.ok() || s.IsNotFound()) {
     client->SetRes(CmdRes::kOK);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "ltrim cmd error");
   }
@@ -229,6 +249,8 @@ void LSetCmd::DoCmd(PClient* client) {
         PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LSet(client->Key(), val, client->argv_[3]);
     if (s.ok()) {
       client->SetRes(CmdRes::kOK);
+    } else if (s.IsInvalidArgument()) {
+      client->SetRes(CmdRes::kmultikey);
     } else if (s.IsNotFound()) {
       client->SetRes(CmdRes::kNotFound);
     } else if (s.IsCorruption()) {
@@ -262,6 +284,10 @@ void LInsertCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
                           ->GetStorage()
                           ->LInsert(client->Key(), before_or_after, client->argv_[3], client->argv_[4], &ret);
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+    return;
+  }
   if (!s.ok() && s.IsNotFound()) {
     client->SetRes(CmdRes::kSyntaxErr, "linsert cmd error");  // just a safeguard
     return;
@@ -289,6 +315,8 @@ void LIndexCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LIndex(client->Key(), freq_, &value);
   if (s.ok()) {
     client->AppendString(value);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else if (s.IsNotFound()) {
     client->AppendStringLen(-1);
   } else {
@@ -309,6 +337,8 @@ void LLenCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->LLen(client->Key(), &llen);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(static_cast<int64_t>(llen));
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }

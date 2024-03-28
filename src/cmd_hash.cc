@@ -42,6 +42,7 @@ void HSetCmd::DoCmd(PClient* client) {
       ret += temp;
     } else if (s.IsInvalidArgument()) {
       client->SetRes(CmdRes::kmultikey);
+      return;
     } else {
       // FIXME(century): need txn, if bw crashes, it should rollback
       client->SetRes(CmdRes::kErrOther);
@@ -65,6 +66,8 @@ void HGetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HGet(client->Key(), field, &value);
   if (s.ok()) {
     client->AppendString(value);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else if (s.IsNotFound()) {
     client->AppendString("");
   } else {
@@ -84,6 +87,10 @@ void HDelCmd::DoCmd(PClient* client) {
   int32_t res{};
   std::vector<std::string> fields(client->argv_.begin() + 2, client->argv_.end());
   auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HDel(client->Key(), fields, &res);
+  if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
+    return;
+  }
   if (!s.ok() && !s.IsNotFound()) {
     client->SetRes(CmdRes::kErrOther, s.ToString());
     return;
@@ -108,6 +115,8 @@ void HMSetCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HMSet(client->Key(), client->Fvs());
   if (s.ok()) {
     client->SetRes(CmdRes::kOK);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -136,6 +145,8 @@ void HMGetCmd::DoCmd(PClient* client) {
         client->AppendString("");
       }
     }
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -186,6 +197,8 @@ void HGetAllCmd::DoCmd(PClient* client) {
   if (s.ok() || s.IsNotFound()) {
     client->AppendArrayLen(total_fv * 2);
     client->AppendStringRaw(raw);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -210,6 +223,8 @@ void HKeysCmd::DoCmd(PClient* client) {
     }
     // update fields
     client->Fields() = std::move(fields);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -228,6 +243,8 @@ void HLenCmd::DoCmd(PClient* client) {
   auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HLen(client->Key(), &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "something wrong in hlen");
   }
@@ -246,6 +263,8 @@ void HStrLenCmd::DoCmd(PClient* client) {
   auto s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HStrlen(client->Key(), client->argv_[2], &len);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(len);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "something wrong in hstrlen");
   }
@@ -321,6 +340,8 @@ void HValsCmd::DoCmd(PClient* client) {
   storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HVals(client->Key(), &valueVec);
   if (s.ok() || s.IsNotFound()) {
     client->AppendStringVector(valueVec);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
@@ -351,6 +372,8 @@ void HIncrbyFloatCmd::DoCmd(PClient* client) {
                           ->HIncrbyfloat(client->Key(), client->argv_[2], client->argv_[3], &newValue);
   if (s.ok() || s.IsNotFound()) {
     client->AppendString(newValue);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "hvals cmd error");
   }
@@ -372,6 +395,8 @@ void HSetNXCmd::DoCmd(PClient* client) {
           ->HSetnx(client->Key(), client->argv_[2], client->argv_[3], &temp);
   if (s.ok()) {
     client->AppendInteger(temp);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kSyntaxErr, "hsetnx cmd error");
   }
@@ -398,6 +423,8 @@ void HIncrbyCmd::DoCmd(PClient* client) {
       PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->HIncrby(client->Key(), client->argv_[2], int_by, &temp);
   if (s.ok() || s.IsNotFound()) {
     client->AppendInteger(temp);
+  } else if (s.IsInvalidArgument()) {
+    client->SetRes(CmdRes::kmultikey);
   } else {
     client->SetRes(CmdRes::kErrOther, "hincrby cmd error");
   }

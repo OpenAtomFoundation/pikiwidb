@@ -69,6 +69,7 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
     meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
   meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_ops));
+
   // string column-family options
   rocksdb::ColumnFamilyOptions string_cf_ops(storage_options.options);
   string_cf_ops.compaction_filter_factory = std::make_shared<StringsFilterFactory>();

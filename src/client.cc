@@ -132,6 +132,7 @@ void CmdRes::SetRes(CmdRes::CmdRet _ret, const std::string& content) {
       break;
     case kmultikey:
       AppendStringRaw("-WRONGTYPE Operation against a key holding the wrong kind of value");
+      AppendStringRaw(CRLF);
       break;
     default:
       break;
