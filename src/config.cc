@@ -186,6 +186,9 @@ bool LoadPikiwiDBConfig(const char* cfgFile, PConfig& cfg) {
   cfg.rocksdb_ttl_second = parser.GetData<uint64_t>("rocksdb-ttl-second");
   cfg.rocksdb_periodic_second = parser.GetData<uint64_t>("rocksdb-periodic-second");
 
+  // FIXME: failed to set true when reading from config file
+  // cfg.use_raft = (parser.GetData<PString>("use-raft") == "yes");
+
   return cfg.CheckArgs();
 }
 

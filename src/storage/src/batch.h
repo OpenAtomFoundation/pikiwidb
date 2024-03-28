@@ -15,7 +15,6 @@
 #include "rocksdb/db.h"
 
 #include "binlog.pb.h"
-#include "praft/praft.h"
 #include "src/redis.h"
 #include "storage/storage.h"
 #include "storage/storage_define.h"
@@ -30,7 +29,7 @@ class Batch {
   virtual void Delete(ColumnFamilyIndex cf_idx, const Slice& key) = 0;
   virtual auto Commit() -> Status = 0;
 
-  static auto CreateBatch(Redis* redis, bool use_binlog = false) -> std::unique_ptr<Batch>;
+  static auto CreateBatch(Redis* redis) -> std::unique_ptr<Batch>;
 };
 
 class RocksBatch : public Batch {
@@ -54,7 +53,8 @@ class RocksBatch : public Batch {
 
 class BinlogBatch : public Batch {
  public:
-  BinlogBatch(int32_t index, uint32_t seconds = 10) : seconds_(seconds) {
+  BinlogBatch(AppendLogFunction func, int32_t index, uint32_t seconds = 10)
+      : func_(std::move(func)), seconds_(seconds) {
     binlog_.set_db_id(0);
     binlog_.set_slot_idx(index);
   }
@@ -76,11 +76,9 @@ class BinlogBatch : public Batch {
 
   Status Commit() override {
     // FIXME(longfar): We should make sure that in non-RAFT mode, the code doesn't run here
-    assert(pikiwidb::PRaft::Instance().IsInitialized());
-    assert(pikiwidb::PRaft::Instance().IsLeader());
     std::promise<Status> promise;
     auto future = promise.get_future();
-    pikiwidb::PRaft::Instance().AppendLog(binlog_, std::move(promise));
+    func_(binlog_, std::move(promise));
     auto status = future.wait_for(std::chrono::seconds(seconds_));
     if (status == std::future_status::timeout) {
       return Status::Incomplete("Wait for write timeout");
@@ -89,13 +87,14 @@ class BinlogBatch : public Batch {
   }
 
  private:
+  AppendLogFunction func_;
   pikiwidb::Binlog binlog_;
   uint32_t seconds_ = 10;
 };
 
-inline auto Batch::CreateBatch(Redis* redis, bool use_binlog) -> std::unique_ptr<Batch> {
-  if (use_binlog) {
-    return std::make_unique<BinlogBatch>(redis->GetIndex(), redis->GetRaftTimeout());
+inline auto Batch::CreateBatch(Redis* redis) -> std::unique_ptr<Batch> {
+  if (redis->GetAppendLogFunction()) {
+    return std::make_unique<BinlogBatch>(redis->GetAppendLogFunction(), redis->GetIndex(), redis->GetRaftTimeout());
   }
   return std::make_unique<RocksBatch>(redis->GetDB(), redis->GetWriteOptions(), redis->GetColumnFamilyHandles());
 }
