@@ -20,6 +20,7 @@
 #include "src/scope_snapshot.h"
 #include "storage/util.h"
 
+rocksdb::Slice SetType("s");
 namespace storage {
 rocksdb::Status Redis::ScanSetsKeyNum(KeyInfo* key_info) {
   uint64_t keys = 0;
@@ -36,9 +37,12 @@ rocksdb::Status Redis::ScanSetsKeyNum(KeyInfo* key_info) {
   int64_t curtime;
   rocksdb::Env::Default()->GetCurrentTime(&curtime);
 
-  rocksdb::Iterator* iter = db_->NewIterator(iterator_options, handles_[kSetsMetaCF]);
+  rocksdb::Iterator* iter = db_->NewIterator(iterator_options, handles_[kMetaCF]);
   for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
     ParsedSetsMetaValue parsed_sets_meta_value(iter->value());
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      continue;
+    }
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
       invaild_keys++;
     } else {
@@ -70,17 +74,20 @@ rocksdb::Status Redis::SetsPKPatternMatchDel(const std::string& pattern, int32_t
   int32_t total_delete = 0;
   rocksdb::Status s;
   rocksdb::WriteBatch batch;
-  rocksdb::Iterator* iter = db_->NewIterator(iterator_options, handles_[kSetsMetaCF]);
+  rocksdb::Iterator* iter = db_->NewIterator(iterator_options, handles_[kMetaCF]);
   iter->SeekToFirst();
   while (iter->Valid()) {
     ParsedBaseMetaKey parsed_meta_key(iter->key());
     meta_value = iter->value().ToString();
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      continue;
+    }
     if (!parsed_sets_meta_value.IsStale() && (parsed_sets_meta_value.Count() != 0) &&
         (StringMatch(pattern.data(), pattern.size(), parsed_meta_key.Key().data(), parsed_meta_key.Key().size(), 0) !=
          0)) {
       parsed_sets_meta_value.InitialMetaValue();
-      batch.Put(handles_[kSetsMetaCF], iter->key(), meta_value);
+      batch.Put(handles_[kMetaCF], iter->key(), meta_value);
     }
     if (static_cast<size_t>(batch.Count()) >= BATCH_DELETE_LIMIT) {
       s = db_->Write(default_write_options_, &batch);
@@ -122,16 +129,19 @@ rocksdb::Status Redis::SAdd(const Slice& key, const std::vector<std::string>& me
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
       version = parsed_sets_meta_value.InitialMetaValue();
       if (!parsed_sets_meta_value.check_set_count(static_cast<int32_t>(filtered_members.size()))) {
         return Status::InvalidArgument("set size overflow");
       }
       parsed_sets_meta_value.SetCount(static_cast<int32_t>(filtered_members.size()));
-      batch.Put(handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      batch.Put(handles_[kMetaCF], base_meta_key.Encode(), meta_value);
       for (const auto& member : filtered_members) {
         SetsMemberKey sets_member_key(key, version, member);
         BaseDataValue iter_value(Slice{});
@@ -162,15 +172,16 @@ rocksdb::Status Redis::SAdd(const Slice& key, const std::vector<std::string>& me
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(cnt);
-        batch.Put(handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+        batch.Put(handles_[kMetaCF], base_meta_key.Encode(), meta_value);
       }
     }
   } else if (s.IsNotFound()) {
-    char str[4];
-    EncodeFixed32(str, filtered_members.size());
-    SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
+    char str[5];
+    EncodeFixed8(str, 's');
+    EncodeFixed32(str + 1, filtered_members.size());
+    SetsMetaValue sets_meta_value(Slice(str, 5));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[kSetsMetaCF], base_meta_key.Encode(), sets_meta_value.Encode());
+    batch.Put(handles_[kMetaCF], base_meta_key.Encode(), sets_meta_value.Encode());
     for (const auto& member : filtered_members) {
       SetsMemberKey sets_member_key(key, version, member);
       BaseDataValue i_val(Slice{});
@@ -188,9 +199,12 @@ rocksdb::Status Redis::SCard(const Slice& key, int32_t* ret) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else {
@@ -220,9 +234,12 @@ rocksdb::Status Redis::SDiff(const std::vector<std::string>& keys, std::vector<s
 
   for (uint32_t idx = 1; idx < keys.size(); ++idx) {
     BaseMetaKey base_meta_key(keys[idx]);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
         vaild_sets.push_back({keys[idx], parsed_sets_meta_value.Version()});
       }
@@ -232,9 +249,12 @@ rocksdb::Status Redis::SDiff(const std::vector<std::string>& keys, std::vector<s
   }
 
   BaseMetaKey base_meta_key0(keys[0]);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key0.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_meta_key0.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
       bool found;
       Slice prefix;
@@ -292,9 +312,12 @@ rocksdb::Status Redis::SDiffstore(const Slice& destination, const std::vector<st
 
   for (uint32_t idx = 1; idx < keys.size(); ++idx) {
     BaseMetaKey base_meta_key(keys[idx]);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
         vaild_sets.push_back({keys[idx], parsed_sets_meta_value.Version()});
       }
@@ -305,9 +328,12 @@ rocksdb::Status Redis::SDiffstore(const Slice& destination, const std::vector<st
 
   std::vector<std::string> members;
   BaseMetaKey base_meta_key0(keys[0]);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key0.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_meta_key0.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
       bool found;
       std::string member_value;
@@ -344,22 +370,26 @@ rocksdb::Status Redis::SDiffstore(const Slice& destination, const std::vector<st
 
   uint32_t statistic = 0;
   BaseMetaKey base_destination(destination);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_destination.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_destination.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     statistic = parsed_sets_meta_value.Count();
     version = parsed_sets_meta_value.InitialMetaValue();
     if (!parsed_sets_meta_value.check_set_count(static_cast<int32_t>(members.size()))) {
       return Status::InvalidArgument("set size overflow");
     }
     parsed_sets_meta_value.SetCount(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), meta_value);
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), meta_value);
   } else if (s.IsNotFound()) {
-    char str[4];
-    EncodeFixed32(str, members.size());
-    SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
+    char str[5];
+    EncodeFixed8(str, 's');
+    EncodeFixed32(str + 1, members.size());
+    SetsMetaValue sets_meta_value(Slice(str, 5));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), sets_meta_value.Encode());
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), sets_meta_value.Encode());
   } else {
     return s;
   }
@@ -392,9 +422,12 @@ rocksdb::Status Redis::SInter(const std::vector<std::string>& keys, std::vector<
 
   for (uint32_t idx = 1; idx < keys.size(); ++idx) {
     BaseMetaKey base_meta_key(keys[idx]);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
         return rocksdb::Status::OK();
       } else {
@@ -408,9 +441,12 @@ rocksdb::Status Redis::SInter(const std::vector<std::string>& keys, std::vector<
   }
 
   BaseMetaKey base_meta_key0(keys[0]);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key0.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_meta_key0.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
       return rocksdb::Status::OK();
     } else {
@@ -474,9 +510,12 @@ rocksdb::Status Redis::SInterstore(const Slice& destination, const std::vector<s
 
   for (uint32_t idx = 1; idx < keys.size(); ++idx) {
     BaseMetaKey base_meta_key(keys[idx]);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
         have_invalid_sets = true;
         break;
@@ -494,9 +533,12 @@ rocksdb::Status Redis::SInterstore(const Slice& destination, const std::vector<s
   std::vector<std::string> members;
   if (!have_invalid_sets) {
     BaseMetaKey base_meta_key0(keys[0]);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key0.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key0.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
         have_invalid_sets = true;
       } else {
@@ -539,22 +581,26 @@ rocksdb::Status Redis::SInterstore(const Slice& destination, const std::vector<s
 
   uint32_t statistic = 0;
   BaseMetaKey base_destination(destination);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_destination.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_destination.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     statistic = parsed_sets_meta_value.Count();
     version = parsed_sets_meta_value.InitialMetaValue();
     if (!parsed_sets_meta_value.check_set_count(static_cast<int32_t>(members.size()))) {
       return Status::InvalidArgument("set size overflow");
     }
     parsed_sets_meta_value.SetCount(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), meta_value);
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), meta_value);
   } else if (s.IsNotFound()) {
-    char str[4];
-    EncodeFixed32(str, members.size());
-    SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
+    char str[5];
+    EncodeFixed8(str, 's');
+    EncodeFixed32(str + 1, members.size());
+    SetsMetaValue sets_meta_value(Slice(str, 5));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), sets_meta_value.Encode());
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), sets_meta_value.Encode());
   } else {
     return s;
   }
@@ -581,9 +627,12 @@ rocksdb::Status Redis::SIsmember(const Slice& key, const Slice& member, int32_t*
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -611,9 +660,12 @@ rocksdb::Status Redis::SMembers(const Slice& key, std::vector<std::string>* memb
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -643,9 +695,12 @@ Status Redis::SMembersWithTTL(const Slice& key, std::vector<std::string>* member
   ScopeSnapshot ss(db_, &snapshot);
   read_options.snapshot = snapshot;
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.Count() == 0) {
       return Status::NotFound();
     } else if (parsed_sets_meta_value.IsStale()) {
@@ -693,9 +748,12 @@ rocksdb::Status Redis::SMove(const Slice& source, const Slice& destination, cons
   }
 
   BaseMetaKey base_source(source);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_source.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_source.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -711,7 +769,7 @@ rocksdb::Status Redis::SMove(const Slice& source, const Slice& destination, cons
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(-1);
-        batch.Put(handles_[kSetsMetaCF], base_source.Encode(), meta_value);
+        batch.Put(handles_[kMetaCF], base_source.Encode(), meta_value);
         batch.Delete(handles_[kSetsDataCF], sets_member_key.Encode());
         statistic++;
       } else if (s.IsNotFound()) {
@@ -729,13 +787,16 @@ rocksdb::Status Redis::SMove(const Slice& source, const Slice& destination, cons
   }
 
   BaseMetaKey base_destination(destination);
-  s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_destination.Encode(), &meta_value);
+  s = db_->Get(default_read_options_, handles_[kMetaCF], base_destination.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
       version = parsed_sets_meta_value.InitialMetaValue();
       parsed_sets_meta_value.SetCount(1);
-      batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), meta_value);
+      batch.Put(handles_[kMetaCF], base_destination.Encode(), meta_value);
       SetsMemberKey sets_member_key(destination, version, member);
       BaseDataValue i_val(Slice{});
       batch.Put(handles_[kSetsDataCF], sets_member_key.Encode(), i_val.Encode());
@@ -750,18 +811,19 @@ rocksdb::Status Redis::SMove(const Slice& source, const Slice& destination, cons
         }
         parsed_sets_meta_value.ModifyCount(1);
         BaseDataValue iter_value(Slice{});
-        batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), meta_value);
+        batch.Put(handles_[kMetaCF], base_destination.Encode(), meta_value);
         batch.Put(handles_[kSetsDataCF], sets_member_key.Encode(), iter_value.Encode());
       } else if (!s.ok()) {
         return s;
       }
     }
   } else if (s.IsNotFound()) {
-    char str[4];
-    EncodeFixed32(str, 1);
-    SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
+    char str[5];
+    EncodeFixed8(str, 's');
+    EncodeFixed32(str + 1, 1);
+    SetsMetaValue sets_meta_value(Slice(str, 5));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), sets_meta_value.Encode());
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), sets_meta_value.Encode());
     SetsMemberKey sets_member_key(destination, version, member);
     BaseDataValue iter_value(Slice{});
     batch.Put(handles_[kSetsDataCF], sets_member_key.Encode(), iter_value.Encode());
@@ -783,9 +845,12 @@ rocksdb::Status Redis::SPop(const Slice& key, std::vector<std::string>* members,
   uint64_t start_us = pstd::NowMicros();
 
   BaseMetaKey base_meta_key(key);
-  Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -806,8 +871,8 @@ rocksdb::Status Redis::SPop(const Slice& key, std::vector<std::string>* members,
         }
 
         // parsed_sets_meta_value.ModifyCount(-cnt);
-        // batch.Put(handles_[kSetsMetaCF], key, meta_value);
-        batch.Delete(handles_[kSetsMetaCF], base_meta_key.Encode());
+        // batch.Put(handles_[kMetaCF], key, meta_value);
+        batch.Delete(handles_[kMetaCF], base_meta_key.Encode());
         delete iter;
 
       } else {
@@ -847,7 +912,7 @@ rocksdb::Status Redis::SPop(const Slice& key, std::vector<std::string>* members,
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(static_cast<int32_t>(-cnt));
-        batch.Put(handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+        batch.Put(handles_[kMetaCF], base_meta_key.Encode(), meta_value);
         delete iter;
       }
     }
@@ -883,9 +948,12 @@ rocksdb::Status Redis::SRandmember(const Slice& key, int32_t count, std::vector<
   std::unordered_set<int32_t> unique;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -947,9 +1015,12 @@ rocksdb::Status Redis::SRem(const Slice& key, const std::vector<std::string>& me
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -975,7 +1046,7 @@ rocksdb::Status Redis::SRem(const Slice& key, const std::vector<std::string>& me
         return Status::InvalidArgument("set size overflow");
       }
       parsed_sets_meta_value.ModifyCount(-cnt);
-      batch.Put(handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      batch.Put(handles_[kMetaCF], base_meta_key.Encode(), meta_value);
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -1004,9 +1075,12 @@ rocksdb::Status Redis::SUnion(const std::vector<std::string>& keys, std::vector<
 
   for (const auto& key : keys) {
     BaseMetaKey base_meta_key(key);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
         vaild_sets.push_back({key, parsed_sets_meta_value.Version()});
       }
@@ -1055,9 +1129,12 @@ rocksdb::Status Redis::SUnionstore(const Slice& destination, const std::vector<s
 
   for (const auto& key : keys) {
     BaseMetaKey base_meta_key(key);
-    s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+    s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
     if (s.ok()) {
       ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+      if (!parsed_sets_meta_value.IsType(SetType)) {
+        return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+      }
       if (!parsed_sets_meta_value.IsStale() && parsed_sets_meta_value.Count() != 0) {
         vaild_sets.push_back({key, parsed_sets_meta_value.Version()});
       }
@@ -1087,22 +1164,26 @@ rocksdb::Status Redis::SUnionstore(const Slice& destination, const std::vector<s
 
   uint32_t statistic = 0;
   BaseMetaKey base_destination(destination);
-  s = db_->Get(read_options, handles_[kSetsMetaCF], base_destination.Encode(), &meta_value);
+  s = db_->Get(read_options, handles_[kMetaCF], base_destination.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     statistic = parsed_sets_meta_value.Count();
     version = parsed_sets_meta_value.InitialMetaValue();
     if (!parsed_sets_meta_value.check_set_count(static_cast<int32_t>(members.size()))) {
       return Status::InvalidArgument("set size overflow");
     }
     parsed_sets_meta_value.SetCount(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[kSetsMetaCF], destination, meta_value);
+    batch.Put(handles_[kMetaCF], destination, meta_value);
   } else if (s.IsNotFound()) {
-    char str[4];
-    EncodeFixed32(str, members.size());
-    SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
+    char str[5];
+    EncodeFixed8(str, 's');
+    EncodeFixed32(str + 1, members.size());
+    SetsMetaValue sets_meta_value(Slice(str, 5));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[kSetsMetaCF], base_destination.Encode(), sets_meta_value.Encode());
+    batch.Put(handles_[kMetaCF], base_destination.Encode(), sets_meta_value.Encode());
   } else {
     return s;
   }
@@ -1137,9 +1218,12 @@ rocksdb::Status Redis::SScan(const Slice& key, int64_t cursor, const std::string
   read_options.snapshot = snapshot;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(read_options, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(read_options, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.Count() == 0) {
       *next_cursor = 0;
       return rocksdb::Status::NotFound();
@@ -1195,9 +1279,12 @@ rocksdb::Status Redis::SetsExpire(const Slice& key, uint64_t ttl) {
   ScopeRecordLock l(lock_mgr_, key);
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -1206,10 +1293,10 @@ rocksdb::Status Redis::SetsExpire(const Slice& key, uint64_t ttl) {
 
     if (ttl > 0) {
       parsed_sets_meta_value.SetRelativeTimestamp(ttl);
-      s = db_->Put(default_write_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
     } else {
       parsed_sets_meta_value.InitialMetaValue();
-      s = db_->Put(default_write_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
     }
   }
   return s;
@@ -1220,9 +1307,12 @@ rocksdb::Status Redis::SetsDel(const Slice& key) {
   ScopeRecordLock l(lock_mgr_, key);
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -1230,7 +1320,7 @@ rocksdb::Status Redis::SetsDel(const Slice& key) {
     } else {
       uint32_t statistic = parsed_sets_meta_value.Count();
       parsed_sets_meta_value.InitialMetaValue();
-      s = db_->Put(default_write_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      s = db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
       UpdateSpecificKeyStatistics(DataType::kSets, key.ToString(), statistic);
     }
   }
@@ -1242,9 +1332,12 @@ rocksdb::Status Redis::SetsExpireat(const Slice& key, uint64_t timestamp) {
   ScopeRecordLock l(lock_mgr_, key);
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -1255,7 +1348,7 @@ rocksdb::Status Redis::SetsExpireat(const Slice& key, uint64_t timestamp) {
       } else {
         parsed_sets_meta_value.InitialMetaValue();
       }
-      return db_->Put(default_write_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+      return db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
     }
   }
   return s;
@@ -1266,9 +1359,12 @@ rocksdb::Status Redis::SetsPersist(const Slice& key) {
   ScopeRecordLock l(lock_mgr_, key);
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_sets_meta_value.IsStale()) {
       return rocksdb::Status::NotFound("Stale");
     } else if (parsed_sets_meta_value.Count() == 0) {
@@ -1279,7 +1375,7 @@ rocksdb::Status Redis::SetsPersist(const Slice& key) {
         return rocksdb::Status::NotFound("Not have an associated timeout");
       } else {
         parsed_sets_meta_value.SetEtime(0);
-        return db_->Put(default_write_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), meta_value);
+        return db_->Put(default_write_options_, handles_[kMetaCF], base_meta_key.Encode(), meta_value);
       }
     }
   }
@@ -1290,9 +1386,12 @@ rocksdb::Status Redis::SetsTTL(const Slice& key, uint64_t* timestamp) {
   std::string meta_value;
 
   BaseMetaKey base_meta_key(key);
-  rocksdb::Status s = db_->Get(default_read_options_, handles_[kSetsMetaCF], base_meta_key.Encode(), &meta_value);
+  rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_setes_meta_value(&meta_value);
+    if (!parsed_setes_meta_value.IsType(SetType)) {
+      return Status::InvalidArgument("WRONGTYPE Operation against a key holding the wrong kind of value");
+    }
     if (parsed_setes_meta_value.IsStale()) {
       *timestamp = -2;
       return rocksdb::Status::NotFound("Stale");
@@ -1324,9 +1423,12 @@ void Redis::ScanSets() {
   auto current_time = static_cast<int32_t>(time(nullptr));
 
   INFO("***************Sets Meta Data***************");
-  auto meta_iter = db_->NewIterator(iterator_options, handles_[kSetsMetaCF]);
+  auto meta_iter = db_->NewIterator(iterator_options, handles_[kMetaCF]);
   for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
     ParsedSetsMetaValue parsed_sets_meta_value(meta_iter->value());
+    if (!parsed_sets_meta_value.IsType(SetType)) {
+      continue;
+    }
     ParsedBaseMetaKey parsed_meta_key(meta_iter->key());
     int32_t survival_time = 0;
     if (parsed_sets_meta_value.Etime() != 0) {

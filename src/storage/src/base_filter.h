@@ -166,5 +166,7 @@ using ZSetsMetaFilterFactory = BaseMetaFilterFactory;
 using ZSetsDataFilter = BaseDataFilter;
 using ZSetsDataFilterFactory = BaseDataFilterFactory;
 
+using MetaFilter = BaseMetaFilter;
+using MetaFilterFactory = BaseMetaFilterFactory;
 }  //  namespace storage
 #endif  // SRC_BASE_FILTER_H_
