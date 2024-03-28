@@ -109,6 +109,64 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(n).To(Equal(int64(0)))
 	})
 
+	It("Type", func() {
+		set := client.Set(ctx, "key", "value", 0)
+		Expect(set.Err()).NotTo(HaveOccurred())
+		Expect(set.Val()).To(Equal("OK"))
+		
+		lPush := client.LPush(ctx, "mlist", "hello")
+		Expect(lPush.Err()).NotTo(HaveOccurred())
+		Expect(lPush.Val()).To(Equal(int64(1)))
+
+		sAdd := client.SAdd(ctx, "mset", "world")
+		Expect(sAdd.Err()).NotTo(HaveOccurred())
+		Expect(sAdd.Val()).To(Equal(int64(1)))
+
+		Expect(client.Type(ctx, "key").Val()).To(Equal("string"))
+		Expect(client.Type(ctx, "mlist").Val()).To(Equal("list"))
+		Expect(client.Type(ctx, "mset").Val()).To(Equal("set"))
+	})
+
+	It("Expire", func() {
+		Expect(client.Set(ctx, "key_3s", "value", 0).Val()).To(Equal("OK"))
+		Expect(client.Expire(ctx, "key_3s", 3*time.Second).Val()).To(Equal(true))
+		//Expect(client.TTL(ctx, "key").Val()).NotTo(Equal(int64(-2)))
+
+		time.Sleep(4 * time.Second)
+		//Expect(client.TTL(ctx, "key_3s").Val()).To(Equal(time.Duration(-2)))
+		Expect(client.Get(ctx, "key_3s").Err()).To(MatchError(redis.Nil))
+		Expect(client.Exists(ctx, "key_3s").Val()).To(Equal(int64(0)))
+
+		Expect(client.Do(ctx, "expire", "foo", "bar").Err()).To(MatchError("ERR value is not an integer or out of range"))
+
+	})
+
+	It("TTL", func() {
+		set := client.Set(ctx, "key1", "bcd", 10*time.Minute)
+		Expect(set.Err()).NotTo(HaveOccurred())
+		Expect(set.Val()).To(Equal("OK"))
+		Expect(client.TTL(ctx, "key1").Val()).NotTo(Equal(int64(-2)))
+
+		get := client.Get(ctx, "key1")
+		Expect(get.Err()).NotTo(HaveOccurred())
+		Expect(get.Val()).To(Equal("bcd"))
+		Expect(client.TTL(ctx, "key1").Val()).NotTo(Equal(int64(-2)))
+
+		_, err := client.Del(ctx, "key1").Result()
+		Expect(err).NotTo(HaveOccurred())
+
+		set1 := client.Set(ctx, "key1", "bcd", 10*time.Minute)
+		Expect(set1.Err()).NotTo(HaveOccurred())
+		Expect(set1.Val()).To(Equal("OK"))
+		Expect(client.TTL(ctx, "key1").Val()).NotTo(Equal(int64(-2)))
+
+		mGet := client.MGet(ctx, "key1")
+		Expect(mGet.Err()).NotTo(HaveOccurred())
+		Expect(mGet.Val()).To(Equal([]interface{}{"bcd"}))
+
+		Expect(client.TTL(ctx, "key1").Val()).NotTo(Equal(int64(-2)))
+	})
+
 	// pikiwidb should treat numbers other than base-10 as strings
 	It("base", func() {
 		set := client.Set(ctx, "key", "0b1", 0)

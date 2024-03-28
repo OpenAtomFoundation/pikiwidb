@@ -54,6 +54,75 @@ void ExistsCmd::DoCmd(PClient* client) {
   }
 }
 
+TypeCmd::TypeCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
+
+bool TypeCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void TypeCmd::DoCmd(PClient* client) {
+  std::vector<std::string> types(1);
+  rocksdb::Status s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->GetType(client->Key(), true, types);
+  if (s.ok()) {
+    client->AppendContent("+" + types[0]);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+ExpireCmd::ExpireCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
+
+bool ExpireCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ExpireCmd::DoCmd(PClient* client) {
+  uint64_t sec = 0;
+  auto res = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->Expire(client->Key(), sec);
+  if (res != -1) {
+    client->AppendInteger(res);
+  } else {
+    client->SetRes(CmdRes::kErrOther, "expire internal error");
+  }
+}
+
+TtlCmd::TtlCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryKeyspace) {}
+
+bool TtlCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void TtlCmd::DoCmd(PClient* client) {
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  type_timestamp = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->TTL(client->Key(), &type_status);
+  for (const auto& item : type_timestamp) {
+    if (item.second == -3) {
+      client->SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    client->AppendInteger(type_timestamp[storage::kStrings]);
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    client->AppendInteger(type_timestamp[storage::kHashes]);
+  } else if (type_timestamp[storage::kLists] != -2) {
+    client->AppendInteger(type_timestamp[storage::kLists]);
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    client->AppendInteger(type_timestamp[storage::kZSets]);
+  } else if (type_timestamp[storage::kSets] != -2) {
+    client->AppendInteger(type_timestamp[storage::kSets]);
+  } else {
+    client->AppendInteger(-2);
+  }
+}
+
 PExpireCmd::PExpireCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryKeyspace) {}
 

@@ -46,6 +46,9 @@ void CmdTableManager::InitCmdTable() {
   // keyspace
   ADD_COMMAND(Del, -2);
   ADD_COMMAND(Exists, -2);
+  ADD_COMMAND(Type, 2);
+  ADD_COMMAND(Expire, 3);
+  ADD_COMMAND(Ttl, 2);
   ADD_COMMAND(PExpire, 3);
   ADD_COMMAND(Expireat, 3);
   ADD_COMMAND(PExpireat, 3);
