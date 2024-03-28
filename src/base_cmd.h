@@ -34,6 +34,7 @@ const std::string kCmdNamePExpireat = "pexpireat";
 const std::string kCmdNamePersist = "persist";
 const std::string kCmdNameKeys = "keys";
 
+const std::string kCmdNamePttl = "pttl";
 // string cmd
 const std::string kCmdNameSet = "set";
 const std::string kCmdNameGet = "get";
@@ -123,8 +124,14 @@ const std::string kCmdNameLLen = "llen";
 const std::string kCmdNameZAdd = "zadd";
 const std::string kCmdNameZRevrange = "zrevrange";
 const std::string kCmdNameZRangebyscore = "zrangebyscore";
-const std::string kCmdNameZRevRangeByScore = "zrevrangebyscore";
+const std::string kCmdNameZRemrangebyscore = "zremrangebyscore";
+const std::string kCmdNameZRemrangebyrank = "zremrangebyrank";
+const std::string kCmdNameZRevrangebyscore = "zrevrangebyscore";
 const std::string kCmdNameZCard = "zcard";
+const std::string kCmdNameZScore = "zscore";
+const std::string kCmdNameZRange = "zrange";
+const std::string kCmdNameZRangebylex = "zrangebylex";
+const std::string kCmdNameZRevrangebylex = "zrevrangebylex";
 
 enum CmdFlags {
   kCmdFlagsWrite = (1 << 0),             // May modify the dataset

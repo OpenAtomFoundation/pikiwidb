@@ -23,6 +23,8 @@ std::size_t UnboundedBuffer::PushData(const void* pData, std::size_t nSize) {
   return nBytes;
 }
 
+std::size_t UnboundedBuffer::PushData(const std::string_view& data) { return PushData(data.data(), data.size()); }
+
 std::size_t UnboundedBuffer::PushDataAt(const void* pData, std::size_t nSize, std::size_t offset) {
   if (!pData || nSize == 0) {
     return 0;
@@ -128,7 +130,7 @@ void UnboundedBuffer::Swap(UnboundedBuffer& buf) {
 int main()
 {
     UnboundedBuffer    buf;
-    std::size_t ret = buf.PushData("hello", 5);
+    std::size_t ret = buf.PushData("hello");
     assert (ret == 5);
 
     char tmp[10];
@@ -138,11 +140,11 @@ int main()
 
     assert(buf.IsEmpty());
 
-    ret = buf.PushData("world", 5);
+    ret = buf.PushData("world");
     assert (ret == 5);
-    ret = buf.PushData("abcde", 5);
+    ret = buf.PushData("abcde");
     assert (ret == 5);
-    ret = buf.PeekData(tmp, 5);
+    ret = buf.PeekData(tmp);
     assert(tmp[0] == 'w');
 
     buf.Clear();

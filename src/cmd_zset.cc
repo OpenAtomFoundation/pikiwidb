@@ -48,6 +48,40 @@ int32_t DoScoreStrRange(std::string begin_score, std::string end_score, bool* le
   return 0;
 }
 
+static int32_t DoMemberRange(const std::string& raw_min_member, const std::string& raw_max_member, bool* left_close,
+                             bool* right_close, std::string* min_member, std::string* max_member) {
+  if (raw_min_member == "-") {
+    *min_member = "-";
+  } else if (raw_min_member == "+") {
+    *min_member = "+";
+  } else {
+    if (!raw_min_member.empty() && raw_min_member.at(0) == '(') {
+      *left_close = false;
+    } else if (!raw_min_member.empty() && raw_min_member.at(0) == '[') {
+      *left_close = true;
+    } else {
+      return -1;
+    }
+    min_member->assign(raw_min_member.begin() + 1, raw_min_member.end());
+  }
+
+  if (raw_max_member == "+") {
+    *max_member = "+";
+  } else if (raw_max_member == "-") {
+    *max_member = "-";
+  } else {
+    if (!raw_max_member.empty() && raw_max_member.at(0) == '(') {
+      *right_close = false;
+    } else if (!raw_max_member.empty() && raw_max_member.at(0) == '[') {
+      *right_close = true;
+    } else {
+      return -1;
+    }
+    max_member->assign(raw_max_member.begin() + 1, raw_max_member.end());
+  }
+  return 0;
+}
+
 ZAddCmd::ZAddCmd(const std::string& name, int16_t arity)
     : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
 
@@ -238,15 +272,209 @@ void ZCardCmd::DoCmd(PClient* client) {
   client->AppendInteger(reply_Num);
 }
 
-ZRevRangeByScoreCmd::ZRevRangeByScoreCmd(const std::string& name, int16_t arity)
-    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+ZRemrangebyrankCmd::ZRemrangebyrankCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategoryString) {}
 
-bool ZRevRangeByScoreCmd::DoInitial(PClient* client) {
+bool ZRemrangebyrankCmd::DoInitial(PClient* client) {
   client->SetKey(client->argv_[1]);
   return true;
 }
 
-void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
+void ZRemrangebyrankCmd::DoCmd(PClient* client) {
+  int32_t ret = 0;
+  int32_t start = 0;
+  int32_t end = 0;
+
+  if (pstd::String2int(client->argv_[2], &start) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+  if (pstd::String2int(client->argv_[3], &end) == 0) {
+    client->SetRes(CmdRes::kInvalidInt);
+    return;
+  }
+
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZRemrangebyrank(client->Key(), start, end, &ret);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendInteger(ret);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+ZRangeCmd::ZRangeCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategorySortedSet) {}
+
+bool ZRangeCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRangeCmd::DoCmd(PClient* client) {
+  double start = 0;
+  double stop = 0;
+  int64_t count = -1;
+  int64_t offset = 0;
+  bool with_scores = false;
+  bool by_score = false;
+  bool by_lex = false;
+  bool left_close = false;
+  bool right_close = false;
+  bool is_rev = false;
+  size_t argc = client->argv_.size();
+  if (argc >= 5) {
+    size_t index = 4;
+    while (index < argc) {
+      if (strcasecmp(client->argv_[index].data(), "byscore") == 0) {
+        by_score = true;
+      } else if (strcasecmp(client->argv_[index].data(), "bylex") == 0) {
+        by_lex = true;
+      } else if (strcasecmp(client->argv_[index].data(), "rev") == 0) {
+        is_rev = true;
+      } else if (strcasecmp(client->argv_[index].data(), "withscores") == 0) {
+        with_scores = true;
+      } else if (strcasecmp(client->argv_[index].data(), "limit") == 0) {
+        if (index + 3 > argc) {
+          client->SetRes(CmdRes::kSyntaxErr);
+          return;
+        }
+        index++;
+        if (pstd::String2int(client->argv_[index].data(), client->argv_[index].size(), &offset) == 0) {
+          client->SetRes(CmdRes::kInvalidInt);
+          return;
+        }
+        index++;
+        if (pstd::String2int(client->argv_[index].data(), client->argv_[index].size(), &count) == 0) {
+          client->SetRes(CmdRes::kInvalidInt);
+          return;
+        }
+      } else {
+        client->SetRes(CmdRes::kSyntaxErr);
+        return;
+      }
+      index++;
+    }
+  }
+  if (by_score && by_lex) {
+    client->SetRes(CmdRes::kSyntaxErr);
+    return;
+  }
+
+  int32_t ret = 0;
+  std::string lex_min;
+  std::string lex_max;
+  if (by_lex) {
+    ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &lex_min, &lex_max);
+    if (ret == -1) {
+      client->SetRes(CmdRes::kErrOther, "min or max not valid string range item");
+      return;
+    }
+  } else {
+    ret = DoScoreStrRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &start, &stop);
+    if (ret == -1) {
+      client->SetRes(CmdRes::kErrOther, "start or stop is not a float");
+      return;
+    }
+  }
+
+  std::vector<storage::ScoreMember> score_members;
+  std::vector<std::string> lex_members;
+  storage::Status s;
+  if (!is_rev) {
+    if (by_score) {
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRangebyscore(client->Key(), start, stop, left_close, right_close, &score_members);
+    } else if (by_lex) {
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRangebylex(client->Key(), lex_min, lex_max, left_close, right_close, &lex_members);
+    } else {
+      s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZRange(client->Key(), start, stop, &score_members);
+    }
+  } else {
+    if (by_score) {
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRevrangebyscore(client->Key(), start, stop, left_close, right_close, &score_members);
+    } else if (by_lex) {
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRangebylex(client->Key(), lex_min, lex_max, left_close, right_close, &lex_members);
+    } else {
+      s = PSTORE.GetBackend(client->GetCurrentDB())
+              ->GetStorage()
+              ->ZRevrange(client->Key(), start, stop, &score_members);
+    }
+  }
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+  FitLimit(count, offset, static_cast<int64_t>(score_members.size()));
+  size_t m_start = offset;
+  size_t m_end = offset + count;
+  if (by_lex) {
+    if (with_scores) {
+      client->SetRes(CmdRes::kSyntaxErr, "by lex not support with scores");
+    } else {
+      client->AppendArrayLen(count);
+      for (; m_start < m_end; m_start++) {
+        client->AppendContent(lex_members[m_start]);
+      }
+    }
+  } else {
+    if (with_scores) {
+      char buf[32];
+      int64_t len = 0;
+      client->AppendArrayLen(count * 2);
+      for (; m_start < m_end; m_start++) {
+        client->AppendStringLenUint64(score_members[m_start].member.size());
+        client->AppendContent(score_members[m_start].member);
+        len = pstd::D2string(buf, sizeof(buf), score_members[m_start].score);
+        client->AppendStringLen(len);
+        client->AppendContent(buf);
+      }
+    } else {
+      client->AppendArrayLen(count);
+      for (; m_start < m_end; m_start++) {
+        client->AppendStringLenUint64(score_members[m_start].member.size());
+        client->AppendContent(score_members[m_start].member);
+      }
+    }
+  }
+}
+
+ZScoreCmd::ZScoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsReadonly, kAclCategoryRead | kAclCategoryString) {}
+
+bool ZScoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZScoreCmd::DoCmd(PClient* client) {
+  double score = 0;
+
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())->GetStorage()->ZScore(client->Key(), client->argv_[2], &score);
+  if (s.ok() || s.IsNotFound()) {
+    client->AppendString(std::to_string(score));
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+ZRevrangebyscoreCmd::ZRevrangebyscoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRevrangebyscoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRevrangebyscoreCmd::DoCmd(PClient* client) {
   double min_score = 0;
   double max_score = 0;
   bool right_close = true;
@@ -320,6 +548,153 @@ void ZRevRangeByScoreCmd::DoCmd(PClient* client) {
       client->AppendStringLenUint64(score_members[start].member.size());
       client->AppendContent(score_members[start].member);
     }
+  }
+}
+
+ZRangebylexCmd::ZRangebylexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRangebylexCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRangebylexCmd::DoCmd(PClient* client) {
+  if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
+    client->AppendContent("*0");
+  }
+
+  size_t argc = client->argv_.size();
+  int64_t count = -1;
+  int64_t offset = 0;
+  bool left_close = true;
+  bool right_close = true;
+  if (argc == 7 && strcasecmp(client->argv_[4].data(), "limit") == 0) {
+    if (pstd::String2int(client->argv_[5].data(), client->argv_[5].size(), &offset) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (pstd::String2int(client->argv_[6].data(), client->argv_[6].size(), &count) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+  } else if (argc == 4) {
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr);
+    return;
+  }
+
+  std::string min_member;
+  std::string max_member;
+  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_member, &max_member);
+  if (ret == -1) {
+    client->SetRes(CmdRes::kErrOther, "min or max not valid string range item");
+    return;
+  }
+  std::vector<std::string> members;
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->GetStorage()
+          ->ZRangebylex(client->Key(), min_member, max_member, left_close, right_close, &members);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+
+  FitLimit(count, offset, static_cast<int64_t>(members.size()));
+  size_t index = offset;
+  size_t end = offset + count;
+
+  client->AppendArrayLen(static_cast<int64_t>(members.size()));
+  for (; index < end; index++) {
+    client->AppendStringLenUint64(members[index].size());
+    client->AppendContent(members[index]);
+  }
+}
+
+ZRevrangebylexCmd::ZRevrangebylexCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRevrangebylexCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRevrangebylexCmd::DoCmd(PClient* client) {
+  if (strcasecmp(client->argv_[2].data(), "+") == 0 || strcasecmp(client->argv_[3].data(), "-") == 0) {
+    client->AppendContent("*0");
+  }
+
+  size_t argc = client->argv_.size();
+  int64_t count = -1;
+  int64_t offset = 0;
+  bool left_close = true;
+  bool right_close = true;
+  if (argc == 7 && strcasecmp(client->argv_[4].data(), "limit") == 0) {
+    if (pstd::String2int(client->argv_[5].data(), client->argv_[5].size(), &offset) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (pstd::String2int(client->argv_[6].data(), client->argv_[6].size(), &count) == 0) {
+      client->SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+  } else if (argc == 4) {
+  } else {
+    client->SetRes(CmdRes::kSyntaxErr);
+    return;
+  }
+
+  std::string min_member;
+  std::string max_member;
+  int32_t ret = DoMemberRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_member, &max_member);
+  std::vector<std::string> members;
+  storage::Status s;
+  s = PSTORE.GetBackend(client->GetCurrentDB())
+          ->GetStorage()
+          ->ZRangebylex(client->Key(), min_member, max_member, left_close, right_close, &members);
+  if (!s.ok() && !s.IsNotFound()) {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+
+  FitLimit(count, offset, static_cast<int64_t>(members.size()));
+  size_t index = offset + count - 1;
+  size_t start = offset;
+  client->AppendArrayLen(static_cast<int64_t>(members.size()));
+  for (; index >= start; index--) {
+    client->AppendStringLenUint64(members[index].size());
+    client->AppendContent(members[index]);
+  }
+}
+
+ZRemrangebyscoreCmd::ZRemrangebyscoreCmd(const std::string& name, int16_t arity)
+    : BaseCmd(name, arity, kCmdFlagsWrite, kAclCategoryWrite | kAclCategorySortedSet) {}
+
+bool ZRemrangebyscoreCmd::DoInitial(PClient* client) {
+  client->SetKey(client->argv_[1]);
+  return true;
+}
+
+void ZRemrangebyscoreCmd::DoCmd(PClient* client) {
+  double min_score = 0;
+  double max_score = 0;
+  bool left_close = true;
+  bool right_close = true;
+  int32_t ret = DoScoreStrRange(client->argv_[2], client->argv_[3], &left_close, &right_close, &min_score, &max_score);
+  if (ret == -1) {
+    client->SetRes(CmdRes::kErrOther, "min or max is not a float");
+    return;
+  }
+
+  int32_t s_ret = 0;
+  storage::Status s = PSTORE.GetBackend(client->GetCurrentDB())
+                          ->GetStorage()
+                          ->ZRemrangebyscore(client->Key(), min_score, max_score, left_close, right_close, &s_ret);
+  if (s.ok()) {
+    client->AppendInteger(s_ret);
+  } else {
+    client->SetRes(CmdRes::kErrOther, s.ToString());
   }
 }
 
