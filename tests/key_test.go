@@ -122,7 +122,7 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(sAdd.Err()).NotTo(HaveOccurred())
 		Expect(sAdd.Val()).To(Equal(int64(1)))
 
-		n, err = client.Type(ctx, "key").Val()
+		n, err := client.Type(ctx, "key").Val()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal("string"))
 
