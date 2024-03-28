@@ -16,7 +16,7 @@ BaseCmd::BaseCmd(std::string name, int16_t arity, uint32_t flag, uint32_t aclCat
   arity_ = arity;
   flag_ = flag;
   aclCategory_ = aclCategory;
-  cmdId_ = g_pikiwidb->GetCmdTableManager().GetCmdId();
+  cmdID_ = g_pikiwidb->GetCmdId();
 }
 
 bool BaseCmd::CheckArg(size_t num) const {
@@ -61,7 +61,7 @@ std::string BaseCmd::Name() const { return name_; }
 // CmdRes& BaseCommand::Res() { return res_; }
 // void BaseCommand::SetResp(const std::shared_ptr<std::string>& resp) { resp_ = resp; }
 // std::shared_ptr<std::string> BaseCommand::GetResp() { return resp_.lock(); }
-uint32_t BaseCmd::GetCmdId() const { return cmdId_; }
+uint32_t BaseCmd::GetCmdID() const { return cmdID_; }
 
 // BaseCmdGroup
 BaseCmdGroup::BaseCmdGroup(const std::string& name, uint32_t flag) : BaseCmdGroup(name, -2, flag) {}

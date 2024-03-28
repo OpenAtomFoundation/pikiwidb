@@ -56,7 +56,7 @@ class TcpConnection : public EventObject {
   void ResetEventLoop(EventLoop* new_loop);
   EventLoop* SelectSlaveEventLoop();
   EventLoop* GetEventLoop() const { return loop_; }
-  const std::string& GetPeerIp() const { return peer_ip_; }
+  const std::string& GetPeerIP() const { return peer_ip_; }
   int GetPeerPort() const { return peer_port_; }
   const sockaddr_in& PeerAddr() const { return peer_addr_; }
 

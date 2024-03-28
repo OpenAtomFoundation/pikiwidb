@@ -289,7 +289,7 @@ int PClient::handlePacket(const char* start, int bytes) {
     return static_cast<int>(ptr - start);
   }
 
-  DEFER { reset(); };
+  //  DEFER { reset(); };
 
   // handle packet
   //  const auto& params = parser_.GetParams();
@@ -329,9 +329,11 @@ int PClient::handlePacket(const char* start, int bytes) {
   //  const PCommandInfo* info = PCommandTable::GetCommandInfo(cmdName_);
 
   //  if (!info) {  // 如果这个命令不存在，那么就走新的命令处理流程
-  executeCommand();
+  //  executeCommand();
   //    return static_cast<int>(ptr - start);
   //  }
+
+  g_pikiwidb->SubmitFast(std::make_shared<CmdThreadPoolTask>(shared_from_this()));
 
   // check transaction
   //  if (IsFlagOn(ClientFlag_multi)) {
@@ -376,24 +378,24 @@ int PClient::handlePacket(const char* start, int bytes) {
 // 为了兼容老的命令处理流程，新的命令处理流程在这里
 // 后面可以把client这个类重构，完整的支持新的命令处理流程
 void PClient::executeCommand() {
-  auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(CmdName(), this);
+  //  auto [cmdPtr, ret] = g_pikiwidb->GetCmdTableManager().GetCommand(CmdName(), this);
 
-  if (!cmdPtr) {
-    if (ret == CmdRes::kInvalidParameter) {
-      SetRes(CmdRes::kInvalidParameter);
-    } else {
-      SetRes(CmdRes::kSyntaxErr, "unknown command '" + CmdName() + "'");
-    }
-    return;
-  }
-
-  if (!cmdPtr->CheckArg(params_.size())) {
-    SetRes(CmdRes::kWrongNum, CmdName());
-    return;
-  }
-
-  // execute a specific command
-  cmdPtr->Execute(this);
+  //  if (!cmdPtr) {
+  //    if (ret == CmdRes::kInvalidParameter) {
+  //      SetRes(CmdRes::kInvalidParameter);
+  //    } else {
+  //      SetRes(CmdRes::kSyntaxErr, "unknown command '" + CmdName() + "'");
+  //    }
+  //    return;
+  //  }
+  //
+  //  if (!cmdPtr->CheckArg(params_.size())) {
+  //    SetRes(CmdRes::kWrongNum, CmdName());
+  //    return;
+  //  }
+  //
+  //  // execute a specific command
+  //  cmdPtr->Execute(this);
 }
 
 PClient* PClient::Current() { return s_current; }
@@ -420,13 +422,14 @@ int PClient::HandlePackets(pikiwidb::TcpConnection* obj, const char* start, int 
     total += processed;
   }
 
-  obj->SendPacket(Message());
-  Clear();
+  //  obj->SendPacket(Message());
+  //  Clear();
   //  reply_.Clear();
   return total;
 }
 
 void PClient::OnConnect() {
+  SetState(ClientState::kOK);
   if (isPeerMaster()) {
     PREPL.SetMasterState(kPReplStateConnected);
     PREPL.SetMaster(std::static_pointer_cast<PClient>(shared_from_this()));
@@ -446,7 +449,7 @@ void PClient::OnConnect() {
 
 const std::string& PClient::PeerIP() const {
   if (auto c = getTcpConnection(); c) {
-    return c->GetPeerIp();
+    return c->GetPeerIP();
   }
 
   static const std::string kEmpty;
@@ -492,7 +495,17 @@ bool PClient::SendPacket(const evbuffer_iovec* iovecs, size_t nvecs) {
   return false;
 }
 
+void PClient::WriteReply2Client() {
+  if (auto c = getTcpConnection(); c) {
+    c->SendPacket(Message());
+  }
+  Clear();
+  reset();
+}
+
 void PClient::Close() {
+  SetState(ClientState::kClosed);
+  reset();
   if (auto c = getTcpConnection(); c) {
     c->ActiveClose();
     tcp_connection_.reset();

@@ -60,7 +60,9 @@ void IOThreadPool::Run(int ac, char* av[]) {
   base_.Run();
 
   for (auto& w : worker_threads_) {
-    w.join();
+    if (w.joinable()) {
+      w.join();
+    }
   }
 
   worker_threads_.clear();
@@ -166,6 +168,74 @@ std::shared_ptr<HttpClient> IOThreadPool::ConnectHTTP(const char* ip, int port, 
 void IOThreadPool::Reset() {
   state_ = State::kNone;
   BaseLoop()->Reset();
+}
+
+void WorkIOThreadPool::PushWriteTask(std::shared_ptr<PClient> client) {
+  auto pos = ++counter_ % worker_num_;
+  std::unique_lock lock(*writeMutex_[pos]);
+
+  writeQueue_[pos].emplace_back(client);
+  writeCond_[pos]->notify_one();
+}
+
+void WorkIOThreadPool::StartWorkers() {
+  // only called by main thread
+  assert(state_ == State::kNone);
+
+  IOThreadPool::StartWorkers();
+
+  writeMutex_.reserve(worker_num_);
+  writeCond_.reserve(worker_num_);
+  writeQueue_.reserve(worker_num_);
+  for (size_t index = 0; index < worker_num_; ++index) {
+    writeMutex_.emplace_back(std::make_unique<std::mutex>());
+    writeCond_.emplace_back(std::make_unique<std::condition_variable>());
+    writeQueue_.emplace_back();
+
+    std::thread t([this, index]() {
+      while (writeRunning_) {
+        std::unique_lock lock(*writeMutex_[index]);
+        while (writeQueue_[index].empty()) {
+          if (!writeRunning_) {
+            break;
+          }
+          writeCond_[index]->wait(lock);
+        }
+        if (!writeRunning_) {
+          break;
+        }
+        auto client = writeQueue_[index].front();
+        if (client->State() == ClientState::kOK) {
+          client->WriteReply2Client();
+        }
+        writeQueue_[index].pop_front();
+      }
+      INFO("worker write thread {}, goodbye...", index);
+    });
+
+    INFO("worker write thread {}, starting...", index);
+    writeThreads_.push_back(std::move(t));
+  }
+}
+
+void WorkIOThreadPool::Exit() {
+  IOThreadPool::Exit();
+
+  writeRunning_ = false;
+  int i = 0;
+  for (auto& cond : writeCond_) {
+    std::unique_lock lock(*writeMutex_[i++]);
+    cond->notify_all();
+  }
+  for (auto& wt : writeThreads_) {
+    if (wt.joinable()) {
+      wt.join();
+    }
+  }
+  writeThreads_.clear();
+  writeCond_.clear();
+  writeQueue_.clear();
+  writeMutex_.clear();
 }
 
 }  // namespace pikiwidb

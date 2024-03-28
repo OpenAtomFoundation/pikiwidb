@@ -6,6 +6,7 @@
  */
 
 #include "cmd_table_manager.h"
+#include "cmd_thread_pool.h"
 #include "common.h"
 #include "event_loop.h"
 #include "io_thread_pool.h"
@@ -28,7 +29,12 @@ class PikiwiDB final {
 
   void OnNewConnection(pikiwidb::TcpConnection* obj);
 
-  pikiwidb::CmdTableManager& GetCmdTableManager();
+  //  pikiwidb::CmdTableManager& GetCmdTableManager();
+  uint32_t GetCmdId() { return ++cmdId_; };
+
+  void SubmitFast(const std::shared_ptr<pikiwidb::CmdThreadPoolTask>& runner) { cmd_threads_.SubmitFast(runner); }
+
+  void PushWriteTask(const std::shared_ptr<pikiwidb::PClient>& client) { worker_threads_.PushWriteTask(client); }
 
  public:
   PString cfg_file_;
@@ -41,9 +47,12 @@ class PikiwiDB final {
   static const uint32_t kRunidSize;
 
  private:
-  pikiwidb::IOThreadPool worker_threads_;
+  pikiwidb::WorkIOThreadPool worker_threads_;
   pikiwidb::IOThreadPool slave_threads_;
-  pikiwidb::CmdTableManager cmd_table_manager_;
+  pikiwidb::CmdThreadPool cmd_threads_;
+  //  pikiwidb::CmdTableManager cmd_table_manager_;
+
+  uint32_t cmdId_ = 0;
 };
 
 extern std::unique_ptr<PikiwiDB> g_pikiwidb;
