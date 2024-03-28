@@ -126,11 +126,11 @@ var _ = Describe("Keyspace", Ordered, func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal("string"))
 
-		n, err = client.Type(ctx, "mlist").Val()
+		n, err := client.Type(ctx, "mlist").Val()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal("list"))
 
-		n, err = client.Type(ctx, "mset").Val()
+		n, err := client.Type(ctx, "mset").Val()
 		Expect(err).NotTo(HaveOccurred())
 		Expect(n).To(Equal("set"))
 	})
