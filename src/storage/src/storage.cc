@@ -4,13 +4,14 @@
 //  of patent rights can be found in the PATENTS file in the same directory.
 
 #include <algorithm>
+#include <string_view>
 #include <utility>
 
-#include "rocksdb/utilities/checkpoint.h"
-
+#include "binlog.pb.h"
 #include "config.h"
 #include "pstd/log.h"
 #include "pstd/pikiwidb_slot.h"
+#include "rocksdb/utilities/checkpoint.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -2256,6 +2257,30 @@ void Storage::DisableWal(const bool is_wal_disable) {
   for (const auto& inst : insts_) {
     inst->SetWriteWalOptions(is_wal_disable);
   }
+}
+
+Status Storage::OnBinlogWrite(const pikiwidb::Binlog& log) {
+  auto& inst = insts_[log.slot_idx()];
+
+  rocksdb::WriteBatch batch;
+  for (const auto& entry : log.entries()) {
+    switch (entry.op_type()) {
+      case pikiwidb::OperateType::kPut: {
+        assert(entry.has_value());
+        batch.Put(inst->GetColumnFamilyHandles()[entry.cf_idx()], entry.key(), entry.value());
+      } break;
+      case pikiwidb::OperateType::kDelete: {
+        assert(!entry.has_value());
+        batch.Delete(inst->GetColumnFamilyHandles()[entry.cf_idx()], entry.key());
+      } break;
+      default:
+        static constexpr std::string_view msg = "Unknown operate type in binlog";
+        ERROR(msg);
+        return Status::Incomplete(msg);
+    }
+  }
+
+  return inst->GetDB()->Write(inst->GetWriteOptions(), &batch);
 }
 
 }  //  namespace storage

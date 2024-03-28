@@ -11,16 +11,18 @@
 #include "praft.h"
 
 #include <cassert>
-#include <memory>
-#include <string>
 
+#include "braft/util.h"
+#include "brpc/server.h"
+
+#include "pstd/log.h"
+#include "pstd/pstd_string.h"
+
+#include "binlog.pb.h"
 #include "client.h"
 #include "config.h"
-#include "event_loop.h"
-#include "log.h"
 #include "pikiwidb.h"
-#include "praft.pb.h"
-#include "pstd_string.h"
+#include "store.h"
 
 #define ERROR_LOG_AND_STATUS(msg) \
   ({                              \
@@ -29,16 +31,6 @@
   })
 
 namespace pikiwidb {
-
-class DummyServiceImpl : public DummyService {
- public:
-  explicit DummyServiceImpl(PRaft* praft) : praft_(praft) {}
-  void DummyMethod(::google::protobuf::RpcController* controller, const ::pikiwidb::DummyRequest* request,
-                   ::pikiwidb::DummyResponse* response, ::google::protobuf::Closure* done) {}
-
- private:
-  PRaft* praft_;
-};
 
 PRaft& PRaft::Instance() {
   static PRaft store;
@@ -51,12 +43,7 @@ butil::Status PRaft::Init(std::string& group_id, bool initial_conf_is_null) {
   }
 
   server_ = std::make_unique<brpc::Server>();
-  DummyServiceImpl service(&PRAFT);
   auto port = g_config.port + pikiwidb::g_config.raft_port_offset;
-  // Add your service into RPC server
-  if (server_->AddService(&service, brpc::SERVER_DOESNT_OWN_SERVICE) != 0) {
-    return ERROR_LOG_AND_STATUS("Failed to add service");
-  }
   // raft can share the same RPC server. Notice the second parameter, because
   // adding services into a running server is not allowed and the listen
   // address of this server is impossible to get before the server starts. You
@@ -137,6 +124,17 @@ std::string PRaft::GetLeaderId() const {
     return "Failed to get leader id";
   }
   return node_->leader_id().to_string();
+}
+
+std::string PRaft::GetLeaderAddress() const {
+  if (!node_) {
+    ERROR("Node is not initialized");
+    return "Failed to get leader id";
+  }
+  auto id = node_->leader_id();
+  id.addr.port -= g_config.raft_port_offset; 
+  auto addr = butil::endpoint2str(id.addr);
+  return addr.c_str();
 }
 
 std::string PRaft::GetNodeId() const {
@@ -339,17 +337,51 @@ void PRaft::Join() {
   }
 }
 
-void PRaft::Apply(braft::Task& task) {
-  if (node_) {
-    node_->apply(task);
+void PRaft::AppendLog(const Binlog& log, std::promise<rocksdb::Status>&& promise) {
+  assert(node_);
+  assert(node_->is_leader());
+  butil::IOBuf data;
+  butil::IOBufAsZeroCopyOutputStream wrapper(&data);
+  auto done = new PRaftWriteDoneClosure(std::move(promise));
+  if (!log.SerializeToZeroCopyStream(&wrapper)) {
+    done->SetStatus(rocksdb::Status::Incomplete("Failed to serialize binlog"));
+    done->Run();
+    return;
   }
+  DEBUG("append binlog: {}", log.ShortDebugString());
+  braft::Task task;
+  task.data = &data;
+  task.done = done;
+  node_->apply(task);
 }
 
-// @braft::StateMachine
 void PRaft::on_apply(braft::Iterator& iter) {
   // A batch of tasks are committed, which must be processed through
-  // |iter|
   for (; iter.valid(); iter.next()) {
+    auto done = iter.done();
+    brpc::ClosureGuard done_guard(done);
+
+    Binlog log;
+    butil::IOBufAsZeroCopyInputStream wrapper(iter.data());
+    bool success = log.ParseFromZeroCopyStream(&wrapper);
+    DEBUG("apply binlog: {}", log.ShortDebugString());
+
+    if (!success) {
+      static constexpr std::string_view kMsg = "Failed to parse from protobuf when on_apply";
+      ERROR(kMsg);
+      if (done) {  // in leader
+        dynamic_cast<PRaftWriteDoneClosure*>(done)->SetStatus(rocksdb::Status::Incomplete(kMsg));
+      }
+      braft::run_closure_in_bthread(done_guard.release());
+      return;
+    }
+
+    auto s = PSTORE.GetBackend(log.db_id())->GetStorage()->OnBinlogWrite(log);
+    if (done) {  // in leader
+      dynamic_cast<PRaftWriteDoneClosure*>(done)->SetStatus(s);
+    }
+    //  _applied_index = iter.index(); // consider to maintain a member applied_idx
+    braft::run_closure_in_bthread(done_guard.release());
   }
 }
 

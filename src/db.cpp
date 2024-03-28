@@ -7,6 +7,8 @@
 
 #include "db.h"
 #include "config.h"
+#include "praft/praft.h"
+#include "pstd/log.h"
 
 extern pikiwidb::PConfig g_config;
 
@@ -24,6 +26,11 @@ DB::DB(int db_index, const std::string& db_path)
   // options for CF
   storage_options.options.ttl = g_config.rocksdb_ttl_second;
   storage_options.options.periodic_compaction_seconds = g_config.rocksdb_periodic_second;
+  if (g_config.use_raft) {
+    storage_options.append_log_function = [&r = PRAFT](const Binlog& log, std::promise<rocksdb::Status>&& promise) {
+      r.AppendLog(log, std::move(promise));
+    };
+  }
   storage_ = std::make_unique<storage::Storage>();
 
   if (auto s = storage_->Open(storage_options, db_path_); !s.ok()) {
@@ -48,5 +55,5 @@ void DB::DoBgSave(CheckpointInfo& checkpoint_info, const std::string& path, int 
 void DB::CreateCheckpoint(const std::string& path) { checkpoint_manager_->CreateCheckpoint(path); }
 
 void DB::WaitForCheckpointDone() { checkpoint_manager_->WaitForCheckpointDone(); }
-  
+
 }  // namespace pikiwidb

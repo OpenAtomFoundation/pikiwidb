@@ -8,7 +8,6 @@
 #pragma once
 
 #include <map>
-#include <string>
 #include <vector>
 
 #include "common.h"
@@ -88,6 +87,9 @@ struct PConfig {
   int db_instance_num;
   uint64_t rocksdb_ttl_second;
   uint64_t rocksdb_periodic_second;
+
+  bool use_raft{true};
+
   PConfig();
 
   bool CheckArgs() const;

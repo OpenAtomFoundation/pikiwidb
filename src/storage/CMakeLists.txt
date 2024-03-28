@@ -19,8 +19,21 @@ TARGET_INCLUDE_DIRECTORIES(storage
         PRIVATE ${rocksdb_SOURCE_DIR}/include
         PRIVATE ${BRAFT_INCLUDE_DIR}
         PRIVATE ${BRPC_INCLUDE_DIR}
+        PRIVATE ${PROTO_OUTPUT_DIR}
 )
 
-TARGET_LINK_LIBRARIES (storage pstd braft brpc ssl crypto zlib protobuf leveldb gflags rocksdb)
+TARGET_LINK_LIBRARIES (storage 
+  pstd 
+  braft 
+  brpc 
+  ssl 
+  crypto 
+  zlib 
+  leveldb 
+  gflags 
+  rocksdb 
+  binlog_pb
+  protobuf 
+)
 
 SET_TARGET_PROPERTIES(storage PROPERTIES LINKER_LANGUAGE CXX)

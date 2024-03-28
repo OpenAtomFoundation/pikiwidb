@@ -132,6 +132,7 @@ FUNCTION(build_protobuf TARGET_NAME)
             UPDATE_COMMAND ""
             DEPENDS zlib
             URL "https://github.com/protocolbuffers/protobuf/archive/v3.18.0.tar.gz"
+            URL_HASH SHA256=14e8042b5da37652c92ef6a2759e7d2979d295f60afd7767825e3de68c856c54
             CONFIGURE_COMMAND mv ../config.sh . COMMAND sh config.sh
             CMAKE_CACHE_ARGS
             -DCMAKE_INSTALL_PREFIX:PATH=${PROTOBUF_INSTALL_DIR}

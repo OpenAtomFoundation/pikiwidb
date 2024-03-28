@@ -13,10 +13,10 @@
 #include <unordered_set>
 
 #include "common.h"
+#include "net/tcp_connection.h"
 #include "proto_parser.h"
 #include "replication.h"
 #include "storage/storage.h"
-#include "tcp_connection.h"
 
 namespace pikiwidb {
 
