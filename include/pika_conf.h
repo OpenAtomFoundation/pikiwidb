@@ -29,11 +29,7 @@ const uint32_t configReplicationIDSize = 50;
 // global class, class members well initialized
 class PikaConf : public pstd::BaseConf {
  public:
-  enum CompactionStrategy {
-    NONE,
-    FullCompact,
-    OldestOrBestDeleteRatioSstCompact
-  };
+  enum CompactionStrategy { NONE, FullCompact, OldestOrBestDeleteRatioSstCompact };
   PikaConf(const std::string& path);
   ~PikaConf() override = default;
 
@@ -86,22 +82,14 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return log_retention_time_;
   }
-  bool log_net_activities() {
-    return log_net_activities_.load(std::memory_order::memory_order_relaxed);
-  }
+  bool log_net_activities() { return log_net_activities_.load(std::memory_order::memory_order_relaxed); }
   std::string db_path() {
     std::shared_lock l(rwlock_);
     return db_path_;
   }
-  int db_instance_num() {
-    return db_instance_num_;
-  }
-  uint64_t rocksdb_ttl_second() {
-    return rocksdb_ttl_second_.load();
-  }
-  uint64_t rocksdb_periodic_compaction_second() {
-    return rocksdb_periodic_second_.load();
-  }
+  int db_instance_num() { return db_instance_num_; }
+  uint64_t rocksdb_ttl_second() { return rocksdb_ttl_second_.load(); }
+  uint64_t rocksdb_periodic_compaction_second() { return rocksdb_periodic_second_.load(); }
   std::string db_sync_path() {
     std::shared_lock l(rwlock_);
     return db_sync_path_;
@@ -206,9 +194,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return max_total_wal_size_;
   }
-  bool enable_db_statistics() {
-    return enable_db_statistics_;
-  }
+  bool enable_db_statistics() { return enable_db_statistics_; }
   int db_statistics_level() {
     std::shared_lock l(rwlock_);
     return db_statistics_level_;
@@ -332,7 +318,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return max_background_jobs_;
   }
-  uint64_t delayed_write_rate(){
+  uint64_t delayed_write_rate() {
     std::shared_lock l(rwlock_);
     return static_cast<uint64_t>(delayed_write_rate_);
   }
@@ -480,9 +466,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return max_rsync_parallel_num_;
   }
-  int64_t rsync_timeout_ms() {
-      return rsync_timeout_ms_.load(std::memory_order::memory_order_relaxed);
-  }
+  int64_t rsync_timeout_ms() { return rsync_timeout_ms_.load(std::memory_order::memory_order_relaxed); }
 
   // Slow Commands configuration
   const std::string GetSlowCmd() {
@@ -506,9 +490,7 @@ class PikaConf : public pstd::BaseConf {
     return slow_cmd_set_.find(cmd) != slow_cmd_set_.end();
   }
 
-  bool is_admin_cmd(const std::string& cmd) {
-    return admin_cmd_set_.find(cmd) != admin_cmd_set_.end();
-  }
+  bool is_admin_cmd(const std::string& cmd) { return admin_cmd_set_.find(cmd) != admin_cmd_set_.end(); }
 
   // Immutable config items, we don't use lock.
   bool daemonize() { return daemonize_; }
@@ -560,13 +542,9 @@ class PikaConf : public pstd::BaseConf {
     slaveof_ = value;
   }
 
-  void SetRocksdbTTLSecond(uint64_t ttl) {
-    rocksdb_ttl_second_.store(ttl);
-  }
+  void SetRocksdbTTLSecond(uint64_t ttl) { rocksdb_ttl_second_.store(ttl); }
 
-  void SetRocksdbPeriodicSecond(uint64_t value) {
-    rocksdb_periodic_second_.store(value);
-  }
+  void SetRocksdbPeriodicSecond(uint64_t value) { rocksdb_periodic_second_.store(value); }
 
   void SetReplicationID(const std::string& value) {
     std::lock_guard l(rwlock_);
@@ -852,7 +830,7 @@ class PikaConf : public pstd::BaseConf {
     max_rsync_parallel_num_ = value;
   }
 
-  void SetRsyncTimeoutMs(int64_t value){
+  void SetRsyncTimeoutMs(int64_t value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("rsync-timeout-ms", std::to_string(value));
     rsync_timeout_ms_.store(value);
@@ -930,7 +908,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return internal_used_unfinished_full_sync_.size();
   }
-  void SetCacheType(const std::string &value);
+  void SetCacheType(const std::string& value);
   void SetCacheDisableFlag() { tmp_cache_disable_flag_ = true; }
   int zset_cache_start_direction() { return zset_cache_start_direction_; }
   int zset_cache_field_num_per_key() { return zset_cache_field_num_per_key_; }
@@ -978,8 +956,8 @@ class PikaConf : public pstd::BaseConf {
   int best_delete_min_ratio_;
   CompactionStrategy compaction_strategy_;
 
-  int64_t resume_check_interval_ = 60; // seconds
-  int64_t least_free_disk_to_resume_ = 268435456; // 256 MB
+  int64_t resume_check_interval_ = 60;             // seconds
+  int64_t least_free_disk_to_resume_ = 268435456;  // 256 MB
   double min_check_resume_ratio_ = 0.7;
   int64_t write_buffer_size_ = 0;
   int64_t arena_block_size_ = 0;
@@ -991,7 +969,7 @@ class PikaConf : public pstd::BaseConf {
   int db_statistics_level_ = 0;
   int max_write_buffer_num_ = 0;
   int min_write_buffer_number_to_merge_ = 1;
-  int level0_stop_writes_trigger_ =  36;
+  int level0_stop_writes_trigger_ = 36;
   int level0_slowdown_writes_trigger_ = 20;
   int level0_file_num_compaction_trigger_ = 4;
   int64_t max_client_response_size_ = 0;
@@ -1049,7 +1027,7 @@ class PikaConf : public pstd::BaseConf {
   bool pin_l0_filter_and_index_blocks_in_cache_ = false;
   bool optimize_filters_for_hits_ = false;
   bool level_compaction_dynamic_level_bytes_ = true;
-  int rate_limiter_mode_ = 0;                              // kReadsOnly = 0, kWritesOnly = 1, kAllIo = 2
+  int rate_limiter_mode_ = 0;  // kReadsOnly = 0, kWritesOnly = 1, kAllIo = 2
   int64_t rate_limiter_bandwidth_ = 0;
   int64_t rate_limiter_refill_period_us_ = 0;
   int64_t rate_limiter_fairness_ = 0;
@@ -1068,7 +1046,7 @@ class PikaConf : public pstd::BaseConf {
   std::string aclFile_;
   std::vector<std::string> cmds_;
   std::atomic<uint32_t> acl_pubsub_default_ = 0;  // default channel pub/sub permission
-  std::atomic<uint32_t> acl_Log_max_len_ = 0;      // default acl log max len
+  std::atomic<uint32_t> acl_Log_max_len_ = 0;     // default acl log max len
 
   // diff commands between cached commands and config file commands
   std::map<std::string, std::string> diff_commands_;
@@ -1102,13 +1080,12 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_lfu_decay_time_ = 1;
   std::atomic<bool> log_net_activities_ = false;
 
-
   // rocksdb blob
   bool enable_blob_files_ = false;
   bool enable_blob_garbage_collection_ = false;
   double blob_garbage_collection_age_cutoff_ = 0.25;
   double blob_garbage_collection_force_threshold_ = 1.0;
-  int64_t min_blob_size_ = 4096;                // 4K
+  int64_t min_blob_size_ = 4096;  // 4K
   int64_t blob_cache_ = 0;
   int64_t blob_num_shard_bits_ = 0;
   int64_t blob_file_size_ = 256 * 1024 * 1024;  // 256M
@@ -1117,11 +1094,11 @@ class PikaConf : public pstd::BaseConf {
   std::shared_mutex rwlock_;
 
   // Rsync Rate limiting configuration
-  int throttle_bytes_per_second_ = 200 << 20; // 200MB/s
+  int throttle_bytes_per_second_ = 200 << 20;  // 200MB/s
   int max_rsync_parallel_num_ = kMaxRsyncParallelNum;
   std::atomic_int64_t rsync_timeout_ms_ = 1000;
 
-  //Internal used metrics Persisted by pika.conf
+  // Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;
 
   // for wash data from 4.0.0 to 4.0.1

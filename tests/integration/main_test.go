@@ -24,6 +24,7 @@ func TestPikaWithCache(t *testing.T) {
 
 func TestPikaWithoutCache(t *testing.T) {
 	GlobalBefore = func(ctx context.Context, client *redis.Client) {
+
 		Expect(client.SlaveOf(ctx, "NO", "ONE").Err()).NotTo(HaveOccurred())
 		Expect(client.ConfigSet(ctx, "cache-model", "0").Err()).NotTo(HaveOccurred())
 	}

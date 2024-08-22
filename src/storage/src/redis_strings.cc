@@ -3,9 +3,9 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#include <iostream>
 #include <algorithm>
 #include <climits>
+#include <iostream>
 #include <limits>
 #include <memory>
 
@@ -14,10 +14,10 @@
 
 #include "pstd/include/pika_codis_slot.h"
 #include "src/base_key_format.h"
+#include "src/redis.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
-#include "src/redis.h"
 #include "storage/util.h"
 
 namespace storage {
@@ -74,10 +74,9 @@ Status Redis::Append(const Slice& key, const Slice& value, int32_t* ret, int64_t
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -122,8 +121,7 @@ int GetBitCount(const unsigned char* value, int64_t bytes) {
   return bit_num;
 }
 
-Status Redis::BitCount(const Slice& key, int64_t start_offset, int64_t end_offset, int32_t* ret,
-                          bool have_range) {
+Status Redis::BitCount(const Slice& key, int64_t start_offset, int64_t end_offset, int32_t* ret, bool have_range) {
   *ret = 0;
   std::string value;
 
@@ -133,10 +131,9 @@ Status Redis::BitCount(const Slice& key, int64_t start_offset, int64_t end_offse
     if (ExpectedStale(value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
     }
   }
   if (s.ok()) {
@@ -220,7 +217,8 @@ std::string BitOpOperate(BitOpType op, const std::vector<std::string>& src_value
   return dest_str;
 }
 
-Status Redis::BitOp(BitOpType op, const std::string& dest_key, const std::vector<std::string>& src_keys, std::string& value_to_dest, int64_t* ret) {
+Status Redis::BitOp(BitOpType op, const std::string& dest_key, const std::vector<std::string>& src_keys,
+                    std::string& value_to_dest, int64_t* ret) {
   Status s;
   if (op == kBitOpNot && src_keys.size() != 1) {
     return Status::InvalidArgument("the number of source keys is not right");
@@ -231,7 +229,7 @@ Status Redis::BitOp(BitOpType op, const std::string& dest_key, const std::vector
   int64_t max_len = 0;
   int64_t value_len = 0;
   std::vector<std::string> src_values;
-  for (const auto & src_key : src_keys) {
+  for (const auto& src_key : src_keys) {
     std::string value;
     BaseKey base_key(src_key);
     s = db_->Get(default_read_options_, base_key.Encode(), &value);
@@ -239,10 +237,9 @@ Status Redis::BitOp(BitOpType op, const std::string& dest_key, const std::vector
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-        return Status::InvalidArgument(
-          "WRONGTYPE, key: " + dest_key + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + dest_key +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
     if (s.ok()) {
@@ -285,10 +282,9 @@ Status Redis::Decrby(const Slice& key, int64_t value, int64_t* ret) {
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-      return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -336,10 +332,9 @@ Status Redis::Get(const Slice& key, std::string* value) {
     if (ExpectedStale(meta_value)) {
       s = Status::NotFound();
     } else {
-       return Status::InvalidArgument(
-          "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
     }
   }
   if (s.ok()) {
@@ -407,10 +402,9 @@ Status Redis::GetWithTTL(const Slice& key, std::string* value, int64_t* ttl_mill
     if (ExpectedStale(meta_value)) {
       s = Status::NotFound();
     } else {
-      return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + " get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     " get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
     }
   }
 
@@ -455,10 +449,9 @@ Status Redis::GetBit(const Slice& key, int64_t offset, int32_t* ret) {
       if (ExpectedStale(meta_value)) {
         s = Status::NotFound();
       } else {
-        return Status::InvalidArgument(
-          "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() + ", expect type: " +
+                                       DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
+                                       DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
       }
     }
     if (s.ok()) {
@@ -493,10 +486,9 @@ Status Redis::Getrange(const Slice& key, int64_t start_offset, int64_t end_offse
     if (ExpectedStale(value)) {
       s = Status::NotFound();
     } else {
-      return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
     }
   }
   if (s.ok()) {
@@ -538,10 +530,9 @@ Status Redis::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t 
     if (ExpectedStale(meta_value)) {
       s = Status::NotFound();
     } else {
-       return Status::InvalidArgument(
-          "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
     }
   }
   if (s.ok()) {
@@ -564,14 +555,11 @@ Status Redis::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t 
       int64_t size = value->size();
       int64_t start_t = start_offset >= 0 ? start_offset : size + start_offset;
       int64_t end_t = end_offset >= 0 ? end_offset : size + end_offset;
-      if (start_t > size - 1 ||
-          (start_t != 0 && start_t > end_t) ||
-          (start_t != 0 && end_t < 0)
-      ) {
+      if (start_t > size - 1 || (start_t != 0 && start_t > end_t) || (start_t != 0 && end_t < 0)) {
         return Status::OK();
       }
       if (start_t < 0) {
-        start_t  = 0;
+        start_t = 0;
       }
       if (end_t >= size) {
         end_t = size - 1;
@@ -579,7 +567,7 @@ Status Redis::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t 
       if (start_t == 0 && end_t < 0) {
         end_t = 0;
       }
-      *ret = value->substr(start_t, end_t-start_t+1);
+      *ret = value->substr(start_t, end_t - start_t + 1);
       return Status::OK();
     }
   } else if (s.IsNotFound()) {
@@ -599,10 +587,9 @@ Status Redis::GetSet(const Slice& key, const Slice& value, std::string* old_valu
     if (ExpectedStale(meta_value)) {
       s = Status::NotFound();
     } else {
-       return Status::InvalidArgument(
-          "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
     }
   }
   if (s.ok()) {
@@ -686,10 +673,9 @@ Status Redis::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -749,7 +735,7 @@ Status Redis::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   bool exists = false;
   *ret = 0;
   std::string value;
-  for (const auto & kv : kvs) {
+  for (const auto& kv : kvs) {
     BaseKey base_key(kv.key);
     s = db_->Get(default_read_options_, base_key.Encode(), &value);
     if (!s.ok() && !s.IsNotFound()) {
@@ -790,10 +776,9 @@ Status Redis::Setxx(const Slice& key, const Slice& value, int32_t* ret, int64_t 
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -830,10 +815,9 @@ Status Redis::SetBit(const Slice& key, int64_t offset, int32_t on, int32_t* ret)
     if (ExpectedStale(meta_value)) {
       s = Status::NotFound();
     } else {
-       return Status::InvalidArgument(
-          "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-          DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-          DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(meta_value))]);
     }
   }
   if (s.ok() || s.IsNotFound()) {
@@ -930,10 +914,9 @@ Status Redis::Setvx(const Slice& key, const Slice& value, const Slice& new_value
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -974,10 +957,9 @@ Status Redis::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -1013,10 +995,9 @@ Status Redis::Setrange(const Slice& key, int64_t start_offset, const Slice& valu
     if (ExpectedStale(old_value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(old_value))]);
     }
   }
   if (s.ok()) {
@@ -1122,10 +1103,9 @@ Status Redis::BitPos(const Slice& key, int32_t bit, int64_t* ret) {
     if (ExpectedStale(value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
     }
   }
   if (s.ok()) {
@@ -1169,10 +1149,9 @@ Status Redis::BitPos(const Slice& key, int32_t bit, int64_t start_offset, int64_
     if (ExpectedStale(value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
     }
   }
   if (s.ok()) {
@@ -1229,10 +1208,9 @@ Status Redis::BitPos(const Slice& key, int32_t bit, int64_t start_offset, int64_
     if (ExpectedStale(value)) {
       s = Status::NotFound();
     } else {
-     return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+      return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                     ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                     ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
     }
   }
   if (s.ok()) {
@@ -1314,10 +1292,9 @@ Status Redis::StringsExpire(const Slice& key, int64_t ttl_millsec, std::string&&
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-       return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
   }
@@ -1350,10 +1327,9 @@ Status Redis::StringsDel(const Slice& key, std::string&& prefetch_meta) {
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-       return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
   }
@@ -1381,10 +1357,9 @@ Status Redis::StringsExpireat(const Slice& key, int64_t timestamp_millsec, std::
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-       return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
   }
@@ -1418,10 +1393,9 @@ Status Redis::StringsPersist(const Slice& key, std::string&& prefetch_meta) {
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-       return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
   }
@@ -1456,10 +1430,9 @@ Status Redis::StringsTTL(const Slice& key, int64_t* ttl_millsec, std::string&& p
       if (ExpectedStale(value)) {
         s = Status::NotFound();
       } else {
-       return Status::InvalidArgument(
-        "WRONGTYPE, key: " + key.ToString() + ", expect type: " +
-        DataTypeStrings[static_cast<int>(DataType::kStrings)] + ", get type: " +
-        DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
+        return Status::InvalidArgument("WRONGTYPE, key: " + key.ToString() +
+                                       ", expect type: " + DataTypeStrings[static_cast<int>(DataType::kStrings)] +
+                                       ", get type: " + DataTypeStrings[static_cast<int>(GetMetaValueType(value))]);
       }
     }
   }
@@ -1504,10 +1477,9 @@ void Redis::ScanStrings() {
       survival_time =
           parsed_strings_value.Etime() - current_time > 0 ? parsed_strings_value.Etime() - current_time : -1;
     }
-    LOG(INFO) << fmt::format("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]", parsed_strings_key.Key().ToString(),
-                             parsed_strings_value.UserValue().ToString(), parsed_strings_value.Etime(), parsed_strings_value.Version(),
-                             survival_time);
-
+    LOG(INFO) << fmt::format("[key : {:<30}] [value : {:<30}] [timestamp : {:<10}] [version : {}] [survival_time : {}]",
+                             parsed_strings_key.Key().ToString(), parsed_strings_value.UserValue().ToString(),
+                             parsed_strings_value.Etime(), parsed_strings_value.Version(), survival_time);
   }
   delete iter;
 }
@@ -1583,6 +1555,8 @@ rocksdb::Status Redis::Expire(const Slice& key, int64_t ttl_millsec) {
         return ZsetsExpire(key, ttl_millsec, std::move(meta_value));
       case DataType::kHashes:
         return HashesExpire(key, ttl_millsec, std::move(meta_value));
+      case DataType::kPKHashes:
+        return PKHashesExpire(key, ttl_millsec, std::move(meta_value));
       case DataType::kLists:
         return ListsExpire(key, ttl_millsec, std::move(meta_value));
       case DataType::kStrings:
@@ -1692,7 +1666,9 @@ rocksdb::Status Redis::IsExist(const storage::Slice& key) {
 /*
  * Example Delete the specified prefix key
  */
-rocksdb::Status Redis::PKPatternMatchDelWithRemoveKeys(const std::string& pattern, int64_t* ret, std::vector<std::string>* remove_keys, const int64_t& max_count) {
+rocksdb::Status Redis::PKPatternMatchDelWithRemoveKeys(const std::string& pattern, int64_t* ret,
+                                                       std::vector<std::string>* remove_keys,
+                                                       const int64_t& max_count) {
   rocksdb::ReadOptions iterator_options;
   const rocksdb::Snapshot* snapshot;
   ScopeSnapshot ss(db_, &snapshot);
@@ -1714,8 +1690,8 @@ rocksdb::Status Redis::PKPatternMatchDelWithRemoveKeys(const std::string& patter
 
     if (meta_type == DataType::kStrings) {
       ParsedStringsValue parsed_strings_value(&meta_value);
-      if (!parsed_strings_value.IsStale() &&
-          (StringMatch(pattern.data(), pattern.size(), parsed_meta_key.Key().data(), parsed_meta_key.Key().size(), 0) != 0)) {
+      if (!parsed_strings_value.IsStale() && (StringMatch(pattern.data(), pattern.size(), parsed_meta_key.Key().data(),
+                                                          parsed_meta_key.Key().size(), 0) != 0)) {
         batch.Delete(key);
         remove_keys->push_back(parsed_meta_key.Key().data());
       }
@@ -1732,7 +1708,8 @@ rocksdb::Status Redis::PKPatternMatchDelWithRemoveKeys(const std::string& patter
       StreamMetaValue stream_meta_value;
       stream_meta_value.ParseFrom(meta_value);
       if ((stream_meta_value.length() != 0) &&
-          (StringMatch(pattern.data(), pattern.size(), parsed_meta_key.Key().data(), parsed_meta_key.Key().size(), 0) != 0)) {
+          (StringMatch(pattern.data(), pattern.size(), parsed_meta_key.Key().data(), parsed_meta_key.Key().size(), 0) !=
+           0)) {
         stream_meta_value.InitMetaValue();
         batch.Put(handles_[kMetaCF], key, stream_meta_value.value());
         remove_keys->push_back(parsed_meta_key.Key().data());

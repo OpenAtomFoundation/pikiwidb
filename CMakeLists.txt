@@ -32,8 +32,8 @@ link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
 # [Notice] AddressSanitizer and ThreadSanitizer can not be enabled at the same time.
 
 # Uncomment the following two lines to enable ThreadSanitizer to detect data race and other thread-related issue.
-#set(CMAKE_BUILD_TYPE "Debug")
-#set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls")
+# set(CMAKE_BUILD_TYPE "Debug")
+# set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls")
 
 string(TOLOWER ${CMAKE_HOST_SYSTEM_PROCESSOR} HOST_ARCH)
 
