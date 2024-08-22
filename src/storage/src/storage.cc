@@ -3,22 +3,22 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#include <utility>
 #include <algorithm>
+#include <utility>
 
 #include <glog/logging.h>
 
-#include "storage/util.h"
-#include "storage/storage.h"
+#include "include/pika_conf.h"
+#include "pstd/include/pika_codis_slot.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "src/options_helper.h"
+#include "src/redis.h"
 #include "src/redis_hyperloglog.h"
 #include "src/type_iterator.h"
-#include "src/redis.h"
-#include "include/pika_conf.h"
-#include "pstd/include/pika_codis_slot.h"
+#include "storage/storage.h"
+#include "storage/util.h"
 
 namespace storage {
 extern std::string BitOpOperate(BitOpType op, const std::vector<std::string>& src_values, int64_t max_len);
@@ -197,7 +197,7 @@ Status Storage::MSet(const std::vector<KeyValue>& kvs) {
 Status Storage::MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss) {
   vss->clear();
   Status s;
-  for(const auto& key : keys) {
+  for (const auto& key : keys) {
     auto& inst = GetDBInstance(key);
     std::string value;
     s = inst->MGet(key, &value);
@@ -216,7 +216,7 @@ Status Storage::MGet(const std::vector<std::string>& keys, std::vector<ValueStat
 Status Storage::MGetWithTTL(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss) {
   vss->clear();
   Status s;
-  for(const auto& key : keys) {
+  for (const auto& key : keys) {
     auto& inst = GetDBInstance(key);
     std::string value;
     int64_t ttl_millsec;
@@ -302,9 +302,11 @@ Status Storage::BitCount(const Slice& key, int64_t start_offset, int64_t end_off
 
 // disallowed in codis proxy, only runs in classic mode
 Status Storage::BitOp(BitOpType op, const std::string& dest_key, const std::vector<std::string>& src_keys,
-                      std::string &value_to_dest, int64_t* ret) {
+                      std::string& value_to_dest, int64_t* ret) {
   assert(is_classic_mode_);
-  if (op == storage::BitOpType::kBitOpNot && src_keys.size() >= 2) { return Status::InvalidArgument(); }
+  if (op == storage::BitOpType::kBitOpNot && src_keys.size() >= 2) {
+    return Status::InvalidArgument();
+  }
   Status s;
   int64_t max_len = 0;
   int64_t value_len = 0;
@@ -484,6 +486,114 @@ Status Storage::PKHRScanRange(const Slice& key, const Slice& field_start, const 
   return inst->PKHRScanRange(key, field_start, field_end, pattern, limit, field_values, next_field);
 }
 
+// Pika Hash Commands
+
+Status Storage::PKHExpire(const Slice& key, int32_t ttl, int32_t numfields, const std::vector<std::string>& fields,
+                          std::vector<int32_t>* rets) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHExpire(key, ttl, numfields, fields, rets);
+}
+
+Status Storage::PKHExpireat(const Slice& key, int64_t timestamp, int32_t numfields,
+                            const std::vector<std::string>& fields, std::vector<int32_t>* rets) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHExpireat(key, timestamp, numfields, fields, rets);
+}
+
+Status Storage::PKHExpiretime(const Slice& key, int32_t numfields, const std::vector<std::string>& fields,
+                              std::vector<int64_t>* timestamps) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHExpiretime(key, numfields, fields, timestamps);
+}
+
+Status Storage::PKHPersist(const Slice& key, int32_t numfields, const std::vector<std::string>& fields,
+                           std::vector<int32_t>* rets) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHPersist(key, numfields, fields, rets);
+}
+
+Status Storage::PKHTTL(const Slice& key, int32_t numfields, const std::vector<std::string>& fields,
+                       std::vector<int64_t>* ttls) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHTTL(key, numfields, fields, ttls);
+}
+
+Status Storage::PKHGet(const Slice& key, const Slice& field, std::string* value) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHGet(key, field, value);
+}
+
+Status Storage::PKHSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHSet(key, field, value, res);
+}
+
+Status Storage::PKHSetex(const Slice& key, const Slice& field, const Slice& value, int32_t ttl, int32_t* ret) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHSetex(key, field, value, ttl, ret);
+}
+
+Status Storage::PKHExists(const Slice& key, const Slice& field) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHExists(key, field);
+}
+
+Status Storage::PKHDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHDel(key, fields, ret);
+}
+
+Status Storage::PKHLen(const Slice& key, int32_t* ret) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHLen(key, ret);
+}
+
+Status Storage::PKHStrlen(const Slice& key, const Slice& field, int32_t* len) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHStrlen(key, field, len);
+}
+
+Status Storage::PKHIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret, int32_t ttl) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHIncrby(key, field, value, ret, ttl);
+}
+
+Status Storage::PKHMSet(const Slice& key, const std::vector<FieldValue>& fvs) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHMSet(key, fvs);
+}
+
+Status Storage::PKHMSetex(const Slice& key, const std::vector<FieldValueTTL>& fvts) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHMSetex(key, fvts);
+}
+
+Status Storage::PKHMGet(const Slice& key, const std::vector<std::string>& fields, std::vector<ValueStatus>* vss) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHMGet(key, fields, vss);
+}
+
+Status Storage::PKHKeys(const Slice& key, std::vector<std::string>* fields) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHKeys(key, fields);
+}
+
+Status Storage::PKHVals(const Slice& key, std::vector<std::string>* values) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHVals(key, values);
+}
+
+Status Storage::PKHGetall(const Slice& key, std::vector<FieldValueTTL>* fvts) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHGetall(key, fvts);
+}
+
+Status Storage::PKHScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
+                        std::vector<FieldValueTTL>* fvts, int64_t* next_cursor) {
+  auto& inst = GetDBInstance(key);
+  return inst->PKHScan(key, cursor, pattern, count, fvts, next_cursor);
+}
+
 // Sets Commands
 Status Storage::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
   auto& inst = GetDBInstance(key);
@@ -534,7 +644,8 @@ Status Storage::SDiff(const std::vector<std::string>& keys, std::vector<std::str
   return Status::OK();
 }
 
-Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys,
+                           std::vector<std::string>& value_to_dest, int32_t* ret) {
   Status s;
 
   // in codis mode, users should garentee keys will be hashed to same slot
@@ -601,7 +712,8 @@ Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::st
   return Status::OK();
 }
 
-Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys,
+                            std::vector<std::string>& value_to_dest, int32_t* ret) {
   Status s;
 
   // in codis mode, users should garentee keys will be hashed to same slot
@@ -707,8 +819,7 @@ Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::st
     if (!s.ok()) {
       return s;
     }
-    std::copy(std::move_iterator<Iter>(vec.begin()),
-              std::move_iterator<Iter>(vec.end()),
+    std::copy(std::move_iterator<Iter>(vec.begin()), std::move_iterator<Iter>(vec.end()),
               std::insert_iterator<Uset>(member_set, member_set.begin()));
   }
 
@@ -716,7 +827,8 @@ Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::st
   return Status::OK();
 }
 
-Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys,
+                            std::vector<std::string>& value_to_dest, int32_t* ret) {
   Status s;
   value_to_dest.clear();
 
@@ -907,7 +1019,7 @@ Status Storage::ZRangebyscore(const Slice& key, double min, double max, bool lef
   score_members->clear();
   auto& inst = GetDBInstance(key);
   return inst->ZRangebyscore(key, min, max, left_close, right_close, std::numeric_limits<int32_t>::max(), 0,
-                                  score_members);
+                             score_members);
 }
 
 Status Storage::ZRangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
@@ -956,8 +1068,8 @@ Status Storage::ZRevrangebyscore(const Slice& key, double min, double max, bool 
   // maximum number of zset is std::numeric_limits<int32_t>::max()
   score_members->clear();
   auto& inst = GetDBInstance(key);
-  return inst->ZRevrangebyscore(key, min, max, left_close, right_close, std::numeric_limits<int32_t>::max(),
-                                              0, score_members);
+  return inst->ZRevrangebyscore(key, min, max, left_close, right_close, std::numeric_limits<int32_t>::max(), 0,
+                                score_members);
 }
 
 Status Storage::ZRevrank(const Slice& key, const Slice& member, int32_t* rank) {
@@ -1021,9 +1133,8 @@ Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::str
     return s;
   }
   std::vector<ScoreMember> score_members;
-  std::for_each(value_to_dest.begin(), value_to_dest.end(), [&score_members](auto kv) {
-      score_members.emplace_back(kv.second, kv.first);
-      });
+  std::for_each(value_to_dest.begin(), value_to_dest.end(),
+                [&score_members](auto kv) { score_members.emplace_back(kv.second, kv.first); });
   *ret = score_members.size();
   int unused_ret;
   return inst->ZAdd(destination, score_members, &unused_ret);
@@ -1097,21 +1208,21 @@ Status Storage::ZInterstore(const Slice& destination, const std::vector<std::str
   return ninst->ZAdd(destination, value_to_dest, &unused_ret);
 }
 
-Status Storage::ZRangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close,
-                            bool right_close, std::vector<std::string>* members) {
+Status Storage::ZRangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
+                            std::vector<std::string>* members) {
   members->clear();
   auto& inst = GetDBInstance(key);
   return inst->ZRangebylex(key, min, max, left_close, right_close, members);
 }
 
-Status Storage::ZLexcount(const Slice& key, const Slice& min, const Slice& max, bool left_close,
-                          bool right_close, int32_t* ret) {
+Status Storage::ZLexcount(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
+                          int32_t* ret) {
   auto& inst = GetDBInstance(key);
   return inst->ZLexcount(key, min, max, left_close, right_close, ret);
 }
 
-Status Storage::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max,
-                               bool left_close, bool right_close, int32_t* ret) {
+Status Storage::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
+                               int32_t* ret) {
   auto& inst = GetDBInstance(key);
   return inst->ZRemrangebylex(key, min, max, left_close, right_close, ret);
 }
@@ -1154,7 +1265,7 @@ Status Storage::XLen(const Slice& key, int32_t& len) {
 }
 
 Status Storage::XRead(const StreamReadGroupReadArgs& args, std::vector<std::vector<storage::IdMessage>>& results,
-              std::vector<std::string>& reserved_keys) {
+                      std::vector<std::string>& reserved_keys) {
   Status s;
   for (int i = 0; i < args.unparsed_ids.size(); i++) {
     StreamReadGroupReadArgs single_args;
@@ -1174,7 +1285,7 @@ Status Storage::XRead(const StreamReadGroupReadArgs& args, std::vector<std::vect
   return s;
 }
 
-Status Storage::XInfo(const Slice& key, StreamInfoResult &result) {
+Status Storage::XInfo(const Slice& key, StreamInfoResult& result) {
   auto& inst = GetDBInstance(key);
   return inst->XInfo(key, result);
 }
@@ -1191,7 +1302,6 @@ int32_t Storage::Expire(const Slice& key, int64_t ttl_millsec) {
   }
   return ret;
 }
-
 
 int64_t Storage::Del(const std::vector<std::string>& keys) {
   Status s;
@@ -1244,7 +1354,8 @@ int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& 
   Status s = LoadCursorStartKey(dtype, cursor, &key_type, &start_key);
   if (!s.ok()) {
     // If want to scan all the databases, we start with the strings database
-    key_type = dtype == DataType::kAll ? DataTypeTag[static_cast<int>(DataType::kStrings)] : DataTypeTag[static_cast<int>(dtype)];
+    key_type = dtype == DataType::kAll ? DataTypeTag[static_cast<int>(DataType::kStrings)]
+                                       : DataTypeTag[static_cast<int>(dtype)];
     start_key = prefix;
     cursor = 0;
   }
@@ -1271,8 +1382,7 @@ int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& 
     std::vector<IterSptr> inst_iters;
     for (const auto& inst : insts_) {
       IterSptr iter_sptr;
-      iter_sptr.reset(inst->CreateIterator(type, pattern,
-          nullptr/*lower_bound*/, nullptr/*upper_bound*/));
+      iter_sptr.reset(inst->CreateIterator(type, pattern, nullptr /*lower_bound*/, nullptr /*upper_bound*/));
       inst_iters.push_back(iter_sptr);
     }
 
@@ -1286,9 +1396,7 @@ int64_t Storage::Scan(const DataType& dtype, int64_t cursor, const std::string& 
     }
 
     bool is_finish = !miter.Valid();
-    if (miter.Valid() &&
-      (miter.Key().compare(prefix) <= 0 ||
-       miter.Key().substr(0, prefix.size()) == prefix)) {
+    if (miter.Valid() && (miter.Key().compare(prefix) <= 0 || miter.Key().substr(0, prefix.size()) == prefix)) {
       is_finish = false;
     }
 
@@ -1332,8 +1440,8 @@ Status Storage::PKScanRange(const DataType& data_type, const Slice& key_start, c
   std::vector<IterSptr> inst_iters;
   for (const auto& inst : insts_) {
     IterSptr iter_sptr;
-    iter_sptr.reset(inst->CreateIterator(data_type, pattern.ToString(),
-        nullptr/*lower_bound*/, nullptr/*upper_bound*/));
+    iter_sptr.reset(
+        inst->CreateIterator(data_type, pattern.ToString(), nullptr /*lower_bound*/, nullptr /*upper_bound*/));
     inst_iters.push_back(iter_sptr);
   }
 
@@ -1345,8 +1453,7 @@ Status Storage::PKScanRange(const DataType& data_type, const Slice& key_start, c
     miter.Seek(temp);
   }
 
-  while (miter.Valid() && limit > 0 &&
-      (end_no_limit || miter.Key().compare(key_end.ToString()) <= 0)) {
+  while (miter.Valid() && limit > 0 && (end_no_limit || miter.Key().compare(key_end.ToString()) <= 0)) {
     if (data_type == DataType::kStrings) {
       kvs->push_back({miter.Key(), miter.Value()});
     } else {
@@ -1381,8 +1488,8 @@ Status Storage::PKRScanRange(const DataType& data_type, const Slice& key_start, 
   std::vector<IterSptr> inst_iters;
   for (const auto& inst : insts_) {
     IterSptr iter_sptr;
-    iter_sptr.reset(inst->CreateIterator(data_type, pattern.ToString(),
-        nullptr/*lower_bound*/, nullptr/*upper_bound*/));
+    iter_sptr.reset(
+        inst->CreateIterator(data_type, pattern.ToString(), nullptr /*lower_bound*/, nullptr /*upper_bound*/));
     inst_iters.push_back(iter_sptr);
   }
   MergingIterator miter(inst_iters);
@@ -1392,8 +1499,7 @@ Status Storage::PKRScanRange(const DataType& data_type, const Slice& key_start, 
     miter.SeekForPrev(base_key_start.Encode().ToString());
   }
 
-  while (miter.Valid() && limit > 0 &&
-      (end_no_limit || miter.Key().compare(key_end.ToString()) >= 0)) {
+  while (miter.Valid() && limit > 0 && (end_no_limit || miter.Key().compare(key_end.ToString()) >= 0)) {
     if (data_type == DataType::kStrings) {
       kvs->push_back({miter.Key(), miter.Value()});
     } else {
@@ -1409,7 +1515,7 @@ Status Storage::PKRScanRange(const DataType& data_type, const Slice& key_start, 
   return Status::OK();
 }
 
-Status Storage::PKPatternMatchDelWithRemoveKeys(const std::string& pattern, int64_t* ret, 
+Status Storage::PKPatternMatchDelWithRemoveKeys(const std::string& pattern, int64_t* ret,
                                                 std::vector<std::string>* remove_keys, const int64_t& max_count) {
   Status s;
   *ret = 0;
@@ -1418,7 +1524,7 @@ Status Storage::PKPatternMatchDelWithRemoveKeys(const std::string& pattern, int6
     s = inst->PKPatternMatchDelWithRemoveKeys(pattern, &tmp_ret, remove_keys, max_count - *ret);
     if (!s.ok()) {
       return s;
-    } 
+    }
     *ret += tmp_ret;
     if (*ret == max_count) {
       return s;
@@ -1436,8 +1542,7 @@ Status Storage::Scanx(const DataType& data_type, const std::string& start_key, c
   std::vector<IterSptr> inst_iters;
   for (const auto& inst : insts_) {
     IterSptr iter_sptr;
-    iter_sptr.reset(inst->CreateIterator(data_type, pattern,
-        nullptr/*lower_bound*/, nullptr/*upper_bound*/));
+    iter_sptr.reset(inst->CreateIterator(data_type, pattern, nullptr /*lower_bound*/, nullptr /*upper_bound*/));
     inst_iters.push_back(iter_sptr);
   }
 
@@ -1892,8 +1997,7 @@ Status Storage::GetKeyNum(std::vector<KeyInfo>* key_infos) {
     if (!s.ok()) {
       return s;
     }
-    std::transform(db_key_infos.begin(), db_key_infos.end(),
-        key_infos->begin(), key_infos->begin(), std::plus<>{});
+    std::transform(db_key_infos.begin(), db_key_infos.end(), key_infos->begin(), key_infos->begin(), std::plus<>{});
   }
   if (scan_keynum_exit_) {
     scan_keynum_exit_ = false;
@@ -1909,15 +2013,14 @@ Status Storage::StopScanKeyNum() {
 
 rocksdb::DB* Storage::GetDBByIndex(int index) {
   if (index < 0 || index >= db_instance_num_) {
-    LOG(WARNING) << "Invalid DB Index: " << index << "total: "
-                 << db_instance_num_;
+    LOG(WARNING) << "Invalid DB Index: " << index << "total: " << db_instance_num_;
     return nullptr;
   }
   return insts_[index]->GetDB();
 }
 
 Status Storage::SetOptions(const OptionType& option_type, const std::string& db_type,
-    const std::unordered_map<std::string, std::string>& options) {
+                           const std::unordered_map<std::string, std::string>& options) {
   Status s;
   for (const auto& inst : insts_) {
     s = inst->SetOptions(option_type, options);
@@ -1935,8 +2038,8 @@ void Storage::SetCompactRangeOptions(const bool is_canceled) {
   }
 }
 
-Status Storage::EnableDymayticOptions(const OptionType& option_type,
-    const std::string& db_type, const std::unordered_map<std::string, std::string>& options) {
+Status Storage::EnableDymayticOptions(const OptionType& option_type, const std::string& db_type,
+                                      const std::unordered_map<std::string, std::string>& options) {
   Status s;
   auto it = options.find("disable_auto_compactions");
   if (it != options.end() && it->second == "false") {
@@ -1947,19 +2050,21 @@ Status Storage::EnableDymayticOptions(const OptionType& option_type,
   return s;
 }
 
-Status Storage::EnableAutoCompaction(const OptionType& option_type,
-    const std::string& db_type, const std::unordered_map<std::string, std::string>& options) {
+Status Storage::EnableAutoCompaction(const OptionType& option_type, const std::string& db_type,
+                                     const std::unordered_map<std::string, std::string>& options) {
   Status s;
 
   for (const auto& inst : insts_) {
     std::vector<rocksdb::ColumnFamilyHandle*> cfhds;
     auto string_cfhds = inst->GetStringCFHandles();
     auto hash_cfhds = inst->GetHashCFHandles();
+    auto pk_hash_cfhds = inst->GetPKHashCFHandles();
     auto list_cfhds = inst->GetListCFHandles();
     auto set_cfhds = inst->GetSetCFHandles();
     auto zset_cfhds = inst->GetZsetCFHandles();
     cfhds.insert(cfhds.end(), string_cfhds.begin(), string_cfhds.end());
     cfhds.insert(cfhds.end(), hash_cfhds.begin(), hash_cfhds.end());
+    cfhds.insert(cfhds.end(), pk_hash_cfhds.begin(), pk_hash_cfhds.end());
     cfhds.insert(cfhds.end(), list_cfhds.begin(), list_cfhds.end());
     cfhds.insert(cfhds.end(), set_cfhds.begin(), set_cfhds.end());
     cfhds.insert(cfhds.end(), zset_cfhds.begin(), zset_cfhds.end());
@@ -1992,7 +2097,6 @@ int64_t Storage::IsExist(const Slice& key, std::map<DataType, Status>* type_stat
   }
   return type_count;
 }
-
 
 void Storage::DisableWal(const bool is_wal_disable) {
   for (const auto& inst : insts_) {

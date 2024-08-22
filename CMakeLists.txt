@@ -35,6 +35,9 @@ link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
 #set(CMAKE_BUILD_TYPE "Debug")
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread -O0 -fno-omit-frame-pointer -fno-optimize-sibling-calls")
 
+set(CMAKE_BUILD_TYPE "Debug")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -Wall -g3 -ggdb -fno-inline -fno-builtin-memcmp")
+
 string(TOLOWER ${CMAKE_HOST_SYSTEM_PROCESSOR} HOST_ARCH)
 
 if(NOT CMAKE_BUILD_TYPE)
