@@ -105,7 +105,7 @@ void SetCmd::DoThroughDB() {
 }
 
 void SetCmd::DoUpdateCache() {
-  if (SetCmd::kNX == condition_) {
+  if (SetCmd::kNX == condition_ || IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
     return;
   }
   if (s_.ok()) {
@@ -184,6 +184,9 @@ void GetCmd::DoThroughDB() {
 }
 
 void GetCmd::DoUpdateCache() {
+  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
   if (s_.ok()) {
     std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
     db_->cache()->WriteKVToCache(CachePrefixKeyK, value_, sec_);

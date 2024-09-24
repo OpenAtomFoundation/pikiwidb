@@ -71,6 +71,10 @@ void HSetCmd::DoThroughDB() {
 }
 
 void HSetCmd::DoUpdateCache() {
+  // HSetIfKeyExist() can void storing large key, but IsTooLargeKey() can speed up it
+  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
   if (s_.ok()) {
     std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
     db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
@@ -119,6 +123,9 @@ void HGetCmd::DoThroughDB() {
 }
 
 void HGetCmd::DoUpdateCache() {
+  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
   if (s_.ok()) {
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
