@@ -71,7 +71,6 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   rocksdb::BlockBasedTableOptions table_ops(storage_options.table_options);
   table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
 
-  auto force_compact_min_delete_ratio = storage_->GetStorageOptions().compact_param_.force_compact_min_delete_ratio_;
   rocksdb::Options ops(storage_options.options);
   ops.create_missing_column_families = true;
   if (storage_options.enable_db_statistics) {
@@ -299,6 +298,13 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
   db_->GetLiveFilesMetaData(&metadata);
   std::sort(metadata.begin(), metadata.end(), [](const auto& a, const auto& b) { return a.name < b.name; });
 
+  // turn it on before compacting and turn it off after
+  listener_.Start();
+  DEFER {
+    listener_.End();
+    listener_.Clear();
+  };
+
   for (auto idx : handleIdxVec) {
     rocksdb::TablePropertiesCollection props;
     Status s = db_->GetPropertiesOfAllTables(handles_[idx], &props);
@@ -311,7 +317,7 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       continue;
     }
 
-    // clear deleted sst file records because we use these only in OBD-compact
+    // clear deleted sst file records because we use them in different cf
     listener_.Clear();
 
     // The main goal of compaction was reclaimed the disk space and removed

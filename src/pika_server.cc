@@ -1439,11 +1439,6 @@ void PikaServer::InitStorageOptions() {
   storage_options_.options.max_bytes_for_level_base = g_pika_conf->level0_file_num_compaction_trigger() * g_pika_conf->write_buffer_size();
   storage_options_.options.max_subcompactions = g_pika_conf->max_subcompactions();
   storage_options_.options.target_file_size_base = g_pika_conf->target_file_size_base();
-  storage_options_.options.level0_stop_writes_trigger = g_pika_conf->level0_stop_writes_trigger();
-  storage_options_.options.level0_slowdown_writes_trigger = g_pika_conf->level0_slowdown_writes_trigger();
-  storage_options_.options.min_write_buffer_number_to_merge = g_pika_conf->min_write_buffer_number_to_merge();
-  storage_options_.options.max_bytes_for_level_base = g_pika_conf->level0_file_num_compaction_trigger() * g_pika_conf->write_buffer_size();
-  storage_options_.options.max_subcompactions = g_pika_conf->max_subcompactions();
   storage_options_.options.max_compaction_bytes = g_pika_conf->max_compaction_bytes();
   storage_options_.options.max_background_flushes = g_pika_conf->max_background_flushes();
   storage_options_.options.max_background_compactions = g_pika_conf->max_background_compactions();

@@ -471,9 +471,11 @@ private:
   class OBDSstListener : public rocksdb::EventListener {
    public:
     void OnTableFileDeleted(const rocksdb::TableFileDeletionInfo& info) override {
-      mu_.lock();
+      std::lock_guard<std::mutex> lk(mu_);
+      if (!running_) {
+        return;
+      }
       deletedFileNameInOBDCompact_.emplace(info.file_path);
-      mu_.unlock();
     }
 
     void Clear() {
@@ -486,7 +488,18 @@ private:
       return deletedFileNameInOBDCompact_.find(str) != deletedFileNameInOBDCompact_.end();
     }
 
+    // turn recording on/off
+    void Start() {
+      std::lock_guard<std::mutex> lk(mu_);
+      running_ = true;
+    }
+    void End() {
+      std::lock_guard<std::mutex> lk(mu_);
+      running_ = false;
+    }
+
     std::mutex mu_;
+    bool running_ = false;
     // deleted file(.sst) name in OBD compacting
     std::set<std::string> deletedFileNameInOBDCompact_;
   };
