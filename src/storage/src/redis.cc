@@ -5,6 +5,7 @@
 
 #include <sstream>
 
+#include "include/pika_conf.h"
 #include "pstd_coding.h"
 #include "rocksdb/env.h"
 #include "rocksdb/metadata.h"
@@ -16,10 +17,9 @@
 #include "pstd/include/pstd_string.h"
 #include "pstd/include/pstd_defer.h"
 
-namespace storage {
+extern std::unique_ptr<PikaConf> g_pika_conf;
 
-std::mutex Redis::MyEventListener::mu_;
-std::set<std::string> Redis::MyEventListener::deletedFileNameInOBDCompact_;
+namespace storage {
 
 constexpr const char* ErrTypeMessage = "WRONGTYPE";
 
@@ -164,7 +164,12 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   column_families.emplace_back("zset_score_cf", zset_score_cf_ops);
   // stream CF
   column_families.emplace_back("stream_data_cf", stream_data_cf_ops);
-  ops.listeners.emplace_back(std::make_shared<MyEventListener>());
+
+  // if using obd-compact, we should listening created sst file
+  // while compacting in OBD-compact
+  if (g_pika_conf->compaction_strategy() == PikaConf::CompactionStrategy::OldestOrBestDeleteRatioSstCompact) {
+    ops.listeners.emplace_back(std::make_shared<OBDSstListener>());
+  }
   return rocksdb::DB::Open(ops, db_path, column_families, &handles_, &db_);
 }
 
@@ -307,7 +312,7 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
     }
 
     // clear deleted sst file records because we use these only in OBD-compact
-    MyEventListener::Clear();
+    listener_.Clear();
 
     // The main goal of compaction was reclaimed the disk space and removed
     // the tombstone. It seems that compaction scheduler was unnecessary here when
@@ -350,7 +355,7 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
 
       // maybe some sst files which occur in props_vec has been compacted in CompactRange,
       // so these files should not be checked.
-      if (MyEventListener::Contains(file_path)) {
+      if (listener_.Contains(file_path)) {
         continue;
       }
 
@@ -395,9 +400,11 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       }
 
       // don't compact the SST created in x `dont_compact_sst_created_in_seconds_`.
+      // the elems in props_vec has been sorted by filename, meaning that the file
+      // creation time of the subsequent sst file must be not less than this time.
       if (file_creation_time >
           static_cast<uint64_t>(now / 1000 - storageOptions.compact_param_.dont_compact_sst_created_in_seconds_)) {
-        continue;
+        break;
       }
 
       // pick the file which has highest delete ratio
@@ -411,7 +418,9 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       }
     }
 
-    if (best_delete_ratio > best_delete_min_ratio && !best_start_key.empty() && !best_stop_key.empty()) {
+    // if max_files_to_compact is zero, we should not compact this sst file.
+    if (best_delete_ratio > best_delete_min_ratio && !best_start_key.empty() && !best_stop_key.empty() &&
+        max_files_to_compact != 0) {
       compact_result =
           db_->CompactRange(default_compact_range_options_, handles_[idx], &best_start_key, &best_stop_key);
     }
