@@ -156,7 +156,7 @@ jobs:
           sh integrate_test.sh
 
   build_on_macos:
-    runs-on: macos-12
+    runs-on: macos-latest
 
     steps:
       - uses: actions/checkout@v4
@@ -169,7 +169,7 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2.13
         with:
-          key: macos-12
+          key: macos-latest
 
       - name: Install Deps
         run: |
