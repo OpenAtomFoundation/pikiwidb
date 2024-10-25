@@ -198,6 +198,7 @@ jobs:
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: |
+          cmake -B build -DZLIB_ROOT=$(brew --prefix zlib) -DCMAKE_BUILD_TYPE=RelWithDebInfo
           ./pikatests.sh all clean
 
       - name: Start codis, pika master and pika slave
