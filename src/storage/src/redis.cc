@@ -5,19 +5,13 @@
 
 #include <sstream>
 
-#include "include/pika_conf.h"
-#include "pstd_coding.h"
 #include "rocksdb/env.h"
-#include "rocksdb/metadata.h"
 
 #include "src/redis.h"
 #include "src/lists_filter.h"
 #include "src/base_filter.h"
 #include "src/zsets_filter.h"
-#include "pstd/include/pstd_string.h"
 #include "pstd/include/pstd_defer.h"
-
-extern std::unique_ptr<PikaConf> g_pika_conf;
 
 namespace storage {
 
@@ -28,7 +22,7 @@ const rocksdb::Comparator* ListsDataKeyComparator() {
   return &ldkc;
 }
 
-const rocksdb::Comparator* ZSetsScoreKeyComparator() {
+rocksdb::Comparator* ZSetsScoreKeyComparator() {
   static ZSetsScoreKeyComparatorImpl zsets_score_key_compare;
   return &zsets_score_key_compare;
 }
@@ -163,12 +157,8 @@ Status Redis::Open(const StorageOptions& storage_options, const std::string& db_
   column_families.emplace_back("zset_score_cf", zset_score_cf_ops);
   // stream CF
   column_families.emplace_back("stream_data_cf", stream_data_cf_ops);
+  ops.listeners.emplace_back(std::make_shared<OBDSstListener>());
 
-  // if using obd-compact, we should listening created sst file
-  // while compacting in OBD-compact
-  if (g_pika_conf->compaction_strategy() == PikaConf::CompactionStrategy::OldestOrBestDeleteRatioSstCompact) {
-    ops.listeners.emplace_back(std::make_shared<OBDSstListener>());
-  }
   return rocksdb::DB::Open(ops, db_path, column_families, &handles_, &db_);
 }
 
