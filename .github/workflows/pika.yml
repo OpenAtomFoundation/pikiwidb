@@ -177,7 +177,7 @@ jobs:
           brew install autoconf protobuf llvm wget git python@3.13
           brew install automake cmake make binutils
           
-          brew link --overwrite python@3.13
+          brew link --overwrite --force python@3.13
 
       - name: Configure CMake
         run: |
