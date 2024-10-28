@@ -516,6 +516,9 @@ Status PikaServer::DoSameThingEveryDB(const TaskType& type) {
       case TaskType::kCompactAll:
         db_item.second->Compact(storage::DataType::kAll);
         break;
+      case TaskType::kCompactOldestOrBestDeleteRatioSst:
+        db_item.second->LongestNotCompactionSstCompact(storage::DataType::kAll);
+        break;
       default:
         break;
     }
@@ -1225,6 +1228,12 @@ void PikaServer::AutoCompactRange() {
       }
     }
   }
+
+  if (g_pika_conf->compaction_strategy() == PikaConf::FullCompact) {
+    DoSameThingEveryDB(TaskType::kCompactAll);
+  } else if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
+    DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
+  }
 }
 
 void PikaServer::AutoBinlogPurge() { DoSameThingEveryDB(TaskType::kPurgeLog); }
@@ -1487,6 +1496,13 @@ void PikaServer::InitStorageOptions() {
   // For Storage small compaction
   storage_options_.statistics_max_size = g_pika_conf->max_cache_statistic_keys();
   storage_options_.small_compaction_threshold = g_pika_conf->small_compaction_threshold();
+
+ // For Storage compaction
+  storage_options_.compact_param_.best_delete_min_ratio_ = g_pika_conf->best_delete_min_ratio();
+  storage_options_.compact_param_.dont_compact_sst_created_in_seconds_ = g_pika_conf->dont_compact_sst_created_in_seconds();
+  storage_options_.compact_param_.force_compact_file_age_seconds_ = g_pika_conf->force_compact_file_age_seconds();
+  storage_options_.compact_param_.force_compact_min_delete_ratio_ = g_pika_conf->force_compact_min_delete_ratio();
+  storage_options_.compact_param_.compact_every_num_of_files_ = g_pika_conf->compact_every_num_of_files();
 
   // rocksdb blob
   if (g_pika_conf->enable_blob_files()) {
