@@ -45,6 +45,7 @@ function setup_pika_bin {
         exit 1
     fi
     cp $PIKA_BIN src/redis-server
+    cp $PIKA_BIN tests/integration/pika
     cp tests/conf/pika.conf tests/assets/default.conf
 }
 

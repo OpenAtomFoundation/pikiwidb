@@ -192,7 +192,6 @@ jobs:
           echo "Here are $(ls)"
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
-          cp build/pika tests/integration/
           rm -rf ./deps
           rm -rf ./buildtrees
 
