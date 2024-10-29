@@ -367,9 +367,7 @@ set(ZSTD_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(fmt
   DEPENDS
   URL
-  https://github.com/fmtlib/fmt/archive/refs/tags/7.1.0.tar.gz
-  URL_HASH
-  MD5=32af902636d373641f4ef9032fc65b3a
+  https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
