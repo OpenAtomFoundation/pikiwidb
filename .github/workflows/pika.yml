@@ -189,6 +189,7 @@ jobs:
       - name: Cleanup
         run: |
           echo "What is $(pwd)"
+          echo "Here are $(ls)"
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
           cp build/pika tests/integration/
