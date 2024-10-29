@@ -156,7 +156,7 @@ jobs:
           sh integrate_test.sh
 
   build_on_macos:
-    runs-on: macos-12
+    runs-on: macos-13
 
     steps:
       - uses: actions/checkout@v4
@@ -169,12 +169,12 @@ jobs:
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2.13
         with:
-          key: macos-12
+          key: macos-13
 
       - name: Install Deps
         run: |
           brew update
-          brew install --overwrite python@3.12 autoconf protobuf llvm wget git
+          brew install --overwrite python@3.13 protobuf llvm
           brew install gcc@10 automake cmake make binutils
 
       - name: Configure CMake
