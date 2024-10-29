@@ -188,8 +188,9 @@ jobs:
 
       - name: Cleanup
         run: |
-          cp deps/lib/libz.1.dylib . 
-          rm -rf  ./deps
+          cp deps/lib/libz.1.dylib .
+          cp deps/lib/libz.1.dylib build/
+          rm -rf ./deps
           rm -rf ./buildtrees
 
       - name: Test
