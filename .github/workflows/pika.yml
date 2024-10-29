@@ -207,15 +207,15 @@ jobs:
         run: |
           cp output/pika tests/integration/
           cd tests/integration/
-          chmod +x ./start_master_and_slave.sh
+          chmod +x start_master_and_slave.sh
           ./start_master_and_slave.sh
-          chmod +x ./start_codis.sh
+          chmod +x start_codis.sh
           ./start_codis.sh
 
       - name: Run Go E2E Tests
-        working-directory: ${{ github.workspace }}/build
+        working-directory: ${{ github.workspace }}
         run: |
-          cd ../../tests/integration/
+          cd tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
 
