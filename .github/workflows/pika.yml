@@ -190,6 +190,7 @@ jobs:
         run: |
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
+          cp output/pika tests/integration/
           rm -rf ./deps
           rm -rf ./buildtrees
 
@@ -204,8 +205,7 @@ jobs:
 
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}
-        run: |
-          cp output/pika tests/integration/
+        run: | 
           cd tests/integration/
           chmod +x start_master_and_slave.sh
           ./start_master_and_slave.sh
