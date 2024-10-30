@@ -176,6 +176,7 @@ jobs:
           brew update
           brew install --overwrite python@3.12 autoconf protobuf llvm wget git
           brew install gcc@10 automake cmake make binutils
+          brew install zlib
 
       - name: Configure CMake
         run: |
