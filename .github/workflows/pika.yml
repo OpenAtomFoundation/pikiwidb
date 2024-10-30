@@ -47,7 +47,6 @@ jobs:
 
       - name: Cleanup
         run: |
-          cp deps/lib/libz.1.dylib . 
           rm -rf  ./deps
           rm -rf ./buildtrees
 
@@ -177,7 +176,6 @@ jobs:
           brew update
           brew install --overwrite python@3.12 autoconf protobuf llvm wget git
           brew install gcc@10 automake cmake make binutils
-          brew install zlib
 
       - name: Configure CMake
         run: |
@@ -187,6 +185,13 @@ jobs:
       - name: Build
         run: |
           cmake --build build --config ${{ env.BUILD_TYPE }}
+
+      - name: Cleanup
+        run: |
+          cp deps/lib/libz.1.dylib .
+          cp deps/lib/libz.1.dylib tests/integration/
+          rm -rf ./deps 
+          rm -rf ./buildtree
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
