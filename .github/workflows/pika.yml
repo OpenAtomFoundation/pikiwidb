@@ -156,6 +156,7 @@ jobs:
           sh integrate_test.sh
 
   build_on_macos:
+
     runs-on: macos-13
 
     steps:
@@ -165,6 +166,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: 1.19
+      - name: Uninstall Homebrew
+        run: |
+          if command -v brew > /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/uninstall.sh)"
+          fi
 
       - name: ccache
         uses: hendrikmuhs/ccache-action@v1.2.13
