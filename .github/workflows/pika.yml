@@ -209,6 +209,9 @@ jobs:
           cd tests/integration/
           chmod +x start_master_and_slave.sh
           ./start_master_and_slave.sh
+          chmod +x start_codis.sh
+          ./start_codis.sh
+          
 
       - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}
