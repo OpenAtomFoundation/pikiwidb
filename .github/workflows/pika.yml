@@ -204,18 +204,19 @@ jobs:
           ./pikatests.sh all clean
 
       - name: Start codis, pika master and pika slave
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/build
         run: |
-          cd tests/integration/
-          chmod +x start_master_and_slave.sh
-          ./start_master_and_slave.sh
-          chmod +x ./tests/integration/start_codis.sh
+          chmod +x ../tests/integration/start_master_and_slave.sh
+          ../tests/integration/start_master_and_slave.sh
+          chmod +x ../tests/integration/start_codis.sh
           ../tests/integration/start_codis.sh
 
       - name: Run Go E2E Tests
-        working-directory: ${{ github.workspace }}
+        working-directory: ${{ github.workspace }}/build
         run: |
-          cd tests/integration/
+          cd ../tools/pika_keys_analysis/
+          go test -v ./...
+          cd ../../tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
 
