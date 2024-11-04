@@ -91,11 +91,16 @@ jobs:
       image: cheniujh/pika-ci-centos7:v1
 
     steps:
+      - name: use SCL
+        run: |
+          sudo yum install centos-release-scl
+          sudo yum install devtoolset-9  
+          scl enable devtoolset-9 bash
+
       - name: Checkout
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-          node-version: '14'
 
       - name: Configure CMake
         run: |
