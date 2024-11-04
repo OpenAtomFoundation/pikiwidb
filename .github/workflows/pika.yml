@@ -88,7 +88,7 @@ jobs:
   build_on_centos:
     runs-on: ubuntu-latest
     container:
-      image: cheniujh/pika-ci-centos7:v1
+      image: cheniujh/pika-centos7-ci:v5
 
     steps:
       - name: Checkout
