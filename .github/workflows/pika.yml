@@ -91,12 +91,6 @@ jobs:
       image: cheniujh/pika-ci-centos7:v1
 
     steps:
-      - name: use SCL
-        run: |
-          yum install centos-release-scl
-          yum install devtoolset-9  
-          scl enable devtoolset-9 bash
-
       - name: Checkout
         uses: actions/checkout@v1
         with:
