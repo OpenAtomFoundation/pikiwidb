@@ -100,15 +100,15 @@ jobs:
         run: |
           source /opt/rh/devtoolset-10/enable
           cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
-      - uses: actions/cache@v1
-        with:
-          path: ${{ github.workspace }}/deps
-          key: ${{ runner.os }}-centos-deps-${{ hashFiles('**/CMakeLists.txt') }}
-
-      - uses: actions/cache@v1
-        with:
-          path: ${{ github.workspace }}/buildtrees
-          key: ${{ runner.os }}-centos-buildtrees-${{ hashFiles('**/CMakeLists.txt') }}
+#      - uses: actions/cache@v1
+#        with:
+#          path: ${{ github.workspace }}/deps
+#          key: ${{ runner.os }}-centos-deps-${{ hashFiles('**/CMakeLists.txt') }}
+#
+#      - uses: actions/cache@v1
+#        with:
+#          path: ${{ github.workspace }}/buildtrees
+#          key: ${{ runner.os }}-centos-buildtrees-${{ hashFiles('**/CMakeLists.txt') }}
 
       - name: Build
         run: |
