@@ -105,7 +105,7 @@ jobs:
           path: ${{ github.workspace }}/deps
           key: ${{ runner.os }}-centos-deps-${{ hashFiles('**/CMakeLists.txt') }}
 
-      - uses: actions/cache@v2
+      - uses: actions/cache@v1
         with:
           path: ${{ github.workspace }}/buildtrees
           key: ${{ runner.os }}-centos-buildtrees-${{ hashFiles('**/CMakeLists.txt') }}
