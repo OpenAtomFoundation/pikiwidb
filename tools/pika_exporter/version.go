@@ -1,8 +1,8 @@
 package main
 
 const (
-	BuildVersion   = "Filled in by build"
-	BuildCommitSha = "Filled in by build"
-	BuildDate      = "Filled in by build"
-	GoVersion      = "Filled in by build"
+	BuildVersion   = "  240624_use_fwrite_binlog   240625_fix_S2_Issue2436   2_slavetestbranch   3.5   355/change_timeout_conf   AckEnd_smaller_than_AckStart   RTC   RTC_v2 add_centos7_release add_centos7_release   add_execute_back   binlog_fwrite   binlog_use_fwrite   blpop_update_cache   blpop_update_cache_back   bugfix/bgsave_inconsistent   bugfix/compatible_redis_sentinel   bugfix/fix_centos_compile   bugfix/flushdb_inconsistent   bugfix/flushdb_inconsistent_bak   bugfix/kill_conn_correct   bugfix/remove_extra_conn_ref   bugfix/set_status_before_dump   bugfix/slaveofnoone_fullsync   bugfix/slaveofnoone_log   change_timeout_conf   d   db_stat_multi_thread   dynamic_rsync_speed_and_timeout   feature/add_centos_7_ci   fix_ci_centos   fix_data_race_spop_binlog   fix_full_sync_interrupt   fix_full_sync_interrupt_backup240627   fix_full_sync_interupt_exit   fix_lock_issue_rsync   fix_macos_ci   fix_s2_old_methodflag   fix_successive_flushdb_exec   flushall_binlog   kv_para_align   modify_full_sync_state_transition   multi_dbsync_handle   multi_sync_debug   new2_all_in_one_sync_fix   new_all_in_one_fix   new_detach   new_full_sync_state   new_slave_tracing   new_unstable   newest_use_fwrite_binlog   ospp/refactor_binlog_   ospp/refactor_binlog_2   ospp/refactor_binlog_3   ospp/refactor_binlog_v4   part_multisync_fix   reading_replication   refactor_binlog   reivsed_timer_timeout   remove_unnecessary_binlog_lock   revise_slave_worker   revise_slave_worker_model   revised_rocksdb_default_options   revised_timer_task_manager   rsync_reconfig_0501   rtc_improve   slavetestbranch   testing_slave_qps   unstable"
+	BuildCommitSha = "20b9d2d8"
+	BuildDate      = "2024-11-15 19:04:14 CST"
+	GoVersion      = "go1.19 linux/amd64"
 )
