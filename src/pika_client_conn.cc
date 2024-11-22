@@ -30,8 +30,7 @@ PikaClientConn::PikaClientConn(int fd, const std::string& ip_port, net::Thread* 
     : RedisConn(fd, ip_port, thread, mpx, handle_type, max_conn_rbuf_size),
       server_thread_(reinterpret_cast<net::ServerThread*>(thread)),
       current_db_(g_pika_conf->default_db()) {
-  // client init, set client user is default, and authenticated = false
-  UnAuth(g_pika_server->Acl()->GetUserLock(Acl::DefaultUser));
+  InitUser();
   time_stat_.reset(new TimeStat());
 }
 
@@ -259,7 +258,7 @@ void PikaClientConn::ProcessMonitor(const PikaCmdArgsType& argv) {
 }
 
 bool PikaClientConn::IsInterceptedByRTC(std::string& opt) {
-  //currently we only Intercept: Get, HGet
+  // currently we only Intercept: Get, HGet
   if (opt == kCmdNameGet && g_pika_conf->GetCacheString()) {
     return true;
   }
@@ -289,11 +288,9 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
     bool is_slow_cmd = g_pika_conf->is_slow_cmd(opt);
     bool is_admin_cmd = g_pika_conf->is_admin_cmd(opt);
 
-    //we don't intercept pipeline batch (argvs.size() > 1)
-    if (g_pika_conf->rtc_cache_read_enabled() &&
-        argvs.size() == 1 && IsInterceptedByRTC(opt) &&
-        PIKA_CACHE_NONE != g_pika_conf->cache_mode() &&
-        !IsInTxn()) {
+    // we don't intercept pipeline batch (argvs.size() > 1)
+    if (g_pika_conf->rtc_cache_read_enabled() && argvs.size() == 1 && IsInterceptedByRTC(opt) &&
+        PIKA_CACHE_NONE != g_pika_conf->cache_mode() && !IsInTxn()) {
       // read in cache
       if (ReadCmdInCache(argvs[0], opt)) {
         delete arg;
@@ -358,21 +355,17 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
     resp_num--;
     return false;
   }
-  //acl check
+  // acl check
   int8_t subCmdIndex = -1;
   std::string errKey;
   auto checkRes = user_->CheckUserPermission(c_ptr, argv, subCmdIndex, &errKey);
   std::string object;
-  if (checkRes == AclDeniedCmd::CMD ||
-      checkRes == AclDeniedCmd::KEY ||
-      checkRes == AclDeniedCmd::CHANNEL ||
-      checkRes == AclDeniedCmd::NO_SUB_CMD ||
-      checkRes == AclDeniedCmd::NO_AUTH
-      ) {
-    //acl check failed
+  if (checkRes == AclDeniedCmd::CMD || checkRes == AclDeniedCmd::KEY || checkRes == AclDeniedCmd::CHANNEL ||
+      checkRes == AclDeniedCmd::NO_SUB_CMD || checkRes == AclDeniedCmd::NO_AUTH) {
+    // acl check failed
     return false;
   }
-  //only read command(Get, HGet) will reach here, no need of record lock
+  // only read command(Get, HGet) will reach here, no need of record lock
   bool read_status = c_ptr->DoReadCommandInCache();
   auto cmdstat_map = g_pika_cmd_table_manager->GetCommandStatMap();
   resp_num--;
@@ -547,13 +540,28 @@ void PikaClientConn::UnAuth(const std::shared_ptr<User>& user) {
 }
 
 bool PikaClientConn::IsAuthed() const { return authenticated_; }
-
+void PikaClientConn::InitUser() {
+  if (!g_pika_conf->GetUserBlackList().empty()) {
+    user_ = g_pika_server->Acl()->GetUserLock(Acl::DefaultLimitUser);
+  } else {
+    user_ = g_pika_server->Acl()->GetUserLock(Acl::DefaultUser);
+  }
+  authenticated_ = user_->HasFlags(static_cast<uint32_t>(AclUserFlag::NO_PASS)) &&
+                   !user_->HasFlags(static_cast<uint32_t>(AclUserFlag::DISABLED));
+}
 bool PikaClientConn::AuthRequired() const {
   // If the user does not have a password, and the user is valid, then the user does not need authentication
   // Otherwise, you need to determine whether go has been authenticated
-  return (!user_->HasFlags(static_cast<uint32_t>(AclUserFlag::NO_PASS)) ||
-          user_->HasFlags(static_cast<uint32_t>(AclUserFlag::DISABLED))) &&
-         !IsAuthed();
+  if (IsAuthed()) {
+    return false;
+  }
+  if (user_->HasFlags(static_cast<uint32_t>(AclUserFlag::DISABLED))) {
+    return true;
+  }
+  if (user_->HasFlags(static_cast<uint32_t>(AclUserFlag::NO_PASS))) {
+    return false;
+  }
+  return true;
 }
 std::string PikaClientConn::UserName() const { return user_->Name(); }
 

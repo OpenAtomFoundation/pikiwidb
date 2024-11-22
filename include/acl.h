@@ -129,7 +129,7 @@ class AclSelector {
   friend User;
 
  public:
-  explicit AclSelector() : AclSelector(0){};
+  explicit AclSelector() : AclSelector(0) {};
   explicit AclSelector(uint32_t flag);
   explicit AclSelector(const AclSelector& selector);
   ~AclSelector() = default;
@@ -138,7 +138,7 @@ class AclSelector {
   inline bool HasFlags(uint32_t flag) const { return flags_ & flag; };
   inline void AddFlags(uint32_t flag) { flags_ |= flag; };
   inline void DecFlags(uint32_t flag) { flags_ &= ~flag; };
-  bool EqualChannel(const std::vector<std::string> &allChannel);
+  bool EqualChannel(const std::vector<std::string>& allChannel);
 
  private:
   pstd::Status SetSelector(const std::string& op);
@@ -224,8 +224,7 @@ class User {
   ~User() = default;
 
   std::string Name() const;
-
-  //  inline uint32_t Flags() const { return flags_; };
+  // inline uint32_t Flags() const { return flags_; };
   inline bool HasFlags(uint32_t flag) const { return flags_ & flag; };
   inline void AddFlags(uint32_t flag) { flags_ |= flag; };
   inline void DecFlags(uint32_t flag) { flags_ &= ~flag; };

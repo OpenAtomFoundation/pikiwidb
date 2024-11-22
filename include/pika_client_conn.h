@@ -22,25 +22,15 @@ struct TimeStat {
     before_queue_ts_ = 0;
   }
 
-  uint64_t start_ts() const {
-    return enqueue_ts_;
-  }
+  uint64_t start_ts() const { return enqueue_ts_; }
 
-  uint64_t total_time() const {
-    return process_done_ts_ > enqueue_ts_ ? process_done_ts_ - enqueue_ts_ : 0;
-  }
+  uint64_t total_time() const { return process_done_ts_ > enqueue_ts_ ? process_done_ts_ - enqueue_ts_ : 0; }
 
-  uint64_t queue_time() const {
-    return dequeue_ts_ > enqueue_ts_ ? dequeue_ts_ - enqueue_ts_ : 0;
-  }
+  uint64_t queue_time() const { return dequeue_ts_ > enqueue_ts_ ? dequeue_ts_ - enqueue_ts_ : 0; }
 
-  uint64_t process_time() const {
-    return process_done_ts_ > dequeue_ts_ ? process_done_ts_ - dequeue_ts_ : 0;
-  }
+  uint64_t process_time() const { return process_done_ts_ > dequeue_ts_ ? process_done_ts_ - dequeue_ts_ : 0; }
 
-  uint64_t before_queue_time() const {
-    return process_done_ts_ > dequeue_ts_ ? before_queue_ts_ - enqueue_ts_ : 0;
-  }
+  uint64_t before_queue_time() const { return process_done_ts_ > dequeue_ts_ ? before_queue_ts_ - enqueue_ts_ : 0; }
 
   uint64_t enqueue_ts_;
   uint64_t dequeue_ts_;
@@ -94,7 +84,7 @@ class PikaClientConn : public net::RedisConn {
   void UnAuth(const std::shared_ptr<User>& user);
 
   bool IsAuthed() const;
-
+  void InitUser();
   bool AuthRequired() const;
 
   std::string UserName() const;
@@ -123,6 +113,7 @@ class PikaClientConn : public net::RedisConn {
   std::vector<std::shared_ptr<std::string>> resp_array;
 
   std::shared_ptr<TimeStat> time_stat_;
+
  private:
   net::ServerThread* const server_thread_;
   std::string current_db_;
