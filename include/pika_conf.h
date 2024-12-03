@@ -86,8 +86,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return log_retention_time_;
   }
-  std::string log_level() {
-    std::shared_lock l(rwlock_);
+  int32_t log_level() {
     return log_level_;
   }
   std::string db_path() {
@@ -826,9 +825,9 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
-  void SetLogLevel(const std::string& value) {
+  void SetLogLevel(int32_t value) {
     std::lock_guard l(rwlock_);
-    TryPushDiffCommands("loglevel", value);
+    TryPushDiffCommands("log-level", std::to_string(value));
     log_level_ = value;
   }
 
@@ -952,7 +951,6 @@ class PikaConf : public pstd::BaseConf {
   std::string slaveof_;
   std::string log_path_;
   int log_retention_time_;
-  std::string log_level_;
   std::string db_path_;
   int db_instance_num_ = 0;
   std::string db_sync_path_;
@@ -1093,6 +1091,8 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;
+  std::atomic_int log_level_ = 0;
+
 
   // rocksdb blob
   bool enable_blob_files_ = false;

@@ -264,6 +264,13 @@ void* ServerThread::ThreadMain() {
   return nullptr;
 }
 
+void ServerThread::SetLogLevel(int32_t value) {
+  if (value != 0 && value != 1) {
+    return;
+  }
+  log_level_.store(value);
+}
+
 #ifdef __ENABLE_SSL
 static std::vector<std::unique_ptr<pstd::Mutex>> ssl_mutex_;
 

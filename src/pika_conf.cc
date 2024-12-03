@@ -132,7 +132,11 @@ int PikaConf::Load() {
   if(log_retention_time_ < 0){
     LOG(FATAL) << "log-retention-time invalid";
   }
-  GetConfStr("loglevel", &log_level_);
+
+  int32_t log_level = 0;
+  GetConfInt("log-level", &log_level);
+  log_level_.store(log_level);
+
   GetConfStr("db-path", &db_path_);
   GetConfInt("db-instance-num", &db_instance_num_);
   if (db_instance_num_ <= 0) {

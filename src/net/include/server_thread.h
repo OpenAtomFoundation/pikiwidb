@@ -128,6 +128,8 @@ class ServerThread : public Thread {
 
   int SetTcpNoDelay(int connfd);
 
+  void SetLogLevel(int32_t value);
+
   /*
    * StartThread will return the error code as pthread_create
    * Return 0 if success
@@ -166,6 +168,8 @@ class ServerThread : public Thread {
    * The event handler
    */
   std::unique_ptr<NetMultiplexer> net_multiplexer_;
+
+  std::atomic<int32_t> log_level_{0};
 
  private:
   friend class HolyThread;

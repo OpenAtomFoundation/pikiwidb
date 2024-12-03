@@ -1590,6 +1590,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->port());
   }
 
+  if (pstd::stringmatch(pattern.data(), "log-level", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-level");
+    EncodeNumber(&config_body, g_pika_conf->log_level());
+  }
+
   if (pstd::stringmatch(pattern.data(), "thread-num", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "thread-num");
@@ -2157,7 +2163,7 @@ void ConfigCmd::ConfigGet(std::string& ret) {
   if (pstd::stringmatch(pattern.data(), "loglevel", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "loglevel");
-    EncodeString(&config_body, g_pika_conf->log_level());
+    EncodeString(&config_body, std::to_string(g_pika_conf->log_level()));
   }
 
   if (pstd::stringmatch(pattern.data(), "min-blob-size", 1) != 0) {
@@ -2471,6 +2477,14 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetSlowlogMaxLen(static_cast<int>(ival));
     g_pika_server->SlowlogTrim();
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-level") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || (ival != 0 && ival != 1)) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'log-level', only 0 or 1 is valid\r\n");
+      return;
+    }
+    g_pika_conf->SetLogLevel(static_cast<int32_t>(ival));
+    g_pika_server->SetLogLevel(static_cast<int32_t>(ival));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-statistic-keys") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
@@ -3312,7 +3326,9 @@ void QuitCmd::DoInitial() {
 
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
-  LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
+  if (g_pika_conf->log_level()) {
+    LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
+  }
   GetConn()->SetClose(true);
 }
 
