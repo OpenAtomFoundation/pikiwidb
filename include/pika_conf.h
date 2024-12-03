@@ -772,6 +772,11 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("write-buffer-size", std::to_string(value));
     write_buffer_size_ = value;
   }
+  void SetLogRetentionTime(const int& value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("log-retention-time", std::to_string(value));
+    log_retention_time_ = value;
+  }
   void SetMinWriteBufferNumberToMerge(const int& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("min-write-buffer-number-to-merge", std::to_string(value));
