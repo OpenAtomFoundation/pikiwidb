@@ -7,14 +7,12 @@
 #include <utility>
 #include "include/pika_cache.h"
 #include "include/pika_data_distribution.h"
-#include "include/pika_rm.h"
 #include "include/pika_server.h"
 #include "include/pika_slot_command.h"
 #include "pstd/include/pstd_string.h"
 #include "scope_record_lock.h"
 
 extern PikaServer* g_pika_server;
-extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
 
 void LIndexCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -786,6 +784,10 @@ void RPopCmd::DoUpdateCache() {
 }
 
 void RPopLPushCmd::DoInitial() {
+  if (PIKA_CACHE_NONE != g_pika_conf->cache_mode() && g_pika_conf->GetCacheList()) {
+    res_.SetRes(CmdRes::kErrOther, "the command is not supported when cache&list is enabled");
+    return;
+  }
   if (!CheckArg(argv_.size())) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameRPopLPush);
     return;

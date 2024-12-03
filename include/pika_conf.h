@@ -1102,7 +1102,7 @@ class PikaConf : public pstd::BaseConf {
   int64_t min_blob_size_ = 4096;                // 4K
   int64_t blob_cache_ = 0;
   int64_t blob_num_shard_bits_ = 0;
-  int64_t blob_file_size_ = 256 * 1024 * 1024;  // 256M
+  int64_t blob_file_size_ = 256 << 20;  // 256M
   std::string blob_compression_type_ = "none";
 
   std::shared_mutex rwlock_;
