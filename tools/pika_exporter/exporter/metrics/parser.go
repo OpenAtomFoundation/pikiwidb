@@ -47,7 +47,7 @@ func (p *statusToGaugeParser) Parse(m MetricMeta, c Collector, opt ParseOption) 
                 if !exists {
                     log.Warnf("statusToGaugeParser::Parse unknown status value. metricName:%s valueName:%s rawValue:%s",
                         m.Name, m.ValueName, v)
-                    mappedValue = defaultValue // 使用默认值
+                    mappedValue = defaultValue
                 }
                 metric.Value = float64(mappedValue)
             }
