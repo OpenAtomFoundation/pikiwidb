@@ -135,6 +135,10 @@ int PikaConf::Load() {
 
   int32_t log_level = 0;
   GetConfInt("log-level", &log_level);
+  if (log_level != 0 && log_level != 1) {
+    LOG(ERROR) << "log-level loaded from pika.conf is invalid, auto change it to 0";
+    log_level = 0;
+  }
   log_level_.store(log_level);
 
   GetConfStr("db-path", &db_path_);
