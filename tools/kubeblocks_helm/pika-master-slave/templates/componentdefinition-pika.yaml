@@ -25,30 +25,32 @@ spec:
       volumeName: config
   volumes:
     - name: data
+  roles:
+    - name: master
+      serviceable: true
+      writable: true
+    - name: slave
+      serviceable: false
+      writable: false
   lifecycleActions:
-    postProvision:
+    roleProbe:
+      builtinHandler: custom 
       customHandler:
         image: {{ include "redis.image" .}}
         exec:
           command:
-           - /bin/bash
-           - -c
-           - |
-             IFS=',' read -r -a pod_name_array <<< ${KB_CLUSTER_COMPONENT_POD_NAME_LIST}
-             # Ergodic name array
-             headless=".pika-master-slave-cluster-pika-headless"
-             for i in "${!pod_name_array[@]}"; do
-               pod_name=${pod_name_array[${i}]}
-               # Extracting the digital portion of the pod
-               pod_number=$(echo "${pod_name}" | grep -o '[0-9]*')
-               # If the pod number is greater than 0
-               if (( pod_number > 0 )); then
-                 pod0_svc=${pod_name_array[0]}${headless}
-                 echo "exec:redis-cli -h ${pod_name}${headless} -p 9221 slaveof ${pod0_svc}:9221"
-                 redis-cli -h "${pod_name}${headless}" -p 9221 slaveof "${pod0_svc}" 9221
-               fi
-             done
-        preCondition: ComponentReady
+            - /bin/bash
+            - -c
+            - |
+              replication_info=$(redis-cli -h 127.0.0.1 -p 9221 info replication)
+              role=$(echo "${replication_info}" | awk -F':' '/^role:/ {print $2}' | tr -d '[:space:]')
+              if [ "$role"x = "master"x ]; then
+                echo -n "master"
+              else
+                echo -n "slave"
+              fi  
+      periodSeconds: 1
+      timeoutSeconds: 1
   runtime:
     initContainers:
       - name: init-config
@@ -87,3 +89,25 @@ spec:
         args:
           - "-c"
           - "/data/pika.conf"
+      - name: redis-cli-runner
+        image: {{ include "redis.image" . }}
+        imagePullPolicy: {{ include "pika.imagePullPolicy" . }}
+        command:
+          - /bin/bash
+          - -c
+          - |
+            while true; do
+              hostname=$KB_POD_NAME
+              if [[ "$hostname" =~ -([0-9]+)$ ]]; then
+                ordinal=${BASH_REMATCH[1]}
+                if [[ $ordinal -ge 1 && $ordinal -le 9 ]]; then
+                  replication_info=$(redis-cli -h 127.0.0.1 -p 9221 info replication)
+                  role=$(echo "${replication_info}" | awk -F':' '/^role:/ {print $2}' | tr -d '[:space:]')
+                  if [ "$role"x = "master"x ]; then
+                    redis-cli -h 127.0.0.1 -p 9221 slaveof pika-master-slave-cluster-pika-0.pika-master-slave-cluster-pika-headless 9221
+                  fi
+                fi
+              fi
+              sleep 10
+            done
+          

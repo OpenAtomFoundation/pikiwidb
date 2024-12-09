@@ -1,0 +1,1 @@
+helm uninstall pika-master-slave-cluster && helm uninstall pika-master-slave

@@ -1,0 +1,37 @@
+apiVersion: dataprotection.kubeblocks.io/v1alpha1
+kind: ActionSet
+metadata:
+  name: pika-backup
+  labels:
+    clusterdefinition.kubeblocks.io/name: pika-master-slave-cluster
+    {{- include "pika.labels" . | nindent 4 }}
+spec:
+  backupType: Full
+  env:
+    - name: DATA_DIR
+      value: /data
+    - name: DP_DB_PORT
+      value: "9221"
+  backup:
+    preBackup: []
+    postBackup: []
+    backupData:
+      image: {{ include "redis.image" . }}
+      runOnTargetPodNode: true
+      syncProgress:
+        enabled: true
+        intervalSeconds: 5
+      command:
+      - bash
+      - -c
+      - |
+        {{- .Files.Get "dataprotection/backup.sh" | nindent 8 }}
+  restore:
+    prepareData:
+      image: {{ include "redis.image" . }}
+      command:
+      - bash
+      - -c
+      - |
+        {{- .Files.Get "dataprotection/restore.sh" | nindent 8 }}
+    postReady: []

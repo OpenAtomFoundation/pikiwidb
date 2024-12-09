@@ -1,0 +1,1 @@
+helm install pika-master-slave ./pika-master-slave && helm install pika-master-slave-cluster ./pika-master-slave-cluster
