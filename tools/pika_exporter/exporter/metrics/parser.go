@@ -52,9 +52,50 @@ func (v *VersionChecker336) InitVersionChecker() {
 		}
 	}
 	if v.EmptyRegexName == nil {
+
 		v.EmptyRegexName = []string{
 			"hitratio_per_sec",
+			"total_blob_file_size",
+			"block_cache_capacity",
+			"background_errors",
+			"num_running_flushes",
+			"mem_table_flush_pending",
+			"estimate_pending_compaction_bytes",
+			"block_cache_pinned_usage",
+			"pending_compaction_bytes_stops",
+			"estimate_live_data_size",
+			"pending_compaction_bytes_delays",
+			"num_running_compactions",
+			"live_blob_file_size",
+			"cur_size_active_mem_table",
+			"block_cache_usage",
+			"cf_l0_file_count_limit_stops_with_ongoing_compaction",
+			"cur_size_all_mem_tables",
+			"num_immutable_mem_table",
+			"compaction_pending",
+			"live_sst_files_size",
+			"memtable_limit_stops",
+			"total_delays",
+			"l0_file_count_limit_delays",
+			"estimate_table_readers_mem",
+			"num_immutable_mem_table_flushed",
+			"compaction_Sum",
+			"size_all_mem_tables",
+			"total_sst_files_size",
+			"commandstats_info",
+			"num_snapshots",
+			"current_super_version_number",
+			"memtable_limit_delays",
+			"estimate_num_keys",
+			"num_blob_files",
+			"total_stops",
+			"cf_l0_file_count_limit_delays_with_ongoing_compaction",
+			"num_live_versions",
+			"l0_file_count_limit_stops",
+			"compaction",
+			"blob_stats",
 		}
+
 	}
 }
 func (v *VersionChecker336) CheckContainsEmptyValueName(key string) bool {

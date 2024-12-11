@@ -390,7 +390,6 @@ func (e *exporter) statsKeySpace(hour int) {
 	defer e.wg.Done()
 
 	if hour < 0 {
-		log.Infoln("stats KeySpace not open")
 		return
 	}
 
