@@ -1625,6 +1625,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->port());
   }
 
+  if (pstd::stringmatch(pattern.data(), "log-retention-time", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-retention-time");
+    EncodeNumber(&config_body, g_pika_conf->log_retention_time());
+  }
+
   if (pstd::stringmatch(pattern.data(), "thread-num", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "thread-num");
@@ -2326,6 +2332,13 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetTimeout(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-retention-time") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument " + value + " for CONFIG SET 'log-retention-time'\r\n");
+      return;
+    }
+    g_pika_conf->SetLogRetentionTime(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "requirepass") {
     g_pika_conf->SetRequirePass(value);
