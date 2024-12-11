@@ -1440,6 +1440,38 @@ var _ = Describe("Zset Commands", func() {
 		}}))
 	})
 
+	It("should Zpopmin test", func() {
+		err := client.ZAdd(ctx, "zpopzset1", redis.Z{
+			Score:  1,
+			Member: "m1",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		err = client.ZAdd(ctx, "zpopzset1", redis.Z{
+			Score:  3,
+			Member: "m3",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		err = client.ZAdd(ctx, "zpopzset1", redis.Z{
+			Score:  4,
+			Member: "m4",
+		}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		max, err := client.ZPopMax(ctx, "zpopzset1", 1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(max).To(Equal([]redis.Z{{Score: 4, Member: "m4"}}))
+
+		min, err := client.ZPopMin(ctx, "zpopzset1", 1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(min).To(Equal([]redis.Z{{Score: 1, Member: "m1"}}))
+
+		rangeResult, err := client.ZRange(ctx, "zpopzset1", 0, -1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(rangeResult).To(Equal([]string{"m3"}))
+	})
+	
 	It("should ZRemRangeByRank", func() {
 		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
 		Expect(err).NotTo(HaveOccurred())
