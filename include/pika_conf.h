@@ -86,8 +86,8 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return log_retention_time_;
   }
-  int32_t log_level() {
-    return log_level_;
+  net::LogMode logging_mode() {
+    return logging_mode_.load(std::memory_order::memory_order_relaxed);
   }
   std::string db_path() {
     std::shared_lock l(rwlock_);
@@ -825,10 +825,13 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
-  void SetLogLevel(int32_t value) {
-    std::lock_guard l(rwlock_);
-    TryPushDiffCommands("log-level", std::to_string(value));
-    log_level_ = value;
+  void SetLoggingMode(std::string& value) {
+    TryPushDiffCommands("logging-mode", value);
+    if (value == "debug") {
+      logging_mode_.store(net::LogMode::DEBUG, std::memory_order::memory_order_relaxed);
+    } else {
+      logging_mode_.store(net::LogMode::NORMAL, std::memory_order::memory_order_relaxed);
+    }
   }
 
   // Rsync Rate limiting configuration
@@ -1091,7 +1094,7 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;
-  std::atomic_int log_level_ = 0;
+  std::atomic<net::LogMode> logging_mode_ = net::LogMode::NORMAL;
 
 
   // rocksdb blob

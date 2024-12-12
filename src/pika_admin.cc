@@ -1590,10 +1590,11 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->port());
   }
 
-  if (pstd::stringmatch(pattern.data(), "log-level", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "logging-mode", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "log-level");
-    EncodeNumber(&config_body, g_pika_conf->log_level());
+    EncodeString(&config_body, "logging-mode");
+    auto output_str = g_pika_conf->logging_mode() == net::LogMode::DEBUG ? "debug" : "normal";
+    EncodeString(&config_body, output_str);
   }
 
   if (pstd::stringmatch(pattern.data(), "thread-num", 1) != 0) {
@@ -2160,12 +2161,6 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, g_pika_conf->enable_blob_garbage_collection() ? "yes" : "no");
   }
 
-  if (pstd::stringmatch(pattern.data(), "loglevel", 1) != 0) {
-    elements += 2;
-    EncodeString(&config_body, "loglevel");
-    EncodeString(&config_body, std::to_string(g_pika_conf->log_level()));
-  }
-
   if (pstd::stringmatch(pattern.data(), "min-blob-size", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "min-blob-size");
@@ -2478,13 +2473,14 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     g_pika_conf->SetSlowlogMaxLen(static_cast<int>(ival));
     g_pika_server->SlowlogTrim();
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "log-level") {
-    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || (ival != 0 && ival != 1)) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'log-level', only 0 or 1 is valid\r\n");
+  } else if (set_item == "logging-mode") {
+    if (value != "debug" && value != "normal") {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value +
+                           "\' for CONFIG SET 'logging-mode', only debug or normal is valid\r\n");
       return;
     }
-    g_pika_conf->SetLogLevel(static_cast<int32_t>(ival));
-    g_pika_server->SetLogLevel(static_cast<int32_t>(ival));
+    g_pika_conf->SetLoggingMode(value);
+    g_pika_server->SetLogLevel(value == "debug" ? net::LogMode::DEBUG : net::LogMode::NORMAL);
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-statistic-keys") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
@@ -3326,7 +3322,7 @@ void QuitCmd::DoInitial() {
 
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
-  if (g_pika_conf->log_level()) {
+  if (g_pika_conf->logging_mode() == net::LogMode::DEBUG) {
     LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
   }
   GetConn()->SetClose(true);

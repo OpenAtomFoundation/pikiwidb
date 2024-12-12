@@ -62,8 +62,8 @@ void PikaDispatchThread::UnAuthUserAndKillClient(const std::set<std::string>& us
 void PikaDispatchThread::StopThread() {
   thread_rep_->StopThread();
 }
-void PikaDispatchThread::SetLogLevel(int32_t value) {
-  thread_rep_->SetLogLevel(value);
+void PikaDispatchThread::SetLogLevel(net::LogMode new_mode) {
+  thread_rep_->SetLogLevel(new_mode);
 }
 
 bool PikaDispatchThread::Handles::AccessHandle(std::string& ip) const {

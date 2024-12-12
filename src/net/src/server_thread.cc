@@ -264,11 +264,8 @@ void* ServerThread::ThreadMain() {
   return nullptr;
 }
 
-void ServerThread::SetLogLevel(int32_t value) {
-  if (value != 0 && value != 1) {
-    return;
-  }
-  log_level_.store(value);
+void ServerThread::SetLogLevel(net::LogMode new_mode) {
+  logging_mode_.store(new_mode, std::memory_order::memory_order_relaxed);
 }
 
 #ifdef __ENABLE_SSL

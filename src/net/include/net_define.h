@@ -26,6 +26,11 @@ const int kProtoMaxMessage = 512 * 1024 * 1024;  // 512MB
 
 const int kCommandHeaderLength = 4;
 
+enum LogMode {
+  DEBUG = 0,
+  NORMAL = 1
+};
+
 /*
  * The socket block type
  */
