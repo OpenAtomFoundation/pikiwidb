@@ -1,0 +1,26 @@
+apiVersion: apps.kubeblocks.io/v1alpha1
+kind: BackupPolicyTemplate
+metadata:
+  name: pika-backup-policy-template
+  labels:
+    clusterdefinition.kubeblocks.io/name: pika-master-slave-cluster
+    {{- include "pika.labels" . | nindent 4 }}
+spec:
+  backupPolicies:
+  - componentDefs: 
+      - pika 
+    target:
+      role: master
+    backupMethods:
+    - name: datafile
+      snapshotVolumes: false
+      actionSetName: pika-backup
+      targetVolumes:
+        volumeMounts:
+          - name: data
+            mountPath: /data
+    schedules:
+      - backupMethod: datafile
+        enabled: true
+        cronExpression: "0 18 * * 0"
+        retentionPeriod: 3m

@@ -175,6 +175,37 @@ var collectReplicationMetrics = map[string]MetricConfig{
 		},
 	},
 
+    "slave_info>=3.5.5_or_4.0.0": {
+        Parser: &keyMatchParser{
+            matchers: map[string]Matcher{
+                "role": &equalMatcher{v: "slave"},
+            },
+            Parser: &regexParser{
+                name: "repl_connect_status",
+                reg:  regexp.MustCompile(`(?m)^\s*(?P<db_name>db\d+)\s*:\s*(?P<status>\w+)\s*$`),
+                Parser: &statusToGaugeParser{
+                    statusMapping: map[string]int{
+                        "no_connect":          0,
+                        "try_to_incr_sync":    1,
+                        "try_to_full_sync":    2,
+                        "syncing_full":        3,
+                        "connecting":          4,
+                        "connected":           5,
+                        "error":               -1,
+                    },
+                },
+            },
+        },
+        MetricMeta: &MetaData{
+            Name:      "repl_connect_status",
+            Help:      "Replication connection status for each database on the slave node",
+            Type:      metricTypeGauge,
+            Labels:    []string{LabelNameAddr, LabelNameAlias, "db_name"},
+            ValueName: "status",
+        },
+    },
+
+
 	"slave_info<3.2.0": {
 		Parser: &keyMatchParser{
 			matchers: map[string]Matcher{

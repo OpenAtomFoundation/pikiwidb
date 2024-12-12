@@ -1590,6 +1590,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->port());
   }
 
+  if (pstd::stringmatch(pattern.data(), "log-retention-time", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-retention-time");
+    EncodeNumber(&config_body, g_pika_conf->log_retention_time());
+  }
+
   if (pstd::stringmatch(pattern.data(), "logging-mode", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "logging-mode");
@@ -1814,6 +1820,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     elements += 2;
     EncodeString(&config_body, "max-background-compactions");
     EncodeNumber(&config_body, g_pika_conf->max_background_compactions());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "max-subcompactions", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "max-subcompactions");
+    EncodeNumber(&config_body, g_pika_conf->max_subcompactions());
   }
 
   if (pstd::stringmatch(pattern.data(), "max-background-jobs", 1) != 0) {
@@ -2346,6 +2358,13 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetTimeout(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-retention-time") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument " + value + " for CONFIG SET 'log-retention-time'\r\n");
+      return;
+    }
+    g_pika_conf->SetLogRetentionTime(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "requirepass") {
     g_pika_conf->SetRequirePass(value);
     g_pika_server->Acl()->UpdateDefaultUserPassword(value);
@@ -2686,6 +2705,19 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetMaxBackgroudCompactions(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "max-subcompactions") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw( "-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-subcompactions'\r\n");
+      return;
+    }
+    std::unordered_map<std::string, std::string> options_map{{"max_subcompactions", value}};
+    storage::Status s = g_pika_server->RewriteStorageOptions(storage::OptionType::kDB, options_map);
+    if (!s.ok()) {
+      res_.AppendStringRaw("-ERR Set max_subcompactions wrong: " + s.ToString() + "\r\n");
+      return;
+    }
+    g_pika_conf->SetMaxSubcompactions(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "rocksdb-periodic-second") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0) {

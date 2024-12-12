@@ -38,6 +38,7 @@ inline int offset_of(T1 T2::*member) {
 static std::unordered_map<std::string, MemberTypeInfo> mutable_db_options_member_type_info = {
     {"max_background_jobs", {offsetof(struct rocksdb::DBOptions, max_background_jobs), MemberType::kInt}},
     {"max_background_compactions", {offsetof(struct rocksdb::DBOptions, max_background_compactions), MemberType::kInt}},
+    {"max_subcompactions", {offsetof(struct rocksdb::DBOptions, max_subcompactions), MemberType::kInt}},
     // {"base_background_compactions", {offsetof(struct rocksdb::DBOptions, base_background_compactions),
     // MemberType::kInt}},
     {"max_open_files", {offsetof(struct rocksdb::DBOptions, max_open_files), MemberType::kInt}},

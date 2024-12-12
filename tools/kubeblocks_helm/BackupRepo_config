@@ -1,0 +1,9 @@
+kbcli backuprepo create my-repo \
+  --provider s3 \
+  --region ${S3_REGION} \
+  --bucket ${S3_BUCKET} \
+  --endpoint ${S3_ENDPOINT} \
+  --access-key-id ${S3_ACCESS_KEY} \
+  --secret-access-key ${S3_SECRET_KEY} \
+  --access-method ${S3_ACCESS_METHOD} \
+  --default

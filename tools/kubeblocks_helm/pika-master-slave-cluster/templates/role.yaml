@@ -6,9 +6,22 @@ metadata:
   labels:
     {{ include "pika-cluster.labels" . | nindent 4 }}
 rules:
-  - apiGroups:
-      - ""
+  - apiGroups: [""]
     resources:
       - events
     verbs:
       - create
+  - apiGroups: ["apps.kubeblocks.io"]
+    resources:
+      - clusters
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups: [""]
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
