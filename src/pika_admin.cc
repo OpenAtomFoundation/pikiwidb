@@ -3355,7 +3355,7 @@ void QuitCmd::DoInitial() {
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
   if (g_pika_conf->log_net_activities()) {
-    LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
+    LOG(INFO) << "QuitCmd will close connection " << GetConn()->String();
   }
   GetConn()->SetClose(true);
 }
