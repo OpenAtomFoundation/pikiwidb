@@ -938,6 +938,7 @@ class PikaConf : public pstd::BaseConf {
   int cache_lfu_decay_time() { return cache_lfu_decay_time_; }
   int Load();
   int ConfigRewrite();
+  int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
 
  private:
