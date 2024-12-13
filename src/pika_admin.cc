@@ -151,6 +151,7 @@ void SlaveofCmd::Do() {
   if (is_none_) {
     res_.SetRes(CmdRes::kOk);
     g_pika_conf->SetSlaveof(std::string());
+    g_pika_conf->ConfigRewriteSlaveOf();
     return;
   }
 
