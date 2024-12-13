@@ -86,8 +86,8 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return log_retention_time_;
   }
-  net::LogMode logging_mode() {
-    return logging_mode_.load(std::memory_order::memory_order_relaxed);
+  bool log_net_activities() {
+    return log_net_activities_.load(std::memory_order::memory_order_relaxed);
   }
   std::string db_path() {
     std::shared_lock l(rwlock_);
@@ -830,12 +830,12 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
-  void SetLoggingMode(std::string& value) {
-    TryPushDiffCommands("logging-mode", value);
-    if (value == "debug") {
-      logging_mode_.store(net::LogMode::DEBUG, std::memory_order::memory_order_relaxed);
+  void SetLogNetActivities(std::string& value) {
+    TryPushDiffCommands("log-net-activities", value);
+    if (value == "yes") {
+      log_net_activities_.store(true);
     } else {
-      logging_mode_.store(net::LogMode::NORMAL, std::memory_order::memory_order_relaxed);
+      log_net_activities_.store(false);
     }
   }
 
@@ -1099,7 +1099,7 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;
-  std::atomic<net::LogMode> logging_mode_ = net::LogMode::NORMAL;
+  std::atomic<bool> log_net_activities_ = false;
 
 
   // rocksdb blob

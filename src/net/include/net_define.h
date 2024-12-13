@@ -26,16 +26,6 @@ const int kProtoMaxMessage = 512 * 1024 * 1024;  // 512MB
 
 const int kCommandHeaderLength = 4;
 
-/**
- + * Defines logging verbosity levels.
- + * NORMAL (0): Standard logging level, only important activities will be logged
- + * DEBUG (1): Verbose logging level,  more activities will be logged(eg. connection activity in dispatcher)
- + */
-enum LogMode {
-  NORMAL = 0,
-  DEBUG = 1,
-};
-
 /*
  * The socket block type
  */

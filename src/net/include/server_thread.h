@@ -128,7 +128,7 @@ class ServerThread : public Thread {
 
   int SetTcpNoDelay(int connfd);
 
-  void SetLogLevel(net::LogMode new_mode);
+  void SetLogNetActivities(bool value);
 
   /*
    * StartThread will return the error code as pthread_create
@@ -169,7 +169,7 @@ class ServerThread : public Thread {
    */
   std::unique_ptr<NetMultiplexer> net_multiplexer_;
 
-  std::atomic<net::LogMode> logging_mode_{net::LogMode::NORMAL};
+  std::atomic<bool> log_net_activities_{false};
 
  private:
   friend class HolyThread;

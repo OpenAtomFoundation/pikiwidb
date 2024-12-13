@@ -148,7 +148,7 @@ void DispatchThread::HandleNewConn(const int connfd, const std::string& ip_port)
   // Slow workers may consume many fds.
   // We simply loop to find next legal worker.
   NetItem ti(connfd, ip_port);
-  if (logging_mode_.load(std::memory_order::memory_order_relaxed) == net::LogMode::DEBUG) {
+  if (log_net_activities_.load(std::memory_order::memory_order_relaxed)) {
     LOG(INFO) << "accept new conn " << ti.String();
   }
   int next_thread = last_thread_;
@@ -158,7 +158,7 @@ void DispatchThread::HandleNewConn(const int connfd, const std::string& ip_port)
     find = worker_thread->MoveConnIn(ti, false);
     if (find) {
       last_thread_ = (next_thread + 1) % work_num_;
-      if (logging_mode_.load(std::memory_order::memory_order_relaxed) == net::LogMode::DEBUG) {
+      if (log_net_activities_.load(std::memory_order::memory_order_relaxed)) {
         LOG(INFO) << "find worker(" << next_thread << "), refresh the last_thread_ to " << last_thread_;
       }
       break;

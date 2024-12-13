@@ -133,15 +133,12 @@ int PikaConf::Load() {
     LOG(FATAL) << "log-retention-time invalid";
   }
 
-  std::string logging_mode;
-  GetConfStr("logging-mode", &logging_mode);
-  if (logging_mode == "debug") {
-    logging_mode_.store(net::LogMode::DEBUG, std::memory_order::memory_order_relaxed);
-  } else if (logging_mode == "normal") {
-    logging_mode_.store(net::LogMode::NORMAL, std::memory_order::memory_order_relaxed);
+  std::string log_net_activities;
+  GetConfStr("log-net-activities", &log_net_activities);
+  if (log_net_activities == "yes") {
+    log_net_activities_.store(true);
   } else {
-    LOG(ERROR) << "logging-mode loaded from pika.conf is invalid, auto change it to normal";
-    logging_mode_.store(net::LogMode::NORMAL, std::memory_order::memory_order_relaxed);
+    log_net_activities_.store(false);
   };
 
   GetConfStr("db-path", &db_path_);

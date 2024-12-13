@@ -1596,10 +1596,10 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->log_retention_time());
   }
 
-  if (pstd::stringmatch(pattern.data(), "logging-mode", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "log-net-activities", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "logging-mode");
-    auto output_str = g_pika_conf->logging_mode() == net::LogMode::DEBUG ? "debug" : "normal";
+    EncodeString(&config_body, "log-net-activities");
+    auto output_str = g_pika_conf->log_net_activities()  ? "yes" : "no";
     EncodeString(&config_body, output_str);
   }
 
@@ -2492,14 +2492,14 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     g_pika_conf->SetSlowlogMaxLen(static_cast<int>(ival));
     g_pika_server->SlowlogTrim();
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "logging-mode") {
-    if (value != "debug" && value != "normal") {
+  } else if (set_item == "log-net-activities") {
+    if (value != "yes" && value != "no") {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value +
-                           "\' for CONFIG SET 'logging-mode', only debug or normal is valid\r\n");
+                           "\' for CONFIG SET 'log-net-activities', only yes or no is valid\r\n");
       return;
     }
-    g_pika_conf->SetLoggingMode(value);
-    g_pika_server->SetLogLevel(value == "debug" ? net::LogMode::DEBUG : net::LogMode::NORMAL);
+    g_pika_conf->SetLogNetActivities(value);
+    g_pika_server->SetLogNetActivities(value == "yes");
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-statistic-keys") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
@@ -3354,7 +3354,7 @@ void QuitCmd::DoInitial() {
 
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
-  if (g_pika_conf->logging_mode() == net::LogMode::DEBUG) {
+  if (g_pika_conf->log_net_activities()) {
     LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
   }
   GetConn()->SetClose(true);
