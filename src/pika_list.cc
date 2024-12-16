@@ -847,6 +847,17 @@ void RPopLPushCmd::DoBinlog() {
   rpop_cmd_->DoBinlog();
   lpush_cmd_->DoBinlog();
 }
+void RPopLPushCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    std::vector<std::string> value;
+    value.resize(1);
+    db_->cache()->RPop(source_, &value[0]);
+    db_->cache()->LPushx(receiver_, value);
+  }
+}
+void RPopLPushCmd::DoThroughDB() {
+  Do();
+}
 
 void RPushCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
