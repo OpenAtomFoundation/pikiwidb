@@ -19,7 +19,7 @@ class PikaDispatchThread {
 
   bool ClientKill(const std::string& ip_port);
   void ClientKillAll();
-
+  void SetLogNetActivities(bool value);
   void SetQueueLimit(int queue_limit) { thread_rep_->SetQueueLimit(queue_limit); }
 
   void UnAuthUserAndKillClient(const std::set<std::string> &users, const std::shared_ptr<User>& defaultUser);

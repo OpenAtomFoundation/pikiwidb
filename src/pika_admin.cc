@@ -1632,6 +1632,13 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->log_retention_time());
   }
 
+  if (pstd::stringmatch(pattern.data(), "log-net-activities", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-net-activities");
+    auto output_str = g_pika_conf->log_net_activities()  ? "yes" : "no";
+    EncodeString(&config_body, output_str);
+  }
+
   if (pstd::stringmatch(pattern.data(), "thread-num", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "thread-num");
@@ -2160,12 +2167,6 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, g_pika_conf->enable_blob_garbage_collection() ? "yes" : "no");
   }
 
-  if (pstd::stringmatch(pattern.data(), "loglevel", 1) != 0) {
-    elements += 2;
-    EncodeString(&config_body, "loglevel");
-    EncodeString(&config_body, g_pika_conf->log_level());
-  }
-
   if (pstd::stringmatch(pattern.data(), "min-blob-size", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "min-blob-size");
@@ -2467,6 +2468,15 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetSlowlogMaxLen(static_cast<int>(ival));
     g_pika_server->SlowlogTrim();
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-net-activities") {
+    if (value != "yes" && value != "no") {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value +
+                           "\' for CONFIG SET 'log-net-activities', only yes or no is valid\r\n");
+      return;
+    }
+    g_pika_conf->SetLogNetActivities(value);
+    g_pika_server->SetLogNetActivities(value == "yes");
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-statistic-keys") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
@@ -3242,7 +3252,9 @@ void QuitCmd::DoInitial() {
 
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
-  LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
+  if (g_pika_conf->log_net_activities()) {
+    LOG(INFO) << "QuitCmd will close connection " << GetConn()->String();
+  }
   GetConn()->SetClose(true);
 }
 

@@ -196,6 +196,7 @@ void PikaServer::Start() {
                << (ret == net::kBindError ? ": bind port " + std::to_string(port_) + " conflict" : ": other error")
                << ", Listen on this port to handle the connected redis client";
   }
+  pika_dispatch_thread_->SetLogNetActivities(g_pika_conf->log_net_activities());
   ret = pika_pubsub_thread_->StartThread();
   if (ret != net::kSuccess) {
     dbs_.clear();
@@ -1899,3 +1900,4 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
   cache_cfg.maxmemory_samples = g_pika_conf->cache_maxmemory_samples();
   cache_cfg.lfu_decay_time = g_pika_conf->cache_lfu_decay_time();
 }
+void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }

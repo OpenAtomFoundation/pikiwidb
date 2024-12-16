@@ -494,7 +494,7 @@ class PikaServer : public pstd::noncopyable {
   void CacheConfigInit(cache::CacheConfig &cache_cfg);
   void ProcessCronTask();
   double HitRatio();
-
+  void SetLogNetActivities(bool value);
   /*
   * disable compact
   */
