@@ -505,7 +505,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<RPopCmd>(kCmdNameRPop, -2, kCmdFlagsWrite |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRPop, std::move(rpopptr)));
   std::unique_ptr<Cmd> rpoplpushptr = std::make_unique<RPopLPushCmd>(
-      kCmdNameRPopLPush, 3, kCmdFlagsWrite |  kCmdFlagsList | kCmdFlagsSlow);
+      kCmdNameRPopLPush, 3, kCmdFlagsWrite |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRPopLPush, std::move(rpoplpushptr)));
   std::unique_ptr<Cmd> rpushptr =
       std::make_unique<RPushCmd>(kCmdNameRPush, -3, kCmdFlagsWrite | kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
