@@ -838,6 +838,9 @@ int PikaConf::ConfigRewrite() {
   SetConfStr("slowlog-write-errorlog", slowlog_write_errorlog_.load() ? "yes" : "no");
   SetConfInt("slowlog-log-slower-than", slowlog_log_slower_than_.load());
   SetConfInt("slowlog-max-len", slowlog_max_len_);
+  SetConfInt("log-retention-time", log_retention_time_);
+  SetConfInt("slave-priority", slave_priority_);
+  SetConfInt("log-net-activities", log_net_activities_);
   SetConfStr("write-binlog", write_binlog_ ? "yes" : "no");
   SetConfStr("run-id", run_id_);
   SetConfStr("replication-id", replication_id_);
@@ -897,6 +900,7 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("max-cache-files", max_cache_files_);
   SetConfInt("max-background-compactions", max_background_compactions_);
   SetConfInt("max-background-jobs", max_background_jobs_);
+  SetConfInt("max-subcompactions", max_subcompactions_);
   SetConfInt64("rate-limiter-bandwidth", rate_limiter_bandwidth_);
   SetConfInt64("delayed-write-rate", delayed_write_rate_);
   SetConfInt64("max-compaction-bytes", max_compaction_bytes_);
