@@ -840,7 +840,7 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("slowlog-max-len", slowlog_max_len_);
   SetConfInt("log-retention-time", log_retention_time_);
   SetConfInt("slave-priority", slave_priority_);
-  SetConfInt("log-net-activities", log_net_activities_);
+  SetConfStr("log-net-activities", log_net_activities_ ? "yes" : "no");
   SetConfStr("write-binlog", write_binlog_ ? "yes" : "no");
   SetConfStr("run-id", run_id_);
   SetConfStr("replication-id", replication_id_);
