@@ -1,3 +1,55 @@
+# V4.0.2
+
+## New features
+
+- After the Pika slave instance executes slaveof no one to remove the replication relationship with the master node, the slaveof information is persisted into the configuration file. [#2973](https://github.com/OpenAtomFoundation/pika/pull/2973) @[cheniujh](https://github.com/cheniujh)
+
+- Added support for backup and recovery in master-slave mode for Pika-Operator. [#2968](https://github.com/OpenAtomFoundation/pika/pull/2968) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- Added the `log-net-activities` parameter in the configuration file to dynamically enable or disable the logging of certain connection-related activities. This can be adjusted with `config get/set`. [#2964](https://github.com/OpenAtomFoundation/pika/pull/2964) @[cheniujh](https://github.com/cheniujh)
+
+- Added the `repl_connect_status` metric to Pika info and integrated it into `pika_exporter` to facilitate monitoring of the replication status. [#2961](https://github.com/OpenAtomFoundation/pika/pull/2961) @[cheniujh](https://github.com/cheniujh)
+
+- Upgraded `kubeblocks` to version 0.9, improving and optimizing Pika-Operator to simplify code and support instance scale-down. [#2860](https://github.com/OpenAtomFoundation/pika/pull/2860) @[XiaoLiang2333](https://github.com/XiaoLiang2333)
+
+- Pika-Operator now supports starting in master-slave mode. See the README document for more details. [#2903](https://github.com/OpenAtomFoundation/pika/pull/2903) @[XiaoLiang2333](https://github.com/XiaoLiang2333)
+
+- Added `keyspace_hits` and `keyspace_misses` metrics to `pika_exporter`, enabling users to monitor key hit rates. [#2579](https://github.com/OpenAtomFoundation/pika/pull/2579) @[chenbt](https://github.com/chenbt)
+
+- RedisCache now avoids storing large keys to prevent excessive memory usage or the eviction of frequently accessed hot keys, which could impact performance. [#2557](https://github.com/OpenAtomFoundation/pika/pull/2557) @[QlQlqiqi](https://github.com/QlQlqiqi)
+
+## Improvement
+
+- Pika now supports dynamically modifying the `max-subcompactions` parameter to optimize the `compact` operation for L0 layers at runtime. [#2965](https://github.com/OpenAtomFoundation/pika/pull/2965) @[cheniujh](https://github.com/cheniujh)
+
+- Improved the `log-retention-time` parameter to dynamically adjust the number of days for log retention. [#2963](https://github.com/OpenAtomFoundation/pika/pull/2963) @[cheniujh](https://github.com/cheniujh)
+
+- Moved the `Pika-Migrate` code to the `tools` folder to simplify binary compilation in different environments for data migration. [#2941](https://github.com/OpenAtomFoundation/pika/pull/2941) @[chenbt-hz](https://github.com/chenbt-hz)
+
+- Added Go tests for Pika complex data types and management commands to ensure service stability. [#2840](https://github.com/OpenAtomFoundation
+
+- Updated the `actions/checkout` in GitHub Actions workflow to v5 for enhanced security and performance. [#2833](https://github.com/OpenAtomFoundation/pika/pull/2833) @[baerwang](https://github.com/baerwang)
+
+- Added a new compact strategy in Pika to optimize write performance by prioritizing files unused for the longest time or files with the most deleted entries. [#2557](https://github.com/OpenAtomFoundation/pika/pull/2557) @[QlQlqiqi](https://github.com/QlQlqiqi)
+
+## Bugfix
+
+- Fixed the `rpoplpush` command cache update issue, which caused inconsistency between the database and cache. [#2976](https://github.com/OpenAtomFoundation/pika/pull/2976) @[cheniujh](https://github.com/cheniujh)
+
+- Fixed compatibility issues between different versions of Pika-Exporter, which caused excessive logging and wasted disk resources. [#2971](https://github.com/OpenAtomFoundation/pika/pull/2971) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- Adjusted the log level of `slowlog` to INFO to address the issue of triple logging, which consumed excessive disk space. [#2948](https://github.com/OpenAtomFoundation/pika/pull/2948) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- Improved CI stability by resolving specific failure issues. [#2937](https://github.com/OpenAtomFoundation/pika/pull/2937) @[chejinge](https://github.com/chejinge)
+
+- Fixed an issue where Pika instances could not set administrator passwords independently. [#2920](https://github.com/OpenAtomFoundation/pika/issues/2920) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- Resolved a reference counter destructor issue in the epoll loop for `std::shared_ptr in_conn` objects, ensuring Pika connections are closed in a timely manner. [#2904](https://github.com/OpenAtomFoundation/pika/pull/2904) @[cheniujh](https://github.com/cheniujh)
+
+- Fixed a cache inconsistency issue caused by the `zpopmin` command during deletion operations. [#2892](https://github.com/OpenAtomFoundation/pika/issues/2892) @[chejinge](https://github.com/chejinge)
+
+
+
 # V4.0.1
 
 ## New Features

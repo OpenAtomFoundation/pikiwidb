@@ -1,3 +1,55 @@
+# V4.0.2
+
+## New features
+
+- Pika 从实例执行完 slaveof no one 与主节点解除主从关系后，将 slaveof 信息持久化到配置文件中[#2973](https://github.com/OpenAtomFoundation/pika/pull/2973)@[cheniujh](https://github.com/cheniujh)
+
+- Pika-Operater 主从模式支持数据备份和恢复的功能[#2968](https://github.com/OpenAtomFoundation/pika/pull/2968)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- 在配置文件中添加 log-net-activities 参数，支持动态关闭或者建立连接部分日志的打印，可以 config get/set动态调整[#2964](https://github.com/OpenAtomFoundation/pika/pull/2964)@[cheniujh](https://github.com/cheniujh)
+
+- 将 Pika info 指标中提供的 repl_connect_status 加入到了 pika_exporter，方便运维同学对 Pika 的主从状态判断[#2961](https://github.com/OpenAtomFoundation/pika/pull/2961)@[cheniujh](https://github.com/cheniujh)
+
+- 升级 kubeblocks 至 0.9 版本，对 Pika-operater 做升级和优化，简化代码，支持实例的缩容[#2860](https://github.com/OpenAtomFoundation/pika/pull/2860)@[XiaoLiang2333](https://github.com/XiaoLiang2333）
+
+- Pika-Operater 支持拉起主从模式，拉起方式详见 readme 文档[#2903](https://github.com/OpenAtomFoundation/pika/pull/2903)@[XiaoLiang2333](https://github.com/XiaoLiang2333）
+
+- Pika-Exporter 支持新增 keyspace_hits、keyspace_misses 指标，运维同学可以根据指标判断当前业务 key 的命中率[#2579](https://github.com/OpenAtomFoundation/pika/pull/2579)@[chenbt](https://github.com/chenbt）
+
+- RedisCache 中不存储大 key, 避免占用内存过多或者存储大 key 将业务多次访问的热 key 淘汰掉，影响性能[#2557](https://github.com/OpenAtomFoundation/pika/pull/2557)@[QlQlqiqi](https://github.com/QlQlqiqi)
+
+## Improvement
+
+- Pika 支持动态修改 max-subcompactions 配置参数，可以对 L0 层的 compact 操作做运行时优化[#2965](https://github.com/OpenAtomFoundation/pika/pull/2965)@[cheniujh](https://github.com/cheniujh)
+
+- 优化 log-retention-time 配置参数，可以动态调整日志保存的天数[#2963](https://github.com/OpenAtomFoundation/pika/pull/2963)@[cheniujh](https://github.com/cheniujh)
+
+- 将 Pika-Migrate 的代码移除至 tools 文件夹下，方便不同环境编译二进制进行数据迁移[#2941](https://github.com/OpenAtomFoundation/pika/pull/2941)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- 为 Pika 复杂数据类型及管理命令添加 Go Test，保证服务的稳定性[#2840](https://github.com/OpenAtomFoundation/pika/pull/2901)@[tsinow](https://github.com/tsinow)
+
+- 更新 GitHub Action 工作流中的 actions/checkout 为 v5, 增强安全性和性能[#2833](https://github.com/OpenAtomFoundation/pika/pull/2833)@[baerwang](https://github.com/baerwang)
+
+- Pika 支持新的 compact 策略，增加最长时间未使用文件和最多删除条目文件的 compact 策略 ，提升 Pika 写性能[#2557](https://github.com/OpenAtomFoundation/pika/pull/2557)@[QlQlqiqi](https://github.com/QlQlqiqi)
+
+## Bugfix
+
+- 修复 rpoplpush 命令未更新缓存，导致数据库、缓存数据不一致的问题[#2976](https://github.com/OpenAtomFoundation/pika/pull/2976)@[cheniujh](https://github.com/cheniujh)
+
+- 修复 Pika-Exporter 上下版本不兼容，导致 Exporter 日志打印过多浪费磁盘资源的问题[#2971](https://github.com/OpenAtomFoundation/pika/pull/2971)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- 将 slowlog 的日志级别调整成为 INFO，解决 Slowlog 同时打印三份，会导致磁盘占用过多的问题[#2948](https://github.com/OpenAtomFoundation/pika/pull/2948)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- 修复 CI 稳定性不通过的问题[#2937](https://github.com/OpenAtomFoundation/pika/pull/2937)@[chejinge](https://github.com/chejinge)
+
+- 修复 Pika 实例无法单独设置管理员密码的问题[#2920](https://github.com/OpenAtomFoundation/pika/issues/2920)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
+- 修复 epoll 循环中 std::shared_ptr in_conn 对象的引用计数器的析构位置，确保 Pika 不会出现连接不及时关闭的现象[#2904](https://github.com/OpenAtomFoundation/pika/pull/2904)@[cheniujh](https://github.com/cheniujh)
+
+- 修复 Zpopmin 命令执行删除操作时未更新缓存，导致数据库缓存不一致的问题[#2892](https://github.com/OpenAtomFoundation/pika/issues/2892)@[chejinge](https://github.com/chejinge)
+
+
+
 # V4.0.1
 
 ## New features
