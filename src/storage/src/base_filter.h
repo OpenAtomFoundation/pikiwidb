@@ -153,8 +153,8 @@ class StreamsDataFilter : public rocksdb::CompactionFilter {
               bool* value_changed) const override {
     ParsedStreamDataKey parsed_stream_data_key(key);
     TRACE("==========================START==========================");
-    TRACE("[DataFilter], key: %s, id = %s, version = %d", parsed_base_data_key.key().ToString().c_str(),
-          parsed_base_data_key.data().ToString().c_str(), parsed_base_data_key.version());
+    TRACE("[DataFilter], key: %s, id = %s, version = %d", parsed_stream_data_key.key().ToString().c_str(),
+          parsed_stream_data_key.data().ToString().c_str(), parsed_stream_data_key.version());
 
     if (parsed_stream_data_key.key().ToString() != cur_key_) {
       cur_key_ = parsed_stream_data_key.key().ToString();

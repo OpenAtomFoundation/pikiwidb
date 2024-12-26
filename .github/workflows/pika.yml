@@ -261,10 +261,6 @@ jobs:
           rm -rf ./deps 
           rm -rf ./buildtree
 
-      - name: Test
-        working-directory: ${{ github.workspace }}/build
-        run: ctest --rerun-failed --output-on-failure -C ${{ env.BUILD_TYPE }}
-
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: |
