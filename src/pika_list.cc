@@ -831,8 +831,10 @@ void RPopLPushCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> value;
     value.resize(1);
-    db_->cache()->RPop(source_, &value[0]);
-    db_->cache()->LPushx(receiver_, value);
+    std::string CachePrefixKeyLR = PCacheKeyPrefixL + source_;
+    db_->cache()->RPop(CachePrefixKeyLR, &value[0]);
+    std::string CachePrefixKeyLL = PCacheKeyPrefixL + receiver_;
+    db_->cache()->LPushx(CachePrefixKeyLL, value);
   }
 }
 void RPopLPushCmd::DoThroughDB() {

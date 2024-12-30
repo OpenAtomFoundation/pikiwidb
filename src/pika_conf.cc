@@ -782,7 +782,6 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("max-cache-files", max_cache_files_);
   SetConfInt("max-background-compactions", max_background_compactions_);
   SetConfInt("max-background-jobs", max_background_jobs_);
-  SetConfInt("max-subcompactions", max_subcompactions_);
   SetConfInt64("rate-limiter-bandwidth", rate_limiter_bandwidth_);
   SetConfInt64("delayed-write-rate", delayed_write_rate_);
   SetConfInt64("max-compaction-bytes", max_compaction_bytes_);
