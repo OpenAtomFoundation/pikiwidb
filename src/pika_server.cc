@@ -1376,8 +1376,8 @@ void PikaServer::AutoDeleteExpiredDump() {
     int now_month = now->tm_mon + 1;
     int now_day = now->tm_mday;
 
-    struct tm dump_time;
-    struct tm now_time;
+    struct tm dump_time = {};
+    struct tm now_time = {};
 
     dump_time.tm_year = dump_year;
     dump_time.tm_mon = dump_month;
