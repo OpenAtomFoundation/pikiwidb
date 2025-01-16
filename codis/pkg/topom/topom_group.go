@@ -330,7 +330,7 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 	}
 }
 
-func (s *Topom) tryFixReplicationRelationships(ctx *context, recoveredGroupServers []*redis.ReplicationState, masterOffGroupLen int) {
+func (s *Topom) tryFixReplicationRelationships(ctx *context, recoveredGroupServers []*redis.ReplicationState) {
 	for _, state := range recoveredGroupServers {
 		log.Infof("group-[%d] try to fix server[%v-%v] replication relationship", state.GroupID, state.Index, state.Addr)
 		group, err := ctx.getGroup(state.GroupID)
@@ -346,7 +346,7 @@ func (s *Topom) tryFixReplicationRelationships(ctx *context, recoveredGroupServe
 			continue
 		}
 
-		err = s.tryFixReplicationRelationship(group, state.Server, state, masterOffGroupLen)
+		err = s.tryFixReplicationRelationship(group, state.Server, state)
 		if err != nil {
 			log.Warnf("group-[%d] fix server[%v] replication relationship failed, err: %v", group.Id, state.Addr, err)
 			continue
@@ -371,19 +371,14 @@ func (s *Topom) tryFixReplicationRelationships(ctx *context, recoveredGroupServe
 // only fix which the old state of GroupServer is GroupServerStateOffline.
 // It will only update the state of GroupServer to GroupServerStateNormal, If the GroupServer have right
 // master-slave replication relationship.
-func (s *Topom) tryFixReplicationRelationship(group *models.Group, groupServer *models.GroupServer, state *redis.ReplicationState, masterOffGroupLen int) (err error) {
+func (s *Topom) tryFixReplicationRelationship(group *models.Group, groupServer *models.GroupServer, state *redis.ReplicationState) (err error) {
 	curMasterAddr := group.Servers[0].Addr
 	if isGroupMaster(state, group) {
-		// current server is master,
-		if models.GroupServerRole(state.Replication.Role) == models.RoleMaster {
-			if masterOffGroupLen > 0 {
-				return nil
-			}
-		}
-
 		// execute the command `slaveof no one`
-		if err = promoteServerToNewMaster(state.Addr, s.config.ProductAuth); err != nil {
-			return err
+		if models.GroupServerRole(state.Replication.Role) != models.RoleMaster {
+			if err = promoteServerToNewMaster(state.Addr, s.config.ProductAuth); err != nil {
+				return err
+			}
 		}
 	} else {
 		// skip if it has right replication relationship
