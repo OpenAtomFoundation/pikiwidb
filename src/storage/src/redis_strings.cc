@@ -973,12 +973,12 @@ Status RedisStrings::Strlen(const Slice& key, int32_t* len) {
   return s;
 }
 
-int32_t GetBitPos(const unsigned char* s, unsigned int bytes, int bit) {
+int64_t GetBitPos(const unsigned char* s, unsigned int bytes, int bit) {
   uint64_t word = 0;
   uint64_t skip_val = 0;
   auto value = const_cast<unsigned char*>(s);
   auto l = reinterpret_cast<uint64_t*>(value);
-  int pos = 0;
+  int64_t pos = 0;
   if (bit == 0) {
     skip_val = std::numeric_limits<uint64_t>::max();
   } else {
@@ -1044,7 +1044,7 @@ Status RedisStrings::BitPos(const Slice& key, int32_t bit, int64_t* ret) {
         pos = -1;
       }
       if (pos != -1) {
-        pos = pos + 8 * start_offset;
+        pos += 8 * start_offset;
       }
       *ret = pos;
     }

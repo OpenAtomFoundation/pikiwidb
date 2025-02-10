@@ -61,7 +61,6 @@ std::string PikaClientConn::DoCmd(const PikaCmdArgsType& argv,
   }
 
   g_pika_server->UpdateQueryNumAndExecCountTable(opt);
- 
   // PubSub connection
   // (P)SubscribeCmd will set is_pubsub_
   if (this->IsPubSub()) {

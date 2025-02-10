@@ -31,7 +31,7 @@ void BitSetCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  // value no bigger than 2^18
+  // value no bigger than 2^32
   if ((bit_offset_ >> kMaxBitOpInputBit) > 0) {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
@@ -237,7 +237,7 @@ void BitPosCmd::Do() {
     s_ = db_->storage()->BitPos(key_, static_cast<int32_t>(bit_val_), start_offset_, end_offset_, &pos);
   }
   if (s_.ok()) {
-    res_.AppendInteger(static_cast<int>(pos));
+    res_.AppendInteger(pos);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
