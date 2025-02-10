@@ -3329,8 +3329,11 @@ void HelloCmd::Do() {
   }
 
   std::string raw;
+  char version[32];
+  snprintf(version, sizeof(version), "%d.%d.%d", 5, 0, 0);
   std::vector<storage::FieldValue> fvs{
       {"server", "redis"},
+      {"version", version}
   };
   // just for redis resp2 protocol
   fvs.push_back({"proto", "2"});
