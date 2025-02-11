@@ -3,6 +3,7 @@ package pika_integration
 import (
 	"context"
 	"sort"
+	"strconv"
 	"time"
 
 	. "github.com/bsm/ginkgo/v2"
@@ -193,6 +194,15 @@ var _ = Describe("Hash Commands", func() {
 			Expect(vals).To(Equal([]interface{}{"hello1"}))
 		})
 
+		It("should HGet2", func() {
+			err := client.HSet(ctx, "hash", "key1", "hello1").Err()
+			Expect(err).NotTo(HaveOccurred())
+
+			vals, err := client.HMGet(ctx, "hash", "key1").Result()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(vals).To(Equal([]interface{}{"hello1"}))
+		})
+
 		It("should HSet", func() {
 			_, err := client.Del(ctx, "hash").Result()
 			Expect(err).NotTo(HaveOccurred())
@@ -242,41 +252,40 @@ var _ = Describe("Hash Commands", func() {
 				Set6 string                 `redis:"set6,omitempty"`
 			}
 
-			// 命令格式不对：hset hash set1 val1 set2 1024 set3 2000000 set4
-			//hSet = client.HSet(ctx, "hash", &set{
-			//	Set1: "val1",
-			//	Set2: 1024,
-			//	Set3: 2 * time.Millisecond,
-			//	Set4: nil,
-			//	Set5: map[string]interface{}{"k1": 1},
-			//})
-			//Expect(hSet.Err()).NotTo(HaveOccurred())
-			//Expect(hSet.Val()).To(Equal(int64(4)))
+			hSet = client.HSet(ctx, "hash", &set{
+				Set1: "val1",
+				Set2: 1024,
+				Set3: 2 * time.Millisecond,
+				Set4: nil,
+				Set5: map[string]interface{}{"k1": 1},
+			})
+			Expect(hSet.Err()).NotTo(HaveOccurred())
+			Expect(hSet.Val()).To(Equal(int64(4)))
 
-			//hMGet := client.HMGet(ctx, "hash", "set1", "set2", "set3", "set4", "set5", "set6")
-			//Expect(hMGet.Err()).NotTo(HaveOccurred())
-			//Expect(hMGet.Val()).To(Equal([]interface{}{
-			//	"val1",
-			//	"1024",
-			//	strconv.Itoa(int(2 * time.Millisecond.Nanoseconds())),
-			//	"",
-			//	nil,
-			//	nil,
-			//}))
+			hMGet := client.HMGet(ctx, "hash", "set1", "set2", "set3", "set4", "set5", "set6")
+			Expect(hMGet.Err()).NotTo(HaveOccurred())
+			Expect(hMGet.Val()).To(Equal([]interface{}{
+				"val1",
+				"1024",
+				strconv.Itoa(int(2 * time.Millisecond.Nanoseconds())),
+				"",
+				nil,
+				nil,
+			}))
 
-			//hSet = client.HSet(ctx, "hash2", &set{
-			//	Set1: "val2",
-			//	Set6: "val",
-			//})
-			//Expect(hSet.Err()).NotTo(HaveOccurred())
-			//Expect(hSet.Val()).To(Equal(int64(5)))
-			//
-			//hMGet = client.HMGet(ctx, "hash2", "set1", "set6")
-			//Expect(hMGet.Err()).NotTo(HaveOccurred())
-			//Expect(hMGet.Val()).To(Equal([]interface{}{
-			//	"val2",
-			//	"val",
-			//}))
+			hSet = client.HSet(ctx, "hash2", &set{
+				Set1: "val2",
+				Set6: "val",
+			})
+			Expect(hSet.Err()).NotTo(HaveOccurred())
+			Expect(hSet.Val()).To(Equal(int64(5)))
+
+			hMGet = client.HMGet(ctx, "hash2", "set1", "set6")
+			Expect(hMGet.Err()).NotTo(HaveOccurred())
+			Expect(hMGet.Val()).To(Equal([]interface{}{
+				"val2",
+				"val",
+			}))
 		})
 
 		It("should HSetNX", func() {

@@ -46,74 +46,150 @@ void HDelCmd::DoUpdateCache() {
 }
 
 void HSetCmd::DoInitial() {
-  if (!CheckArg(argv_.size())) {
+  key_ = argv_[1];
+
+  size_t argc = argv_.size();
+  size_t index = 2;
+  if (argv_.size() < 4) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameHSet);
     return;
   }
+
   key_ = argv_[1];
-  field_ = argv_[2];
-  value_ = argv_[3];
+  if (argv_.size() == 4) {
+    field_ = argv_[2];
+    value_ = argv_[3];
+  }
+
+  else if (argv_.size() > 4 && argv_.size() % 2 == 0) {
+    for (; index < argc; index += 2) {
+      fields_values_.push_back({argv_[index], argv_[index + 1]});
+    }
+  } else {
+    res_.SetRes(CmdRes::kWrongNum, kCmdNameHSet);
+  }
 }
 
 void HSetCmd::Do() {
-  int32_t ret = 0;
-  s_ = db_->storage()->HSet(key_, field_, value_, &ret);
-  if (s_.ok()) {
-    res_.AppendContent(":" + std::to_string(ret));
-    AddSlotKey("h", key_, db_);
-  } else {
-    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  if (argv_.size() == 4) {
+    int32_t count = 0;
+    s_ = db_->storage()->HSet(key_, field_, value_, &count);
+    if (s_.ok()) {
+      res_.AppendContent(":" + std::to_string(count));
+      AddSlotKey("h", key_, db_);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    }
+  } else if (argv_.size() > 4 && argv_.size() % 2 == 0) {
+    s_ = db_->storage()->HMSet(key_, fields_values_);
+    if (s_.ok()) {
+      res_.AppendContent(":" + std::to_string(fields_values_.size()));
+      AddSlotKey("h", key_, db_);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    }
   }
 }
+
 
 void HSetCmd::DoThroughDB() {
   Do();
 }
 
 void HSetCmd::DoUpdateCache() {
-  // HSetIfKeyExist() can void storing large key, but IsTooLargeKey() can speed up it
-  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
-    return;
-  }
-  if (s_.ok()) {
-    std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
+  std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
+  if (argv_.size() == 4) {
     db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
+  }
+  else if (argv_.size() > 4 && argv_.size() % 2 == 0) {
+    db_->cache()->HMSet(CachePrefixKeyH, fields_values_);
   }
 }
 
 void HGetCmd::DoInitial() {
-  if (!CheckArg(argv_.size())) {
+  if (argv_.size() < 3) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameHGet);
     return;
   }
   key_ = argv_[1];
-  field_ = argv_[2];
+  if (argv_.size() == 3) {
+    field_ = argv_[2];
+  }
+
+  else if (argv_.size() > 3) {
+    for (size_t i = 2; i < argv_.size(); ++i) {
+      fields_.push_back(argv_[i]);
+    }
+  }
 }
 
 void HGetCmd::Do() {
-  std::string value;
-  s_ = db_->storage()->HGet(key_, field_, &value);
-  if (s_.ok()) {
-    res_.AppendStringLenUint64(value.size());
-    res_.AppendContent(value);
-  } else if (s_.IsNotFound()) {
-    res_.AppendContent("$-1");
-  } else {
-    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  if (argv_.size() == 3) {
+    std::string value;
+    s_ = db_->storage()->HGet(key_, field_, &value);
+
+    if (s_.ok()) {
+      res_.AppendStringLenUint64(value.size());
+      res_.AppendContent(value);
+    } else if (s_.IsNotFound()) {
+      res_.AppendContent("$-1");
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    }
+  }
+  else if (argv_.size() > 3) {
+    std::vector<storage::ValueStatus> values;
+    s_ = db_->storage()->HMGet(key_, fields_, &values);
+
+    if (s_.ok()) {
+      res_.AppendArrayLen(values.size());
+      for (const auto& vs : values) {
+        if (vs.status.ok()) {
+          res_.AppendStringLenUint64(vs.value.size());
+          res_.AppendContent(vs.value);
+        } else {
+          res_.AppendContent("$-1");
+        }
+      }
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    }
   }
 }
 
 void HGetCmd::ReadCache() {
-  std::string value;
   std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
-  auto s = db_->cache()->HGet(CachePrefixKeyH, field_, &value);
-  if (s.ok()) {
-    res_.AppendStringLen(value.size());
-    res_.AppendContent(value);
-  } else if (s.IsNotFound()) {
-    res_.SetRes(CmdRes::kCacheMiss);
-  } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+  if (argv_.size() == 3) {
+    std::string value;
+    auto s = db_->cache()->HGet(CachePrefixKeyH, field_, &value);
+    if (s.ok()) {
+      res_.AppendStringLen(value.size());
+      res_.AppendContent(value);
+    } else if (s.IsNotFound()) {
+      res_.SetRes(CmdRes::kCacheMiss);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s.ToString());
+    }
+  }
+  else if (argv_.size() > 3) {
+    std::vector<storage::ValueStatus> vss;
+    vss.clear();
+    auto s = db_->cache()->HMGet(CachePrefixKeyH, fields_, &vss);
+    if (s.ok()) {
+      res_.AppendArrayLen(vss.size());
+      for (const auto& vs : vss) {
+        if (vs.status.ok()) {
+          res_.AppendStringLen(vs.value.size());
+          res_.AppendContent(vs.value);
+        } else {
+          res_.AppendContent("$-1");
+        }
+      }
+    } else if (s.IsNotFound()) {
+      res_.SetRes(CmdRes::kCacheMiss);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s.ToString());
+    }
   }
 }
 
@@ -126,10 +202,12 @@ void HGetCmd::DoUpdateCache() {
   if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
     return;
   }
+
   if (s_.ok()) {
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
+
 
 void HGetallCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
