@@ -50,7 +50,7 @@ jobs:
           rm -rf  ./deps
           rm -rf ./buildtrees
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_PIKA_NAME }}
           path: ${{ github.workspace }}/build/pika
@@ -242,7 +242,7 @@ jobs:
       - name: Install Deps
         run: |
           brew update
-          brew install --overwrite python@3.12 autoconf protobuf llvm wget git
+          brew install --overwrite python@3.13 autoconf protobuf llvm wget git
           brew install gcc@10 automake cmake make binutils
 
       - name: Configure CMake
@@ -303,7 +303,7 @@ jobs:
         with:
           images: pikadb/pika
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ env.ARTIFACT_PIKA_NAME }}
           path: artifact/
