@@ -277,7 +277,7 @@ var _ = Describe("String Commands", func() {
 			Expect(getBit.Err()).NotTo(HaveOccurred())
 			Expect(getBit.Val()).To(Equal(int64(0)))
 		})
-
+				
 		It("should GetRange", func() {
 			set := client.Set(ctx, "key", "This is a string", 0)
 			Expect(set.Err()).NotTo(HaveOccurred())
