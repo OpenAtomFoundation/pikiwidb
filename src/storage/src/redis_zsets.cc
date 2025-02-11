@@ -220,6 +220,7 @@ Status RedisZSets::ZPopMax(const Slice& key, const int64_t count, std::vector<Sc
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -266,6 +267,7 @@ Status RedisZSets::ZPopMin(const Slice& key, const int64_t count, std::vector<Sc
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -324,6 +326,7 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
   if (s.ok()) {
     bool vaild = true;
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.count() == 0) {
       vaild = false;
       version = parsed_zsets_meta_value.InitialMetaValue();
@@ -405,6 +408,7 @@ Status RedisZSets::ZCard(const Slice& key, int32_t* card) {
   Status s = db_->Get(default_read_options_, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       *card = 0;
       return Status::NotFound("Stale");
@@ -430,6 +434,7 @@ Status RedisZSets::ZCount(const Slice& key, double min, double max, bool left_cl
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -486,6 +491,7 @@ Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increme
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.count() == 0) {
       version = parsed_zsets_meta_value.InitialMetaValue();
     } else {
@@ -549,6 +555,7 @@ Status RedisZSets::ZRange(const Slice& key, int32_t start, int32_t stop, std::ve
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -595,6 +602,7 @@ Status RedisZSets::ZRangeWithTTL(const Slice& key, int32_t start, int32_t stop, 
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.count() == 0) {
       return Status::NotFound();
     } else if (parsed_zsets_meta_value.IsStale()) {
@@ -654,6 +662,7 @@ Status RedisZSets::ZRangebyscore(const Slice& key, double min, double max, bool 
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -719,6 +728,7 @@ Status RedisZSets::ZRank(const Slice& key, const Slice& member, int32_t* rank) {
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -769,6 +779,7 @@ Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& member
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -818,6 +829,7 @@ Status RedisZSets::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -874,6 +886,7 @@ Status RedisZSets::ZRemrangebyscore(const Slice& key, double min, double max, bo
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -944,6 +957,7 @@ Status RedisZSets::ZRevrange(const Slice& key, int32_t start, int32_t stop, std:
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -990,6 +1004,7 @@ Status RedisZSets::ZRevrangebyscore(const Slice& key, double min, double max, bo
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1055,6 +1070,7 @@ Status RedisZSets::ZRevrank(const Slice& key, const Slice& member, int32_t* rank
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1097,6 +1113,7 @@ Status RedisZSets::ZScore(const Slice& key, const Slice& member, double* score) 
   Status s = db_->Get(read_options, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     int32_t version = parsed_zsets_meta_value.version();
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
@@ -1365,6 +1382,7 @@ Status RedisZSets::ZRangebylex(const Slice& key, const Slice& min, const Slice& 
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.count() == 0) {
       return Status::NotFound();
     } else {
@@ -1426,6 +1444,7 @@ Status RedisZSets::ZRemrangebylex(const Slice& key, const Slice& min, const Slic
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.count() == 0) {
       return Status::NotFound();
     } else {
@@ -1485,6 +1504,7 @@ Status RedisZSets::Expire(const Slice& key, int32_t ttl) {
   Status s = db_->Get(default_read_options_, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1507,6 +1527,7 @@ Status RedisZSets::Del(const Slice& key) {
   Status s = db_->Get(default_read_options_, key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1601,6 +1622,7 @@ Status RedisZSets::Expireat(const Slice& key, int32_t timestamp) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1637,6 +1659,7 @@ Status RedisZSets::ZScan(const Slice& key, int64_t cursor, const std::string& pa
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale() || parsed_zsets_meta_value.count() == 0) {
       *next_cursor = 0;
       return Status::NotFound();
@@ -1802,6 +1825,7 @@ Status RedisZSets::Persist(const Slice& key) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_zsets_meta_value.count() == 0) {
@@ -1824,6 +1848,7 @@ Status RedisZSets::TTL(const Slice& key, int64_t* timestamp) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_zsets_meta_value.count());
     if (parsed_zsets_meta_value.IsStale()) {
       *timestamp = -2;
       return Status::NotFound("Stale");

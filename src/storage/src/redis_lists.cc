@@ -206,6 +206,7 @@ Status RedisLists::LIndex(const Slice& key, int64_t index, std::string* element)
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     int32_t version = parsed_lists_meta_value.version();
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
@@ -238,6 +239,7 @@ Status RedisLists::LInsert(const Slice& key, const BeforeOrAfter& before_or_afte
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -331,6 +333,7 @@ Status RedisLists::LLen(const Slice& key, uint64_t* len) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -354,6 +357,7 @@ Status RedisLists::LPop(const Slice& key, int64_t count, std::vector<std::string
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -399,6 +403,7 @@ Status RedisLists::LPush(const Slice& key, const std::vector<std::string>& value
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale() || parsed_lists_meta_value.count() == 0) {
       version = parsed_lists_meta_value.InitialMetaValue();
     } else {
@@ -441,6 +446,7 @@ Status RedisLists::LPushx(const Slice& key, const std::vector<std::string>& valu
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -473,6 +479,7 @@ Status RedisLists::LRange(const Slice& key, int64_t start, int64_t stop, std::ve
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -521,6 +528,7 @@ Status RedisLists::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, 
   Status s = db_->Get(read_options, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.count() == 0) {
       return Status::NotFound();
     } else if (parsed_lists_meta_value.IsStale()) {
@@ -583,6 +591,7 @@ Status RedisLists::LRem(const Slice& key, int64_t count, const Slice& value, uin
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -699,6 +708,7 @@ Status RedisLists::LSet(const Slice& key, int64_t index, const Slice& value) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -730,6 +740,7 @@ Status RedisLists::LTrim(const Slice& key, int64_t start, int64_t stop) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     int32_t version = parsed_lists_meta_value.version();
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
@@ -791,6 +802,7 @@ Status RedisLists::RPop(const Slice& key, int64_t count, std::vector<std::string
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -948,6 +960,7 @@ Status RedisLists::RPush(const Slice& key, const std::vector<std::string>& value
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale() || parsed_lists_meta_value.count() == 0) {
       version = parsed_lists_meta_value.InitialMetaValue();
     } else {
@@ -990,6 +1003,7 @@ Status RedisLists::RPushx(const Slice& key, const std::vector<std::string>& valu
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -1123,6 +1137,7 @@ Status RedisLists::Expire(const Slice& key, int32_t ttl) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -1146,6 +1161,7 @@ Status RedisLists::Del(const Slice& key) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -1240,6 +1256,7 @@ Status RedisLists::Expireat(const Slice& key, int32_t timestamp) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -1262,6 +1279,7 @@ Status RedisLists::Persist(const Slice& key) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       return Status::NotFound("Stale");
     } else if (parsed_lists_meta_value.count() == 0) {
@@ -1284,6 +1302,7 @@ Status RedisLists::TTL(const Slice& key, int64_t* timestamp) {
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedListsMetaValue parsed_lists_meta_value(&meta_value);
+    CheckBigKeyAndLog(key.ToString(), parsed_lists_meta_value.count());
     if (parsed_lists_meta_value.IsStale()) {
       *timestamp = -2;
       return Status::NotFound("Stale");
