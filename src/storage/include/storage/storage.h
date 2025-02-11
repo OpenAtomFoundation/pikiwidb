@@ -1100,6 +1100,7 @@ class Storage {
   Status EnableAutoCompaction(const OptionType& option_type, 
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  uint64_t GetBigKeyStatistics(const std::string& db_type, const std::string& property);
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
