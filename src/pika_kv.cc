@@ -111,7 +111,7 @@ void SetCmd::DoUpdateCache() {
   }
   if (s_.ok()) {
     if (has_ttl_) {
-      db_->cache()->Setxx(key_, value_, ttl_millsec / 1000);
+      db_->cache()->Setxx(key_, value_, ttl_millsec > 0 ? ttl_millsec / 1000 : ttl_millsec);
     } else {
       db_->cache()->SetxxWithoutTTL(key_, value_);
     }
@@ -191,7 +191,7 @@ void GetCmd::DoUpdateCache() {
     return;
   }
   if (s_.ok()) {
-    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ / 1000);
+    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ > 0 ? ttl_millsec_ / 1000 : ttl_millsec_);
   }
 }
 
