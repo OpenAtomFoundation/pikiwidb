@@ -50,7 +50,7 @@ jobs:
           rm -rf  ./deps
           rm -rf ./buildtrees
 
-      - uses: actions/upload-artifact@v3
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ env.ARTIFACT_PIKA_NAME }}
           path: ${{ github.workspace }}/build/pika
@@ -221,7 +221,7 @@ jobs:
         with:
           images: pikadb/pika
 
-      - uses: actions/download-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
           name: ${{ env.ARTIFACT_PIKA_NAME }}
           path: artifact/
