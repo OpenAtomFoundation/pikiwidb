@@ -313,6 +313,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       kCmdNameMsetnx, -3, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameMsetnx, std::move(msetnxptr)));
   ////GetrangeCmd
+  //To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> getrangeptr = std::make_unique<GetrangeCmd>(
       kCmdNameGetrange, 4, kCmdFlagsRead |  kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameGetrange, std::move(getrangeptr)));
@@ -399,6 +400,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<HGetCmd>(kCmdNameHGet, -3, kCmdFlagsRead |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsReadCache |kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHGet, std::move(hgetptr)));
   ////HGetallCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> hgetallptr =
       std::make_unique<HGetallCmd>(kCmdNameHGetall, 2, kCmdFlagsRead | kCmdFlagsHash | kCmdFlagsSlow | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHGetall, std::move(hgetallptr)));
@@ -415,10 +417,12 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<HIncrbyfloatCmd>(kCmdNameHIncrbyfloat, 4, kCmdFlagsWrite |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHIncrbyfloat, std::move(hincrbyfloatptr)));
   ////HKeysCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> hkeysptr =
       std::make_unique<HKeysCmd>(kCmdNameHKeys, 2, kCmdFlagsRead |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHKeys, std::move(hkeysptr)));
   ////HLenCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> hlenptr =
       std::make_unique<HLenCmd>(kCmdNameHLen, 2, kCmdFlagsRead |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHLen, std::move(hlenptr)));
@@ -435,10 +439,12 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<HSetnxCmd>(kCmdNameHSetnx, 4, kCmdFlagsWrite |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHSetnx, std::move(hsetnxptr)));
   ////HStrlenCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> hstrlenptr =
       std::make_unique<HStrlenCmd>(kCmdNameHStrlen, 3, kCmdFlagsRead |  kCmdFlagsHash | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHStrlen, std::move(hstrlenptr)));
   ////HValsCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> hvalsptr =
       std::make_unique<HValsCmd>(kCmdNameHVals, 2, kCmdFlagsRead | kCmdFlagsHash | kCmdFlagsSlow | kCmdFlagsUpdateCache | kCmdFlagsDoThroughDB);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameHVals, std::move(hvalsptr)));
@@ -460,6 +466,7 @@ void InitCmdTable(CmdTable* cmd_table) {
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNamePKHRScanRange, std::move(pkhrscanrangeptr)));
 
   // List
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> lindexptr =
       std::make_unique<LIndexCmd>(kCmdNameLIndex, 3, kCmdFlagsRead |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLIndex, std::move(lindexptr)));
@@ -467,6 +474,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<LInsertCmd>(kCmdNameLInsert, 5, kCmdFlagsWrite |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLInsert, std::move(linsertptr)));
 
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> llenptr =
       std::make_unique<LLenCmd>(kCmdNameLLen, 2, kCmdFlagsRead |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLLen, std::move(llenptr)));
@@ -485,6 +493,7 @@ void InitCmdTable(CmdTable* cmd_table) {
   std::unique_ptr<Cmd> lpushxptr = std::make_unique<LPushxCmd>(kCmdNameLPushx, -3, kCmdFlagsWrite |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLPushx, std::move(lpushxptr)));
 
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> lrangeptr = std::make_unique<LRangeCmd>(
       kCmdNameLRange, 4, kCmdFlagsRead |  kCmdFlagsList | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLRange, std::move(lrangeptr)));
@@ -521,6 +530,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<ZAddCmd>(kCmdNameZAdd, -4, kCmdFlagsWrite |  kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZAdd, std::move(zaddptr)));
   ////ZCardCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zcardptr =
       std::make_unique<ZCardCmd>(kCmdNameZCard, 2, kCmdFlagsRead |  kCmdFlagsZset | kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZCard, std::move(zcardptr)));
@@ -533,10 +543,12 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<ZIncrbyCmd>(kCmdNameZIncrby, 4, kCmdFlagsWrite |  kCmdFlagsZset | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast) ;
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZIncrby, std::move(zincrbyptr)));
   ////ZRangeCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zrangeptr =
       std::make_unique<ZRangeCmd>(kCmdNameZRange, -4, kCmdFlagsRead |  kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZRange, std::move(zrangeptr)));
   ////ZRevrangeCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zrevrangeptr =
       std::make_unique<ZRevrangeCmd>(kCmdNameZRevrange, -4, kCmdFlagsRead |  kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZRevrange, std::move(zrevrangeptr)));
@@ -550,6 +562,7 @@ void InitCmdTable(CmdTable* cmd_table) {
   cmd_table->insert(
       std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZRevrangebyscore, std::move(zrevrangebyscoreptr)));
   ////ZCountCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zcountptr =
       std::make_unique<ZCountCmd>(kCmdNameZCount, 4, kCmdFlagsRead |  kCmdFlagsZset |kCmdFlagsDoThroughDB |  kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZCount, std::move(zcountptr)));
@@ -566,14 +579,17 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<ZInterstoreCmd>(kCmdNameZInterstore, -4, kCmdFlagsWrite | kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZInterstore, std::move(zinterstoreptr)));
   ////ZRankCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zrankptr =
       std::make_unique<ZRankCmd>(kCmdNameZRank, 3, kCmdFlagsRead |  kCmdFlagsZset | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZRank, std::move(zrankptr)));
   ////ZRevrankCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zrevrankptr =
       std::make_unique<ZRevrankCmd>(kCmdNameZRevrank, 3, kCmdFlagsRead |  kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZRevrank, std::move(zrevrankptr)));
   ////ZScoreCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> zscoreptr =
       std::make_unique<ZScoreCmd>(kCmdNameZScore, 3, kCmdFlagsRead |  kCmdFlagsZset |kCmdFlagsDoThroughDB | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameZScore, std::move(zscoreptr)));
@@ -622,10 +638,12 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<SPopCmd>(kCmdNameSPop, -2, kCmdFlagsWrite |  kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSPop, std::move(spopptr)));
   ////SCardCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> scardptr =
       std::make_unique<SCardCmd>(kCmdNameSCard, 2, kCmdFlagsRead |  kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSCard, std::move(scardptr)));
   ////SMembersCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> smembersptr =
       std::make_unique<SMembersCmd>(kCmdNameSMembers, 2, kCmdFlagsRead |  kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSMembers, std::move(smembersptr)));
@@ -654,6 +672,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<SInterstoreCmd>(kCmdNameSInterstore, -3, kCmdFlagsWrite | kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSInterstore, std::move(sinterstoreptr)));
   ////SIsmemberCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> sismemberptr =
       std::make_unique<SIsmemberCmd>(kCmdNameSIsmember, 3, kCmdFlagsRead |  kCmdFlagsSet |kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSIsmember, std::move(sismemberptr)));
@@ -670,8 +689,9 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<SMoveCmd>(kCmdNameSMove, 4, kCmdFlagsWrite | kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSMove, std::move(smoveptr)));
   ////SRandmemberCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> srandmemberptr =
-      std::make_unique<SRandmemberCmd>(kCmdNameSRandmember, -2, kCmdFlagsRead | kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsReadCache | kCmdFlagsUpdateCache | kCmdFlagsSlow);
+      std::make_unique<SRandmemberCmd>(kCmdNameSRandmember, -2, kCmdFlagsRead | kCmdFlagsSet | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameSRandmember, std::move(srandmemberptr)));
 
   // BitMap
@@ -684,6 +704,7 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<BitGetCmd>(kCmdNameBitGet, 3, kCmdFlagsRead | kCmdFlagsBit | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameBitGet, std::move(bitgetptr)));
   ////bitcountCmd
+  // To ensure data consistency between cache and database, disable the Redis-cache reading function of the command temporarily
   std::unique_ptr<Cmd> bitcountptr =
       std::make_unique<BitCountCmd>(kCmdNameBitCount, -2, kCmdFlagsRead | kCmdFlagsBit | kCmdFlagsSlow | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameBitCount, std::move(bitcountptr)));
@@ -911,6 +932,8 @@ void Cmd::DoCommand(const HintKeys& hint_keys) {
       if (IsNeedUpdateCache()) {
         DoUpdateCache();
       }
+    } else {
+      Do();
     }
   } else {
     Do();
