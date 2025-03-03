@@ -141,7 +141,7 @@ Status RedisCache::HMGet(std::string& key, std::vector<std::string> &fields, std
     if (C_OK == items[i].status) {
       vss->push_back({std::string(items[i].value, sdslen(items[i].value)), rocksdb::Status::OK()});
     } else {
-      vss->push_back({std::string(), rocksdb::Status::NotFound()});
+      return Status::NotFound("field not in cache");
     }
   }
 
