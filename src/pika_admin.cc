@@ -2196,6 +2196,18 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->throttle_bytes_per_second());
   }
 
+  if (pstd::stringmatch(pattern.data(), "rocksdb-perf-level", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "rocksdb-perf-level");
+    EncodeNumber(&config_body, g_pika_conf->RocksDBPerfLevel());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "rocksdb-perf-percent", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "rocksdb-perf-percent");
+    EncodeNumber(&config_body, g_pika_conf->RocksDBPerfPercent());
+  }
+
   if (pstd::stringmatch(pattern.data(), "max-rsync-parallel-num", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "max-rsync-parallel-num");
@@ -2739,6 +2751,32 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetArenaBlockSize(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "rocksdb-perf-level") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-level'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateRocksDBPerfLevel(int(ival));
+    LOG(INFO) << "update rocksdb-perf-level to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-level', should between 1 and 5\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "rocksdb-perf-percent") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-percent'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateRocksDBPerfPercent(int(ival));
+    LOG(INFO) << "update rocksdb-perf-percent to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-percent', should between 0 and 100\r\n");
+      return;
+    }
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "throttle-bytes-per-second") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
