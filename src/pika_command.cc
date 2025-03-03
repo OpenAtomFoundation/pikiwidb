@@ -152,7 +152,7 @@ void InitCmdTable(CmdTable* cmd_table) {
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameDisableWal, std::move(disablewalptr)));
   std::unique_ptr<Cmd> cacheptr = std::make_unique<CacheCmd>(kCmdNameCache, -2, kCmdFlagsAdmin | kCmdFlagsRead);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameCache, std::move(cacheptr)));
-  std::unique_ptr<Cmd> clearcacheptr = std::make_unique<ClearCacheCmd>(kCmdNameClearCache, 1, kCmdFlagsAdmin | kCmdFlagsWrite);
+  std::unique_ptr<Cmd> clearcacheptr = std::make_unique<ClearCacheCmd>(kCmdNameClearCache, 1, kCmdFlagsAdmin | kCmdFlagsRead);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameClearCache, std::move(clearcacheptr)));
   std::unique_ptr<Cmd> lastsaveptr = std::make_unique<LastsaveCmd>(kCmdNameLastSave, 1, kCmdFlagsAdmin | kCmdFlagsRead | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLastSave, std::move(lastsaveptr)));
@@ -921,7 +921,7 @@ void Cmd::DoCommand(const HintKeys& hint_keys) {
       ReadCache();
     }
     if (is_read()
-        && (res().CacheMiss() || cache_missed_in_rtc_)) {
+        && (res().CacheMiss() || cache_missed_in_rtc_ || res().RetIsKNone())) {
       pstd::lock::MultiScopeRecordLock record_lock(db_->LockMgr(), current_key());
       DoThroughDB();
       if (IsNeedUpdateCache()) {
@@ -932,8 +932,6 @@ void Cmd::DoCommand(const HintKeys& hint_keys) {
       if (IsNeedUpdateCache()) {
         DoUpdateCache();
       }
-    } else {
-      Do();
     }
   } else {
     Do();
