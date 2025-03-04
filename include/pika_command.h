@@ -344,7 +344,6 @@ class CmdRes {
     ret_ = kNone;
   }
   bool CacheMiss() const { return ret_ == kCacheMiss; }
-  bool RetIsKNone() const { return ret_ == kNone; }
   std::string raw_message() const { return message_; }
   std::string message() const {
     std::string result;

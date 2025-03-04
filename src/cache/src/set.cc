@@ -14,6 +14,9 @@ Status RedisCache::SAdd(std::string& key, std::vector<std::string> &members) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **vals = (robj **)zcallocate(sizeof(robj *) * members.size());
   for (unsigned int i = 0; i < members.size(); ++i) {

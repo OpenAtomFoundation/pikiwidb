@@ -99,6 +99,9 @@ Status RedisCache::LPush(std::string& key, std::vector<std::string> &values) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
   for (unsigned int i = 0; i < values.size(); ++i) {
@@ -244,7 +247,9 @@ Status RedisCache::RPush(std::string& key, std::vector<std::string> &values) {
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
   }
-
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
   for (unsigned int i = 0; i < values.size(); ++i) {

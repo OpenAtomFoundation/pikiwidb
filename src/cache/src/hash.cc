@@ -31,12 +31,15 @@ Status RedisCache::HDel(std::string& key, std::vector<std::string> &fields) {
   return Status::OK();
 }
 
-Status RedisCache::HSet(std::string& key, std::string &field, std::string &value) {
+Status RedisCache::HSetIfKeyExist(std::string& key, std::string &field, std::string &value) {
   int res = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj *fobj = createObject(OBJ_STRING, sdsnewlen(field.data(), field.size()));
   robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
@@ -75,6 +78,9 @@ Status RedisCache::HMSet(std::string& key, std::vector<storage::FieldValue> &fvs
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   unsigned int items_size = fvs.size() * 2;
   robj **items = (robj **)zcallocate(sizeof(robj *) * items_size);
