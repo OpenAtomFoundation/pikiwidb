@@ -373,10 +373,7 @@ Status PikaCache::GetRange(std::string& key, int64_t start, int64_t end, std::st
 Status PikaCache::SetRangexx(std::string& key, int64_t start, std::string &value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->SetRange(key, start, value);
-  }
-  return Status::NotFound("key not exist");
+  return caches_[cache_index]->SetRange(key, start, value);
 }
 
 Status PikaCache::Strlen(std::string& key, int32_t *len) {
@@ -397,16 +394,13 @@ Status PikaCache::HDel(std::string& key, std::vector<std::string> &fields) {
 Status PikaCache::HSet(std::string& key, std::string &field, std::string &value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  return caches_[cache_index]->HSet(key, field, value);
+  return caches_[cache_index]->HSetIfKeyExist(key, field, value);
 }
 
 Status PikaCache::HSetIfKeyExist(std::string& key, std::string &field, std::string &value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->HSet(key, field, value);
-  }
-  return Status::NotFound("key not exist");
+  return caches_[cache_index]->HSetIfKeyExist(key, field, value);
 }
 
 Status PikaCache::HSetIfKeyExistAndFieldNotExist(std::string& key, std::string &field, std::string &value) {
@@ -450,11 +444,7 @@ Status PikaCache::HMSetnxWithoutTTL(std::string& key, std::vector<storage::Field
 Status PikaCache::HMSetxx(std::string& key, std::vector<storage::FieldValue> &fvs) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->HMSet(key, fvs);
-  } else {
-    return Status::NotFound("key not exist");
-  }
+  return caches_[cache_index]->HMSet(key, fvs);
 }
 
 Status PikaCache::HGet(std::string& key, std::string &field, std::string *value) {
@@ -641,10 +631,7 @@ Status PikaCache::SAdd(std::string& key, std::vector<std::string> &members) {
 Status PikaCache::SAddIfKeyExist(std::string& key, std::vector<std::string> &members) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->SAdd(key, members);
-  }
-  return Status::NotFound("key not exist");
+  return caches_[cache_index]->SAdd(key, members);
 }
 
 Status PikaCache::SAddnx(std::string& key, std::vector<std::string> &members, int64_t ttl) {
@@ -1508,10 +1495,7 @@ Status PikaCache::SetBit(std::string& key, size_t offset, int64_t value) {
 Status PikaCache::SetBitIfKeyExist(std::string& key, size_t offset, int64_t value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->SetBit(key, offset, value);
-  }
-  return Status::NotFound("key not exist");
+  return caches_[cache_index]->SetBit(key, offset, value);
 }
 
 Status PikaCache::GetBit(std::string& key, size_t offset, int64_t *value) {

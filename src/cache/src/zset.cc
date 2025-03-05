@@ -14,6 +14,9 @@ Status RedisCache::ZAdd(std::string& key, std::vector<storage::ScoreMember> &sco
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   unsigned int items_size = score_members.size() * 2;
   robj **items = (robj **)zcallocate(sizeof(robj *) * items_size);
@@ -73,6 +76,9 @@ Status RedisCache::ZIncrby(std::string& key, std::string& member, double increme
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **items = (robj **)zcallocate(sizeof(robj *) * 2);
   items[0] = createStringObjectFromLongDouble(increment, 0);
