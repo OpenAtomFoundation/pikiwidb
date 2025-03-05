@@ -648,6 +648,12 @@ Status PikaCache::RPop(std::string& key, std::string *element) {
   return caches_[cache_index]->RPop(key, element);
 }
 
+Status PikaCache::RPush(std::string& key, std::vector<std::string> &values) {
+  int cache_index = CacheIndex(key);
+  std::lock_guard lm(*cache_mutexs_[cache_index]);
+  return caches_[cache_index]->RPush(key, values);
+}
+
 Status PikaCache::RPushIfKeyExist(std::string& key, std::vector<std::string> &values) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
