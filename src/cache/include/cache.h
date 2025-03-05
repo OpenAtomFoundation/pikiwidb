@@ -74,7 +74,7 @@ public:
 
   // Hash Commands
   Status HDel(std::string& key, std::vector<std::string> &fields);
-  Status HSet(std::string& key, std::string &field, std::string &value);
+  Status HSetIfKeyExist(std::string& key, std::string &field, std::string &value);
   Status HSetnx(std::string& key, std::string &field, std::string &value);
   Status HMSet(std::string& key, std::vector<storage::FieldValue> &fvs);
   Status HGet(std::string& key, std::string &field, std::string *value);

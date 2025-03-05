@@ -618,7 +618,7 @@ int PikaConf::Load() {
 
   int64_t cache_maxmemory = PIKA_CACHE_SIZE_DEFAULT;
   GetConfInt64("cache-maxmemory", &cache_maxmemory);
-  cache_maxmemory_ = (PIKA_CACHE_SIZE_MIN > cache_maxmemory) ? PIKA_CACHE_SIZE_DEFAULT : cache_maxmemory;
+  cache_maxmemory_ = (PIKA_CACHE_SIZE_MIN > cache_maxmemory) ? PIKA_CACHE_SIZE_MIN : cache_maxmemory;
 
   int cache_maxmemory_policy = 1;
   GetConfInt("cache-maxmemory-policy", &cache_maxmemory_policy);

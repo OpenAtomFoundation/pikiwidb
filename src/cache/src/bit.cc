@@ -15,6 +15,9 @@ Status RedisCache::SetBit(std::string& key, size_t offset, int64_t value) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   // createObject is a function in redis, the init ref count of robj is 1
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   DEFER {

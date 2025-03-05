@@ -627,7 +627,7 @@ void HSetnxCmd::DoThroughDB() {
 void HSetnxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
-    db_->cache()->HSetIfKeyExistAndFieldNotExist(CachePrefixKeyH, field_, value_);
+    db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
   }
 }
 
