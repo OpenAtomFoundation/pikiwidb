@@ -260,6 +260,9 @@ Status RedisCache::SetRange(std::string& key, int64_t start, std::string &value)
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   uint64_t ret = 0;
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
