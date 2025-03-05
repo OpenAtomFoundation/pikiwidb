@@ -606,7 +606,6 @@ Status PikaCache::LPushIfKeyExist(std::string& key, std::vector<std::string> &va
   return caches_[cache_index]->LPushIfKeyExist(key, values);
 }
 
-
 Status PikaCache::LPush(std::string& key, std::vector<std::string> &values) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
