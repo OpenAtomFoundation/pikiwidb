@@ -458,10 +458,7 @@ Status PikaCache::HSetIfKeyExist(std::string& key, std::string &field, std::stri
 Status PikaCache::HSetIfKeyExistAndFieldNotExist(std::string& key, std::string &field, std::string &value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  if (caches_[cache_index]->Exists(key)) {
-    return caches_[cache_index]->HSetnx(key, field, value);
-  }
-  return Status::NotFound("key not exist");
+  return caches_[cache_index]->HSetnxIfKeyExist(key, field, value);
 }
 
 Status PikaCache::HMSet(std::string& key, std::vector<storage::FieldValue> &fvs) {

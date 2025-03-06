@@ -54,6 +54,27 @@ Status RedisCache::HSetIfKeyExist(std::string& key, std::string &field, std::str
   return Status::OK();
 }
 
+Status RedisCache::HSetnxIfKeyExist(std::string& key, std::string &field, std::string &value) {
+  if (C_OK != RcFreeMemoryIfNeeded(cache_)) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj *fobj = createObject(OBJ_STRING, sdsnewlen(field.data(), field.size()));
+  robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
+  DEFER {
+    DecrObjectsRefCount(kobj, fobj, vobj);
+  };
+  if (C_OK != RcHSetnx(cache_, kobj, fobj, vobj)) {
+    return Status::Corruption("RcHSetnx failed");
+  }
+
+  return Status::OK();
+}
+
 Status RedisCache::HSetnx(std::string& key, std::string &field, std::string &value) {
   if (C_OK != RcFreeMemoryIfNeeded(cache_)) {
     return Status::Corruption("[error] Free memory faild !");

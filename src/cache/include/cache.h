@@ -77,6 +77,7 @@ public:
   Status HDel(std::string& key, std::vector<std::string> &fields);
   Status HSetIfKeyExist(std::string& key, std::string &field, std::string &value);
   Status HSetnx(std::string& key, std::string &field, std::string &value);
+  Status HSetnxIfKeyExist(std::string& key, std::string &field, std::string &value);
   Status HMSet(std::string& key, std::vector<storage::FieldValue> &fvs);
   Status HMSetIfKeyExist(std::string& key, std::vector<storage::FieldValue> &fvs);
   Status HGet(std::string& key, std::string &field, std::string *value);
