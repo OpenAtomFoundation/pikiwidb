@@ -23,6 +23,7 @@ void SAddCmd::DoInitial() {
 
 void SAddCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SAdd(key_, members_, &count);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -41,7 +42,9 @@ void SAddCmd::DoThroughDB() {
 
 void SAddCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SAddIfKeyExist(key_, members_);
+    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SAddIfKeyExist(CachePrefixKeyS, members_);
   }
 }
 
@@ -68,6 +71,7 @@ void SPopCmd::DoInitial() {
 }
 
 void SPopCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
    s_ = db_->storage()->SPop(key_, &members_, count_);
   if (s_.ok()) {
     res_.AppendArrayLenUint64(members_.size());
@@ -91,7 +95,9 @@ void SPopCmd::DoThroughDB() {
 
 void SPopCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SRem(key_, members_);
+    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SRem(CachePrefixKeyS, members_);
   }
 }
 
@@ -106,7 +112,7 @@ void SPopCmd::DoBinlog() {
   for (auto m = members_.begin(); m != members_.end(); ++m) {
     srem_args.emplace_back(*m);
   }
-  
+
   srem_cmd_->Initial(srem_args, db_name_);
   srem_cmd_->SetConn(GetConn());
   srem_cmd_->SetResp(resp_.lock());
@@ -123,6 +129,7 @@ void SCardCmd::DoInitial() {
 
 void SCardCmd::Do() {
   int32_t card = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SCard(key_, &card);
   if (s_.ok()) {
     res_.AppendInteger(card);
@@ -138,7 +145,9 @@ void SCardCmd::Do() {
 
 void SCardCmd::ReadCache() {
   uint64_t card = 0;
-  auto s = db_->cache()->SCard(key_, &card);
+  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->SCard(CachePrefixKeyS, &card);
   if (s.ok()) {
     res_.AppendInteger(card);
   } else if (s.IsNotFound()) {
@@ -155,6 +164,8 @@ void SCardCmd::DoThroughDB() {
 
 void SCardCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_SET, key_, db_);
   }
 }
@@ -169,6 +180,7 @@ void SMembersCmd::DoInitial() {
 
 void SMembersCmd::Do() {
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SMembers(key_, &members);
   if (s_.ok()) {
     res_.AppendArrayLenUint64(members.size());
@@ -188,7 +200,9 @@ void SMembersCmd::Do() {
 
 void SMembersCmd::ReadCache() {
   std::vector<std::string> members;
-  auto s = db_->cache()->SMembers(key_, &members);
+  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->SMembers(CachePrefixKeyS, &members);
   if (s.ok()) {
     res_.AppendArrayLen(members.size());
     for (const auto& member : members) {
@@ -209,6 +223,8 @@ void SMembersCmd::DoThroughDB() {
 
 void SMembersCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_SET, key_, db_);
   }
 }
@@ -254,6 +270,7 @@ void SScanCmd::DoInitial() {
 void SScanCmd::Do() {
   int64_t next_cursor = 0;
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->SScan(key_, cursor_, pattern_, count_, &members, &next_cursor);
 
   if (s.ok()) {
@@ -295,6 +312,7 @@ void SRemCmd::DoInitial() {
 }
 
 void SRemCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SRem(key_, members_, &deleted_);
   if (s_.ok()) {
     res_.AppendInteger(deleted_);
@@ -314,9 +332,12 @@ void SRemCmd::DoThroughDB() {
 
 void SRemCmd::DoUpdateCache() {
   if (s_.ok() && deleted_ > 0) {
-    db_->cache()->SRem(key_, members_);
+    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SRem(CachePrefixKeyS, members_);
   }
 }
+
 
 void SUnionCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -329,6 +350,7 @@ void SUnionCmd::DoInitial() {
 
 void SUnionCmd::Do() {
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SUnion(keys_, &members);
   if (s_.ok()) {
     res_.AppendArrayLenUint64(members.size());
@@ -356,6 +378,7 @@ void SUnionstoreCmd::DoInitial() {
 
 void SUnionstoreCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SUnionstore(dest_key_, keys_, value_to_dest_, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -373,7 +396,8 @@ void SUnionstoreCmd::DoThroughDB() {
 void SUnionstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(dest_key_);
+    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
 }
@@ -429,6 +453,7 @@ void SInterCmd::DoInitial() {
 
 void SInterCmd::Do() {
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SInter(keys_, &members);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendArrayLenUint64(members.size());
@@ -456,6 +481,7 @@ void SInterstoreCmd::DoInitial() {
 
 void SInterstoreCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SInterstore(dest_key_, keys_, value_to_dest_, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -473,7 +499,8 @@ void SInterstoreCmd::DoThroughDB() {
 void SInterstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(dest_key_);
+    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
 }
@@ -489,6 +516,7 @@ void SIsmemberCmd::DoInitial() {
 
 void SIsmemberCmd::Do() {
   int32_t is_member = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SIsmember(key_, member_, &is_member);
   if (is_member != 0) {
     res_.AppendContent(":1");
@@ -503,7 +531,9 @@ void SIsmemberCmd::Do() {
 }
 
 void SIsmemberCmd::ReadCache() {
-  auto s = db_->cache()->SIsmember(key_, member_);
+  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->SIsmember(CachePrefixKeyS, member_);
   if (s.ok()) {
     res_.AppendContent(":1");
   } else if (s.IsNotFound()) {
@@ -521,6 +551,8 @@ void SIsmemberCmd::DoThroughDB() {
 
 void SIsmemberCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_SET, key_, db_);
   }
 }
@@ -536,6 +568,7 @@ void SDiffCmd::DoInitial() {
 
 void SDiffCmd::Do() {
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SDiff(keys_, &members);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendArrayLenUint64(members.size());
@@ -563,6 +596,7 @@ void SDiffstoreCmd::DoInitial() {
 
 void SDiffstoreCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SDiffstore(dest_key_, keys_, value_to_dest_, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -580,7 +614,8 @@ void SDiffstoreCmd::DoThroughDB() {
 void SDiffstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(dest_key_);
+    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
 }
@@ -597,6 +632,7 @@ void SMoveCmd::DoInitial() {
 
 void SMoveCmd::Do() {
   int32_t res = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SMove(src_key_, dest_key_, member_, &res);
   if (s_.ok()) {
     res_.AppendInteger(res);
@@ -620,8 +656,11 @@ void SMoveCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> members;
     members.emplace_back(member_);
-    db_->cache()->SRem(src_key_, members);
-    db_->cache()->SAddIfKeyExist(dest_key_, members);
+    std::string CachePrefixKeyS = PCacheKeyPrefixS + src_key_;
+    std::string CachePrefixKeyD = PCacheKeyPrefixS + dest_key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SRem(CachePrefixKeyS, members);
+    db_->cache()->SAddIfKeyExist(CachePrefixKeyD, members);
   }
 }
 
@@ -673,6 +712,7 @@ void SRandmemberCmd::DoInitial() {
 
 void SRandmemberCmd::Do() {
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->SRandmember(key_, static_cast<int32_t>(count_), &members);
   if (s_.ok()) {
     if (!reply_arr && (static_cast<unsigned int>(!members.empty()) != 0U)) {
@@ -697,7 +737,9 @@ void SRandmemberCmd::Do() {
 
 void SRandmemberCmd::ReadCache() {
   std::vector<std::string> members;
-  auto s = db_->cache()->SRandmember(key_, count_, &members);
+  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->SRandmember(CachePrefixKeyS, count_, &members);
   if (s.ok()) {
     if (!reply_arr && members.size()) {
       res_.AppendStringLen(members[0].size());
@@ -723,6 +765,8 @@ void SRandmemberCmd::DoThroughDB() {
 
 void SRandmemberCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_SET, key_, db_);
   }
 }
