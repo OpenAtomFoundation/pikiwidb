@@ -79,8 +79,8 @@ void HSetCmd::DoUpdateCache() {
   if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
     return;
   }
-  if (s_.ok()) {
-    db_->cache()->HSetIfKeyExist(key_, field_, value_);
+  else if (argv_.size() > 4 && argv_.size() % 2 == 0) {
+    db_->cache()->HMSetIfKeyExist(CachePrefixKeyH, fields_values_);
   }
 }
 
@@ -527,7 +527,8 @@ void HMsetCmd::DoThroughDB() {
 
 void HMsetCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->HMSetxx(key_, fvs_);
+    std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
+    db_->cache()->HMSetIfKeyExist(CachePrefixKeyH, fvs_);
   }
 }
 
@@ -561,7 +562,7 @@ void HSetnxCmd::DoThroughDB() {
 void HSetnxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
-    db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
+    db_->cache()->HSetIfKeyExistAndFieldNotExist(CachePrefixKeyH, field_, value_);
   }
 }
 
