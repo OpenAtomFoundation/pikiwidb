@@ -102,7 +102,7 @@ void HSetCmd::DoUpdateCache() {
     db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
   }
   else if (argv_.size() > 4 && argv_.size() % 2 == 0) {
-    db_->cache()->HMSet(CachePrefixKeyH, fields_values_);
+    db_->cache()->HMSetIfKeyExist(CachePrefixKeyH, fields_values_);
   }
 }
 
@@ -595,7 +595,7 @@ void HMsetCmd::DoThroughDB() {
 void HMsetCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
-    db_->cache()->HMSetxx(CachePrefixKeyH, fvs_);
+    db_->cache()->HMSetIfKeyExist(CachePrefixKeyH, fvs_);
   }
 }
 
@@ -627,7 +627,7 @@ void HSetnxCmd::DoThroughDB() {
 void HSetnxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyH = PCacheKeyPrefixH + key_;
-    db_->cache()->HSetIfKeyExist(CachePrefixKeyH, field_, value_);
+    db_->cache()->HSetIfKeyExistAndFieldNotExist(CachePrefixKeyH, field_, value_);
   }
 }
 

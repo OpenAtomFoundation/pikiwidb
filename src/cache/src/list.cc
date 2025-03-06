@@ -93,7 +93,7 @@ Status RedisCache::LPop(std::string& key, std::string *element) {
   return Status::OK();
 }
 
-Status RedisCache::LPush(std::string& key, std::vector<std::string> &values) {
+Status RedisCache::LPushIfKeyExist(std::string& key, std::vector<std::string> &values) {
   int ret = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != ret) {
     return Status::Corruption("[error] Free memory faild !");
@@ -102,6 +102,29 @@ Status RedisCache::LPush(std::string& key, std::vector<std::string> &values) {
   if (!Exists(key)) {
     return Status::NotFound("key not exist");
   }
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
+  for (unsigned int i = 0; i < values.size(); ++i) {
+    vals[i] = createObject(OBJ_STRING, sdsnewlen(values[i].data(), values[i].size()));
+  }
+  DEFER {
+    FreeObjectList(vals, values.size());
+    DecrObjectsRefCount(kobj);
+  };
+  int res = RcLPush(cache_, kobj, vals, values.size());
+  if (C_OK != res) {
+    return Status::Corruption("RcLPush failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::LPush(std::string& key, std::vector<std::string> &values) {
+  int ret = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != ret) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
   for (unsigned int i = 0; i < values.size(); ++i) {
@@ -242,7 +265,7 @@ Status RedisCache::RPop(std::string& key, std::string *element) {
   return Status::OK();
 }
 
-Status RedisCache::RPush(std::string& key, std::vector<std::string> &values) {
+Status RedisCache::RPushIfKeyExist(std::string& key, std::vector<std::string> &values) {
   int res = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
@@ -250,6 +273,29 @@ Status RedisCache::RPush(std::string& key, std::vector<std::string> &values) {
   if (!Exists(key)) {
     return Status::NotFound("key not exist");
   }
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
+  for (unsigned int i = 0; i < values.size(); ++i) {
+    vals[i] = createObject(OBJ_STRING, sdsnewlen(values[i].data(), values[i].size()));
+  }
+  DEFER {
+    FreeObjectList(vals, values.size());
+    DecrObjectsRefCount(kobj);
+  };
+  int ret = RcRPush(cache_, kobj, vals, values.size());
+  if (C_OK != ret) {
+    return Status::Corruption("RcRPush failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::RPush(std::string& key, std::vector<std::string> &values) {
+  int res = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != res) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj **vals = (robj **)zcallocate(sizeof(robj *) * values.size());
   for (unsigned int i = 0; i < values.size(); ++i) {
