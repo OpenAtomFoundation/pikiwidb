@@ -70,13 +70,16 @@ public:
   Status Append(std::string& key, std::string &value);
   Status GetRange(std::string& key, int64_t start, int64_t end, std::string *value);
   Status SetRange(std::string& key, int64_t start, std::string &value);
+  Status SetRangeIfKeyExist(std::string& key, int64_t start, std::string &value);
   Status Strlen(std::string& key, int32_t *len);
 
   // Hash Commands
   Status HDel(std::string& key, std::vector<std::string> &fields);
   Status HSetIfKeyExist(std::string& key, std::string &field, std::string &value);
   Status HSetnx(std::string& key, std::string &field, std::string &value);
+  Status HSetnxIfKeyExist(std::string& key, std::string &field, std::string &value);
   Status HMSet(std::string& key, std::vector<storage::FieldValue> &fvs);
+  Status HMSetIfKeyExist(std::string& key, std::vector<storage::FieldValue> &fvs);
   Status HGet(std::string& key, std::string &field, std::string *value);
   Status HMGet(std::string& key,
                std::vector<std::string> &fields,
@@ -96,6 +99,7 @@ public:
                  std::string &pivot, std::string &value);
   Status LLen(std::string& key, uint64_t *len);
   Status LPop(std::string& key, std::string *element);
+  Status LPushIfKeyExist(std::string& key, std::vector<std::string> &values);
   Status LPush(std::string& key, std::vector<std::string> &values);
   Status LPushx(std::string& key, std::vector<std::string> &values);
   Status LRange(std::string& key, int64_t start, int64_t stop, std::vector<std::string> *values);
@@ -104,10 +108,12 @@ public:
   Status LTrim(std::string& key, int64_t start, int64_t stop);
   Status RPop(std::string& key, std::string *element);
   Status RPush(std::string& key, std::vector<std::string> &values);
+  Status RPushIfKeyExist(std::string& key, std::vector<std::string> &values);
   Status RPushx(std::string& key, std::vector<std::string> &values);
 
   // Set Commands
   Status SAdd(std::string& key, std::vector<std::string> &members);
+  Status SAddIfKeyExist(std::string& key, std::vector<std::string> &members);
   Status SCard(std::string& key, uint64_t *len);
   Status SIsmember(std::string& key, std::string& member);
   Status SMembers(std::string& key, std::vector<std::string> *members);
@@ -116,6 +122,7 @@ public:
 
   // Zset Commands
   Status ZAdd(std::string& key, std::vector<storage::ScoreMember> &score_members);
+  Status ZAddIfKeyExist(std::string& key, std::vector<storage::ScoreMember> &score_members);
   Status ZCard(std::string& key, uint64_t *len);
   Status ZCount(std::string& key, std::string &min, std::string &max, uint64_t *len);
   Status ZIncrby(std::string& key, std::string& member, double increment);
@@ -151,6 +158,7 @@ public:
   Status ZPopMax(std::string& key, int64_t count, std::vector<storage::ScoreMember>* score_members);
 
   // Bit Commands
+  Status SetBitIfKeyExist(std::string& key, size_t offset, int64_t value);
   Status SetBit(std::string& key, size_t offset, int64_t value);
   Status GetBit(std::string& key, size_t offset, int64_t *value);
   Status BitCount(std::string& key, int64_t start, int64_t end, int64_t *value, bool have_offset);

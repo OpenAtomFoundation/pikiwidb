@@ -15,6 +15,25 @@ Status RedisCache::SetBit(std::string& key, size_t offset, int64_t value) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  // createObject is a function in redis, the init ref count of robj is 1
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  DEFER {
+        DecrObjectsRefCount(kobj);
+  };
+  int ret = RcSetBit(cache_, kobj, offset, value);
+  if (C_OK != ret) {
+    return Status::Corruption("RcSetBit failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::SetBitIfKeyExist(std::string& key, size_t offset, int64_t value) {
+  int res = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != res) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
   if (!Exists(key)) {
     return Status::NotFound("key not exist");
   }

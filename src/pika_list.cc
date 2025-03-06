@@ -284,7 +284,7 @@ void LPushCmd::DoThroughDB() {
 void LPushCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
-    db_->cache()->LPushx(CachePrefixKeyL, values_);
+    db_->cache()->LPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
 
@@ -473,7 +473,7 @@ void LPushxCmd::DoThroughDB() {
 void LPushxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
-    db_->cache()->LPushx(CachePrefixKeyL, values_);
+    db_->cache()->LPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
 
@@ -834,7 +834,7 @@ void RPopLPushCmd::DoUpdateCache() {
     std::string CachePrefixKeyLR = PCacheKeyPrefixL + source_;
     db_->cache()->RPop(CachePrefixKeyLR, &value[0]);
     std::string CachePrefixKeyLL = PCacheKeyPrefixL + receiver_;
-    db_->cache()->LPushx(CachePrefixKeyLL, value);
+    db_->cache()->LPushIfKeyExist(CachePrefixKeyLL, value);
   }
 }
 void RPopLPushCmd::DoThroughDB() {
@@ -877,7 +877,7 @@ void RPushCmd::DoThroughDB() {
 void RPushCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
-    db_->cache()->RPushx(CachePrefixKeyL, values_);
+    db_->cache()->RPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
 
@@ -911,6 +911,6 @@ void RPushxCmd::DoThroughDB() {
 void RPushxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
-    db_->cache()->RPushx(CachePrefixKeyL, values_);
+    db_->cache()->RPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
