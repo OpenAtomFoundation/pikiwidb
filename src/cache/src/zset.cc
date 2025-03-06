@@ -8,7 +8,7 @@
 
 namespace cache {
 
-Status RedisCache::ZAdd(std::string& key, std::vector<storage::ScoreMember> &score_members) {
+Status RedisCache::ZAddIfKeyExist(std::string& key, std::vector<storage::ScoreMember> &score_members) {
   int res = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
@@ -37,7 +37,33 @@ Status RedisCache::ZAdd(std::string& key, std::vector<storage::ScoreMember> &sco
   return Status::OK();
 }
 
-Status RedisCache::ZCard(const std::string& key, uint64_t *len) {
+Status RedisCache::ZAdd(std::string& key, std::vector<storage::ScoreMember> &score_members) {
+  int res = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != res) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  unsigned int items_size = score_members.size() * 2;
+  robj **items = (robj **)zcallocate(sizeof(robj *) * items_size);
+  for (unsigned int i = 0; i < score_members.size(); ++i) {
+    items[i * 2] = createStringObjectFromLongDouble(score_members[i].score, 0);
+    items[i * 2 + 1] =
+        createObject(OBJ_STRING, sdsnewlen(score_members[i].member.data(), score_members[i].member.size()));
+  }
+  DEFER {
+    FreeObjectList(items, items_size);
+    DecrObjectsRefCount(kobj);
+  };
+  int ret = RcZAdd(cache_, kobj, items, items_size);
+  if (C_OK != ret) {
+    return Status::Corruption("RcZAdd failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::ZCard(std::string& key, uint64_t *len) {
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   DEFER {
     DecrObjectsRefCount(kobj);

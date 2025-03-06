@@ -255,7 +255,7 @@ Status RedisCache::GetRange(std::string& key, int64_t start, int64_t end, std::s
   return Status::OK();
 }
 
-Status RedisCache::SetRange(std::string& key, int64_t start, std::string &value) {
+Status RedisCache::SetRangeIfKeyExist(std::string& key, int64_t start, std::string &value) {
   if (C_OK != RcFreeMemoryIfNeeded(cache_)) {
     return Status::Corruption("[error] Free memory faild !");
   }
@@ -263,6 +263,25 @@ Status RedisCache::SetRange(std::string& key, int64_t start, std::string &value)
   if (!Exists(key)) {
     return Status::NotFound("key not exist");
   }
+  uint64_t ret = 0;
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
+  DEFER {
+    DecrObjectsRefCount(kobj, vobj);
+  };
+  int res = RcSetRange(cache_, kobj, start, vobj, reinterpret_cast<unsigned long *>(&ret));
+  if (C_OK != res) {
+    return Status::Corruption("SetRange failed!");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::SetRange(std::string& key, int64_t start, std::string &value) {
+  if (C_OK != RcFreeMemoryIfNeeded(cache_)) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
   uint64_t ret = 0;
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));

@@ -1205,7 +1205,8 @@ void SetrangeCmd::DoThroughDB() {
 
 void SetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SetRangexx(key_, offset_, value_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->SetRangeIfKeyExist(CachePrefixKeyK, offset_, value_);
   }
 }
 

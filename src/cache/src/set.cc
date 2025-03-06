@@ -8,7 +8,8 @@
 
 namespace cache {
 
-Status RedisCache::SAdd(std::string& key, std::vector<std::string> &members) {
+ 
+Status RedisCache::SAddIfKeyExist(std::string& key, std::vector<std::string> &members) {
   int ret = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != ret) {
     return Status::Corruption("[error] Free memory faild !");
@@ -34,7 +35,30 @@ Status RedisCache::SAdd(std::string& key, std::vector<std::string> &members) {
   return Status::OK();
 }
 
-Status RedisCache::SCard(const std::string& key, uint64_t *len) {
+Status RedisCache::SAdd(std::string& key, std::vector<std::string> &members) {
+  int ret = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != ret) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj **vals = (robj **)zcallocate(sizeof(robj *) * members.size());
+  for (unsigned int i = 0; i < members.size(); ++i) {
+    vals[i] = createObject(OBJ_STRING, sdsnewlen(members[i].data(), members[i].size()));
+  }
+  DEFER {
+    FreeObjectList(vals, members.size());
+    DecrObjectsRefCount(kobj);
+  };
+  int res = RcSAdd(cache_, kobj, vals, members.size());
+  if (C_OK != res) {
+    return Status::Corruption("RcSAdd failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::SCard(std::string& key, uint64_t *len) {
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   DEFER {
     DecrObjectsRefCount(kobj);
