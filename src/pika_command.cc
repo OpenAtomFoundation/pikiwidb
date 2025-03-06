@@ -4,6 +4,7 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 
 #include <memory>
+#include <sstream>
 #include <utility>
 
 #include <glog/logging.h>
@@ -864,23 +865,22 @@ void Cmd::ProcessCommand(const HintKeys& hint_keys) {
 }
 
 void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
+  uint64_t start_us = pstd::NowMicros();
   pstd::lock::MultiRecordLock record_lock(db_->LockMgr());
   if (is_write()) {
     record_lock.Lock(current_key());
-  }
-  uint64_t start_us = 0;
-  if (g_pika_conf->slowlog_slower_than() >= 0) {
-    start_us = pstd::NowMicros();
   }
 
   if (!IsSuspend()) {
     db_->DBLockShared();
   }
 
+  uint64_t before_do_command_us = pstd::NowMicros();
+  this->acquire_lock_duration_ms = (before_do_command_us - start_us) / 1000;
   DoCommand(hint_keys);
-  if (g_pika_conf->slowlog_slower_than() >= 0) {
-    do_duration_ += pstd::NowMicros() - start_us;
-  }
+
+  uint64_t before_do_binlog_us = pstd::NowMicros();
+  this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
   DoBinlog();
 
   if (!IsSuspend()) {
@@ -889,6 +889,9 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (is_write()) {
     record_lock.Unlock(current_key());
   }
+
+  uint64_t end_us = pstd::NowMicros();
+  this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
 }
 
 void Cmd::DoCommand(const HintKeys& hint_keys) {
@@ -964,6 +967,23 @@ void Cmd::DoBinlog() {
       return;
     }
   }
+}
+
+#define PIKA_STAGE_DURATION_OUTPUT(duration)      \
+  if (!exclude_zero_value || duration > 0) {      \
+    ss << #duration << " = " << duration << ", "; \
+  }
+
+std::string Cmd::StagesDurationSummary(bool exclude_zero_value) const {
+  std::ostringstream ss;
+  PIKA_STAGE_DURATION_OUTPUT(acquire_lock_duration_ms);
+  PIKA_STAGE_DURATION_OUTPUT(command_duration_ms);
+  PIKA_STAGE_DURATION_OUTPUT(binlog_duration_ms);
+  PIKA_STAGE_DURATION_OUTPUT(storage_duration_ms);
+  PIKA_STAGE_DURATION_OUTPUT(cache_duration_ms);
+  std::string str = ss.str();
+  str.erase(str.find_last_not_of(", ") + 1);
+  return str;
 }
 
 bool Cmd::hasFlag(uint32_t flag) const { return (flag_ & flag); }
