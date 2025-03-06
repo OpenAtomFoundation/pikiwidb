@@ -30,6 +30,7 @@ void LIndexCmd::DoInitial() {
 
 void LIndexCmd::Do() {
   std::string value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LIndex(key_, index_, &value);
   if (s_.ok()) {
     res_.AppendString(value);
@@ -44,7 +45,8 @@ void LIndexCmd::Do() {
 
 void LIndexCmd::ReadCache() {
   std::string value;
-  auto s = db_->cache()->LIndex(key_, index_, &value);
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->LIndex(CachePrefixKeyL, index_, &value);
   if (s.ok()) {
     res_.AppendString(value);
   } else if (s.IsNotFound()) {
@@ -61,6 +63,8 @@ void LIndexCmd::DoThroughDB() {
 
 void LIndexCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_LIST, key_, db_);
   }
 }
@@ -86,6 +90,7 @@ void LInsertCmd::DoInitial() {
 
 void LInsertCmd::Do() {
   int64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LInsert(key_, dir_, pivot_, value_, &llen);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(llen);
@@ -103,7 +108,9 @@ void LInsertCmd::DoThroughDB() {
 
 void LInsertCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->LInsert(key_, dir_, pivot_, value_);
+    std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->LInsert(CachePrefixKeyL, dir_, pivot_, value_);
   }
 }
 
@@ -117,6 +124,7 @@ void LLenCmd::DoInitial() {
 
 void LLenCmd::Do() {
   uint64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LLen(key_, &llen);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(static_cast<int64_t>(llen));
@@ -129,8 +137,9 @@ void LLenCmd::Do() {
 
 void LLenCmd::ReadCache() {
   uint64_t llen = 0;
-  auto s = db_->cache()->LLen(key_, &llen);
-  if (s.ok()) {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->LLen(CachePrefixKeyL, &llen);
+  if (s.ok()){
     res_.AppendInteger(llen);
   } else if (s.IsNotFound()) {
     res_.SetRes(CmdRes::kCacheMiss);
@@ -146,6 +155,8 @@ void LLenCmd::DoThroughDB() {
 
 void LLenCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_LIST, key_, db_);
   }
 }
@@ -265,6 +276,7 @@ void LPushCmd::DoInitial() {
 
 void LPushCmd::Do() {
   uint64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LPush(key_, values_, &llen);
   if (s_.ok()) {
     res_.AppendInteger(static_cast<int64_t>(llen));
@@ -289,6 +301,7 @@ void LPushCmd::DoThroughDB() {
 void LPushCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->LPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
@@ -357,6 +370,7 @@ void BLPopCmd::DoInitial() {
 }
 
 void BLPopCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   for (auto& this_key : keys_) {
     std::vector<std::string> values;
     rocksdb::Status s  = db_->storage()->LPop(this_key, 1, &values);
@@ -423,6 +437,7 @@ void LPopCmd::DoInitial() {
 
 void LPopCmd::Do() {
   std::vector<std::string> elements;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LPop(key_, count_, &elements);
 
   if (s_.ok()) {
@@ -448,7 +463,8 @@ void LPopCmd::DoThroughDB() {
 void LPopCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string value;
-    db_->cache()->LPop(key_, &value);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->LPop(CachePrefixKeyL, &value);
   }
 }
 
@@ -466,6 +482,7 @@ void LPushxCmd::DoInitial() {
 
 void LPushxCmd::Do() {
   uint64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LPushx(key_, values_, &llen);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(static_cast<int64_t>(llen));
@@ -484,6 +501,7 @@ void LPushxCmd::DoThroughDB() {
 void LPushxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->LPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
@@ -507,6 +525,7 @@ void LRangeCmd::DoInitial() {
 
 void LRangeCmd::Do() {
   std::vector<std::string> values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LRange(key_, left_, right_, &values);
   if (s_.ok()) {
     res_.AppendArrayLenUint64(values.size());
@@ -524,7 +543,9 @@ void LRangeCmd::Do() {
 
 void LRangeCmd::ReadCache() {
   std::vector<std::string> values;
-  auto s = db_->cache()->LRange(key_, left_, right_, &values);
+  std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->LRange(CachePrefixKeyL, left_, right_, &values);
   if (s.ok()) {
     res_.AppendArrayLen(values.size());
     for (const auto& value : values) {
@@ -544,6 +565,8 @@ void LRangeCmd::DoThroughDB() {
 
 void LRangeCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_LIST, key_, db_);
   }
 }
@@ -564,6 +587,7 @@ void LRemCmd::DoInitial() {
 
 void LRemCmd::Do() {
   uint64_t res = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LRem(key_, count_, value_, &res);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(static_cast<int64_t>(res));
@@ -580,7 +604,9 @@ void LRemCmd::DoThroughDB() {
 
 void LRemCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->LRem(key_, count_, value_);
+    std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->LRem(CachePrefixKeyL, count_, value_);
   }
 }
 
@@ -599,6 +625,7 @@ void LSetCmd::DoInitial() {
 }
 
 void LSetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LSet(key_, index_, value_);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -621,7 +648,9 @@ void LSetCmd::DoThroughDB() {
 
 void LSetCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->LSet(key_, index_, value_);
+    std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->LSet(CachePrefixKeyL, index_, value_);
   }
 }
 
@@ -643,6 +672,7 @@ void LTrimCmd::DoInitial() {
 }
 
 void LTrimCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->LTrim(key_, start_, stop_);
   if (s_.ok() || s_.IsNotFound()) {
     res_.SetRes(CmdRes::kOk);
@@ -659,11 +689,14 @@ void LTrimCmd::DoThroughDB() {
 
 void LTrimCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->LTrim(key_, start_, stop_);
+    std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->LTrim(CachePrefixKeyL, start_, stop_);
   }
 }
 
 void BRPopCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   for (auto& this_key : keys_) {
     std::vector<std::string> values;
     s_ = db_->storage()->RPop(this_key, 1, &values);
@@ -759,6 +792,7 @@ void RPopCmd::DoInitial() {
 
 void RPopCmd::Do() {
   std::vector <std::string> elements;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->RPop(key_, count_, &elements);
   if (s_.ok()) {
     if (elements.size() > 1) {
@@ -783,7 +817,8 @@ void RPopCmd::DoThroughDB() {
 void RPopCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string value;
-    db_->cache()->RPop(key_, &value);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->RPop(CachePrefixKeyL, &value);
   }
 }
 
@@ -801,6 +836,7 @@ void RPopLPushCmd::DoInitial() {
 
 void RPopLPushCmd::Do() {
   std::string value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->RPoplpush(source_, receiver_, &value);
   if (s_.ok()) {
     AddSlotKey("k", receiver_, db_);
@@ -851,6 +887,7 @@ void RPopLPushCmd::DoBinlog() {
 }
 void RPopLPushCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     std::vector<std::string> value;
     value.resize(1);
     std::string CachePrefixKeyLR = PCacheKeyPrefixL + source_;
@@ -877,6 +914,7 @@ void RPushCmd::DoInitial() {
 
 void RPushCmd::Do() {
   uint64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->RPush(key_, values_, &llen);
   if (s_.ok()) {
     res_.AppendInteger(static_cast<int64_t>(llen));
@@ -901,6 +939,7 @@ void RPushCmd::DoThroughDB() {
 void RPushCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->RPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
@@ -919,6 +958,7 @@ void RPushxCmd::DoInitial() {
 
 void RPushxCmd::Do() {
   uint64_t llen = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->RPushx(key_, values_, &llen);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(static_cast<int64_t>(llen));
@@ -937,6 +977,7 @@ void RPushxCmd::DoThroughDB() {
 void RPushxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->RPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }

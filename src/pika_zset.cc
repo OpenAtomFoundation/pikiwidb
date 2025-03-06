@@ -36,6 +36,7 @@ void ZAddCmd::DoInitial() {
 
 void ZAddCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZAdd(key_, score_members, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -53,7 +54,9 @@ void ZAddCmd::DoThroughDB() {
 
 void ZAddCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->ZAddIfKeyExist(key_, score_members);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZAddIfKeyExist(CachePrefixKeyZ, score_members);
   }
 }
 
@@ -67,6 +70,7 @@ void ZCardCmd::DoInitial() {
 
 void ZCardCmd::Do() {
   int32_t card = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZCard(key_, &card);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(card);
@@ -131,6 +135,7 @@ void ZScanCmd::DoInitial() {
 void ZScanCmd::Do() {
   int64_t next_cursor = 0;
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->ZScan(key_, cursor_, pattern_, count_, &score_members, &next_cursor);
   if (s.ok() || s.IsNotFound()) {
     res_.AppendContent("*2");
@@ -169,6 +174,7 @@ void ZIncrbyCmd::DoInitial() {
 
 void ZIncrbyCmd::Do() {
   double score = 0.0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->ZIncrby(key_, member_, by_, &score);
   if (s.ok()) {
     score_ = score;
@@ -190,7 +196,9 @@ void ZIncrbyCmd::DoThroughDB() {
 
 void ZIncrbyCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->ZIncrbyIfKeyExist(key_, member_, by_, this, db_);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZIncrbyIfKeyExist(CachePrefixKeyZ, member_, by_, this, db_);
   }
 }
 
@@ -222,6 +230,7 @@ void ZRangeCmd::DoInitial() {
 
 void ZRangeCmd::Do() {
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRange(key_, static_cast<int32_t>(start_), static_cast<int32_t>(stop_), &score_members);
   if (s_.ok() || s_.IsNotFound()) {
     if (is_ws_) {
@@ -251,6 +260,7 @@ void ZRangeCmd::Do() {
 
 void ZRangeCmd::ReadCache() {
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRange(key_, start_, stop_, &score_members, db_);
   if (s.ok()) {
     if (is_ws_) {
@@ -286,6 +296,8 @@ void ZRangeCmd::DoThroughDB() {
 
 void ZRangeCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -300,6 +312,7 @@ void ZRevrangeCmd::DoInitial() {
 
 void ZRevrangeCmd::Do() {
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRevrange(key_, static_cast<int32_t>(start_), static_cast<int32_t>(stop_), &score_members);
   if (s_.ok() || s_.IsNotFound()) {
     if (is_ws_) {
@@ -329,6 +342,7 @@ void ZRevrangeCmd::Do() {
 
 void ZRevrangeCmd::ReadCache() {
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRevrange(key_, start_, stop_, &score_members, db_);
 
   if (s.ok()) {
@@ -365,6 +379,8 @@ void ZRevrangeCmd::DoThroughDB() {
 
 void ZRevrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -457,6 +473,7 @@ void ZRangebyscoreCmd::Do() {
     return;
   }
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRangebyscore(key_, min_score_, max_score_, left_close_, right_close_, &score_members);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -497,6 +514,7 @@ void ZRangebyscoreCmd::ReadCache() {
   std::vector<storage::ScoreMember> score_members;
   min_ = std::to_string(min_score_);
   max_ = std::to_string(max_score_);
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRangebyscore(key_, min_, max_, &score_members, this);
   if (s.ok()) {
     auto sm_count = score_members.size();
@@ -532,6 +550,8 @@ void ZRangebyscoreCmd::DoThroughDB() {
 
 void ZRangebyscoreCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -559,6 +579,7 @@ void ZRevrangebyscoreCmd::Do() {
     return;
   }
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRevrangebyscore(key_, min_score_, max_score_, left_close_, right_close_, &score_members);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -597,6 +618,7 @@ void ZRevrangebyscoreCmd::ReadCache() {
     return;
   }
   std::vector<storage::ScoreMember> score_members;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRevrangebyscore(key_, min_, max_, &score_members, this, db_);
   if (s.ok()) {
     auto sm_count = score_members.size();
@@ -632,6 +654,8 @@ void ZRevrangebyscoreCmd::DoThroughDB() {
 
 void ZRevrangebyscoreCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -658,6 +682,7 @@ void ZCountCmd::Do() {
   }
 
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZCount(key_, min_score_, max_score_, left_close_, right_close_, &count);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(count);
@@ -674,6 +699,7 @@ void ZCountCmd::ReadCache() {
     return;
   }
   uint64_t count = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZCount(key_, min_, max_, &count, this);
   if (s.ok()) {
     res_.AppendInteger(count);
@@ -691,6 +717,8 @@ void ZCountCmd::DoThroughDB() {
 
 void ZCountCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -706,6 +734,7 @@ void ZRemCmd::DoInitial() {
 }
 
 void ZRemCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRem(key_, members_, &deleted_);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(deleted_);
@@ -722,7 +751,9 @@ void ZRemCmd::DoThroughDB() {
 
 void ZRemCmd::DoUpdateCache() {
   if (s_.ok() && deleted_ > 0) {
-    db_->cache()->ZRem(key_, members_, db_);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZRem(CachePrefixKeyZ, members_, db_);
   }
 }
 
@@ -794,6 +825,7 @@ void ZUnionstoreCmd::DoInitial() {
 
 void ZUnionstoreCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZUnionstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -812,7 +844,8 @@ void ZUnionstoreCmd::DoThroughDB() {
 void ZUnionstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(dest_key_);
+    v.emplace_back(PCacheKeyPrefixZ + dest_key_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
 }
@@ -875,6 +908,7 @@ void ZInterstoreCmd::DoInitial() {
 
 void ZInterstoreCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZInterstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &count);
   if (s_.ok()) {
     res_.AppendInteger(count);
@@ -892,7 +926,8 @@ void ZInterstoreCmd::DoThroughDB() {
 void ZInterstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(dest_key_);
+    v.emplace_back(PCacheKeyPrefixZ + dest_key_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
 }
@@ -958,6 +993,7 @@ void ZRankCmd::DoInitial() {
 
 void ZRankCmd::Do() {
   int32_t rank = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRank(key_, member_, &rank);
   if (s_.ok()) {
     res_.AppendInteger(rank);
@@ -972,6 +1008,7 @@ void ZRankCmd::Do() {
 
 void ZRankCmd::ReadCache() {
   int64_t rank = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRank(key_, member_, &rank, db_);
   if (s.ok()) {
     res_.AppendInteger(rank);
@@ -989,6 +1026,8 @@ void ZRankCmd::DoThroughDB() {
 
 void ZRankCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -1003,6 +1042,7 @@ void ZRevrankCmd::DoInitial() {
 
 void ZRevrankCmd::Do() {
   int32_t revrank = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRevrank(key_, member_, &revrank);
   if (s_.ok()) {
     res_.AppendInteger(revrank);
@@ -1017,6 +1057,7 @@ void ZRevrankCmd::Do() {
 
 void ZRevrankCmd::ReadCache() {
   int64_t revrank = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRevrank(key_, member_, &revrank, db_);
   if (s.ok()) {
     res_.AppendInteger(revrank);
@@ -1034,6 +1075,8 @@ void ZRevrankCmd::DoThroughDB() {
 
 void ZRevrankCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -1049,6 +1092,7 @@ void ZScoreCmd::DoInitial() {
 
 void ZScoreCmd::Do() {
   double score = 0.0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZScore(key_, member_, &score);
   if (s_.ok()) {
     char buf[32];
@@ -1066,7 +1110,9 @@ void ZScoreCmd::Do() {
 
 void ZScoreCmd::ReadCache() {
   double score = 0.0;
-  auto s = db_->cache()->ZScore(key_, member_, &score, db_);
+  std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  auto s = db_->cache()->ZScore(CachePrefixKeyZ, member_, &score, db_);
   if (s.ok()) {
     char buf[32];
     int64_t len = pstd::d2string(buf, sizeof(buf), score);
@@ -1162,6 +1208,7 @@ void ZRangebylexCmd::Do() {
     return;
   }
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRangebylex(key_, min_member_, max_member_, left_close_, right_close_, &members);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -1187,6 +1234,7 @@ void ZRangebylexCmd::ReadCache() {
     return;
   }
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRangebylex(key_, min_, max_, &members, db_);
   if (s.ok()) {
     FitLimit(count_, offset_, members.size());
@@ -1212,6 +1260,8 @@ void ZRangebylexCmd::DoThroughDB() {
 
 void ZRangebylexCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -1240,6 +1290,7 @@ void ZRevrangebylexCmd::Do() {
     return;
   }
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRangebylex(key_, min_member_, max_member_, left_close_, right_close_, &members);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -1266,6 +1317,7 @@ void ZRevrangebylexCmd::ReadCache() {
     return;
   }
   std::vector<std::string> members;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRevrangebylex(key_, min_, max_, &members, db_);
   if (s.ok()) {
     auto size = count_ < members.size() ? count_ : members.size();
@@ -1287,6 +1339,8 @@ void ZRevrangebylexCmd::DoThroughDB() {
 
 void ZRevrangebylexCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -1312,6 +1366,7 @@ void ZLexcountCmd::Do() {
     return;
   }
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZLexcount(key_, min_member_, max_member_, left_close_, right_close_, &count);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -1329,6 +1384,7 @@ void ZLexcountCmd::ReadCache() {
     return;
   }
   uint64_t count = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZLexcount(key_, min_, max_, &count, db_);
   if (s.ok()) {
     res_.AppendInteger(count);
@@ -1346,6 +1402,8 @@ void ZLexcountCmd::DoThroughDB() {
 
 void ZLexcountCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_ZSET, key_, db_);
   }
 }
@@ -1370,6 +1428,7 @@ void ZRemrangebyrankCmd::DoInitial() {
 
 void ZRemrangebyrankCmd::Do() {
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRemrangebyrank(key_, static_cast<int32_t>(start_rank_), static_cast<int32_t>(stop_rank_), &count);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(count);
@@ -1386,7 +1445,9 @@ void ZRemrangebyrankCmd::DoThroughDB() {
 
 void ZRemrangebyrankCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->ZRemrangebyrank(key_, min_, max_, ele_deleted_, db_);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZRemrangebyrank(CachePrefixKeyZ, min_, max_, ele_deleted_, db_);
   }
 }
 
@@ -1409,6 +1470,7 @@ void ZRemrangebyscoreCmd::Do() {
     return;
   }
   int32_t count = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRemrangebyscore(key_, min_score_, max_score_, left_close_, right_close_, &count);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -1426,7 +1488,9 @@ void ZRemrangebyscoreCmd::DoThroughDB() {
 
 void ZRemrangebyscoreCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->ZRemrangebyscore(key_, min_, max_, db_);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZRemrangebyscore(CachePrefixKeyZ, min_, max_, db_);
   }
 }
 
@@ -1450,6 +1514,7 @@ void ZRemrangebylexCmd::Do() {
   }
   int32_t count = 0;
 
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->ZRemrangebylex(key_, min_member_, max_member_, left_close_, right_close_, &count);
   if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
@@ -1467,7 +1532,9 @@ void ZRemrangebylexCmd::DoThroughDB() {
 
 void ZRemrangebylexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->ZRemrangebylex(key_, min_, max_, db_);
+    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->ZRemrangebylex(CachePrefixKeyZ, min_, max_, db_);
   }
 }
 
@@ -1488,6 +1555,7 @@ void ZPopmaxCmd::DoInitial() {
 }
 
 void ZPopmaxCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   std::vector<storage::ScoreMember> score_members;
   rocksdb::Status s = db_->storage()->ZPopMax(key_, count_, &score_members);
   if (s.ok() || s.IsNotFound()) {
@@ -1514,6 +1582,7 @@ void ZPopmaxCmd::DoThroughDB(){
 void ZPopmaxCmd::DoUpdateCache(){
   std::vector<storage::ScoreMember> score_members;
   if(s_.ok() || s_.IsNotFound()){
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->ZPopMax(key_, count_, &score_members, db_);
   }
 }
@@ -1541,11 +1610,13 @@ void ZPopminCmd::DoThroughDB(){
 void ZPopminCmd::DoUpdateCache(){
   std::vector<storage::ScoreMember> score_members;
   if(s_.ok() || s_.IsNotFound()){
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->ZPopMin(key_, count_, &score_members, db_);
   }
 }
 
 void ZPopminCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   std::vector<storage::ScoreMember> score_members;
   rocksdb::Status s = db_->storage()->ZPopMin(key_, count_, &score_members);
   if (s.ok() || s.IsNotFound()) {

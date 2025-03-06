@@ -65,6 +65,7 @@ void SetCmd::DoInitial() {
 
 void SetCmd::Do() {
   int32_t res = 1;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   switch (condition_) {
     case SetCmd::kXX:
       s_ = db_->storage()->Setxx(key_, value_, &res, ttl_millsec);
@@ -110,6 +111,7 @@ void SetCmd::DoUpdateCache() {
     return;
   }
   if (s_.ok()) {
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
     if (has_ttl_) {
       db_->cache()->Setxx(key_, value_, ttl_millsec > 0 ? ttl_millsec / 1000 : ttl_millsec);
     } else {
@@ -158,7 +160,7 @@ void GetCmd::DoInitial() {
 }
 
 void GetCmd::Do() {
-  s_ = db_->storage()->GetWithTTL(key_, &value_, &ttl_millsec_);
+  s_ = db_->storage()->GetWithTTL(key_, &value_, &sec_);
   if (s_.ok()) {
     res_.AppendStringLenUint64(value_.size());
     res_.AppendContent(value_);
@@ -172,7 +174,8 @@ void GetCmd::Do() {
 }
 
 void GetCmd::ReadCache() {
-  auto s = db_->cache()->Get(key_, &value_);
+  std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+  auto s = db_->cache()->Get(CachePrefixKeyK, &value_);
   if (s.ok()) {
     res_.AppendStringLen(value_.size());
     res_.AppendContent(value_);
@@ -191,7 +194,8 @@ void GetCmd::DoUpdateCache() {
     return;
   }
   if (s_.ok()) {
-    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ > 0 ? ttl_millsec_ / 1000 : ttl_millsec_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->WriteKVToCache(CachePrefixKeyK, value_, sec_);
   }
 }
 
@@ -205,7 +209,10 @@ void DelCmd::DoInitial() {
 }
 
 void DelCmd::Do() {
-  int64_t count = db_->storage()->Del(keys_);
+  std::map<storage::DataType, storage::Status> type_status;
+
+  int64_t count = db_->storage()->Del(keys_, &type_status);
+
   if (count >= 0) {
     res_.AppendInteger(count);
     s_ = rocksdb::Status::OK();
@@ -225,13 +232,21 @@ void DelCmd::DoThroughDB() {
 
 void DelCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Del(keys_);
+    std::vector<std::string> v;
+    for (auto key : keys_) {
+      v.emplace_back(PCacheKeyPrefixK + key);
+      v.emplace_back(PCacheKeyPrefixL + key);
+      v.emplace_back(PCacheKeyPrefixZ + key);
+      v.emplace_back(PCacheKeyPrefixS + key);
+      v.emplace_back(PCacheKeyPrefixH + key);
+    }
+    db_->cache()->Del(v);
   }
 }
 
 void DelCmd::Split(const HintKeys& hint_keys) {
   std::map<storage::DataType, storage::Status> type_status;
-  int64_t count = db_->storage()->Del(hint_keys.keys);
+  int64_t count = db_->storage()->Del(hint_keys.keys, &type_status);
   if (count >= 0) {
     split_res_ += count;
   } else {
@@ -260,7 +275,7 @@ void IncrCmd::DoInitial() {
 }
 
 void IncrCmd::Do() {
-  s_ = db_->storage()->Incrby(key_, 1, &new_value_, &expired_timestamp_millsec_);
+  s_ = db_->storage()->Incrby(key_, 1, &new_value_, &expired_timestamp_sec_);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
     AddSlotKey("k", key_, db_);
@@ -281,7 +296,8 @@ void IncrCmd::DoThroughDB() {
 
 void IncrCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Incrxx(key_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->Incrxx(CachePrefixKeyK);
   }
 }
 
@@ -324,7 +340,7 @@ void IncrbyCmd::DoInitial() {
 }
 
 void IncrbyCmd::Do() {
-  s_ = db_->storage()->Incrby(key_, by_, &new_value_, &expired_timestamp_millsec_);
+  s_ = db_->storage()->Incrby(key_, by_, &new_value_, &expired_timestamp_sec_);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
     AddSlotKey("k", key_, db_);
@@ -345,7 +361,8 @@ void IncrbyCmd::DoThroughDB() {
 
 void IncrbyCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->IncrByxx(key_, by_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->IncrByxx(CachePrefixKeyK, by_);
   }
 }
 
@@ -389,7 +406,7 @@ void IncrbyfloatCmd::DoInitial() {
 }
 
 void IncrbyfloatCmd::Do() {
-  s_ = db_->storage()->Incrbyfloat(key_, value_, &new_value_, &expired_timestamp_millsec_);
+  s_ = db_->storage()->Incrbyfloat(key_, value_, &new_value_, &expired_timestamp_sec_);
   if (s_.ok()) {
     res_.AppendStringLenUint64(new_value_.size());
     res_.AppendContent(new_value_);
@@ -413,7 +430,8 @@ void IncrbyfloatCmd::DoUpdateCache() {
   if (s_.ok()) {
     long double long_double_by;
     if (storage::StrToLongDouble(value_.data(), value_.size(), &long_double_by) != -1) {
-      db_->cache()->Incrbyfloatxx(key_, long_double_by);
+      std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+      db_->cache()->Incrbyfloatxx(CachePrefixKeyK, long_double_by);
     }
   }
 }
@@ -453,6 +471,7 @@ void DecrCmd::DoInitial() {
 }
 
 void DecrCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Decrby(key_, 1, &new_value_);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
@@ -473,7 +492,8 @@ void DecrCmd::DoThroughDB() {
 
 void DecrCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Decrxx(key_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->Decrxx(CachePrefixKeyK);
   }
 }
 
@@ -490,6 +510,7 @@ void DecrbyCmd::DoInitial() {
 }
 
 void DecrbyCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Decrby(key_, by_, &new_value_);
   if (s_.ok()) {
     AddSlotKey("k", key_, db_);
@@ -511,7 +532,8 @@ void DecrbyCmd::DoThroughDB() {
 
 void DecrbyCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->DecrByxx(key_, by_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->DecrByxx(CachePrefixKeyK, by_);
   }
 }
 
@@ -526,6 +548,7 @@ void GetsetCmd::DoInitial() {
 
 void GetsetCmd::Do() {
   std::string old_value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetSet(key_, new_value_, &old_value);
   if (s_.ok()) {
     if (old_value.empty()) {
@@ -548,7 +571,8 @@ void GetsetCmd::DoThroughDB() {
 
 void GetsetCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SetxxWithoutTTL(key_, new_value_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->SetxxWithoutTTL(CachePrefixKeyK, new_value_);
   }
 }
 
@@ -563,7 +587,7 @@ void AppendCmd::DoInitial() {
 
 void AppendCmd::Do() {
   int32_t new_len = 0;
-  s_ = db_->storage()->Append(key_, value_, &new_len, &expired_timestamp_millsec_, new_value_);
+  s_ = db_->storage()->Append(key_, value_, &new_len, &expired_timestamp_sec_, new_value_);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(new_len);
     AddSlotKey("k", key_, db_);
@@ -580,7 +604,8 @@ void AppendCmd::DoThroughDB() {
 
 void AppendCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Appendxx(key_, value_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->Appendxx(CachePrefixKeyK, value_);
   }
 }
 
@@ -641,6 +666,7 @@ void MgetCmd::Do() {
     cache_miss_keys_ = keys_;
   }
   db_value_status_array_.clear();
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MGetWithTTL(cache_miss_keys_, &db_value_status_array_);
   if (!s_.ok()) {
     if (s_.IsInvalidArgument()) {
@@ -657,6 +683,7 @@ void MgetCmd::Do() {
 void MgetCmd::Split(const HintKeys& hint_keys) {
   std::vector<storage::ValueStatus> vss;
   const std::vector<std::string>& keys = hint_keys.keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MGet(keys, &vss);
   if (s.ok()) {
     if (hint_keys.hints.size() != vss.size()) {
@@ -689,6 +716,7 @@ void MgetCmd::DoThroughDB() {
 }
 
 void MgetCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : keys_) {
     std::string value;
     auto s = db_->cache()->Get(const_cast<std::string&>(key), &value);
@@ -707,6 +735,7 @@ void MgetCmd::ReadCache() {
 
 void MgetCmd::DoUpdateCache() {
   size_t db_index = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : cache_miss_keys_) {
     if (db_index < db_value_status_array_.size() && db_value_status_array_[db_index].status.ok()) {
       int64_t ttl_millsec = db_value_status_array_[db_index].ttl_millsec;
@@ -779,6 +808,7 @@ void KeysCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   do {
     keys.clear();
     cursor = db_->storage()->Scan(type_, cursor, pattern_, PIKA_SCAN_STEP_LENGTH, &keys);
@@ -808,6 +838,7 @@ void SetnxCmd::DoInitial() {
 
 void SetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setnx(key_, value_, &success_);
   if (s_.ok()) {
     res_.AppendInteger(success_);
@@ -852,7 +883,7 @@ void SetexCmd::DoInitial() {
 }
 
 void SetexCmd::Do() {
-  s_ = db_->storage()->Setex(key_, value_, ttl_sec_ * 1000);
+  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(sec_));
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
     AddSlotKey("k", key_, db_);
@@ -869,7 +900,8 @@ void SetexCmd::DoThroughDB() {
 
 void SetexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Setxx(key_, value_, ttl_sec_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->Setxx(CachePrefixKeyK, value_, sec_);
   }
 }
 
@@ -912,7 +944,7 @@ void PsetexCmd::DoInitial() {
 }
 
 void PsetexCmd::Do() {
-  s_ = db_->storage()->Setex(key_, value_, ttl_millsec);
+  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(usec_ / 1000));
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
   } else if (s_.IsInvalidArgument()) {
@@ -928,7 +960,8 @@ void PsetexCmd::DoThroughDB() {
 
 void PsetexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Setxx(key_, value_,  ttl_millsec / 1000);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->Setxx(CachePrefixKeyK, value_,  static_cast<int32_t>(usec_ / 1000));
   }
 }
 
@@ -967,6 +1000,7 @@ void DelvxCmd::DoInitial() {
 }
 
 void DelvxCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Delvx(key_, value_, &success_);
   if (s.ok() || s.IsNotFound()) {
     res_.AppendInteger(success_);
@@ -994,6 +1028,7 @@ void MsetCmd::DoInitial() {
 }
 
 void MsetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MSet(kvs_);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1014,6 +1049,7 @@ void MsetCmd::DoThroughDB() {
 
 void MsetCmd::DoUpdateCache() {
   if (s_.ok()) {
+    std::string CachePrefixKeyK;
     for (auto key : kvs_) {
       db_->cache()->SetxxWithoutTTL(key.key, key.value);
     }
@@ -1035,6 +1071,7 @@ void MsetCmd::Split(const HintKeys& hint_keys) {
       return;
     }
   }
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   storage::Status s = db_->storage()->MSet(kvs);
   if (s.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1079,6 +1116,7 @@ void MsetnxCmd::DoInitial() {
 
 void MsetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_);
   if (s.ok()) {
     res_.AppendInteger(success_);
@@ -1130,6 +1168,7 @@ void GetrangeCmd::DoInitial() {
 
 void GetrangeCmd::Do() {
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Getrange(key_, start_, end_, &substr);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendStringLenUint64(substr.size());
@@ -1143,7 +1182,8 @@ void GetrangeCmd::Do() {
 
 void GetrangeCmd::ReadCache() {
   std::string substr;
-  auto s = db_->cache()->GetRange(key_, start_, end_, &substr);
+  std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+  auto s = db_->cache()->GetRange(CachePrefixKeyK, start_, end_, &substr);
   if (s.ok()) {
     res_.AppendStringLen(substr.size());
     res_.AppendContent(substr);
@@ -1155,6 +1195,7 @@ void GetrangeCmd::ReadCache() {
 void GetrangeCmd::DoThroughDB() {
   res_.clear();
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetrangeWithValue(key_, start_, end_, &substr, &value_, &sec_);
   if (s_.ok()) {
     res_.AppendStringLen(substr.size());
@@ -1169,7 +1210,8 @@ void GetrangeCmd::DoThroughDB() {
 
 void GetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->WriteKVToCache(key_, value_, sec_);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->WriteKVToCache(CachePrefixKeyK, value_, sec_);
   }
 }
 
@@ -1188,6 +1230,7 @@ void SetrangeCmd::DoInitial() {
 
 void SetrangeCmd::Do() {
   int32_t new_len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len);
   if (s_.ok()) {
     res_.AppendInteger(new_len);
@@ -1206,6 +1249,7 @@ void SetrangeCmd::DoThroughDB() {
 void SetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->SetRangeIfKeyExist(CachePrefixKeyK, offset_, value_);
   }
 }
@@ -1220,6 +1264,7 @@ void StrlenCmd::DoInitial() {
 
 void StrlenCmd::Do() {
   int32_t len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Strlen(key_, &len);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(len);
@@ -1232,7 +1277,8 @@ void StrlenCmd::Do() {
 
 void StrlenCmd::ReadCache() {
   int32_t len = 0;
-  auto s= db_->cache()->Strlen(key_, &len);
+  std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+  auto s= db_->cache()->Strlen(CachePrefixKeyK, &len);
   if (s.ok()) {
     res_.AppendInteger(len);
   } else {
@@ -1242,7 +1288,7 @@ void StrlenCmd::ReadCache() {
 
 void StrlenCmd::DoThroughDB() {
   res_.clear();
-  s_ = db_->storage()->GetWithTTL(key_, &value_, &ttl_millsec);
+  s_ = db_->storage()->GetWithTTL(key_, &value_, &sec_);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(value_.size());
   } else {
@@ -1252,7 +1298,8 @@ void StrlenCmd::DoThroughDB() {
 
 void StrlenCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec > 0 ? ttl_millsec : ttl_millsec / 1000);
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
+    db_->cache()->WriteKVToCache(CachePrefixKeyK, value_, sec_);
   }
 }
 
@@ -1266,7 +1313,8 @@ void ExistsCmd::DoInitial() {
 }
 
 void ExistsCmd::Do() {
-  int64_t res = db_->storage()->Exists(keys_);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int64_t res = db_->storage()->Exists(keys_, &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
   } else {
@@ -1275,7 +1323,8 @@ void ExistsCmd::Do() {
 }
 
 void ExistsCmd::Split(const HintKeys& hint_keys) {
-  int64_t res = db_->storage()->Exists(hint_keys.keys);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int64_t res = db_->storage()->Exists(hint_keys.keys, &type_status);
   if (res != -1) {
     split_res_ += res;
   } else {
@@ -1290,9 +1339,21 @@ void ExistsCmd::ReadCache() {
     res_.SetRes(CmdRes::kCacheMiss);
     return;
   }
-  bool exist = db_->cache()->Exists(keys_[0]);
-  if (exist) {
-    res_.AppendInteger(1);
+  uint32_t nums = 0;
+  std::vector<std::string> v;
+  v.emplace_back(PCacheKeyPrefixK + keys_[0]);
+  v.emplace_back(PCacheKeyPrefixL + keys_[0]);
+  v.emplace_back(PCacheKeyPrefixZ + keys_[0]);
+  v.emplace_back(PCacheKeyPrefixS + keys_[0]);
+  v.emplace_back(PCacheKeyPrefixH + keys_[0]);
+  for (auto key : v) {
+    bool exist = db_->cache()->Exists(key);
+    if (exist) {
+      nums++;
+    }
+  }
+  if (nums > 0) {
+    res_.AppendInteger(nums);
   } else {
     res_.SetRes(CmdRes::kCacheMiss);
   }
@@ -1316,7 +1377,8 @@ void ExpireCmd::DoInitial() {
 }
 
 void ExpireCmd::Do() {
-  int32_t res = db_->storage()->Expire(key_, ttl_sec_ * 1000);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int64_t res = db_->storage()->Expire(key_, static_cast<int32_t>(sec_), &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1354,7 +1416,15 @@ void ExpireCmd::DoThroughDB() {
 
 void ExpireCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Expire(key_, ttl_sec_);
+    std::vector<std::string> v;
+    v.emplace_back(PCacheKeyPrefixK + key_);
+    v.emplace_back(PCacheKeyPrefixL + key_);
+    v.emplace_back(PCacheKeyPrefixZ + key_);
+    v.emplace_back(PCacheKeyPrefixS + key_);
+    v.emplace_back(PCacheKeyPrefixH + key_);
+    for (auto key : v) {
+      db_->cache()->Expire(key, sec_);
+    }
   }
 }
 
@@ -1371,7 +1441,8 @@ void PexpireCmd::DoInitial() {
 }
 
 void PexpireCmd::Do() {
-  int64_t res = db_->storage()->Expire(key_, ttl_millsec);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int64_t res = db_->storage()->Expire(key_, static_cast<int32_t>(msec_ / 1000), &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1409,7 +1480,15 @@ void PexpireCmd::DoThroughDB() {
 
 void PexpireCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Expire(key_, ttl_millsec);
+    std::vector<std::string> v;
+    v.emplace_back(PCacheKeyPrefixK + key_);
+    v.emplace_back(PCacheKeyPrefixL + key_);
+    v.emplace_back(PCacheKeyPrefixZ + key_);
+    v.emplace_back(PCacheKeyPrefixS + key_);
+    v.emplace_back(PCacheKeyPrefixH + key_);
+    for (auto key : v){
+      db_->cache()->Expire(key, msec_/1000);
+    }
   }
 }
 
@@ -1426,7 +1505,8 @@ void ExpireatCmd::DoInitial() {
 }
 
 void ExpireatCmd::Do() {
-  int32_t res = db_->storage()->Expireat(key_, time_stamp_sec_ * 1000);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int32_t res = db_->storage()->Expireat(key_, static_cast<int32_t>(time_stamp_), &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1442,7 +1522,15 @@ void ExpireatCmd::DoThroughDB() {
 
 void ExpireatCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Expireat(key_, time_stamp_sec_);
+    std::vector<std::string> v;
+    v.emplace_back(PCacheKeyPrefixK + key_);
+    v.emplace_back(PCacheKeyPrefixL + key_);
+    v.emplace_back(PCacheKeyPrefixZ + key_);
+    v.emplace_back(PCacheKeyPrefixS + key_);
+    v.emplace_back(PCacheKeyPrefixH + key_);
+    for (auto key : v) {
+      db_->cache()->Expireat(key, time_stamp_);
+    }
   }
 }
 
@@ -1459,7 +1547,8 @@ void PexpireatCmd::DoInitial() {
 }
 
 void PexpireatCmd::Do() {
-  int32_t res = db_->storage()->Expireat(key_, static_cast<int32_t>(time_stamp_millsec_));
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int32_t res = db_->storage()->Expireat(key_, static_cast<int32_t>(time_stamp_ms_ / 1000), &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1475,7 +1564,15 @@ void PexpireatCmd::DoThroughDB() {
 
 void PexpireatCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Expireat(key_, time_stamp_millsec_ / 1000);
+    std::vector<std::string> v;
+    v.emplace_back(PCacheKeyPrefixK + key_);
+    v.emplace_back(PCacheKeyPrefixL + key_);
+    v.emplace_back(PCacheKeyPrefixZ + key_);
+    v.emplace_back(PCacheKeyPrefixS + key_);
+    v.emplace_back(PCacheKeyPrefixH + key_);
+    for (auto key : v) {
+      db_->cache()->Expireat(key, time_stamp_ms_ / 1000);
+    }
   }
 }
 
@@ -1488,20 +1585,53 @@ void TtlCmd::DoInitial() {
 }
 
 void TtlCmd::Do() {
-  int64_t ttl_sec_ = db_->storage()->TTL(key_);
-  if (ttl_sec_ == -3) {
-    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  type_timestamp = db_->storage()->TTL(key_, &type_status);
+  for (const auto& item : type_timestamp) {
+    // mean operation exception errors happen in database
+    if (item.second == -3) {
+      res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kStrings]);
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kHashes]);
+  } else if (type_timestamp[storage::kLists] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kLists]);
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kZSets]);
+  } else if (type_timestamp[storage::kSets] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kSets]);
   } else {
     res_.AppendInteger(ttl_sec_);
   }
 }
 
 void TtlCmd::ReadCache() {
-  int64_t timestamp = db_->cache()->TTL(key_);
-  if (timestamp == -3) {
-    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
-  } else if (timestamp != -2) {
-    res_.AppendInteger(timestamp);
+  rocksdb::Status s;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  type_timestamp = db_->cache()->TTL(key_, &type_status);
+  for (const auto& item : type_timestamp) {
+    // mean operation exception errors happen in database
+    if (item.second == -3) {
+      res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kStrings]);
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kHashes]);
+  } else if (type_timestamp[storage::kLists] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kLists]);
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kZSets]);
+  } else if (type_timestamp[storage::kSets] != -2) {
+    res_.AppendInteger(type_timestamp[storage::kSets]);
   } else {
     res_.SetRes(CmdRes::kCacheMiss);
   }
@@ -1521,17 +1651,97 @@ void PttlCmd::DoInitial() {
 }
 
 void PttlCmd::Do() {
-  int64_t ttl_millsec = db_->storage()->PTTL(key_);
-  if (ttl_millsec == -3) {
-    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  type_timestamp = db_->storage()->TTL(key_, &type_status);
+  for (const auto& item : type_timestamp) {
+    // mean operation exception errors happen in database
+    if (item.second == -3) {
+      res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    if (type_timestamp[storage::kStrings] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kStrings] * 1000);
+    }
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    if (type_timestamp[storage::kHashes] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kHashes] * 1000);
+    }
+  } else if (type_timestamp[storage::kLists] != -2) {
+    if (type_timestamp[storage::kLists] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kLists] * 1000);
+    }
+  } else if (type_timestamp[storage::kSets] != -2) {
+    if (type_timestamp[storage::kSets] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kSets] * 1000);
+    }
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    if (type_timestamp[storage::kZSets] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kZSets] * 1000);
+    }
   } else {
-    res_.AppendInteger(ttl_millsec);
+    // mean this key not exist
+    res_.AppendInteger(-2);
   }
 }
 
 void PttlCmd::ReadCache() {
-  // redis cache don't support pttl cache, so read directly from db
-  DoThroughDB();
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  type_timestamp = db_->cache()->TTL(key_, &type_status);
+  for (const auto& item : type_timestamp) {
+    // mean operation exception errors happen in database
+    if (item.second == -3) {
+      res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+      return;
+    }
+  }
+  if (type_timestamp[storage::kStrings] != -2) {
+    if (type_timestamp[storage::kStrings] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kStrings] * 1000);
+    }
+  } else if (type_timestamp[storage::kHashes] != -2) {
+    if (type_timestamp[storage::kHashes] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kHashes] * 1000);
+    }
+  } else if (type_timestamp[storage::kLists] != -2) {
+    if (type_timestamp[storage::kLists] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kLists] * 1000);
+    }
+  } else if (type_timestamp[storage::kSets] != -2) {
+    if (type_timestamp[storage::kSets] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kSets] * 1000);
+    }
+  } else if (type_timestamp[storage::kZSets] != -2) {
+    if (type_timestamp[storage::kZSets] == -1) {
+      res_.AppendInteger(-1);
+    } else {
+      res_.AppendInteger(type_timestamp[storage::kZSets] * 1000);
+    }
+  } else {
+    // mean this key not exist
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
 }
 
 void PttlCmd::DoThroughDB() {
@@ -1548,7 +1758,8 @@ void PersistCmd::DoInitial() {
 }
 
 void PersistCmd::Do() {
-  int32_t res = db_->storage()->Persist(key_);
+  std::map<storage::DataType, rocksdb::Status> type_status;
+  int32_t res = db_->storage()->Persist(key_, &type_status);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1564,7 +1775,15 @@ void PersistCmd::DoThroughDB() {
 
 void PersistCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Persist(key_);
+    std::vector<std::string> v;
+    v.emplace_back(PCacheKeyPrefixK + key_);
+    v.emplace_back(PCacheKeyPrefixL + key_);
+    v.emplace_back(PCacheKeyPrefixZ + key_);
+    v.emplace_back(PCacheKeyPrefixS + key_);
+    v.emplace_back(PCacheKeyPrefixH + key_);
+    for (auto key : v) {
+      db_->cache()->Persist(key);
+    }
   }
 }
 
@@ -1577,9 +1796,8 @@ void TypeCmd::DoInitial() {
 }
 
 void TypeCmd::Do() {
-  enum storage::DataType type = storage::DataType::kNones;
-  std::string key_type;
-  rocksdb::Status s = db_->storage()->GetType(key_, type);
+  std::vector<std::string> types(1);
+  rocksdb::Status s = db_->storage()->GetType(key_, true, types);
   if (s.ok()) {
     res_.AppendContent("+" + std::string(DataTypeToString(type)));
   } else if (s_.IsInvalidArgument()) {
@@ -1590,10 +1808,8 @@ void TypeCmd::Do() {
 }
 
 void TypeCmd::ReadCache() {
-  enum storage::DataType type = storage::DataType::kNones;
-  std::string key_type;
-  // TODO Cache GetType function
-  rocksdb::Status s = db_->storage()->GetType(key_, type);
+  std::vector<std::string> types(1);
+  rocksdb::Status s = db_->storage()->GetType(key_, true, types);
   if (s.ok()) {
     res_.AppendContent("+" + std::string(DataTypeToString(type)));
   } else {
@@ -1604,6 +1820,29 @@ void TypeCmd::ReadCache() {
 void TypeCmd::DoThroughDB() {
   res_.clear();
   Do();
+}
+
+void PTypeCmd::DoInitial() {
+  if (!CheckArg(argv_.size())) {
+    res_.SetRes(CmdRes::kWrongNum, kCmdNameType);
+    return;
+  }
+  key_ = argv_[1];
+}
+
+void PTypeCmd::Do() {
+  std::vector<std::string> types(5);
+  rocksdb::Status s = db_->storage()->GetType(key_, false, types);
+
+  if (s.ok()) {
+    res_.AppendArrayLenUint64(types.size());
+    for (const auto& vs : types) {
+      res_.AppendStringLenUint64(vs.size());
+      res_.AppendContent(vs);
+    }
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s.ToString());
+  }
 }
 
 void ScanCmd::DoInitial() {
@@ -1664,6 +1903,7 @@ void ScanCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   // To avoid memory overflow, we call the Scan method in batches
   do {
     keys.clear();
@@ -1740,6 +1980,7 @@ void ScanxCmd::DoInitial() {
 void ScanxCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Scanx(type_, start_key_, pattern_, count_, &keys, &next_key);
 
   if (s.ok()) {
@@ -1771,7 +2012,7 @@ void PKSetexAtCmd::DoInitial() {
 }
 
 void PKSetexAtCmd::Do() {
-  s_ = db_->storage()->PKSetexAt(key_, value_, static_cast<int32_t>(time_stamp_sec_ * 1000));
+  s_ = db_->storage()->PKSetexAt(key_, value_, static_cast<int32_t>(time_stamp_));
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
   } else if (s_.IsInvalidArgument()) {
@@ -1787,7 +2028,8 @@ void PKSetexAtCmd::DoThroughDB() {
 
 void PKSetexAtCmd::DoUpdateCache() {
   if (s_.ok()) {
-    auto expire = time_stamp_sec_ - static_cast<int64_t>(std::time(nullptr));
+    auto expire = time_stamp_ - static_cast<int64_t>(std::time(nullptr));
+    std::string CachePrefixKeyK = PCacheKeyPrefixK + key_;
     if (expire <= 0) [[unlikely]] {
       db_->cache()->Del({key_});
       return;
@@ -1854,6 +2096,7 @@ void PKScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_), &keys, &kvs, &next_key);
 
   if (s_.ok()) {
@@ -1939,6 +2182,7 @@ void PKRScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKRScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_),
                                 &keys, &kvs, &next_key);
 
