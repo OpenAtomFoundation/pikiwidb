@@ -630,6 +630,7 @@ std::string AppendCmd::ToRedisProtocol() {
   // value
   RedisAppendLenUint64(content, new_value_.size(), "$");
   RedisAppendContent(content, new_value_);
+  LOG(INFO) << "Content: " << content;
   return content;
 }
 
