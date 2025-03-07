@@ -381,14 +381,11 @@ func (s *Topom) tryFixReplicationRelationship(group *models.Group, groupServer *
 			}
 		}
 	} else {
-		// skip if it has right replication relationship
-		if state.Replication.GetMasterAddr() == curMasterAddr {
-			return nil
-		}
-
-		// current server is slave, execute the command `slaveof [new master ip] [new master port]`
-		if err = updateMasterToNewOne(groupServer.Addr, curMasterAddr, s.config.ProductAuth); err != nil {
-			return err
+		if state.Replication.GetMasterAddr() != curMasterAddr {
+			// current server is slave, execute the command `slaveof [new master ip] [new master port]`
+			if err = updateMasterToNewOne(groupServer.Addr, curMasterAddr, s.config.ProductAuth); err != nil {
+				return err
+			}
 		}
 	}
 
