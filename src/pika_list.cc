@@ -490,7 +490,7 @@ void LPushxCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::string CachePrefixKeyL = PCacheKeyPrefixL + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->LPushx(CachePrefixKeyL, values_);
+    db_->cache()->LPushIfKeyExist(CachePrefixKeyL, values_);
   }
 }
 
