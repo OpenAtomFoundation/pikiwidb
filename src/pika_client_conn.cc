@@ -371,8 +371,8 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
   resp_num--;
   if (read_status) {
     time_stat_->process_done_ts_ = pstd::NowMicros();
-    (*cmdstat_map)[argv[0]].cmd_count.fetch_add(1);
-    (*cmdstat_map)[argv[0]].cmd_time_consuming.fetch_add(time_stat_->total_time());
+    (*cmdstat_map)[opt].cmd_count.fetch_add(1);
+    (*cmdstat_map)[opt].cmd_time_consuming.fetch_add(time_stat_->total_time());
     resp_array.emplace_back(std::make_shared<std::string>(std::move(c_ptr->res().message())));
     TryWriteResp();
   }
