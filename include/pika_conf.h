@@ -982,6 +982,7 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_bit_ = 1;
   std::atomic_int zset_cache_start_direction_ = 0;
   std::atomic_int zset_cache_field_num_per_key_ = 512;
+  std::atomic_int cache_value_item_max_size_ = 1024;
   std::atomic_int max_key_size_in_cache_ = 512;
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
