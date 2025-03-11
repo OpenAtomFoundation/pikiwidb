@@ -882,6 +882,8 @@ const std::string InfoCmd::kKeyspaceSection = "keyspace";
 const std::string InfoCmd::kDataSection = "data";
 const std::string InfoCmd::kRocksDBSection = "rocksdb";
 const std::string InfoCmd::kDebugSection = "debug";
+const std::string InfoCmd::kCommandP99Section = "commandp99";
+const std::string InfoCmd::kSlowCommandSection = "slowcommand";
 const std::string InfoCmd::kCommandStatsSection = "commandstats";
 const std::string InfoCmd::kCacheSection = "cache";
 
@@ -967,6 +969,10 @@ void InfoCmd::DoInitial() {
     info_section_ = kInfoDebug;
   } else if (strcasecmp(argv_[1].data(), kCommandStatsSection.data()) == 0) {
     info_section_ = kInfoCommandStats;
+  } else if (strcasecmp(argv_[1].data(), kCommandP99Section.data()) == 0) {
+    info_section_ = kInfoCommandP99;
+  } else if (strcasecmp(argv_[1].data(), kSlowCommandSection.data()) == 0) {
+    info_section_ = kInfoSlowCommand; 
   } else if (strcasecmp(argv_[1].data(), kCacheSection.data()) == 0) {
     info_section_ = kInfoCache;
   } else {
@@ -1007,6 +1013,10 @@ void InfoCmd::Do() {
       InfoExecCount(info);
       info.append("\r\n");
       InfoCommandStats(info);
+      info.append("\r\n");
+      InfoCommandP99(info);
+      info.append("\r\n");
+      InfoSlowCommand(info);
       info.append("\r\n");
       InfoCache(info, db_);
       info.append("\r\n");
@@ -1051,6 +1061,12 @@ void InfoCmd::Do() {
     case kInfoCommandStats:
       InfoCommandStats(info);
       break;
+    case kInfoCommandP99:
+      InfoCommandP99(info);
+      break;
+    case kInfoSlowCommand:
+      InfoSlowCommand(info);
+      break;      
     case kInfoCache:
       InfoCache(info, db_);
       break;
@@ -1480,6 +1496,78 @@ void InfoCmd::InfoDebug(std::string& info) {
   info.append(tmp_stream.str());
   g_pika_server->ServerStatus(&info);
 }
+
+void InfoCmd::InfoCommandP99(std::string& info) {
+  std::stringstream tmp_stream;
+  tmp_stream.precision(2);
+  tmp_stream.setf(std::ios::fixed);
+  tmp_stream << "# Commands P99" << "\r\n";
+  auto& histogram_family = g_pika_cmd_table_manager->GetHistograms(); 
+
+  for (const auto& metric_family : histogram_family.Collect()) {
+    for (const auto& metric : metric_family.metric) {
+      std::string command_name;
+  
+      for (const auto& label : metric.label) {
+        if (label.name == "command") {
+          command_name = label.value;
+          break;
+        }
+      }
+  
+      double total_count = metric.histogram.sample_count;
+      double total_time = metric.histogram.sample_sum;
+  
+      if (command_name.empty()) {
+        tmp_stream << "Command: UNKNOWN\r\n";
+      } else {
+        tmp_stream << "Command: " << command_name << "\r\n";
+      }
+  
+      tmp_stream << "Total calls: " << total_count << ", Total usec: " << total_time << "\r\n";
+  
+      if (total_count < 10) { 
+        tmp_stream << "TP99: Not enough data\r\n";
+        continue;
+      }
+      double tp99_threshold = total_count * 0.99;
+      double cumulative_count = 0;
+      double tp99 = 0;
+  
+      for (const auto& bucket : metric.histogram.bucket) {
+        cumulative_count += bucket.cumulative_count;
+        tmp_stream << "Bucket[" << bucket.upper_bound << "]: " << bucket.cumulative_count << "\r\n";
+  
+        if (cumulative_count >= tp99_threshold) {
+          tp99 = bucket.upper_bound;
+          break;
+        }
+      }
+  
+      double total_time_usec = total_time * 1e6;
+      double avg_time = total_count > 0 ? total_time_usec / total_count * 1e6 : 0;
+      double tp99_usec = tp99 * 1e6;
+      tmp_stream << "Average usec_per_call: " << avg_time << "\r\n";
+      tmp_stream << "TP99 usec: " << tp99 << "\r\n";
+      tmp_stream << "----------------------\r\n";
+    }
+  } 
+  info.append(tmp_stream.str());
+}
+
+void InfoCmd::InfoSlowCommand(std::string& info) {
+  std::stringstream tmp_stream;
+  tmp_stream.precision(2);
+  tmp_stream.setf(std::ios::fixed);
+  auto stats = g_pika_cmd_table_manager->GetSlowCommandCount();
+  tmp_stream << "# SlowCommand Count" << "\r\n";
+  for (auto iter : *stats) {
+    if (iter.second.cmd_count != 0) {
+      tmp_stream << "Command: " << iter.first << ", Slow count: " << iter.second.cmd_count << "\r\n";
+    } 
+  }
+  info.append(tmp_stream.str());
+} 
 
 void InfoCmd::InfoCommandStats(std::string& info) {
   std::stringstream tmp_stream;

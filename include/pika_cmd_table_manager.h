@@ -8,10 +8,16 @@
 
 #include <shared_mutex>
 #include <thread>
+#include <prometheus/exposer.h>
+#include <prometheus/registry.h>
+#include <prometheus/counter.h>
+#include <prometheus/histogram.h>
 
 #include "include/acl.h"
 #include "include/pika_command.h"
 #include "include/pika_data_distribution.h"
+
+using namespace prometheus;
 
 struct CommandStatistics {
   CommandStatistics() = default;
@@ -42,6 +48,10 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
+  std::unordered_map<std::string, CommandStatistics>* GetSlowCommandCount();
+  void ResetSlowCommandCount();
+  prometheus::Histogram& GetHistogram(const std::string& opt);
+  prometheus::Family<prometheus::Histogram>& GetHistograms();
 
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
@@ -60,5 +70,12 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
+  std::unordered_map<std::string, CommandStatistics> slow_command_count_;
+  std::thread reset_thread_;
+  std::mutex slow_command_mutex_;
+  std::mutex histograms_mutex_;
+  prometheus::Registry prometheus_registry_;
+  prometheus::Family<prometheus::Histogram>& histogram_family_;
+  std::unordered_map<std::string, prometheus::Histogram*> histograms_;
 };
 #endif
