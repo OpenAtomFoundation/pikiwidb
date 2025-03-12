@@ -72,7 +72,7 @@ bool PikaCacheLoadThread::LoadHash(std::string& key, const std::shared_ptr<DB>& 
   db->storage()->HLen(key, &len);
   // If the Hash type contains more than 2048 data members, 
   // it will not be updated to RedisCache
-  if (0 >= len || g_pika_conf->max_key_size_in_cache() < len) {
+  if (0 >= len || g_pika_conf->value_item_max_size_in_cache() < len) {
     return false;
   }
 
@@ -93,9 +93,9 @@ bool PikaCacheLoadThread::LoadList(std::string& key, const std::shared_ptr<DB>& 
   db->storage()->LLen(key, &len);
   // If the List type contains more than 2048 data members, 
   // it will not be updated to RedisCache
-  if (len <= 0 || g_pika_conf->max_key_size_in_cache() < len) {
+  if (len <= 0 || g_pika_conf->value_item_max_size_in_cache() < len) {
     LOG(WARNING) << "can not load key, because item size:" << len
-                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+                 << " beyond max item size:" << g_pika_conf->value_item_max_size_in_cache();
     return false;
   }
 
@@ -116,9 +116,9 @@ bool PikaCacheLoadThread::LoadSet(std::string& key, const std::shared_ptr<DB>& d
   db->storage()->SCard(key, &len);
   // If the Set type contains more than 2048 data members, 
   // it will not be updated to RedisCache
-  if (0 >= len || g_pika_conf->max_key_size_in_cache() < len) {
+  if (0 >= len || g_pika_conf->value_item_max_size_in_cache() < len) {
     LOG(WARNING) << "can not load key, because item size:" << len
-                 << " beyond max item size:" << CACHE_VALUE_ITEM_MAX_SIZE;
+                 << " beyond max item size:" << g_pika_conf->value_item_max_size_in_cache();
     return false;
   }
 
