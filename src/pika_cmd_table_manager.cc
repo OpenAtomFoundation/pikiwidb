@@ -14,25 +14,31 @@
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
-void PikaCmdTableManager::ResetSlowCommandCount() {
+void PikaCmdTableManager::ResetCommandCount() {
   while (true) {
     std::this_thread::sleep_for(std::chrono::minutes(1)); 
     {
-      std::lock_guard<std::mutex> lock(slow_command_mutex_);
+      std::lock_guard<std::mutex> lock(command_mutex_);
       slow_command_count_.clear();
+      InitHistograms(); 
     }
-    LOG(INFO) << "Slow command statistics reset.";
   }
 }
 
-PikaCmdTableManager::PikaCmdTableManager() 
-   : histogram_family_(prometheus::BuildHistogram()
-                      .Name("pika_command_duration_seconds")
-                      .Help("Execution time of Pika commands in seconds")
-                      .Register(prometheus_registry_)) {
+void PikaCmdTableManager::InitHistograms() {
+  histograms_.clear();
+  prometheus_registry_ = std::make_shared<prometheus::Registry>();
+  histogram_family_ = &prometheus::BuildHistogram()
+      .Name("pika_command_duration_seconds")
+      .Help("Execution time of Pika commands in seconds")
+      .Register(*prometheus_registry_);
+}
+
+PikaCmdTableManager::PikaCmdTableManager() {
   cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
-  reset_thread_ = std::thread(&PikaCmdTableManager::ResetSlowCommandCount, this);
+  InitHistograms();
+  reset_thread_ = std::thread(&PikaCmdTableManager::ResetCommandCount, this);
 }
 
 void PikaCmdTableManager::InitCmdTable(void) {
@@ -80,20 +86,23 @@ void PikaCmdTableManager::RenameCommand(const std::string before, const std::str
 }
 
 prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt) {
-  std::lock_guard<std::mutex> lock(histograms_mutex_);
-  auto it = histograms_.find(opt);
-  if (it != histograms_.end()) {
-    return *(it->second);
+  {
+    std::shared_lock<std::shared_mutex> read_lock(histograms_mutex_);
+    auto it = histograms_.find(opt);
+    if (it != histograms_.end()) {
+      return *(it->second);
+    }
   }
-  auto& new_histogram = histogram_family_.Add(
+  std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
+  auto& new_histogram = histogram_family_->Add(
     {{"command", opt}}, 
-    prometheus::Histogram::BucketBoundaries{0.00001, 0.0001, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1, 5}
+    prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000}
   );
   histograms_[opt] = &new_histogram;
   return new_histogram;
 }
 
-prometheus::Family<prometheus::Histogram>& PikaCmdTableManager::GetHistograms() {
+prometheus::Family<prometheus::Histogram>* PikaCmdTableManager::GetHistograms() {
   return histogram_family_;
 }
 std::unordered_map<std::string, CommandStatistics>* PikaCmdTableManager::GetSlowCommandCount() {

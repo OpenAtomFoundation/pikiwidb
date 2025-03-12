@@ -36,6 +36,7 @@ class PikaCmdTableManager {
   PikaCmdTableManager();
   virtual ~PikaCmdTableManager() = default;
   void InitCmdTable(void);
+  void InitHistograms();
   void RenameCommand(const std::string before, const std::string after);
   std::shared_ptr<Cmd> GetCmd(const std::string& opt);
   bool CmdExist(const std::string& cmd) const;
@@ -49,9 +50,9 @@ class PikaCmdTableManager {
   */
   std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
   std::unordered_map<std::string, CommandStatistics>* GetSlowCommandCount();
-  void ResetSlowCommandCount();
+  void ResetCommandCount();
   prometheus::Histogram& GetHistogram(const std::string& opt);
-  prometheus::Family<prometheus::Histogram>& GetHistograms();
+  prometheus::Family<prometheus::Histogram>* GetHistograms();
 
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
@@ -72,10 +73,10 @@ class PikaCmdTableManager {
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
   std::unordered_map<std::string, CommandStatistics> slow_command_count_;
   std::thread reset_thread_;
-  std::mutex slow_command_mutex_;
-  std::mutex histograms_mutex_;
-  prometheus::Registry prometheus_registry_;
-  prometheus::Family<prometheus::Histogram>& histogram_family_;
+  std::mutex command_mutex_;
+  std::shared_mutex histograms_mutex_; 
+  std::shared_ptr<prometheus::Registry> prometheus_registry_;
+  prometheus::Family<prometheus::Histogram>* histogram_family_;
   std::unordered_map<std::string, prometheus::Histogram*> histograms_;
 };
 #endif

@@ -1502,9 +1502,9 @@ void InfoCmd::InfoCommandP99(std::string& info) {
   tmp_stream.precision(2);
   tmp_stream.setf(std::ios::fixed);
   tmp_stream << "# Commands P99" << "\r\n";
-  auto& histogram_family = g_pika_cmd_table_manager->GetHistograms(); 
+  auto histogram_family = g_pika_cmd_table_manager->GetHistograms(); 
 
-  for (const auto& metric_family : histogram_family.Collect()) {
+  for (const auto& metric_family : histogram_family->Collect()) {
     for (const auto& metric : metric_family.metric) {
       std::string command_name;
   
@@ -1516,7 +1516,6 @@ void InfoCmd::InfoCommandP99(std::string& info) {
       }
   
       double total_count = metric.histogram.sample_count;
-      double total_time = metric.histogram.sample_sum;
   
       if (command_name.empty()) {
         tmp_stream << "Command: UNKNOWN\r\n";
@@ -1524,34 +1523,25 @@ void InfoCmd::InfoCommandP99(std::string& info) {
         tmp_stream << "Command: " << command_name << "\r\n";
       }
   
-      tmp_stream << "Total calls: " << total_count << ", Total usec: " << total_time << "\r\n";
+      tmp_stream << "Total calls: " << total_count <<  "\r\n";
   
-      if (total_count < 10) { 
-        tmp_stream << "TP99: Not enough data\r\n";
-        continue;
-      }
       double tp99_threshold = total_count * 0.99;
-      double cumulative_count = 0;
       double tp99 = 0;
   
       for (const auto& bucket : metric.histogram.bucket) {
-        cumulative_count += bucket.cumulative_count;
-        tmp_stream << "Bucket[" << bucket.upper_bound << "]: " << bucket.cumulative_count << "\r\n";
+        tmp_stream << "Bucket[" << bucket.upper_bound << " ms]: " << bucket.cumulative_count << "\r\n"; 
   
-        if (cumulative_count >= tp99_threshold) {
-          tp99 = bucket.upper_bound;
+        if (bucket.cumulative_count >= tp99_threshold) {
+          tp99 = bucket.upper_bound; 
           break;
         }
       }
   
-      double total_time_usec = total_time * 1e6;
-      double avg_time = total_count > 0 ? total_time_usec / total_count * 1e6 : 0;
-      double tp99_usec = tp99 * 1e6;
-      tmp_stream << "Average usec_per_call: " << avg_time << "\r\n";
-      tmp_stream << "TP99 usec: " << tp99 << "\r\n";
+      tmp_stream << "TP99 ms: " << tp99 << "\r\n";
       tmp_stream << "----------------------\r\n";
     }
-  } 
+  }
+
   info.append(tmp_stream.str());
 }
 

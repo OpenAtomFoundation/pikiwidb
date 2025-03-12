@@ -227,7 +227,7 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   auto end_time = std::chrono::high_resolution_clock::now();
 
   time_stat_->process_done_ts_ = pstd::NowMicros();
-  std::chrono::duration<double> elapsed = end_time - start_time;
+  std::chrono::duration<double, std::milli> elapsed = end_time - start_time; 
   g_pika_cmd_table_manager->GetHistogram(opt).Observe(elapsed.count());
   auto cmdstat_map = g_pika_cmd_table_manager->GetCommandStatMap();
   (*cmdstat_map)[opt].cmd_count.fetch_add(1);
