@@ -21,6 +21,8 @@ type InfoConfig struct {
 	Keyspace     bool `toml:"keyspace"`
 	Execcount    bool `toml:"execcount"`
 	Commandstats bool `toml:"commandstats"`
+	CommandP99   bool `toml:"commandp99"`
+	SlowCommand  bool `toml:"slowcommand"`
 	Rocksdb      bool `toml:"rocksdb"`
 	Cache        bool `toml:"cache"`
 

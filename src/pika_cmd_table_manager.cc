@@ -96,7 +96,7 @@ prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt)
   std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
   auto& new_histogram = histogram_family_->Add(
     {{"command", opt}}, 
-    prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000}
+    prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 65, 75, 85, 100, 125, 140, 150, 160, 175, 185, 200, 300, 400, 500, 750, 1000, 2000, 5000, 10000}
   );
   histograms_[opt] = &new_histogram;
   return new_histogram;

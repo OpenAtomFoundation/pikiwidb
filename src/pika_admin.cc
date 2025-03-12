@@ -1553,7 +1553,7 @@ void InfoCmd::InfoSlowCommand(std::string& info) {
   tmp_stream << "# SlowCommand Count" << "\r\n";
   for (auto iter : *stats) {
     if (iter.second.cmd_count != 0) {
-      tmp_stream << "Command: " << iter.first << ", Slow count: " << iter.second.cmd_count << "\r\n";
+      tmp_stream << iter.first << ":slow_count=" << iter.second.cmd_count << "\r\n";
     } 
   }
   info.append(tmp_stream.str());
