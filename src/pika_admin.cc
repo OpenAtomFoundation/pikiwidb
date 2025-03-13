@@ -1523,21 +1523,26 @@ void InfoCmd::InfoCommandP99(std::string& info) {
         tmp_stream << "Command: " << command_name << "\r\n";
       }
   
-      tmp_stream << "Total calls: " << total_count <<  "\r\n";
-  
       double tp99_threshold = total_count * 0.99;
-      double tp99 = 0;
+      double tp999_threshold = total_count * 0.999;
+      double tp9999_threshold = total_count * 0.9999;
+      double tp99 = 0, tp999 = 0, tp9999 = 0;
   
       for (const auto& bucket : metric.histogram.bucket) {
-        tmp_stream << "Bucket[" << bucket.upper_bound << " ms]: " << bucket.cumulative_count << "\r\n"; 
-  
-        if (bucket.cumulative_count >= tp99_threshold) {
-          tp99 = bucket.upper_bound; 
+        if (bucket.cumulative_count >= tp99_threshold && tp99 == 0) {
+          tp99 = bucket.upper_bound;
+        }
+        if (bucket.cumulative_count >= tp999_threshold && tp999 == 0) {
+          tp999 = bucket.upper_bound;
+        }
+        if (bucket.cumulative_count >= tp9999_threshold && tp9999 == 0) {
+          tp9999 = bucket.upper_bound;
           break;
         }
       }
-  
       tmp_stream << "TP99 ms: " << tp99 << "\r\n";
+      tmp_stream << "TP999 ms: " << tp999 << "\r\n";
+      tmp_stream << "TP9999 ms: " << tp9999 << "\r\n";
       tmp_stream << "----------------------\r\n";
     }
   }
@@ -1551,7 +1556,7 @@ void InfoCmd::InfoSlowCommand(std::string& info) {
   tmp_stream.setf(std::ios::fixed);
   auto stats = g_pika_cmd_table_manager->GetSlowCommandCount();
   tmp_stream << "# SlowCommand Count" << "\r\n";
-  for (auto iter : *stats) {
+  for (auto iter : stats) {
     if (iter.second.cmd_count != 0) {
       tmp_stream << iter.first << ":slow_count=" << iter.second.cmd_count << "\r\n";
     } 

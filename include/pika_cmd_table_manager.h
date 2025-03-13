@@ -49,7 +49,8 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
-  std::unordered_map<std::string, CommandStatistics>* GetSlowCommandCount();
+  std::unordered_map<std::string, CommandStatistics> GetSlowCommandCount();
+  void UpdateSlowCommandCount(const std::string& opt);
   void ResetCommandCount();
   prometheus::Histogram& GetHistogram(const std::string& opt);
   prometheus::Family<prometheus::Histogram>* GetHistograms();
@@ -74,7 +75,8 @@ class PikaCmdTableManager {
   std::unordered_map<std::string, CommandStatistics> slow_command_count_;
   std::thread reset_thread_;
   std::mutex command_mutex_;
-  std::shared_mutex histograms_mutex_; 
+  std::shared_mutex histograms_mutex_;
+  std::shared_mutex slow_command_mutex_;
   std::shared_ptr<prometheus::Registry> prometheus_registry_;
   prometheus::Family<prometheus::Histogram>* histogram_family_;
   std::unordered_map<std::string, prometheus::Histogram*> histograms_;

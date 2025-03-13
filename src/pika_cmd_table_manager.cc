@@ -105,8 +105,27 @@ prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt)
 prometheus::Family<prometheus::Histogram>* PikaCmdTableManager::GetHistograms() {
   return histogram_family_;
 }
-std::unordered_map<std::string, CommandStatistics>* PikaCmdTableManager::GetSlowCommandCount() {
-  return &slow_command_count_;
+
+void PikaCmdTableManager::UpdateSlowCommandCount(const std::string& opt) {
+  {
+    std::shared_lock<std::shared_mutex> read_lock(slow_command_mutex_);
+    if (slow_command_count_.find(opt) != slow_command_count_.end()) {
+      slow_command_count_[opt].cmd_count.fetch_add(1);
+      return;
+    }
+  }
+
+  {
+    std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_);
+    slow_command_count_[opt]; 
+  }
+
+  slow_command_count_[opt].cmd_count.fetch_add(1);
+}
+
+std::unordered_map<std::string, CommandStatistics> PikaCmdTableManager::GetSlowCommandCount() {
+  std::shared_lock<std::shared_mutex> lock(slow_command_mutex_);
+  return slow_command_count_;
 }
 
 std::unordered_map<std::string, CommandStatistics>* PikaCmdTableManager::GetCommandStatMap() {
