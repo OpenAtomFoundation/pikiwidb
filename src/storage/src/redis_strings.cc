@@ -181,9 +181,9 @@ Status RedisStrings::Append(const Slice& key, const Slice& value, int32_t* ret, 
     }
   } else if (s.IsNotFound()) {
     *ret = static_cast<int32_t>(value.size());
+    out_new_value = value.ToString();
     StringsValue strings_value(value);
     return db_->Put(default_write_options_, key, strings_value.Encode());
-    *expired_timestamp_sec = 0;
   }
   return s;
 }
