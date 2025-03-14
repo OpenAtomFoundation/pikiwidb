@@ -119,4 +119,34 @@ var collectPorxyCmdMetrics map[string]MetricConfig = map[string]MetricConfig{
 			ValueName: "max_delay",
 		},
 	},
+	"tp99": {
+		Parser: &proxyParser{},
+		MetricMeta: &MetaData{
+			Name:      "proxy_tp99",
+			Help:      "proxy process duration 's TP99.",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelID, LabelProductName, LabelOpstr},
+			ValueName: "tp99",
+		},
+	},
+	"tp999": {
+		Parser: &proxyParser{},
+		MetricMeta: &MetaData{
+			Name:      "proxy_tp999",
+			Help:      "proxy process duration 's TP999.",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelID, LabelProductName, LabelOpstr},
+			ValueName: "tp999",
+		},
+	},
+	"tp9999": {
+		Parser: &proxyParser{},
+		MetricMeta: &MetaData{
+			Name:      "proxy_tp9999",
+			Help:      "proxy process duration 's TP999.",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelID, LabelProductName, LabelOpstr},
+			ValueName: "tp9999",
+		},
+	},
 }
