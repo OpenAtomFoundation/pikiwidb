@@ -17,50 +17,48 @@ const (
 )
 
 type statusToGaugeParser struct {
-    statusMapping map[string]int
+	statusMapping map[string]int
 }
 
 func (p *statusToGaugeParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
-    m.Lookup(func(m MetaData) {
-        metric := Metric{
-            MetaData:    m,
-            LabelValues: make([]string, len(m.Labels)),
-            Value:       defaultValue,
-        }
+	m.Lookup(func(m MetaData) {
+		metric := Metric{
+			MetaData:    m,
+			LabelValues: make([]string, len(m.Labels)),
+			Value:       defaultValue,
+		}
 
-        for i, labelName := range m.Labels {
-            labelValue, ok := findInMap(labelName, opt.Extracts)
-            if !ok {
-                log.Debugf("statusToGaugeParser::Parse not found label value. metricName:%s labelName:%s",
-                    m.Name, labelName)
-            }
+		for i, labelName := range m.Labels {
+			labelValue, ok := findInMap(labelName, opt.Extracts)
+			if !ok {
+				log.Debugf("statusToGaugeParser::Parse not found label value. metricName:%s labelName:%s",
+					m.Name, labelName)
+			}
 
-            metric.LabelValues[i] = labelValue
-        }
+			metric.LabelValues[i] = labelValue
+		}
 
-        if m.ValueName != "" {
-            if v, ok := findInMap(m.ValueName, opt.Extracts); !ok {
-                log.Warnf("statusToGaugeParser::Parse not found value. metricName:%s valueName:%s", m.Name, m.ValueName)
-                return
-            } else {
-                mappedValue, exists := p.statusMapping[v]
-                if !exists {
-                    log.Warnf("statusToGaugeParser::Parse unknown status value. metricName:%s valueName:%s rawValue:%s",
-                        m.Name, m.ValueName, v)
-                    mappedValue = defaultValue
-                }
-                metric.Value = float64(mappedValue)
-            }
-        }
+		if m.ValueName != "" {
+			if v, ok := findInMap(m.ValueName, opt.Extracts); !ok {
+				log.Warnf("statusToGaugeParser::Parse not found value. metricName:%s valueName:%s", m.Name, m.ValueName)
+				return
+			} else {
+				mappedValue, exists := p.statusMapping[v]
+				if !exists {
+					log.Warnf("statusToGaugeParser::Parse unknown status value. metricName:%s valueName:%s rawValue:%s",
+						m.Name, m.ValueName, v)
+					mappedValue = defaultValue
+				}
+				metric.Value = float64(mappedValue)
+			}
+		}
 
-        if err := c.Collect(metric); err != nil {
-            log.Errorf("statusToGaugeParser::Parse metric collect failed. metric:%#v err:%s",
-                m, m.ValueName)
-        }
-    })
+		if err := c.Collect(metric); err != nil {
+			log.Errorf("statusToGaugeParser::Parse metric collect failed. metric:%#v err:%s",
+				m, m.ValueName)
+		}
+	})
 }
-
-
 
 type ParseOption struct {
 	Version        *semver.Version
@@ -526,6 +524,12 @@ func (p *proxyParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
 				metric.Value = convertToFloat64(strconv.FormatInt(v[2], 10))
 			case "max_delay":
 				metric.Value = convertToFloat64(strconv.FormatInt(v[3], 10))
+			case "tp99":
+				metric.Value = convertToFloat64(strconv.FormatInt(v[4], 10))
+			case "tp999":
+				metric.Value = convertToFloat64(strconv.FormatInt(v[5], 10))
+			case "tp9999":
+				metric.Value = convertToFloat64(strconv.FormatInt(v[6], 10))
 			}
 
 			if err := c.Collect(metric); err != nil {
