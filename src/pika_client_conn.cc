@@ -7,6 +7,10 @@
 #include <glog/logging.h>
 #include <utility>
 #include <vector>
+#include <prometheus/exposer.h>
+#include <prometheus/registry.h>
+#include <prometheus/counter.h>
+#include <prometheus/histogram.h>
 
 #include "include/pika_admin.h"
 #include "include/pika_client_conn.h"
@@ -221,19 +225,21 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   c_ptr->Execute();
 
   time_stat_->process_done_ts_ = pstd::NowMicros();
+  g_pika_cmd_table_manager->GetHistogram(opt).Observe(time_stat_->total_time() / 1000);
   auto cmdstat_map = g_pika_cmd_table_manager->GetCommandStatMap();
   (*cmdstat_map)[opt].cmd_count.fetch_add(1);
   (*cmdstat_map)[opt].cmd_time_consuming.fetch_add(time_stat_->total_time());
 
   if (g_pika_conf->slowlog_slower_than() >= 0) {
-    ProcessSlowlog(argv, c_ptr);
+    ProcessSlowlog(argv, c_ptr, opt);
   }
 
   return c_ptr;
 }
 
-void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr) {
+void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr, const std::string& opt) {
   if (time_stat_->total_time() > g_pika_conf->slowlog_slower_than()) {
+    g_pika_cmd_table_manager->UpdateSlowCommandCount(opt);
     g_pika_server->SlowlogPushEntry(argv, time_stat_->start_ts() / 1000000, time_stat_->total_time());
     if (g_pika_conf->slowlog_write_errorlog()) {
       bool trim = false;
