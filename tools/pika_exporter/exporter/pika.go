@@ -355,6 +355,12 @@ func (e *exporter) registerMetrics() {
 	if config.Commandstats {
 		metrics.RegisterCommandstats()
 	}
+	if config.CommandP99 {
+		metrics.RegisterCommandP99()
+	}
+	if config.SlowCommand {
+	    metrics.RegisterSlowCommand()
+	}
 	if config.Rocksdb {
 		metrics.RegisterRocksDB()
 	}
