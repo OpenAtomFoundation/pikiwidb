@@ -40,6 +40,12 @@ constexpr int CACHE_START_FROM_END = -1;
 #define DEFAULT_CACHE_ITEMS_PER_KEY 512
 #define DEFAULT_CACHE_MAX_KEY_SIZE 512
 
+/*
+ * cache value item default size
+ */
+#define DEFAULT_CACHE_ITEMS_SIZE 1024
+#define MAX_CACHE_ITEMS_SIZE 2048
+
 struct CacheConfig {
   uint64_t maxmemory;                      /* Can used max memory */
   int32_t  maxmemory_policy;               /* Policy for key eviction */
@@ -47,6 +53,8 @@ struct CacheConfig {
   int32_t  lfu_decay_time;                 /* LFU counter decay factor. */
   int32_t  zset_cache_start_direction;
   int32_t  zset_cache_field_num_per_key;
+  int32_t  cache_value_item_max_size;
+
 
   CacheConfig()
     : maxmemory(CACHE_DEFAULT_MAXMEMORY)
