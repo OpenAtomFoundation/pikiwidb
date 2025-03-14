@@ -48,7 +48,7 @@ func (s *Topom) CheckStateAndSwitchSlavesAndMasters(filter func(index int, g *mo
 
 	if len(recoveredGroupServersState) > 0 {
 		// offline GroupServer's service has recovered, check and fix it's master-slave replication relationship
-		s.tryFixReplicationRelationships(ctx, recoveredGroupServersState, len(masterOfflineGroups))
+		s.tryFixReplicationRelationships(ctx, recoveredGroupServersState)
 	}
 
 	return nil
@@ -85,6 +85,18 @@ func (s *Topom) checkAndUpdateGroupServerState(conf *Config, group *models.Group
 			*recoveredGroupServers = append(*recoveredGroupServers, state)
 			// update GroupServer to GroupServerStateNormal state later
 		} else {
+			// This may contains any of following condition:
+			// 1. groupServer.State is Normal
+			// 2. groupServer.State is GroupServerStateSubjectiveOffline and is Master
+			// 3. groupServer.State is GroupServerStateSubjectiveOffline and is Slave
+			// for condition 3, if current server's previous state is SubjectiveOffline
+			// and has been added to slaveofflinegroups before,
+			// should also resync mappings to proxy to enable replicationgroup
+			if groupServer.State == models.GroupServerStateSubjectiveOffline &&
+				!isGroupMaster(state, group) &&
+				group.OutOfSync {
+				*recoveredGroupServers = append(*recoveredGroupServers, state)
+			}
 			// Update the offset information of the state and role nodes
 			groupServer.State = models.GroupServerStateNormal
 			groupServer.ReCallTimes = 0
