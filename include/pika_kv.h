@@ -29,7 +29,7 @@ class SetCmd : public Cmd {
   void DoThroughDB() override;
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
-  bool IsTooLargeKey(const int& max_sz) override { return key_.size() > static_cast<uint32_t>(max_sz); }
+  bool IsTooLargeKey(const size_t &max_sz) override { return key_.size() > max_sz; }
   Cmd* Clone() override { return new SetCmd(*this); }
 
  private:
@@ -65,7 +65,7 @@ class GetCmd : public Cmd {
   void ReadCache() override;
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
-  bool IsTooLargeKey(const int &max_sz) override { return key_.size() > static_cast<uint32_t>(max_sz); }
+  bool IsTooLargeKey(const size_t &max_sz) override { return key_.size() > max_sz; }
   Cmd* Clone() override { return new GetCmd(*this); }
 
  private:
