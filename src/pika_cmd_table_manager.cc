@@ -14,9 +14,31 @@
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
+void PikaCmdTableManager::ResetCommandCount() {
+  while (true) {
+    std::this_thread::sleep_for(std::chrono::minutes(1)); 
+    {
+      std::lock_guard<std::mutex> lock(command_mutex_);
+      slow_command_count_.clear();
+      InitHistograms(); 
+    }
+  }
+}
+
+void PikaCmdTableManager::InitHistograms() {
+  histograms_.clear();
+  prometheus_registry_ = std::make_shared<prometheus::Registry>();
+  histogram_family_ = &prometheus::BuildHistogram()
+      .Name("pika_command_duration_seconds")
+      .Help("Execution time of Pika commands in seconds")
+      .Register(*prometheus_registry_);
+}
+
 PikaCmdTableManager::PikaCmdTableManager() {
   cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
+  InitHistograms();
+  reset_thread_ = std::thread(&PikaCmdTableManager::ResetCommandCount, this);
 }
 
 void PikaCmdTableManager::InitCmdTable(void) {
@@ -61,6 +83,49 @@ void PikaCmdTableManager::RenameCommand(const std::string before, const std::str
     }
     cmds_->erase(it);
   }
+}
+
+prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt) {
+  {
+    std::shared_lock<std::shared_mutex> read_lock(histograms_mutex_);
+    auto it = histograms_.find(opt);
+    if (it != histograms_.end()) {
+      return *(it->second);
+    }
+  }
+  std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
+  auto& new_histogram = histogram_family_->Add(
+    {{"command", opt}}, 
+    prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 65, 75, 85, 100, 125, 140, 150, 160, 175, 185, 200, 300, 400, 500, 750, 1000, 2000, 5000, 10000}
+  );
+  histograms_[opt] = &new_histogram;
+  return new_histogram;
+}
+
+prometheus::Family<prometheus::Histogram>* PikaCmdTableManager::GetHistograms() {
+  return histogram_family_;
+}
+
+void PikaCmdTableManager::UpdateSlowCommandCount(const std::string& opt) {
+  {
+    std::shared_lock<std::shared_mutex> read_lock(slow_command_mutex_);
+    if (slow_command_count_.find(opt) != slow_command_count_.end()) {
+      slow_command_count_[opt].cmd_count.fetch_add(1);
+      return;
+    }
+  }
+
+  {
+    std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_);
+    slow_command_count_[opt]; 
+  }
+
+  slow_command_count_[opt].cmd_count.fetch_add(1);
+}
+
+std::unordered_map<std::string, CommandStatistics> PikaCmdTableManager::GetSlowCommandCount() {
+  std::shared_lock<std::shared_mutex> lock(slow_command_mutex_);
+  return slow_command_count_;
 }
 
 std::unordered_map<std::string, CommandStatistics>* PikaCmdTableManager::GetCommandStatMap() {
