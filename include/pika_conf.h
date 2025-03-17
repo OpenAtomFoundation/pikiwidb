@@ -18,6 +18,7 @@
 #include "pstd/include/pstd_string.h"
 
 #include "acl.h"
+#include "cache/include/config.h"
 #include "include/pika_define.h"
 #include "rocksdb/compression_type.h"
 
@@ -862,6 +863,30 @@ class PikaConf : public pstd::BaseConf {
     return rocksdb_perf_level_.load();
   }
 
+  int CacheValueItemMaxSize() const {
+    return cache_value_item_max_size_.load();
+  } 
+
+  bool UpdateCacheValueItemMaxSize(int size) {
+    if (size >= MAX_CACHE_ITEMS_SIZE || size <= 0) {
+      return false;
+    }
+    cache_value_item_max_size_.store(size);
+    return true;
+  }
+
+  size_t MaxKeySizeInCache() const {
+    return max_key_size_in_cache_.load();
+  } 
+
+  bool UpdateMaxKeySizeInCache(size_t size) {
+    if (size >= MAX_CACHE_MAX_KEY_SIZE || size <= 0) {
+      return false;
+    }
+    max_key_size_in_cache_.store(size);
+    return true;
+  }
+
   bool UpdateRocksDBPerfLevel(int perf_level) {
     if (perf_level >= 6 || perf_level < 0) {
       return false;
@@ -1122,7 +1147,7 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int zset_cache_start_direction_ = 0;
   std::atomic_int zset_cache_field_num_per_key_ = 512;
   std::atomic_int cache_value_item_max_size_ = 1024;
-  std::atomic_int max_key_size_in_cache_ = 1024 * 1024;
+  std::atomic_size_t max_key_size_in_cache_ = 1024 * 1024;
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;

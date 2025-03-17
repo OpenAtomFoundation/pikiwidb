@@ -38,7 +38,8 @@ constexpr int CACHE_START_FROM_END = -1;
  * cache items per key
  */
 #define DEFAULT_CACHE_ITEMS_PER_KEY 512
-#define DEFAULT_CACHE_MAX_KEY_SIZE 512
+#define DEFAULT_CACHE_MAX_KEY_SIZE 1048576  // 1M
+#define MAX_CACHE_MAX_KEY_SIZE 2097152    // 2M
 
 /*
  * cache value item default size
