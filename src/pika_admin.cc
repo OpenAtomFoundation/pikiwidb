@@ -2213,6 +2213,18 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->blob_file_size());
   }
 
+  if (pstd::stringmatch(pattern.data(), "cache-value-item-max-size", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "cache-value-item-max-size");
+    EncodeNumber(&config_body, g_pika_conf->CacheValueItemMaxSize());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "max-key-size-in-cache", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "max-key-size-in-cache");
+    EncodeNumber(&config_body, g_pika_conf->MaxKeySizeInCache());
+  }
+
   if (pstd::stringmatch(pattern.data(), "blob-garbage-collection-age-cutoff", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "blob-garbage-collection-age-cutoff");
@@ -2858,6 +2870,32 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
               << (success ? " success" : " failed");
     if (!success) {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-percent', should between 0 and 100\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "cache-value-item-max-size") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'cache-value-item-max-size'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateCacheValueItemMaxSize(int(ival));
+    LOG(INFO) << "update cache-value-item-max-size to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'cache-value-item-max-size', should between 1 and 2048\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "max-key-size-in-cache") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-key-size-in-cache'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateMaxKeySizeInCache(size_t(ival));
+    LOG(INFO) << "update max-key-size-in-cache to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-key-size-in-cache', should between 1 and 2097152 \r\n");
       return;
     }
     res_.AppendStringRaw("+OK\r\n");
