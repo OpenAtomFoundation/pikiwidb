@@ -622,6 +622,8 @@ int PikaConf::Load() {
   GetConfInt("max-key-size-in-cache", &max_key_size_in_cache);
   if (max_key_size_in_cache <= 0) {
     max_key_size_in_cache = DEFAULT_CACHE_MAX_KEY_SIZE;
+  } else if (max_key_size_in_cache > MAX_CACHE_MAX_KEY_SIZE) {
+    max_key_size_in_cache = MAX_CACHE_MAX_KEY_SIZE; 
   }
   max_key_size_in_cache_ = max_key_size_in_cache;
 
