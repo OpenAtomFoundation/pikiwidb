@@ -77,7 +77,7 @@ func (s *Topom) checkAndUpdateGroupServerState(conf *Config, group *models.Group
 			// Currently, both primary and secondary nodes have subjective and objective logics.
 			// If it is subjective, we will not perform any operation. If more than 10 probe counts
 			// fail, it is defined as objective logics, If it is an objective offline, we will add the
-			// node to masterOfflineGroups and slaveOfflineGroups respectively, and then notify the Proxy
+			// node to masterOfflineGroups or slaveOfflineGroups respectively, and then notify the Proxy
 			// to change the meta information
 			if groupServer.State == models.GroupServerStateOffline {
 				if isGroupMaster(state, group) {
