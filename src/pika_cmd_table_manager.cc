@@ -15,14 +15,9 @@
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
 void PikaCmdTableManager::ResetCommandCount() {
-  while (true) {
-    std::this_thread::sleep_for(std::chrono::minutes(1)); 
-    {
-      std::lock_guard<std::mutex> lock(command_mutex_);
-      slow_command_count_.clear();
-      InitHistograms(); 
-    }
-  }
+  std::lock_guard<std::mutex> lock(command_mutex_);
+  slow_command_count_.clear();
+  InitHistograms(); 
 }
 
 void PikaCmdTableManager::InitHistograms() {
@@ -38,7 +33,6 @@ PikaCmdTableManager::PikaCmdTableManager() {
   cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
   InitHistograms();
-  reset_thread_ = std::thread(&PikaCmdTableManager::ResetCommandCount, this);
 }
 
 void PikaCmdTableManager::InitCmdTable(void) {
