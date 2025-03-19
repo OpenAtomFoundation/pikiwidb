@@ -1033,6 +1033,16 @@ void PikaServer::ResetLastSecQuerynum() {
   statistic_.ResetDBLastSecQuerynum();
 }
 
+void PikaServer::ResetCommandCount() {
+  thread_local uint64_t last_reset_time = 0;
+  auto current_time = pstd::NowMicros();
+  if (current_time - last_reset_time < 60 * 1000 * 1000) {
+    return;
+  }
+  last_reset_time = current_time; 
+  g_pika_cmd_table_manager->ResetCommandCount();
+}
+
 void PikaServer::UpdateQueryNumAndExecCountDB(const std::string& db_name, const std::string& command, bool is_write) {
   std::string cmd(command);
   statistic_.server_stat.qps.querynum++;
@@ -1139,6 +1149,8 @@ void PikaServer::DoTimingTask() {
   ResetLastSecQuerynum();
   // Auto update network instantaneous metric
   AutoUpdateNetworkMetric();
+  // Reset command statistics
+  ResetCommandCount();
   ProcessCronTask();
   UpdateCacheInfo();
   // Print the queue status periodically

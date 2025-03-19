@@ -38,7 +38,6 @@ PikaCmdTableManager::PikaCmdTableManager() {
   cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
   InitHistograms();
-  reset_thread_ = std::thread(&PikaCmdTableManager::ResetCommandCount, this);
 }
 
 void PikaCmdTableManager::InitCmdTable(void) {
