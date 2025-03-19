@@ -887,7 +887,10 @@ class PikaConf : public pstd::BaseConf {
   int slow_cmd_thread_pool_size_ = 0;
   int admin_thread_pool_size_ = 0;
   std::unordered_set<std::string> slow_cmd_set_;
-  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor"};
+  // Because the exporter of Pika_exporter implements Auth authentication
+  // with the Exporter of Pika, and the Exporter authenticates the Auth when 
+  // users connect to Pika, the Auth is added to the management command thread pool
+  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor", "auth"};
   int sync_thread_num_ = 0;
   int sync_binlog_thread_num_ = 0;
   int expire_dump_days_ = 3;
