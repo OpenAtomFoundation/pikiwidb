@@ -15,9 +15,15 @@
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
 void PikaCmdTableManager::ResetCommandCount() {
-  std::lock_guard<std::mutex> lock(command_mutex_);
-  slow_command_count_.clear();
-  InitHistograms(); 
+  {
+    std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_); 
+    slow_command_count_.clear();
+  }
+
+  {
+    std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
+    InitHistograms();
+  }
 }
 
 void PikaCmdTableManager::InitHistograms() {
