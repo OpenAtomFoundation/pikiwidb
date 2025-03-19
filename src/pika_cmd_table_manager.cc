@@ -103,6 +103,7 @@ prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt)
 }
 
 prometheus::Family<prometheus::Histogram>* PikaCmdTableManager::GetHistograms() {
+  std::shared_lock<std::shared_mutex> read_lock(histograms_mutex_); 
   return histogram_family_;
 }
 
