@@ -5,9 +5,8 @@ stats = true
 cpu = true
 replication = true
 keyspace = true
-cache = false
-commandp99 = true
-slowcommand = true
+cache = true
+
 execcount = false
 commandstats = false
 rocksdb = false
