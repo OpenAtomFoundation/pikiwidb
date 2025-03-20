@@ -4,10 +4,6 @@
 
 # export PATH := $(PATH):$(GOPATH)/bin
 
-# for mac
-BRANCH			:= $(shell git branch | sed -n 's/* \(.*\)/\1/p')
-# for Linux
-# BRANCH			:= $(shell git branch | sed --quiet 's/* \(.*\)/\1/p')
 GITREV 			:= $(shell git rev-parse HEAD)
 BUILDTIME 		:= $(shell date '+%F %T %Z')
 COMPILERVERSION	:= $(subst go version ,,$(shell go version))
