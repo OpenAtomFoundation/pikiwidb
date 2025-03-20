@@ -127,8 +127,6 @@ func (c *client) InfoNoneCommandList() (string, error) {
 		"COMMAND_EXEC_COUNT": InfoConf.Execcount,
 		"COMMANDSTATS":       InfoConf.Commandstats,
 		"ROCKSDB":            InfoConf.Rocksdb,
-		"CommandP99":         InfoConf.CommandP99,
-		"SlowCommand":        InfoConf.SlowCommand,
 	}
 	for section, flag := range sectionsMap {
 		if flag {
@@ -157,8 +155,6 @@ func (c *client) InfoAllCommandList() (string, error) {
 		"COMMAND_EXEC_COUNT": InfoConf.Execcount,
 		"COMMANDSTATS":       InfoConf.Commandstats,
 		"ROCKSDB":            InfoConf.Rocksdb,
-		"CommandP99":         InfoConf.CommandP99,
-		"SlowCommand":        InfoConf.SlowCommand,
 	}
 	for section, flag := range sectionsMap {
 		if flag {

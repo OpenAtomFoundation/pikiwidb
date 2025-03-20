@@ -630,24 +630,6 @@ ExternalProject_Add(rocksdb
   make -j${CPU_CORE}
 )
 
-ExternalProject_Add(prometheus_cpp
-  URL
-  https://github.com/jupp0r/prometheus-cpp/releases/download/v1.2.4/prometheus-cpp-with-submodules.tar.gz
-  CMAKE_ARGS
-  -DBUILD_SHARED_LIBS=OFF
-  -DENABLE_PUSH=OFF
-  -DENABLE_COMPRESSION=OFF
-  -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
-  -DCMAKE_INSTALL_INCLUDEDIR=${INSTALL_INCLUDEDIR}
-  BUILD_ALWAYS
-  1
-  BUILD_COMMAND
-  make -j${CPU_CORE}
-)
-
-set(PROMETHEUS_CPP_CORE_LIB ${INSTALL_LIBDIR}/libprometheus-cpp-core.a)
-set(PROMETHEUS_CPP_PULL_LIB ${INSTALL_LIBDIR}/libprometheus-cpp-pull.a)
-
 ExternalProject_Add(rediscache
   URL
   https://github.com/pikiwidb/rediscache/archive/refs/tags/v1.0.7.tar.gz
@@ -840,8 +822,6 @@ target_link_libraries(${PROJECT_NAME}
   ${LIB_PROTOBUF}
   ${LIB_GFLAGS}
   ${LIB_FMT}
-  ${PROMETHEUS_CPP_PULL_LIB}
-  ${PROMETHEUS_CPP_CORE_LIB}
   libsnappy.a
   libzstd.a
   liblz4.a
