@@ -259,7 +259,6 @@ class PikaServer : public pstd::noncopyable {
   void ResetStat();
   void incr_accumulative_connections();
   void ResetLastSecQuerynum();
-  void ResetCommandCount();
   void UpdateQueryNumAndExecCountDB(const std::string& db_name, const std::string& command, bool is_write);
   std::unordered_map<std::string, uint64_t> ServerExecCountDB();
   std::unordered_map<std::string, QpsStatistic> ServerAllDBStat();
