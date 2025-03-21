@@ -3,17 +3,21 @@
 # endif
 
 # export PATH := $(PATH):$(GOPATH)/bin
-
+BRANCH			:= $(shell git branch | sed -n 's/* \(.*\)/\1/p')
 GITREV 			:= $(shell git rev-parse HEAD)
 BUILDTIME 		:= $(shell date '+%F %T %Z')
 COMPILERVERSION	:= $(subst go version ,,$(shell go version))
 PROJNAME        := pika_exporter
+PIKA_EXPORTER_MAJOR := 3
+PIKA_EXPORTER_MINOR := 5
+PIKA_EXPORTER_PATCH := 5
 
 define GENERATE_VERSION_CODE
 cat << EOF | gofmt > version.go
 package main
 
 const (
+	PikaExporterVersion = "$(PIKA_EXPORTER_MAJOR).$(PIKA_EXPORTER_MINOR).$(PIKA_EXPORTER_PATCH)"
 	BuildVersion   = "$(BRANCH)"
     BuildCommitSha = "$(GITREV)"
     BuildDate      = "$(BUILDTIME)"
