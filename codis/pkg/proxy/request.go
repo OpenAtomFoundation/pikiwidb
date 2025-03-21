@@ -5,7 +5,6 @@ package proxy
 
 import (
 	"sync"
-	"sync/atomic"
 	"unsafe"
 
 	"pika/codis/v2/pkg/proxy/redis"
@@ -22,11 +21,11 @@ type Request struct {
 	OpStr string
 	OpFlag
 
-	Database            int32
-	ReceiveTime         *int64
-	SendToPikaTime      *int64
-	ReceiveFromPikaTime *int64
-	TasksLen            int64
+	Database              int32
+	ReceiveTime           int64
+	SendToServerTime      int64
+	ReceiveFromServerTime int64
+	TasksLen              int64
 
 	*redis.Resp
 	Err error
@@ -48,8 +47,6 @@ func (r *Request) MakeSubRequest(n int) []Request {
 		x.Broken = r.Broken
 		x.Database = r.Database
 		x.ReceiveTime = r.ReceiveTime
-		x.SendToPikaTime = r.SendToPikaTime
-		x.ReceiveFromPikaTime = r.ReceiveFromPikaTime
 	}
 	return sub
 }
@@ -57,7 +54,7 @@ func (r *Request) MakeSubRequest(n int) []Request {
 const GOLDEN_RATIO_PRIME_32 = 0x9e370001
 
 func (r *Request) Seed16() uint {
-	h32 := uint32(atomic.LoadInt64(r.ReceiveTime)) + uint32(uintptr(unsafe.Pointer(r)))
+	h32 := uint32(r.ReceiveTime) + uint32(uintptr(unsafe.Pointer(r)))
 	h32 *= GOLDEN_RATIO_PRIME_32
 	return uint(h32 >> 16)
 }
