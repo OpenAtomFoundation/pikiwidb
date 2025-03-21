@@ -56,6 +56,7 @@ func main() {
 	flag.Parse()
 
 	log.Println("Pika Metrics Exporter")
+	log.Println("Pika Exporter Version: ", PikaExporterVersion)
 	log.Println("Build Date: ", BuildDate)
 	log.Println("Commit SHA: ", BuildCommitSha)
 	log.Println("Go Version: ", GoVersion)
