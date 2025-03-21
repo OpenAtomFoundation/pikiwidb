@@ -12,8 +12,6 @@ import (
 
 	"pika/codis/v2/pkg/utils"
 	"pika/codis/v2/pkg/utils/sync2/atomic2"
-
-	hdrhistogram "github.com/HdrHistogram/hdrhistogram-go"
 )
 
 var (
@@ -30,7 +28,6 @@ type opStats struct {
 		errors atomic2.Int64
 	}
 	maxDelay atomic2.Int64
-	hist     *hdrhistogram.Histogram
 }
 
 func (s *opStats) OpStats() *OpStats {
@@ -40,9 +37,6 @@ func (s *opStats) OpStats() *OpStats {
 		Usecs:    s.nsecs.Int64() / 1e3,
 		Fails:    s.fails.Int64(),
 		MaxDelay: s.maxDelay.Int64(),
-		TP99:     s.hist.ValueAtPercentile(99),
-		TP999:    s.hist.ValueAtPercentile(99.9),
-		TP9999:   s.hist.ValueAtPercentile(99.99),
 	}
 	if o.Calls != 0 {
 		o.UsecsPercall = o.Usecs / o.Calls
@@ -59,9 +53,6 @@ type OpStats struct {
 	Fails        int64  `json:"fails"`
 	RedisErrType int64  `json:"redis_errtype"`
 	MaxDelay     int64  `json:"max_delay"`
-	TP99         int64  `json:"tp99"`
-	TP999        int64  `json:"tp999"`
-	TP9999       int64  `json:"tp9999"`
 }
 
 var cmdstats struct {
@@ -96,14 +87,13 @@ func init() {
 		for {
 			refreshPeriod := RefreshPeriod.Int64()
 			if refreshPeriod == 0 {
-				time.Sleep(1 * time.Minute)
+				time.Sleep(15 * time.Second)
 			} else {
 				time.Sleep(time.Duration(refreshPeriod))
 			}
 
 			for _, s := range cmdstats.opmap {
 				s.maxDelay.Set(0)
-				s.hist.Reset()
 			}
 		}
 	}()
@@ -137,7 +127,7 @@ func getOpStats(opstr string, create bool) *opStats {
 	cmdstats.Lock()
 	s = cmdstats.opmap[opstr]
 	if s == nil {
-		s = &opStats{opstr: opstr, hist: hdrhistogram.New(1, 10000, 3)}
+		s = &opStats{opstr: opstr}
 		cmdstats.opmap[opstr] = s
 	}
 	cmdstats.Unlock()
@@ -200,9 +190,6 @@ func incrOpStats(e *opStats) {
 		s.redis.errors.Add(n)
 		cmdstats.redis.errors.Add(n)
 	}
-
-	s.hist.Merge(e.hist)
-	e.hist.Reset()
 
 	/**
 	Each session refreshes its own saved metrics, and there is a race condition at this time.

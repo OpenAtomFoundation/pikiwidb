@@ -50,9 +50,6 @@ type CmdInfo struct {
 	Usecs_percall int64  `json:"usecs_percall"`
 	Fails         int64  `json:"fails"`
 	MaxDelay      int64  `json:"max_delay"`
-	TP99          int64  `json:"tp99"`
-	TP909         int64  `json:"tp999"`
-	TP9999        int64  `json:"tp9999"`
 }
 
 type ProxyOpsInfo struct {
