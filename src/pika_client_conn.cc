@@ -50,7 +50,6 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
     }
     return tmp_ptr;
   }
-
   c_ptr->SetCacheMissedInRtc(cache_miss_in_rtc);
   c_ptr->SetConn(shared_from_this());
   c_ptr->SetResp(resp_ptr);
@@ -219,7 +218,6 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   rocksdb::get_perf_context()->Reset();
   // Process Command
   c_ptr->Execute();
-
   time_stat_->process_done_ts_ = pstd::NowMicros();
   auto cmdstat_map = g_pika_cmd_table_manager->GetCommandStatMap();
   (*cmdstat_map)[opt].cmd_count.fetch_add(1);
