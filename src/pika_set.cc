@@ -333,7 +333,6 @@ void SRemCmd::DoUpdateCache() {
   }
 }
 
-
 void SUnionCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameSUnion);
@@ -526,7 +525,6 @@ void SIsmemberCmd::Do() {
 }
 
 void SIsmemberCmd::ReadCache() {
-
   STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->SIsmember(key_, member_);
   if (s.ok()) {
@@ -730,7 +728,6 @@ void SRandmemberCmd::Do() {
 
 void SRandmemberCmd::ReadCache() {
   std::vector<std::string> members;
-
   STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->SRandmember(key_, count_, &members);
   if (s.ok()) {

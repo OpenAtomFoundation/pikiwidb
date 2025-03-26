@@ -206,9 +206,7 @@ void DelCmd::DoInitial() {
 }
 
 void DelCmd::Do() {
-
   int64_t count = db_->storage()->Del(keys_);
-
   if (count >= 0) {
     res_.AppendInteger(count);
     s_ = rocksdb::Status::OK();
@@ -228,11 +226,7 @@ void DelCmd::DoThroughDB() {
 
 void DelCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::vector<std::string> v;
-    for (auto key : keys_) {
-      v.emplace_back(key);
-    }
-    db_->cache()->Del(v);
+    db_->cache()->Del(keys_);
   }
 }
 
@@ -1228,7 +1222,6 @@ void SetrangeCmd::DoThroughDB() {
 
 void SetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
- 
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->SetRangeIfKeyExist(key_, offset_, value_);
   }
@@ -1341,7 +1334,7 @@ void ExpireCmd::DoInitial() {
 }
 
 void ExpireCmd::Do() {
-  int64_t res = db_->storage()->Expire(key_, ttl_sec_ * 1000);
+  int32_t res = db_->storage()->Expire(key_, ttl_sec_ * 1000);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1396,7 +1389,6 @@ void PexpireCmd::DoInitial() {
 }
 
 void PexpireCmd::Do() {
-  
   int64_t res = db_->storage()->Expire(key_, ttl_millsec);
   if (res != -1) {
     res_.AppendInteger(res);
@@ -1452,7 +1444,7 @@ void ExpireatCmd::DoInitial() {
 }
 
 void ExpireatCmd::Do() {
-  int32_t res = db_->storage()->Expireat(key_, time_stamp_sec_ * 100);
+  int32_t res = db_->storage()->Expireat(key_, time_stamp_sec_ * 1000);
   if (res != -1) {
     res_.AppendInteger(res);
     s_ = rocksdb::Status::OK();
@@ -1527,7 +1519,7 @@ void TtlCmd::ReadCache() {
   if (timestamp == -3) {
     res_.SetRes(CmdRes::kErrOther, "ttl internal error");
   } else if (timestamp != -2) {
-    res_.AppendInteger(timestamp); 
+    res_.AppendInteger(timestamp);
   } else {
     res_.SetRes(CmdRes::kCacheMiss);
   }
@@ -1551,12 +1543,12 @@ void PttlCmd::Do() {
   if (ttl_millsec == -3) {
     res_.SetRes(CmdRes::kErrOther, "ttl internal error");
   } else {
-    // mean this key not exist
-    res_.AppendInteger(-2);
+    res_.AppendInteger(ttl_millsec);
   }
 }
 
 void PttlCmd::ReadCache() {
+  // redis cache don't support pttl cache, so read directly from db
   DoThroughDB();
 }
 
@@ -1602,7 +1594,8 @@ void TypeCmd::DoInitial() {
   key_ = argv_[1];
 }
 
-void TypeCmd::Do() {  enum storage::DataType type = storage::DataType::kNones;
+void TypeCmd::Do() { 
+  enum storage::DataType type = storage::DataType::kNones;
   std::string key_type;
   rocksdb::Status s = db_->storage()->GetType(key_, type);
   if (s.ok()) {

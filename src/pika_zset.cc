@@ -1441,8 +1441,7 @@ void ZRemrangebyrankCmd::DoThroughDB() {
 }
 
 void ZRemrangebyrankCmd::DoUpdateCache() {
-  if (s_.ok()) {
-    
+  if (s_.ok()) {  
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->ZRemrangebyrank(key_, min_, max_, ele_deleted_, db_);
   }
