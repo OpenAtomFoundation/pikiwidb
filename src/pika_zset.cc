@@ -54,9 +54,8 @@ void ZAddCmd::DoThroughDB() {
 
 void ZAddCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZAddIfKeyExist(CachePrefixKeyZ, score_members);
+    db_->cache()->ZAddIfKeyExist(key_, score_members);
   }
 }
 
@@ -196,9 +195,8 @@ void ZIncrbyCmd::DoThroughDB() {
 
 void ZIncrbyCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZIncrbyIfKeyExist(CachePrefixKeyZ, member_, by_, this, db_);
+    db_->cache()->ZIncrbyIfKeyExist(key_, member_, by_, this, db_);
   }
 }
 
@@ -751,9 +749,8 @@ void ZRemCmd::DoThroughDB() {
 
 void ZRemCmd::DoUpdateCache() {
   if (s_.ok() && deleted_ > 0) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZRem(CachePrefixKeyZ, members_, db_);
+    db_->cache()->ZRem(key_, members_, db_);
   }
 }
 
@@ -844,7 +841,7 @@ void ZUnionstoreCmd::DoThroughDB() {
 void ZUnionstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(PCacheKeyPrefixZ + dest_key_);
+    v.emplace_back(dest_key_);
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
@@ -926,7 +923,7 @@ void ZInterstoreCmd::DoThroughDB() {
 void ZInterstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(PCacheKeyPrefixZ + dest_key_);
+    v.emplace_back(dest_key_);
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
@@ -1110,9 +1107,9 @@ void ZScoreCmd::Do() {
 
 void ZScoreCmd::ReadCache() {
   double score = 0.0;
-  std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+  
   STAGE_TIMER_GUARD(cache_duration_ms, true);
-  auto s = db_->cache()->ZScore(CachePrefixKeyZ, member_, &score, db_);
+  auto s = db_->cache()->ZScore(key_, member_, &score, db_);
   if (s.ok()) {
     char buf[32];
     int64_t len = pstd::d2string(buf, sizeof(buf), score);
@@ -1445,9 +1442,9 @@ void ZRemrangebyrankCmd::DoThroughDB() {
 
 void ZRemrangebyrankCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
+    
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZRemrangebyrank(CachePrefixKeyZ, min_, max_, ele_deleted_, db_);
+    db_->cache()->ZRemrangebyrank(key_, min_, max_, ele_deleted_, db_);
   }
 }
 
@@ -1488,9 +1485,8 @@ void ZRemrangebyscoreCmd::DoThroughDB() {
 
 void ZRemrangebyscoreCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZRemrangebyscore(CachePrefixKeyZ, min_, max_, db_);
+    db_->cache()->ZRemrangebyscore(key_, min_, max_, db_);
   }
 }
 
@@ -1532,9 +1528,8 @@ void ZRemrangebylexCmd::DoThroughDB() {
 
 void ZRemrangebylexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyZ = PCacheKeyPrefixZ + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->ZRemrangebylex(CachePrefixKeyZ, min_, max_, db_);
+    db_->cache()->ZRemrangebylex(key_, min_, max_, db_);
   }
 }
 
