@@ -17,7 +17,7 @@ cat << EOF | gofmt > version.go
 package main
 
 const (
-	
+	PikaExporterVersion = "$(PIKA_EXPORTER_MAJOR).$(PIKA_EXPORTER_MINOR).$(PIKA_EXPORTER_PATCH)"	
 	BuildVersion   = "$(BRANCH)"
     BuildCommitSha = "$(GITREV)"
     BuildDate      = "$(BUILDTIME)"
