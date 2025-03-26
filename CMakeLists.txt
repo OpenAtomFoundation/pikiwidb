@@ -738,7 +738,7 @@ endif()
 aux_source_directory(src DIR_SRCS)
 
 # # generate version
-string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S" UTC)
+string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")
 set(PIKA_BUILD_DATE "${TS}")
 
 find_package(Git)

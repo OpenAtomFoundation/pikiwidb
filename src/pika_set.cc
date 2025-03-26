@@ -42,9 +42,8 @@ void SAddCmd::DoThroughDB() {
 
 void SAddCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->SAddIfKeyExist(CachePrefixKeyS, members_);
+    db_->cache()->SAddIfKeyExist(key_, members_);
   }
 }
 
@@ -95,9 +94,8 @@ void SPopCmd::DoThroughDB() {
 
 void SPopCmd::DoUpdateCache() {
   if (s_.ok()) {
-    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->SRem(CachePrefixKeyS, members_);
+    db_->cache()->SRem(key_, members_);
   }
 }
 
@@ -145,9 +143,8 @@ void SCardCmd::Do() {
 
 void SCardCmd::ReadCache() {
   uint64_t card = 0;
-  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
   STAGE_TIMER_GUARD(cache_duration_ms, true);
-  auto s = db_->cache()->SCard(CachePrefixKeyS, &card);
+  auto s = db_->cache()->SCard(key_, &card);
   if (s.ok()) {
     res_.AppendInteger(card);
   } else if (s.IsNotFound()) {
@@ -200,9 +197,8 @@ void SMembersCmd::Do() {
 
 void SMembersCmd::ReadCache() {
   std::vector<std::string> members;
-  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
   STAGE_TIMER_GUARD(cache_duration_ms, true);
-  auto s = db_->cache()->SMembers(CachePrefixKeyS, &members);
+  auto s = db_->cache()->SMembers(key_, &members);
   if (s.ok()) {
     res_.AppendArrayLen(members.size());
     for (const auto& member : members) {
@@ -332,9 +328,8 @@ void SRemCmd::DoThroughDB() {
 
 void SRemCmd::DoUpdateCache() {
   if (s_.ok() && deleted_ > 0) {
-    std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->SRem(CachePrefixKeyS, members_);
+    db_->cache()->SRem(key_, members_);
   }
 }
 
@@ -396,7 +391,7 @@ void SUnionstoreCmd::DoThroughDB() {
 void SUnionstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    v.emplace_back(dest_key_);
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
@@ -499,7 +494,7 @@ void SInterstoreCmd::DoThroughDB() {
 void SInterstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    v.emplace_back(dest_key_);
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
@@ -531,9 +526,9 @@ void SIsmemberCmd::Do() {
 }
 
 void SIsmemberCmd::ReadCache() {
-  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+
   STAGE_TIMER_GUARD(cache_duration_ms, true);
-  auto s = db_->cache()->SIsmember(CachePrefixKeyS, member_);
+  auto s = db_->cache()->SIsmember(key_, member_);
   if (s.ok()) {
     res_.AppendContent(":1");
   } else if (s.IsNotFound()) {
@@ -614,7 +609,7 @@ void SDiffstoreCmd::DoThroughDB() {
 void SDiffstoreCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> v;
-    v.emplace_back(PCacheKeyPrefixS + dest_key_);
+    v.emplace_back(dest_key_);
     STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->Del(v);
   }
@@ -656,11 +651,9 @@ void SMoveCmd::DoUpdateCache() {
   if (s_.ok()) {
     std::vector<std::string> members;
     members.emplace_back(member_);
-    std::string CachePrefixKeyS = PCacheKeyPrefixS + src_key_;
-    std::string CachePrefixKeyD = PCacheKeyPrefixS + dest_key_;
     STAGE_TIMER_GUARD(cache_duration_ms, true);
-    db_->cache()->SRem(CachePrefixKeyS, members);
-    db_->cache()->SAddIfKeyExist(CachePrefixKeyD, members);
+    db_->cache()->SRem(src_key_, members);
+    db_->cache()->SAddIfKeyExist(dest_key_, members);
   }
 }
 
@@ -737,9 +730,9 @@ void SRandmemberCmd::Do() {
 
 void SRandmemberCmd::ReadCache() {
   std::vector<std::string> members;
-  std::string CachePrefixKeyS = PCacheKeyPrefixS + key_;
+
   STAGE_TIMER_GUARD(cache_duration_ms, true);
-  auto s = db_->cache()->SRandmember(CachePrefixKeyS, count_, &members);
+  auto s = db_->cache()->SRandmember(key_, count_, &members);
   if (s.ok()) {
     if (!reply_arr && members.size()) {
       res_.AppendStringLen(members[0].size());

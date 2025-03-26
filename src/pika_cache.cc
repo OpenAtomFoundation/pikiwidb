@@ -678,7 +678,7 @@ Status PikaCache::SAddnxWithoutTTL(std::string& key, std::vector<std::string> &m
   }
 }
 
-Status PikaCache::SCard(std::string& key, uint64_t *len) {
+Status PikaCache::SCard(const std::string& key, uint64_t *len) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
   return caches_[cache_index]->SCard(key, len);
@@ -892,7 +892,7 @@ Status PikaCache::ZAddnxWithoutTTL(std::string& key, std::vector<storage::ScoreM
   }
 }
 
-Status PikaCache::ZCard(std::string& key, uint32_t *len, const std::shared_ptr<DB>& db) {
+Status PikaCache::ZCard(const std::string& key, uint32_t *len, const std::shared_ptr<DB>& db) {
   int32_t db_len = 0;
   db->storage()->ZCard(key, &db_len);
   *len = db_len;

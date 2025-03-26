@@ -114,7 +114,7 @@ public:
   // Set Commands
   Status SAdd(std::string& key, std::vector<std::string> &members);
   Status SAddIfKeyExist(std::string& key, std::vector<std::string> &members);
-  Status SCard(std::string& key, uint64_t *len);
+  Status SCard(const std::string& key, uint64_t *len);
   Status SIsmember(std::string& key, std::string& member);
   Status SMembers(std::string& key, std::vector<std::string> *members);
   Status SRem(std::string& key, std::vector<std::string> &members);
@@ -123,7 +123,7 @@ public:
   // Zset Commands
   Status ZAdd(std::string& key, std::vector<storage::ScoreMember> &score_members);
   Status ZAddIfKeyExist(std::string& key, std::vector<storage::ScoreMember> &score_members);
-  Status ZCard(std::string& key, uint64_t *len);
+  Status ZCard(const std::string& key, uint64_t *len);
   Status ZCount(std::string& key, std::string &min, std::string &max, uint64_t *len);
   Status ZIncrby(std::string& key, std::string& member, double increment);
   Status ZRange(std::string& key,
