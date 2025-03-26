@@ -1594,7 +1594,7 @@ void TypeCmd::DoInitial() {
   key_ = argv_[1];
 }
 
-void TypeCmd::Do() { 
+void TypeCmd::Do() {
   enum storage::DataType type = storage::DataType::kNones;
   std::string key_type;
   rocksdb::Status s = db_->storage()->GetType(key_, type);
