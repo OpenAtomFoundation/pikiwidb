@@ -884,7 +884,6 @@ void RPopLPushCmd::DoUpdateCache() {
     std::vector<std::string> value;
     value.resize(1);
     db_->cache()->RPop(source_, &value[0]);
-
     db_->cache()->LPushIfKeyExist(receiver_, value);
   }
 }
