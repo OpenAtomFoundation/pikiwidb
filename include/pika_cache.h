@@ -91,6 +91,7 @@ class PikaCache : public pstd::noncopyable, public std::enable_shared_from_this<
   rocksdb::Status Appendxx(std::string& key, std::string& value);
   rocksdb::Status GetRange(std::string& key, int64_t start, int64_t end, std::string* value);
   rocksdb::Status SetRangexx(std::string& key, int64_t start, std::string& value);
+  rocksdb::Status SetRangeIfKeyExist(std::string& key, int64_t start, std::string &value);
   rocksdb::Status Strlen(std::string& key, int32_t* len);
 
   // Hash Commands
@@ -112,6 +113,7 @@ class PikaCache : public pstd::noncopyable, public std::enable_shared_from_this<
   rocksdb::Status HIncrbyfloatxx(std::string& key, std::string& field, long double value);
   rocksdb::Status HLen(std::string& key, uint64_t* len);
   rocksdb::Status HStrlen(std::string& key, std::string& field, uint64_t* len);
+  rocksdb::Status HMSetIfKeyExist(std::string& key, std::vector<storage::FieldValue> &fvs);
 
   // List Commands
   rocksdb::Status LIndex(std::string& key, int64_t index, std::string* element);
@@ -126,16 +128,18 @@ class PikaCache : public pstd::noncopyable, public std::enable_shared_from_this<
   rocksdb::Status LTrim(std::string& key, int64_t start, int64_t stop);
   rocksdb::Status RPop(std::string& key, std::string* element);
   rocksdb::Status RPush(std::string& key, std::vector<std::string> &values);
+  rocksdb::Status RPushIfKeyExist(std::string& key, std::vector<std::string> &values);
   rocksdb::Status RPushx(std::string& key, std::vector<std::string> &values);
   rocksdb::Status RPushnx(std::string& key, std::vector<std::string> &values, int64_t ttl);
   rocksdb::Status RPushnxWithoutTTL(std::string& key, std::vector<std::string> &values);
-
+  rocksdb::Status LPushIfKeyExist(std::string& key, std::vector<std::string> &values);
+  
   // Set Commands
   rocksdb::Status SAdd(std::string& key, std::vector<std::string>& members);
   rocksdb::Status SAddIfKeyExist(std::string& key, std::vector<std::string>& members);
   rocksdb::Status SAddnx(std::string& key, std::vector<std::string>& members, int64_t ttl);
   rocksdb::Status SAddnxWithoutTTL(std::string& key, std::vector<std::string>& members);
-  rocksdb::Status SCard(std::string& key, uint64_t* len);
+  rocksdb::Status SCard(const std::string& key, uint64_t* len);
   rocksdb::Status SIsmember(std::string& key, std::string& member);
   rocksdb::Status SMembers(std::string& key, std::vector<std::string>* members);
   rocksdb::Status SRem(std::string& key, std::vector<std::string>& members);
@@ -146,7 +150,7 @@ class PikaCache : public pstd::noncopyable, public std::enable_shared_from_this<
   rocksdb::Status ZAddIfKeyExist(std::string& key, std::vector<storage::ScoreMember>& score_members);
   rocksdb::Status ZAddnx(std::string& key, std::vector<storage::ScoreMember>& score_members, int64_t ttl);
   rocksdb::Status ZAddnxWithoutTTL(std::string& key, std::vector<storage::ScoreMember>& score_members);
-  rocksdb::Status ZCard(std::string& key, uint32_t* len, const std::shared_ptr<DB>& db);
+  rocksdb::Status ZCard(const std::string& key, uint32_t* len, const std::shared_ptr<DB>& db);
   rocksdb::Status ZCount(std::string& key, std::string& min, std::string& max, uint64_t* len, ZCountCmd* cmd);
   rocksdb::Status ZIncrby(std::string& key, std::string& member, double increment);
   rocksdb::Status ZIncrbyIfKeyExist(std::string& key, std::string& member, double increment, ZIncrbyCmd* cmd, const std::shared_ptr<DB>& db);

@@ -65,6 +65,7 @@ void SetCmd::DoInitial() {
 
 void SetCmd::Do() {
   int32_t res = 1;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   switch (condition_) {
     case SetCmd::kXX:
       s_ = db_->storage()->Setxx(key_, value_, &res, ttl_millsec);
@@ -453,6 +454,7 @@ void DecrCmd::DoInitial() {
 }
 
 void DecrCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Decrby(key_, 1, &new_value_);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
@@ -490,6 +492,7 @@ void DecrbyCmd::DoInitial() {
 }
 
 void DecrbyCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Decrby(key_, by_, &new_value_);
   if (s_.ok()) {
     AddSlotKey("k", key_, db_);
@@ -526,6 +529,7 @@ void GetsetCmd::DoInitial() {
 
 void GetsetCmd::Do() {
   std::string old_value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetSet(key_, new_value_, &old_value);
   if (s_.ok()) {
     if (old_value.empty()) {
@@ -641,6 +645,7 @@ void MgetCmd::Do() {
     cache_miss_keys_ = keys_;
   }
   db_value_status_array_.clear();
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MGetWithTTL(cache_miss_keys_, &db_value_status_array_);
   if (!s_.ok()) {
     if (s_.IsInvalidArgument()) {
@@ -657,6 +662,7 @@ void MgetCmd::Do() {
 void MgetCmd::Split(const HintKeys& hint_keys) {
   std::vector<storage::ValueStatus> vss;
   const std::vector<std::string>& keys = hint_keys.keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MGet(keys, &vss);
   if (s.ok()) {
     if (hint_keys.hints.size() != vss.size()) {
@@ -689,6 +695,7 @@ void MgetCmd::DoThroughDB() {
 }
 
 void MgetCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : keys_) {
     std::string value;
     auto s = db_->cache()->Get(const_cast<std::string&>(key), &value);
@@ -707,6 +714,7 @@ void MgetCmd::ReadCache() {
 
 void MgetCmd::DoUpdateCache() {
   size_t db_index = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : cache_miss_keys_) {
     if (db_index < db_value_status_array_.size() && db_value_status_array_[db_index].status.ok()) {
       int64_t ttl_millsec = db_value_status_array_[db_index].ttl_millsec;
@@ -779,6 +787,7 @@ void KeysCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   do {
     keys.clear();
     cursor = db_->storage()->Scan(type_, cursor, pattern_, PIKA_SCAN_STEP_LENGTH, &keys);
@@ -808,6 +817,7 @@ void SetnxCmd::DoInitial() {
 
 void SetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setnx(key_, value_, &success_);
   if (s_.ok()) {
     res_.AppendInteger(success_);
@@ -928,7 +938,7 @@ void PsetexCmd::DoThroughDB() {
 
 void PsetexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Setxx(key_, value_,  ttl_millsec / 1000);
+    db_->cache()->Setxx(key_, value_, ttl_millsec / 1000);
   }
 }
 
@@ -967,6 +977,7 @@ void DelvxCmd::DoInitial() {
 }
 
 void DelvxCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Delvx(key_, value_, &success_);
   if (s.ok() || s.IsNotFound()) {
     res_.AppendInteger(success_);
@@ -994,6 +1005,7 @@ void MsetCmd::DoInitial() {
 }
 
 void MsetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MSet(kvs_);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1035,6 +1047,7 @@ void MsetCmd::Split(const HintKeys& hint_keys) {
       return;
     }
   }
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   storage::Status s = db_->storage()->MSet(kvs);
   if (s.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1079,6 +1092,7 @@ void MsetnxCmd::DoInitial() {
 
 void MsetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_);
   if (s.ok()) {
     res_.AppendInteger(success_);
@@ -1130,6 +1144,7 @@ void GetrangeCmd::DoInitial() {
 
 void GetrangeCmd::Do() {
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Getrange(key_, start_, end_, &substr);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendStringLenUint64(substr.size());
@@ -1155,6 +1170,7 @@ void GetrangeCmd::ReadCache() {
 void GetrangeCmd::DoThroughDB() {
   res_.clear();
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetrangeWithValue(key_, start_, end_, &substr, &value_, &sec_);
   if (s_.ok()) {
     res_.AppendStringLen(substr.size());
@@ -1188,6 +1204,7 @@ void SetrangeCmd::DoInitial() {
 
 void SetrangeCmd::Do() {
   int32_t new_len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len);
   if (s_.ok()) {
     res_.AppendInteger(new_len);
@@ -1205,7 +1222,8 @@ void SetrangeCmd::DoThroughDB() {
 
 void SetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SetRangexx(key_, offset_, value_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SetRangeIfKeyExist(key_, offset_, value_);
   }
 }
 
@@ -1219,6 +1237,7 @@ void StrlenCmd::DoInitial() {
 
 void StrlenCmd::Do() {
   int32_t len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Strlen(key_, &len);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(len);
@@ -1663,6 +1682,7 @@ void ScanCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   // To avoid memory overflow, we call the Scan method in batches
   do {
     keys.clear();
@@ -1739,6 +1759,7 @@ void ScanxCmd::DoInitial() {
 void ScanxCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Scanx(type_, start_key_, pattern_, count_, &keys, &next_key);
 
   if (s.ok()) {
@@ -1853,6 +1874,7 @@ void PKScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_), &keys, &kvs, &next_key);
 
   if (s_.ok()) {
@@ -1938,6 +1960,7 @@ void PKRScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKRScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_),
                                 &keys, &kvs, &next_key);
 

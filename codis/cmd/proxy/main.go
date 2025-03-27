@@ -55,8 +55,11 @@ Options:
 		return
 
 	case d["--version"].(bool):
-		fmt.Println("version:", utils.Version)
-		fmt.Println("compile:", utils.Compile)
+		fmt.Printf("-----------Codis Proxy----------\n")
+		fmt.Println("codis_version:", utils.Version)
+		fmt.Println("codis_git_sha:", utils.Gitsha)
+		fmt.Println("codis_build_compile_date:", utils.Compile)
+		fmt.Println("go version:", utils.GoVersion)
 		return
 
 	}

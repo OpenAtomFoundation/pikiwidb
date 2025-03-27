@@ -74,10 +74,17 @@ func (s *Topom) checkAndUpdateGroupServerState(conf *Config, group *models.Group
 			}
 
 			// Start the election master node
-			if groupServer.State == models.GroupServerStateOffline && isGroupMaster(state, group) {
-				*masterOfflineGroups = append(*masterOfflineGroups, group)
-			} else {
-				*slaveOfflineGroups = append(*slaveOfflineGroups, group)
+			// Currently, both primary and secondary nodes have subjective and objective logics.
+			// If it is subjective, we will not perform any operation. If more than 10 probe counts
+			// fail, it is defined as objective logics, If it is an objective offline, we will add the
+			// node to masterOfflineGroups or slaveOfflineGroups respectively, and then notify the Proxy
+			// to change the meta information
+			if groupServer.State == models.GroupServerStateOffline {
+				if isGroupMaster(state, group) {
+					*masterOfflineGroups = append(*masterOfflineGroups, group)
+				} else {
+					*slaveOfflineGroups = append(*slaveOfflineGroups, group)
+				}
 			}
 		}
 	} else {
@@ -85,6 +92,18 @@ func (s *Topom) checkAndUpdateGroupServerState(conf *Config, group *models.Group
 			*recoveredGroupServers = append(*recoveredGroupServers, state)
 			// update GroupServer to GroupServerStateNormal state later
 		} else {
+			// This may contains any of following condition:
+			// 1. groupServer.State is Normal
+			// 2. groupServer.State is GroupServerStateSubjectiveOffline and is Master
+			// 3. groupServer.State is GroupServerStateSubjectiveOffline and is Slave
+			// for condition 3, if current server's previous state is SubjectiveOffline
+			// and has been added to slaveofflinegroups before,
+			// should also resync mappings to proxy to enable replicationgroup
+			if groupServer.State == models.GroupServerStateSubjectiveOffline &&
+				!isGroupMaster(state, group) &&
+				group.OutOfSync {
+				*recoveredGroupServers = append(*recoveredGroupServers, state)
+			}
 			// Update the offset information of the state and role nodes
 			groupServer.State = models.GroupServerStateNormal
 			groupServer.ReCallTimes = 0
