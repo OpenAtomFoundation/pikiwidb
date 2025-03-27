@@ -868,7 +868,7 @@ class PikaConf : public pstd::BaseConf {
   } 
 
   bool UpdateCacheValueItemMaxSize(int size) {
-    if (size >= MAX_CACHE_ITEMS_SIZE || size <= 0) {
+    if (size > MAX_CACHE_ITEMS_SIZE || size <= 0) {
       return false;
     }
     cache_value_item_max_size_.store(size);
@@ -880,7 +880,7 @@ class PikaConf : public pstd::BaseConf {
   } 
 
   bool UpdateMaxKeySizeInCache(size_t size) {
-    if (size >= MAX_CACHE_MAX_KEY_SIZE || size <= 0) {
+    if (size > MAX_CACHE_MAX_KEY_SIZE || size <= 0) {
       return false;
     }
     max_key_size_in_cache_.store(size);
