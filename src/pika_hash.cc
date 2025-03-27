@@ -78,6 +78,10 @@ void HSetCmd::DoThroughDB() {
 }
 
 void HSetCmd::DoUpdateCache() {
+  // HSetIfKeyExist() can void storing large key, but IsTooLargeKey() can speed up it
+  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
   STAGE_TIMER_GUARD(cache_duration_ms, true);
   if (s_.ok()) {
     db_->cache()->HSetIfKeyExist(key_, field_, value_);
