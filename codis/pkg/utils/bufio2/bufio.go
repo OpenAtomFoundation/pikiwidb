@@ -7,6 +7,9 @@ import (
 	"bufio"
 	"bytes"
 	"io"
+	"net"
+
+	"pika/codis/v2/pkg/utils/errors"
 )
 
 const DefaultBufferSize = 1024
@@ -51,7 +54,12 @@ func (b *Reader) fill() error {
 	}
 	n, err := b.rd.Read(b.buf[b.wpos:])
 	if err != nil {
-		b.err = err
+		// if err is timeout, we reuse this conn, so don't set b.err
+		if ne, ok := errors.Cause(err).(net.Error); ok && ne.Timeout() {
+			return err
+		} else {
+			b.err = err
+		}
 	} else if n == 0 {
 		b.err = io.ErrNoProgress
 	} else {
@@ -90,8 +98,8 @@ func (b *Reader) ReadByte() (byte, error) {
 		return 0, b.err
 	}
 	if b.buffered() == 0 {
-		if b.fill() != nil {
-			return 0, b.err
+		if err := b.fill(); err != nil {
+			return 0, err
 		}
 	}
 	c := b.buf[b.rpos]
