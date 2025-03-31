@@ -6,6 +6,7 @@ package redis
 import (
 	"bytes"
 	"io"
+	"net"
 	"strconv"
 
 	"pika/codis/v2/pkg/utils/bufio2"
@@ -87,9 +88,14 @@ func (d *Decoder) Decode() (*Resp, error) {
 	}
 	r, err := d.decodeResp()
 	if err != nil {
-		d.Err = err
+		// if err is timeout, we reuse this conn, so don't set d.Err
+		if ne, ok := errors.Cause(err).(net.Error); ok && ne.Timeout() {
+			d.Err = nil
+		} else {
+			d.Err = err
+		}
 	}
-	return r, d.Err
+	return r, err
 }
 
 func (d *Decoder) DecodeMultiBulk() ([]*Resp, error) {
