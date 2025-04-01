@@ -25,11 +25,11 @@ func checkSlots(t *Topom, c *proxy.ApiClient) {
 	assert.MustNoError(err)
 
 	slots1 := ctx.toSlotSlice(ctx.slots, nil)
-	assert.Must(len(slots1) == MaxSlotNum)
+	assert.Must(len(slots1) == t.config.MaxSlotNum)
 
 	slots2, err := c.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots2) == MaxSlotNum)
+	assert.Must(len(slots2) == t.config.MaxSlotNum)
 
 	for i := 0; i < len(slots1); i++ {
 		a := slots1[i]
@@ -279,7 +279,7 @@ func TestSlotActionPrepared(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == MaxSlotNum)
+	assert.Must(len(slots) == t.config.MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
@@ -348,7 +348,7 @@ func TestSlotActionMigrating(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == MaxSlotNum)
+	assert.Must(len(slots) == t.config.MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
@@ -417,7 +417,7 @@ func TestSlotActionFinished(x *testing.T) {
 
 	slots, err := c2.Slots()
 	assert.MustNoError(err)
-	assert.Must(len(slots) == MaxSlotNum)
+	assert.Must(len(slots) == t.config.MaxSlotNum)
 
 	s := slots[sid]
 	assert.Must(s.Locked == false)
@@ -450,7 +450,7 @@ func TestSlotsRebalance(x *testing.T) {
 	groupBy := func(plans map[int]int) map[int]int {
 		d := make(map[int]int)
 		for sid, gid := range plans {
-			assert.Must(sid >= 0 && sid < MaxSlotNum)
+			assert.Must(sid >= 0 && sid < t.config.MaxSlotNum)
 			m := getSlotMapping(t, sid)
 			assert.Must(m.Action.State == models.ActionNothing)
 			assert.Must(m.GroupId != gid)
@@ -469,9 +469,9 @@ func TestSlotsRebalance(x *testing.T) {
 
 	plans2, err := t.SlotsRebalance(false)
 	assert.MustNoError(err)
-	assert.Must(len(plans2) == MaxSlotNum)
+	assert.Must(len(plans2) == t.config.MaxSlotNum)
 	d2 := groupBy(plans2)
-	assert.Must(len(d2) == 1 && d2[g1.Id] == MaxSlotNum)
+	assert.Must(len(d2) == 1 && d2[g1.Id] == t.config.MaxSlotNum)
 
 	g2 := &models.Group{Id: 200, Servers: []*models.GroupServer{
 		&models.GroupServer{Addr: "server2"},
@@ -480,23 +480,23 @@ func TestSlotsRebalance(x *testing.T) {
 
 	plans3, err := t.SlotsRebalance(false)
 	assert.MustNoError(err)
-	assert.Must(len(plans3) == MaxSlotNum)
+	assert.Must(len(plans3) == t.config.MaxSlotNum)
 	d3 := groupBy(plans3)
 	assert.Must(len(d3) == 2 && d3[g1.Id] == d3[g2.Id])
 
-	for i := 0; i < MaxSlotNum; i++ {
+	for i := 0; i < t.config.MaxSlotNum; i++ {
 		m := &models.SlotMapping{Id: i, GroupId: g1.Id}
 		contextUpdateSlotMapping(t, m)
 	}
 	plans4, err := t.SlotsRebalance(false)
 	assert.MustNoError(err)
-	assert.Must(len(plans4) == MaxSlotNum/2)
+	assert.Must(len(plans4) == t.config.MaxSlotNum/2)
 	d4 := groupBy(plans4)
 	assert.Must(len(d4) == 1 && d4[g2.Id] == len(plans4))
 
-	for i := 0; i < MaxSlotNum; i++ {
+	for i := 0; i < t.config.MaxSlotNum; i++ {
 		m := &models.SlotMapping{Id: i}
-		if i >= MaxSlotNum/4 {
+		if i >= t.config.MaxSlotNum/4 {
 			m.Action.State = models.ActionPending
 			m.Action.TargetId = g1.Id
 		}
@@ -504,7 +504,7 @@ func TestSlotsRebalance(x *testing.T) {
 	}
 	plans5, err := t.SlotsRebalance(false)
 	assert.MustNoError(err)
-	assert.Must(len(plans5) == MaxSlotNum/4)
+	assert.Must(len(plans5) == t.config.MaxSlotNum/4)
 	d5 := groupBy(plans5)
 	assert.Must(len(d5) == 1 && d5[g2.Id] == len(plans5))
 }
