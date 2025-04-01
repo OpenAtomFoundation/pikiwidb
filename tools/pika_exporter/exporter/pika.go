@@ -346,6 +346,12 @@ func (e *exporter) registerMetrics() {
 	if config.Replication {
 		metrics.RegisterReplication()
 	}
+	if config.CommandP99 {
+		metrics.RegisterCommandP99()
+	}
+	if config.SlowCommand {
+	    metrics.RegisterSlowCommand()
+	}
 	if config.Keyspace {
 		metrics.RegisterKeyspace()
 	}

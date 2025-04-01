@@ -6,6 +6,8 @@ cpu = true
 replication = true
 keyspace = true
 cache = true
+commandp99 = true
+slowcommand = true
 
 execcount = false
 commandstats = false
