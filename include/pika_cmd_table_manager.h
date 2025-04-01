@@ -29,6 +29,23 @@ struct CommandStatistics {
   std::atomic<uint64_t> cmd_time_consuming = 0;
 };
 
+struct HistogramData {
+  std::shared_ptr<prometheus::Registry> registry;
+  prometheus::Family<prometheus::Histogram>* family;
+  std::unordered_map<std::string, prometheus::Histogram*> histograms;
+
+  HistogramData() {
+    registry = std::make_shared<prometheus::Registry>();
+    family = &prometheus::BuildHistogram()
+        .Name("pika_command_duration_seconds")
+        .Help("Execution time of Pika commands in seconds")
+        .Register(*registry);
+  }
+
+  HistogramData(const HistogramData&) = delete;
+  HistogramData& operator=(const HistogramData&) = delete;
+};
+
 class PikaCmdTableManager {
   friend AclSelector;
 
@@ -53,7 +70,7 @@ class PikaCmdTableManager {
   void UpdateSlowCommandCount(const std::string& opt);
   void ResetCommandCount();
   prometheus::Histogram& GetHistogram(const std::string& opt);
-  prometheus::Family<prometheus::Histogram>* GetHistograms();
+  std::shared_ptr<HistogramData> GetHistogramsData();
 
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
@@ -73,11 +90,8 @@ class PikaCmdTableManager {
   */
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
   std::unordered_map<std::string, CommandStatistics> slow_command_count_;
-  std::mutex command_mutex_;
-  std::shared_mutex histograms_mutex_;
   std::shared_mutex slow_command_mutex_;
-  std::shared_ptr<prometheus::Registry> prometheus_registry_;
-  prometheus::Family<prometheus::Histogram>* histogram_family_;
-  std::unordered_map<std::string, prometheus::Histogram*> histograms_;
+  std::mutex data_mutex_;
+  std::shared_ptr<HistogramData> data_; 
 };
 #endif

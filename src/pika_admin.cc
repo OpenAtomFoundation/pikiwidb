@@ -1497,8 +1497,8 @@ void InfoCmd::InfoCommandP99(std::string& info) {
   tmp_stream.precision(2);
   tmp_stream.setf(std::ios::fixed);
   tmp_stream << "# Commands P99" << "\r\n";
-  auto histogram_family = g_pika_cmd_table_manager->GetHistograms(); 
-
+  auto data = g_pika_cmd_table_manager->GetHistogramsData();
+  auto* histogram_family = data->family;
   for (const auto& metric_family : histogram_family->Collect()) {
     for (const auto& metric : metric_family.metric) {
       std::string command_name;
