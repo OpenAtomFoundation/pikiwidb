@@ -19,13 +19,16 @@ void PikaCmdTableManager::ResetCommandCount() {
     std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_); 
     slow_command_count_.clear();
   }
-  std::atomic_store(&data_, std::make_shared<HistogramData>());
+  {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    data_ = std::make_shared<HistogramData>(); 
+  }
 }
 
 PikaCmdTableManager::PikaCmdTableManager() {
   cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
-  std::atomic_store(&data_, std::make_shared<HistogramData>());
+  data_ = std::make_shared<HistogramData>();  
 }
 
 void PikaCmdTableManager::InitCmdTable(void) {
@@ -73,25 +76,36 @@ void PikaCmdTableManager::RenameCommand(const std::string before, const std::str
 }
 
 prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt) {
-  auto current_data = std::atomic_load(&data_);
+  std::shared_ptr<HistogramData> data_copy;
   {
-    auto it = current_data->histograms.find(opt);
-    if (it != current_data->histograms.end()) {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    data_copy = data_; 
+  }
+
+  {
+    std::shared_lock<std::shared_mutex> read_lock(histograms_mutex_);
+    auto it = data_copy->histograms.find(opt);
+    if (it != data_copy->histograms.end()) {
       return *(it->second);
     }
   }
 
-  std::lock_guard<std::mutex> lock(data_mutex_);
-  auto& new_histogram = current_data->family->Add(
+  std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
+  auto& new_histogram = data_copy->family->Add(
       {{"command", opt}},
       prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 65, 75, 85, 100, 125, 140, 150, 160, 175, 185, 200, 300, 400, 500, 750, 1000, 2000, 5000, 10000}
   );
-  current_data->histograms[opt] = &new_histogram;
+  data_copy->histograms[opt] = &new_histogram;
   return new_histogram;
 }
 
 std::shared_ptr<HistogramData> PikaCmdTableManager::GetHistogramsData() {
-  return std::atomic_load(&data_);
+  std::shared_ptr<HistogramData> data_copy;
+  {
+    std::lock_guard<std::mutex> lock(data_mutex_);
+    data_copy = data_; 
+  } 
+  return data_copy;
 }
 
 void PikaCmdTableManager::UpdateSlowCommandCount(const std::string& opt) {

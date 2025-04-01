@@ -54,7 +54,6 @@ class PikaCmdTableManager {
   virtual ~PikaCmdTableManager() = default;
   void InitCmdTable(void);
   void RenameCommand(const std::string before, const std::string after);
-  void InitHistograms();
   std::shared_ptr<Cmd> GetCmd(const std::string& opt);
   bool CmdExist(const std::string& cmd) const;
   CmdTable* GetCmdTable();
@@ -91,6 +90,7 @@ class PikaCmdTableManager {
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
   std::unordered_map<std::string, CommandStatistics> slow_command_count_;
   std::shared_mutex slow_command_mutex_;
+  std::shared_mutex histograms_mutex_;
   std::mutex data_mutex_;
   std::shared_ptr<HistogramData> data_; 
 };
