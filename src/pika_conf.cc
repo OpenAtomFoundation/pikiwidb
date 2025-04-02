@@ -188,10 +188,7 @@ int PikaConf::Load() {
 
   std::string admin_cmd_list;
   GetConfStr("admin-cmd-list", &admin_cmd_list);
-  if (admin_cmd_list == ""){
-    admin_cmd_list = "info, monitor, ping";
-    SetAdminCmd(admin_cmd_list);
-  }
+  SetAdminCmd(admin_cmd_list);
 
   std::string unfinished_full_sync;
   GetConfStr("internal-used-unfinished-full-sync", &unfinished_full_sync);
