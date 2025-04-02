@@ -47,7 +47,6 @@ jobs:
 
       - name: Cleanup
         run: |
-          rm -rf  ./deps
           rm -rf ./buildtrees
 
       - uses: actions/upload-artifact@v4
@@ -108,8 +107,7 @@ jobs:
 
       - name: Cleanup
         run: |
-          rm -rf  ./deps
-          rm -rf ./buildtrees    
+          rm -rf ./buildtrees
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
@@ -170,8 +168,7 @@ jobs:
         run: |
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
-          rm -rf ./deps 
-          rm -rf ./buildtree
+          rm -rf ./buildtrees
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
