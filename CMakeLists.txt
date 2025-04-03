@@ -152,6 +152,8 @@ ExternalProject_Add(gtest
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   BUILD_ALWAYS
@@ -192,6 +194,8 @@ ExternalProject_Add(gflags
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DGFLAGS_NAMESPACE=gflags
@@ -266,6 +270,8 @@ ExternalProject_Add(glog
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DWITH_GFLAGS=ON
@@ -307,6 +313,8 @@ ExternalProject_Add(snappy
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DSNAPPY_BUILD_TESTS=OFF
@@ -345,6 +353,8 @@ ExternalProject_Add(zstd
   SOURCE_SUBDIR
   build/cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_TESTING=OFF
@@ -381,6 +391,8 @@ ExternalProject_Add(fmt
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   BUILD_ALWAYS
@@ -422,6 +434,8 @@ ExternalProject_Add(lz4
   SOURCE_SUBDIR
   build/cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_TESTING=OFF
@@ -458,6 +472,8 @@ ExternalProject_Add(zlib
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DZLIB_USE_STATIC_LIBS=ON
@@ -489,6 +505,8 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     LOG_INSTALL
     1
     CMAKE_ARGS
+    # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
     -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
     -DGPERFTOOLS_BUILD_STATIC=ON
@@ -558,6 +576,8 @@ ExternalProject_Add(protobuf
   SOURCE_SUBDIR
   cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_SHARED_LIBS=FALSE
@@ -607,6 +627,8 @@ ExternalProject_Add(rocksdb
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
@@ -648,6 +670,8 @@ ExternalProject_Add(rediscache
   SOURCE_SUBDIR
   ""
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_INSTALL_INCLUDEDIR=${INSTALL_INCLUDEDIR}
   -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
