@@ -1404,9 +1404,10 @@ void InfoCmd::InfoData(std::string& info) {
   uint64_t total_background_errors = 0;
   uint64_t total_memtable_usage = 0;
   uint64_t total_table_reader_usage = 0;
+  uint64_t total_big_key_count = 0;;
   uint64_t memtable_usage = 0;
   uint64_t table_reader_usage = 0;
-  uint64_t total_big_key_count = 0;
+  uint64_t big_key_count = 0; 
   std::shared_lock db_rwl(g_pika_server->dbs_rw_);
   for (const auto& db_item : g_pika_server->dbs_) {
     if (!db_item.second) {
@@ -1418,8 +1419,7 @@ void InfoCmd::InfoData(std::string& info) {
     db_item.second->storage()->GetUsage(storage::PROPERTY_TYPE_ROCKSDB_CUR_SIZE_ALL_MEM_TABLES, &memtable_usage);
     db_item.second->storage()->GetUsage(storage::PROPERTY_TYPE_ROCKSDB_ESTIMATE_TABLE_READER_MEM, &table_reader_usage);
     db_item.second->storage()->GetUsage(storage::PROPERTY_TYPE_ROCKSDB_BACKGROUND_ERRORS, &background_errors);
-
-    uint64_t big_key_count = db_item.second->storage()->GetBigKeyStatistics(db_item.first, "bigkey_property");
+    db_item.second->storage()->GetBigKeyStatistics();
     total_big_key_count += big_key_count;
     db_item.second->DBUnlockShared();
     total_memtable_usage += memtable_usage;
@@ -2293,6 +2293,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     g_pika_conf->acl_pubsub_default() ? EncodeString(&config_body, "allchannels")
                                       : EncodeString(&config_body, "resetchannels");
   }
+ 
+  if (pstd::stringmatch(pattern.data(), "keys-analysis", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "keys-analysis");
+    EncodeNumber(&config_body, g_pika_conf->keys_analysis());
+  }
 
   std::stringstream resp;
   resp << "*" << std::to_string(elements) << "\r\n" << config_body;
@@ -2483,6 +2489,17 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     g_pika_conf->SetSlowCmdPool(SlowCmdPool);
     g_pika_server->SetSlowCmdThreadPoolFlag(SlowCmdPool);
     res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "keys-analysis") {
+    bool KeysAnalysis;
+    if (value == "yes") {
+      KeysAnalysis = true;
+    } else if (value == "no") {
+      KeysAnalysis = false;
+    } else {
+      res_.AppendStringRaw( "-ERR Invalid argument \'" + value + "\' for CONFIG SET 'keys-analysis'\r\n");
+      return;
+    }
+    g_pika_conf->SetKeysAnalysis(KeysAnalysis); 
   } else if (set_item == "slowlog-log-slower-than") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'slowlog-log-slower-than'\r\n");

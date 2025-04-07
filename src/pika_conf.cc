@@ -529,6 +529,11 @@ int PikaConf::Load() {
   }
   GetConfStr("pidfile", &pidfile_);
 
+  // keys-analysis
+  std::string ka;
+  GetConfStr("keys-analysis", &ka);
+  keys_analysis_ = wb != "no";  
+
   // db sync
   GetConfStr("db-sync-path", &db_sync_path_);
   db_sync_path_ = db_sync_path_.empty() ? "./dbsync/" : db_sync_path_;
@@ -766,6 +771,7 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("slave-priority", slave_priority_);
   SetConfStr("log-net-activities", log_net_activities_ ? "yes" : "no");
   SetConfStr("write-binlog", write_binlog_ ? "yes" : "no");
+  SetConfStr("keys-analysis", keys_analysis_ ? "yes" : "no");
   SetConfStr("run-id", run_id_);
   SetConfStr("replication-id", replication_id_);
   SetConfInt("max-cache-statistic-keys", max_cache_statistic_keys_);

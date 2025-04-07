@@ -1855,30 +1855,13 @@ uint64_t Storage::GetProperty(const std::string& db_type, const std::string& pro
   return result;
 }
 
-uint64_t Storage::GetBigKeyStatistics(const std::string& db_type, const std::string& property) {
-  uint64_t out = 0;
-  uint64_t result = 0;
-  if (db_type == ALL_DB || db_type == HASHES_DB) {
-    hashes_db_->GetBigKeyStatistics();
-    result += out;
-  }
-
-  if (db_type == ALL_DB || db_type == LISTS_DB) {
-    lists_db_->GetBigKeyStatistics();
-    result += out;
-  }
-  if (db_type == ALL_DB || db_type == ZSETS_DB) {
-    zsets_db_->GetBigKeyStatistics();
-    result += out;
-  }
-  if (db_type == ALL_DB || db_type == SETS_DB) {
-    sets_db_->GetBigKeyStatistics();
-    result += out;
-  }
-  if (db_type == ALL_DB || db_type == STREAMS_DB) {
-    streams_db_->GetBigKeyStatistics();
-    result += out;
-  }
+size_t Storage::GetBigKeyStatistics() {
+  size_t result = 0;
+  result += hashes_db_->GetBigKeyStatistics();
+  result += lists_db_->GetBigKeyStatistics();
+  result += zsets_db_->GetBigKeyStatistics();
+  result += sets_db_->GetBigKeyStatistics();
+  result += streams_db_->GetBigKeyStatistics();
   return result;
 }
 

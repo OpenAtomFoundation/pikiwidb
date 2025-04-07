@@ -199,4 +199,30 @@ void Redis::SetCompactRangeOptions(const bool is_canceled) {
   } 
 }
 
+void Redis::CheckBigKeyAndLog(const std::string& key, uint64_t size) {
+  thread_local uint64_t last_log_time = 0;
+  auto current_time = pstd::NowMicros();
+
+  static const uint64_t kLogInterval = 60 * 1000 * 1000;  
+  static const uint64_t kBigKeyThreshold = 10000;
+
+  if (current_time - last_log_time >= kLogInterval) {
+    last_log_time = current_time;
+
+    if (size > kBigKeyThreshold) {
+      std::unique_lock<std::shared_mutex> write_lock(big_key_access_mutex_);
+      big_key_access_count_[key]++;
+
+      LOG(INFO) << "[BIGKEY DETECTED] Key: " << key
+                << ", Size: " << size
+                << ", Access Count: " << big_key_access_count_[key];
+    }
+  }
+}
+
+size_t Redis::GetBigKeyStatistics() {
+  std::shared_lock<std::shared_mutex> read_lock(big_key_access_mutex_);
+  return big_key_access_count_.size();
+}
+
 }  // namespace storage

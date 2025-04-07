@@ -11,6 +11,8 @@
 #include <vector>
 #include <iostream>
 
+#include <glog/logging.h>
+
 #include "rocksdb/db.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
@@ -116,21 +118,8 @@ class Redis {
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   std::vector<rocksdb::ColumnFamilyHandle*> GetHandles(){ return handles_;};
   void GetRocksDBInfo(std::string &info, const char *prefix);
-  void CheckBigKeyAndLog(const std::string& key, uint64_t size) {
-    static const uint64_t kBigKeyThreshold = 10000;
-    if (size > kBigKeyThreshold) {
-      std::lock_guard<std::mutex> lock(big_key_access_mutex_);
-      big_key_access_count_[key]++;
-      std::cerr << "[BIGKEY DETECTED] Key: " << key
-                << ", Size: " << size
-                << ", Access Count: " << big_key_access_count_[key] << std::endl;
-    }
-  }
-
-  std::unordered_map<std::string, int> GetBigKeyStatistics() {
-    std::lock_guard<std::mutex> lock(big_key_access_mutex_);
-    return big_key_access_count_;
-  }
+  void CheckBigKeyAndLog(const std::string& key, uint64_t size);
+  size_t GetBigKeyStatistics();
 
  protected:
   Storage* const storage_;
@@ -158,7 +147,7 @@ class Redis {
   Status UpdateSpecificKeyDuration(const std::string& key, uint64_t duration);
   Status AddCompactKeyTaskIfNeeded(const std::string& key, uint64_t count, uint64_t duration);
   std::unordered_map<std::string, int> big_key_access_count_;
-  std::mutex big_key_access_mutex_;
+  std::shared_mutex big_key_access_mutex_;
 };
 
 }  //  namespace storage

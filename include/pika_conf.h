@@ -49,6 +49,10 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return write_binlog_;
   }
+  bool keys_analysis() {
+    std::shared_lock l(rwlock_);
+    return keys_analysis_;
+  } 
   int thread_num() {
     std::shared_lock l(rwlock_);
     return thread_num_;
@@ -498,6 +502,11 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("write-binlog", value);
     write_binlog_ = value == "yes";
   }
+  void SetKeysAnalysis(const bool value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("keys-analysis", value ? "yes" : "no");
+    keys_analysis_.store(value);
+  }
   void SetMaxCacheStatisticKeys(const int value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("max-cache-statistic-keys", std::to_string(value));
@@ -941,6 +950,7 @@ class PikaConf : public pstd::BaseConf {
   std::atomic<int> slowlog_log_slower_than_;
   std::atomic<bool> slotmigrate_;
   std::atomic<int> binlog_writer_num_;
+  std::atomic<bool> keys_analysis_ = false;
   int slowlog_max_len_ = 0;
   int expire_logs_days_ = 0;
   int expire_logs_nums_ = 0;
