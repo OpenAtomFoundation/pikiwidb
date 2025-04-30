@@ -422,6 +422,10 @@ int PikaConf::Load() {
   std::string at;
   GetConfStr("rate-limiter-auto-tuned", &at);
   rate_limiter_auto_tuned_ = at == "yes" || at.empty();
+  // if rate limiter autotune enable, `rate_limiter_bandwidth_` will still be respected as an upper-bound.
+  if (rate_limiter_auto_tuned_) {
+    rate_limiter_bandwidth_ = 10 * 1024 * 1024 * 1024; // 10GB/s
+  }
 
   // max_write_buffer_num
   max_write_buffer_num_ = 2;
