@@ -39,7 +39,10 @@ var _ = Describe("PubSub", func() {
 
 	It("implements Stringer", func() {
 		pubsub := client.PSubscribe(ctx, "mychannel*")
-		defer pubsub.Close()
+		defer func() {
+                    time.Sleep(100 * time.Millisecond)
+                    pubsub.Close()
+                }()
 
 		Expect(pubsub.String()).To(Equal("PubSub(mychannel*)"))
 	})

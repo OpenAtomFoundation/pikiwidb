@@ -48,7 +48,8 @@ enum EventStatus {
   kNone = 0,
   kReadable = 0x1,
   kWritable = 0x1 << 1,
-  kErrorEvent = 0x1 << 2,
+  kPeerClose = 0x1 << 2,
+  kErrorEvent = 0x1 << 3,
 };
 
 enum ConnStatus {
