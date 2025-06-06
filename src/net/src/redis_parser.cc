@@ -366,13 +366,13 @@ RedisParserStatus RedisParser::ProcessRequestBuffer() {
       // Unknown requeset type;
       return kRedisParserError;
     }
-    if (!argv_.empty()) {
-      argvs_.push_back(argv_);
-      if (parser_settings_.DealMessage) {
-        if (parser_settings_.DealMessage(this, argv_) != 0) {
-          SetParserStatus(kRedisParserError, kRedisParserDealError);
-          return status_code_;
-        }
+
+    // Always add command to argvs_, even if empty
+    argvs_.push_back(argv_);
+    if (parser_settings_.DealMessage && !argv_.empty()) {
+      if (parser_settings_.DealMessage(this, argv_) != 0) {
+        SetParserStatus(kRedisParserError, kRedisParserDealError);
+        return status_code_;
       }
     }
     argv_.clear();

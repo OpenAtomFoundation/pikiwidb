@@ -289,6 +289,9 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
                                       std::string* response) {
   time_stat_->Reset();
   if (async) {
+    if (argvs.empty()) {
+      return;
+    }
     auto arg = new BgTaskArg();
     arg->cache_miss_in_rtc_ = false;
     arg->redis_cmds = argvs;
@@ -300,24 +303,30 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
      * However, if using the pipeline method for Codis, it can correctly distinguish between
      * fast and slow commands, but it cannot guarantee sequential execution.
      */
-    std::string opt = argvs[0][0];
-    pstd::StringToLower(opt);
-    bool is_slow_cmd = g_pika_conf->is_slow_cmd(opt);
-    bool is_admin_cmd = g_pika_conf->is_admin_cmd(opt);
+    // Only check for non-empty commands when accessing argvs[0][0]
+    if (!argvs.empty() && !argvs[0].empty()) {
+      std::string opt = argvs[0][0];
+      pstd::StringToLower(opt);
+      bool is_slow_cmd = g_pika_conf->is_slow_cmd(opt);
+      bool is_admin_cmd = g_pika_conf->is_admin_cmd(opt);
 
-    // we don't intercept pipeline batch (argvs.size() > 1)
-    if (g_pika_conf->rtc_cache_read_enabled() && argvs.size() == 1 && IsInterceptedByRTC(opt) &&
-        PIKA_CACHE_NONE != g_pika_conf->cache_mode() && !IsInTxn()) {
-      // read in cache
-      if (ReadCmdInCache(argvs[0], opt)) {
-        delete arg;
-        return;
+      // we don't intercept pipeline batch (argvs.size() > 1)
+      if (g_pika_conf->rtc_cache_read_enabled() && argvs.size() == 1 && IsInterceptedByRTC(opt) &&
+          PIKA_CACHE_NONE != g_pika_conf->cache_mode() && !IsInTxn()) {
+        // read in cache
+        if (ReadCmdInCache(argvs[0], opt)) {
+          delete arg;
+          return;
+        }
+        arg->cache_miss_in_rtc_ = true;
+        time_stat_->before_queue_ts_ = pstd::NowMicros();
       }
-      arg->cache_miss_in_rtc_ = true;
-      time_stat_->before_queue_ts_ = pstd::NowMicros();
-    }
 
-    g_pika_server->ScheduleClientPool(&DoBackgroundTask, arg, is_slow_cmd, is_admin_cmd);
+      g_pika_server->ScheduleClientPool(&DoBackgroundTask, arg, is_slow_cmd, is_admin_cmd);
+    } else {
+      // For empty commands, use default values
+      g_pika_server->ScheduleClientPool(&DoBackgroundTask, arg, false, false);
+    }
     return;
   }
   BatchExecRedisCmd(argvs, false);
@@ -331,23 +340,45 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
     conn_ptr->NotifyEpoll(false);
     return;
   }
-  for (const auto& argv : bg_arg->redis_cmds) {
-    if (argv.empty()) {
-      conn_ptr->NotifyEpoll(false);
-      return;
-    }
-  }
 
   conn_ptr->BatchExecRedisCmd(bg_arg->redis_cmds, bg_arg->cache_miss_in_rtc_);
 }
 
 void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>& argvs, bool cache_miss_in_rtc) {
-  resp_num.store(static_cast<int32_t>(argvs.size()));
-  for (const auto& argv : argvs) {
-    std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
-    resp_array.push_back(resp_ptr);
-    ExecRedisCmd(argv, resp_ptr, cache_miss_in_rtc);
+  // Filter out empty commands but still respond to them
+  std::vector<bool> is_empty_cmd(argvs.size());
+  std::vector<net::RedisCmdArgsType> valid_argvs;
+
+  for (size_t i = 0; i < argvs.size(); ++i) {
+    if (argvs[i].empty()) {
+      is_empty_cmd[i] = true;
+    } else {
+      is_empty_cmd[i] = false;
+      valid_argvs.push_back(argvs[i]);
+    }
   }
+
+  resp_num.store(static_cast<int32_t>(argvs.size()));
+
+  // Process empty commands with empty response
+  for (size_t i = 0; i < argvs.size(); ++i) {
+    std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
+    if (is_empty_cmd[i]) {
+      // For empty commands, return empty response to keep connection alive
+      *resp_ptr = "\r\n";
+    }
+    resp_array.push_back(resp_ptr);
+  }
+
+  // Process valid commands
+  size_t valid_idx = 0;
+  for (size_t i = 0; i < argvs.size(); ++i) {
+    if (!is_empty_cmd[i]) {
+      ExecRedisCmd(valid_argvs[valid_idx], resp_array[i], cache_miss_in_rtc);
+      valid_idx++;
+    }
+  }
+
   time_stat_->process_done_ts_ = pstd::NowMicros();
   TryWriteResp();
 }
@@ -380,6 +411,7 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
   if (checkRes == AclDeniedCmd::CMD || checkRes == AclDeniedCmd::KEY || checkRes == AclDeniedCmd::CHANNEL ||
       checkRes == AclDeniedCmd::NO_SUB_CMD || checkRes == AclDeniedCmd::NO_AUTH) {
     // acl check failed
+    resp_num--;
     return false;
   }
   // only read command(Get, HGet) will reach here, no need of record lock
