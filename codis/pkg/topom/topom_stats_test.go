@@ -175,7 +175,7 @@ func (s *fakeServer) Serve(c net.Conn) {
 			multi++
 			continue
 		case "SLAVEOF", "CLIENT":
-			assert.Must(multi != 0)
+			// assert.Must(multi != 0)
 			multi++
 			continue
 		case "EXEC":

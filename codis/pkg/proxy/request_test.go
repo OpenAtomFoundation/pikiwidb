@@ -16,12 +16,12 @@ import (
 func TestRequestChan1(t *testing.T) {
 	var ch = NewRequestChanBuffer(0)
 	for i := 0; i < 8192; i++ {
-		n := ch.PushBack(&Request{UnixNano: int64(i)})
+		n := ch.PushBack(&Request{ReceiveTime: int64(i)})
 		assert.Must(n == i+1)
 	}
 	for i := 0; i < 8192; i++ {
 		r, ok := ch.PopFront()
-		assert.Must(ok && r.UnixNano == int64(i))
+		assert.Must(ok && r.ReceiveTime == int64(i))
 	}
 	assert.Must(ch.Buffered() == 0)
 
@@ -34,7 +34,7 @@ func TestRequestChan1(t *testing.T) {
 func TestRequestChan2(t *testing.T) {
 	var ch = NewRequestChanBuffer(512)
 	for i := 0; i < 8192; i++ {
-		n := ch.PushBack(&Request{UnixNano: int64(i)})
+		n := ch.PushBack(&Request{ReceiveTime: int64(i)})
 		assert.Must(n == i+1)
 	}
 	ch.Close()
@@ -43,7 +43,7 @@ func TestRequestChan2(t *testing.T) {
 
 	for i := 0; i < 8192; i++ {
 		r, ok := ch.PopFront()
-		assert.Must(ok && r.UnixNano == int64(i))
+		assert.Must(ok && r.ReceiveTime == int64(i))
 	}
 	assert.Must(ch.Buffered() == 0)
 
@@ -61,7 +61,7 @@ func TestRequestChan3(t *testing.T) {
 	go func() {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
-			ch.PushBack(&Request{UnixNano: int64(i)})
+			ch.PushBack(&Request{ReceiveTime: int64(i)})
 			if i%1024 == 0 {
 				runtime.Gosched()
 			}
@@ -73,7 +73,7 @@ func TestRequestChan3(t *testing.T) {
 		defer wg.Done()
 		for i := 0; i < n; i++ {
 			r, ok := ch.PopFront()
-			assert.Must(ok && r.UnixNano == int64(i))
+			assert.Must(ok && r.ReceiveTime == int64(i))
 			if i%4096 == 0 {
 				runtime.Gosched()
 			}

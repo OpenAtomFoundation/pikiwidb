@@ -4,7 +4,9 @@
 package proxy
 
 import (
+	"strconv"
 	"testing"
+	"time"
 
 	"pika/codis/v2/pkg/models"
 	"pika/codis/v2/pkg/utils/assert"
@@ -19,21 +21,32 @@ func init() {
 
 func newProxyConfig() *Config {
 	config := NewDefaultConfig()
-	config.ProxyAddr = "0.0.0.0:0"
-	config.AdminAddr = "0.0.0.0:0"
 	config.ProxyHeapPlaceholder = 0
 	config.ProxyMaxOffheapBytes = 0
 	return config
 }
 
-func openProxy() (*Proxy, string) {
+func openProxy(proxy_port, admin_port int) (*Proxy, string) {
+	config.ProxyAddr = "0.0.0.0:" + strconv.Itoa(1024+proxy_port)
+	config.AdminAddr = "0.0.0.0:" + strconv.Itoa(1024+admin_port)
+
+	models.SetMaxSlotNum(config.MaxSlotNum)
 	s, err := New(config)
 	assert.MustNoError(err)
+
+	var c = NewApiClient(s.Model().AdminAddr)
+	for retry := 0; retry < 10; retry++ {
+		_, err = c.Model()
+		if err == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
 	return s, s.Model().AdminAddr
 }
 
 func TestModel(x *testing.T) {
-	s, addr := openProxy()
+	s, addr := openProxy(0, 1)
 	defer s.Close()
 
 	var c = NewApiClient(addr)
@@ -45,7 +58,7 @@ func TestModel(x *testing.T) {
 }
 
 func TestStats(x *testing.T) {
-	s, addr := openProxy()
+	s, addr := openProxy(2, 3)
 	defer s.Close()
 
 	var c = NewApiClient(addr)
@@ -76,7 +89,7 @@ func verifySlots(c *ApiClient, expect map[int]*models.Slot) {
 }
 
 func TestFillSlot(x *testing.T) {
-	s, addr := openProxy()
+	s, addr := openProxy(3, 4)
 	defer s.Close()
 
 	var c = NewApiClient(addr)
@@ -111,7 +124,7 @@ func TestFillSlot(x *testing.T) {
 }
 
 func TestStartAndShutdown(x *testing.T) {
-	s, addr := openProxy()
+	s, addr := openProxy(5, 6)
 	defer s.Close()
 
 	var c = NewApiClient(addr)

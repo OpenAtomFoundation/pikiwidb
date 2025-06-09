@@ -25,6 +25,7 @@ func init() {
 	config.AdminAddr = "0.0.0.0:0"
 	config.ProductName = "topom_test"
 	config.ProductAuth = "topom_auth"
+	models.SetMaxSlotNum(config.MaxSlotNum)
 }
 
 func newDiskClient() *fsclient.Client {

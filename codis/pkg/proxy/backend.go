@@ -282,27 +282,48 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 		log.WarnErrorf(err, "backend conn [%p] to %s, db-%d reader-[%d] exit",
 			bc, bc.addr, bc.database, round)
 	}()
+
+	var timeout_resp_cnt int
 	for r := range tasks {
-		resp, err := c.Decode()
-		r.ReceiveFromServerTime = time.Now().UnixNano()
-		if err != nil {
-			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
-		}
-		if resp != nil && resp.IsError() {
-			switch {
-			case bytes.HasPrefix(resp.Value, errRespMasterDown):
-				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
-					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'MASTERDOWN'",
-						bc, bc.addr, bc.database)
+		for {
+			resp, err := c.Decode()
+			r.ReceiveFromServerTime = time.Now().UnixNano()
+			if err != nil {
+				if ne, ok := errors.Cause(err).(net.Error); ok && ne.Timeout() {
+					timeout_resp_cnt++
+					if timeout_resp_cnt%10 == 0 {
+						log.Warnf(`backend conn [%p] to %s, db-%d, reader-[%d]
+						accumulated timeout request num: %d`,
+							bc, bc.addr, bc.database, round, timeout_resp_cnt)
+					}
+					bc.setResponse(r, nil, fmt.Errorf("backend request timout, %s", err))
+					break
 				}
-			case bytes.HasPrefix(resp.Value, errRespLoading):
-				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
-					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'LOADING'",
-						bc, bc.addr, bc.database)
+				return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
+			}
+
+			if timeout_resp_cnt != 0 {
+				timeout_resp_cnt--
+				continue
+			}
+
+			if resp != nil && resp.IsError() {
+				switch {
+				case bytes.HasPrefix(resp.Value, errRespMasterDown):
+					if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+						log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'MASTERDOWN'",
+							bc, bc.addr, bc.database)
+					}
+				case bytes.HasPrefix(resp.Value, errRespLoading):
+					if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+						log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'LOADING'",
+							bc, bc.addr, bc.database)
+					}
 				}
 			}
+			bc.setResponse(r, resp, nil)
+			break
 		}
-		bc.setResponse(r, resp, nil)
 	}
 	return nil
 }
