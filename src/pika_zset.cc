@@ -1413,6 +1413,8 @@ void ZRemrangebyscoreCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
+  min_ = argv_[2];
+  max_ = argv_[3];
   int32_t ret = DoScoreStrRange(argv_[2], argv_[3], &left_close_, &right_close_, &min_score_, &max_score_);
   if (ret == -1) {
     res_.SetRes(CmdRes::kErrOther, "min or max is not a float");
@@ -1453,6 +1455,8 @@ void ZRemrangebylexCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
+  min_ = argv_[2];
+  max_ = argv_[3];
   int32_t ret = DoMemberRange(argv_[2], argv_[3], &left_close_, &right_close_, &min_member_, &max_member_);
   if (ret == -1) {
     res_.SetRes(CmdRes::kErrOther, "min or max not valid string range item");
