@@ -288,6 +288,10 @@ bool PikaClientConn::IsInterceptedByRTC(std::string& opt) {
 void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& argvs, bool async,
                                       std::string* response) {
   time_stat_->Reset();
+  if (argvs.empty()) {
+    NotifyEpoll(true);
+    return;
+  }
   if (async) {
     auto arg = new BgTaskArg();
     arg->cache_miss_in_rtc_ = false;
