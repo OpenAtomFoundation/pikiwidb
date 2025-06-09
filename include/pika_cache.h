@@ -133,7 +133,7 @@ class PikaCache : public pstd::noncopyable, public std::enable_shared_from_this<
   rocksdb::Status RPushnx(std::string& key, std::vector<std::string> &values, int64_t ttl);
   rocksdb::Status RPushnxWithoutTTL(std::string& key, std::vector<std::string> &values);
   rocksdb::Status LPushIfKeyExist(std::string& key, std::vector<std::string> &values);
-  
+
   // Set Commands
   rocksdb::Status SAdd(std::string& key, std::vector<std::string>& members);
   rocksdb::Status SAddIfKeyExist(std::string& key, std::vector<std::string>& members);
