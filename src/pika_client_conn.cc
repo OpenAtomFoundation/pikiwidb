@@ -288,10 +288,11 @@ bool PikaClientConn::IsInterceptedByRTC(std::string& opt) {
 void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& argvs, bool async,
                                       std::string* response) {
   time_stat_->Reset();
+  if (argvs.empty()) {
+    NotifyEpoll(true);
+    return;
+  }
   if (async) {
-    if (argvs.empty()) {
-      return;
-    }
     auto arg = new BgTaskArg();
     arg->cache_miss_in_rtc_ = false;
     arg->redis_cmds = argvs;
@@ -303,7 +304,6 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
      * However, if using the pipeline method for Codis, it can correctly distinguish between
      * fast and slow commands, but it cannot guarantee sequential execution.
      */
-    // Only check for non-empty commands when accessing argvs[0][0]
     if (!argvs.empty() && !argvs[0].empty()) {
       std::string opt = argvs[0][0];
       pstd::StringToLower(opt);
@@ -345,7 +345,6 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
 }
 
 void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>& argvs, bool cache_miss_in_rtc) {
-  // Filter out empty commands but still respond to them
   std::vector<bool> is_empty_cmd(argvs.size());
   std::vector<net::RedisCmdArgsType> valid_argvs;
 
@@ -360,7 +359,6 @@ void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>&
 
   resp_num.store(static_cast<int32_t>(argvs.size()));
 
-  // Process empty commands with empty response
   for (size_t i = 0; i < argvs.size(); ++i) {
     std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
     if (is_empty_cmd[i]) {
@@ -370,7 +368,6 @@ void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>&
     resp_array.push_back(resp_ptr);
   }
 
-  // Process valid commands
   size_t valid_idx = 0;
   for (size_t i = 0; i < argvs.size(); ++i) {
     if (!is_empty_cmd[i]) {
