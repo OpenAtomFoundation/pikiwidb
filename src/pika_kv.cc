@@ -1196,19 +1196,28 @@ void SetrangeCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
+  //If the number of keys exceeds 19, the system is returned
+  if (argv_[2].size() >= 19) {
+    res_.SetRes(CmdRes::kErrOther, "string exceeds maximum allowed size (proto-max-bulk-len)");
+    return;
+  }
+  
   if (pstd::string2int(argv_[2].data(), argv_[2].size(), &offset_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
+  
+  value_ = argv_[3];
+  
   //Handle the overflow issue of offset_
+  const int64_t PROTO_MAX_BULK_LEN = 512 * 1024 * 1024; // 512MB
   if (offset_ < 0) {
     res_.SetRes(CmdRes::kInvalidInt, "offset is out of range");
     return;
   }
-  const int64_t MAX_STRING_SIZE = 9223372036854775757;
-  value_ = argv_[3];
-  if (offset_ > MAX_STRING_SIZE - static_cast<int64_t>(value_.size())) {
-    res_.SetRes(CmdRes::kInvalidInt, "string exceeds maximum allowed size");
+
+  if (offset_ > PROTO_MAX_BULK_LEN - static_cast<int64_t>(value_.size())) {
+    res_.SetRes(CmdRes::kErrOther, "string exceeds maximum allowed size (proto-max-bulk-len)");
     return;
   }
 }
