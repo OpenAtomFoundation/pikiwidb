@@ -1140,15 +1140,6 @@ void GetrangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  //6.6号新增
-  // 添加最大值限制
-  // const int64_t MAX_RANGE_SIZE = 512 * 1024 * 1024; // 512MB
-  // if (start_ < -MAX_RANGE_SIZE || start_ > MAX_RANGE_SIZE ||
-  //   end_ < -MAX_RANGE_SIZE || end_ > MAX_RANGE_SIZE) {
-  //   res_.SetRes(CmdRes::kInvalidInt, "Range index out of bounds");
-  //   return;
-  // }
-
 }
 
 void GetrangeCmd::Do() {
@@ -1157,13 +1148,6 @@ void GetrangeCmd::Do() {
   s_= db_->storage()->Getrange(key_, start_, end_, &substr);
   
   if (s_.ok() || s_.IsNotFound()) {
-    //6.9号新增的
-    const size_t MAX_RESPONSE_SIZE = 100 * 1024 * 1024; //100MB
-    if (substr.size() > MAX_RESPONSE_SIZE) {
-      substr.resize(MAX_RESPONSE_SIZE);
-      LOG(WARNING) << "GETRANGE result truncated from " << substr.size() 
-                   << " to " << MAX_RESPONSE_SIZE << " bytes";
-    }
     res_.AppendStringLenUint64(substr.size());
     res_.AppendContent(substr);
   } else if (s_.IsInvalidArgument()) {
@@ -1216,7 +1200,7 @@ void SetrangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  //6.9号新增
+  //Handle the overflow issue of offset_
   if (offset_ < 0) {
     res_.SetRes(CmdRes::kInvalidInt, "offset is out of range");
     return;
