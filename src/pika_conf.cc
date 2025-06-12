@@ -681,7 +681,7 @@ int PikaConf::Load() {
   if (blob_garbage_collection_force_threshold_ <= 0) {
     blob_garbage_collection_force_threshold_ = 1.0;
   }
-  GetConfInt64("blob-cache", &block_cache_);
+  GetConfInt64("blob-cache", &blob_cache_);
   GetConfInt64("blob-num-shard-bits", &blob_num_shard_bits_);
 
   // throttle-bytes-per-second
