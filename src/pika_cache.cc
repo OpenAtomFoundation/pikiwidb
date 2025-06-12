@@ -388,13 +388,10 @@ Status PikaCache::GetRange(std::string& key, int64_t start, int64_t end, std::st
   }
   
   if (start < 0) start = 0;
-  if (end < 0) {
-    value->clear();
-    return Status::OK();
-  }
+  if (end < 0) end = 0;
   if (end >= strlen) end = strlen - 1;
-  
-  if (start > end) {
+
+  if (start > end || strlen == 0) {
     value->clear();
     return Status::OK();
   }
