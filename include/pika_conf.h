@@ -167,6 +167,10 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return write_buffer_size_;
   }
+  int64_t proto_max_bulk_len() {
+    std::shared_lock l(rwlock_);
+    return proto_max_bulk_len_;
+  }
   int min_write_buffer_number_to_merge() {
     std::shared_lock l(rwlock_);
     return min_write_buffer_number_to_merge_;
@@ -1035,6 +1039,7 @@ class PikaConf : public pstd::BaseConf {
   int64_t least_free_disk_to_resume_ = 268435456; // 256 MB
   double min_check_resume_ratio_ = 0.7;
   int64_t write_buffer_size_ = 0;
+  int64_t proto_max_bulk_len_ = 0;
   int64_t arena_block_size_ = 0;
   int64_t slotmigrate_thread_num_ = 0;
   int64_t thread_migrate_keys_num_ = 0;
