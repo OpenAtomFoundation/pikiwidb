@@ -862,6 +862,11 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("rsync-timeout-ms", std::to_string(value));
     rsync_timeout_ms_.store(value);
   }
+  void SetProtoMaxBulkLen(const int64_t value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("proto-max-bulk-len", std::to_string(value));
+    proto_max_bulk_len_ = value;
+  }
 
   int RocksDBPerfLevel() const {
     return rocksdb_perf_level_.load();

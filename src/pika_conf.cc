@@ -366,7 +366,10 @@ int PikaConf::Load() {
   if (write_buffer_size_ <= 0) {
     write_buffer_size_ = 268435456;  // 256Mb
   }
-
+  GetConfInt64Human("proto-max-bulk-len", &proto_max_bulk_len_);
+  if (proto_max_bulk_len_ <= 0) {
+    proto_max_bulk_len_ = 512 * 1024 * 1024;  // 512MB
+  }
   GetConfInt("level0-stop-writes-trigger", &level0_stop_writes_trigger_);
   if (level0_stop_writes_trigger_ < 36) {
     level0_stop_writes_trigger_ = 36;

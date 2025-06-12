@@ -305,8 +305,10 @@ var _ = Describe("String Commands", func() {
 			set := client.Set(ctx, "key1", "abc", 0)
 			Expect(set.Err()).NotTo(HaveOccurred())
 			Expect(set.Val()).To(Equal("OK"))
-			getRange := client.GetRange(ctx, "key1", 1, 4294967296)
-			Expect(getRange.Val()).To(Equal("bc"))
+			getRange1 := client.GetRange(ctx, "key1", 1, 4294967296)
+    		Expect(getRange1.Val()).To(Equal("bc"))
+    		getRange2 := client.GetRange(ctx, "key1", 1, 4294967296)
+    		Expect(getRange2.Val()).To(Equal("bc"))
 		})
 		It("should not crash on huge SETRANGE", func() {
 			set := client.Set(ctx, "key1", "abc", 0)
