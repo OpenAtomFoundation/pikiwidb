@@ -323,6 +323,10 @@ int PikaConf::Load() {
     write_buffer_size_ = 268435456;  // 256Mb
   }
 
+  GetConfInt64Human("proto-max-bulk-len", &proto_max_bulk_len_);
+  if (proto_max_bulk_len_ <= 0) {
+    proto_max_bulk_len_ = 512 * 1024 * 1024;  // 512MB
+  }
   // arena_block_size
   GetConfInt64Human("arena-block-size", &arena_block_size_);
   if (arena_block_size_ <= 0) {
