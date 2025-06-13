@@ -440,10 +440,39 @@ Status PikaCache::Appendxx(std::string& key, std::string &value) {
   return Status::NotFound("key not exist");
 }
 
+/*
+  Added boundary checks for start and end parameters to the PikaCache::GetRange function,
+  and used the full_value variable to store the actual length of string type, 
+  avoiding excessive memory allocation by sdsnewlen.
+*/
 Status PikaCache::GetRange(std::string& key, int64_t start, int64_t end, std::string *value) {
   int cache_index = CacheIndex(key);
   std::lock_guard lm(*cache_mutexs_[cache_index]);
-  return caches_[cache_index]->GetRange(key, start, end, value);
+  std::string full_value;
+  auto s = caches_[cache_index]->Get(key, &full_value);
+  if (!s.ok()) {
+    return s;
+  }
+  int64_t strlen = full_value.size();
+
+  if (start < 0) {
+    start = strlen + start;
+  }
+  if (end < 0) {
+    end = strlen + end;
+  }
+
+  if (start < 0) start = 0;
+  if (end < 0) end = 0;
+  if (end >= strlen) end = strlen - 1;
+
+  if (start > end || strlen == 0) {
+    value->clear();
+    return Status::OK();
+  }
+
+  *value = full_value.substr(start, end - start + 1);
+  return Status::OK();
 }
 
 Status PikaCache::SetRangeIfKeyExist(std::string& key, int64_t start, std::string &value) {
