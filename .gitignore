@@ -65,7 +65,7 @@ src/build_version.cc
 build/
 buildtrees
 deps
-pkg
+#pkg
 
 #develop container
 .devcontainer
