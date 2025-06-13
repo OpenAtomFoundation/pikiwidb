@@ -307,12 +307,16 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
   *ret = 0;
   uint32_t statistic = 0;
   std::unordered_set<std::string> unique;
-  std::vector<ScoreMember> filtered_score_members;
-  for (const auto& sm : score_members) {
-    if (unique.find(sm.member) == unique.end()) {
-      unique.insert(sm.member);
-      filtered_score_members.push_back(sm);
+  std::list<storage::ScoreMember> mid_score_members;
+  for (auto it = score_members.rbegin(); it != score_members.rend(); ++it) {
+    if (unique.find(it->member) == unique.end()) {
+      unique.insert(it->member);
+      mid_score_members.push_front(*it);
     }
+  }
+  std::vector<ScoreMember> filtered_score_members;
+  for (auto &item : mid_score_members) {
+    filtered_score_members.push_back(std::move(item));
   }
 
   char score_buf[8];
