@@ -14,6 +14,10 @@
 #include "net/include/net_define.h"
 #include "pstd/include/xdebug.h"
 
+#ifndef EPOLLRDHUP
+#define EPOLLRDHUP 0x2000
+#endif
+
 namespace net {
 
 NetMultiplexer* CreateNetMultiplexer(int limit) { return new NetEpoll(limit); }
@@ -45,7 +49,7 @@ int NetEpoll::NetAddEvent(int fd, int mask) {
   }
   if (mask & kWritable) {
     ee.events |= EPOLLOUT;
-    }
+  }
 
   return epoll_ctl(multiplexer_, EPOLL_CTL_ADD, fd, &ee);
 }
@@ -61,6 +65,10 @@ int NetEpoll::NetModEvent(int fd, int old_mask, int mask) {
   }
   if ((old_mask | mask) & kWritable) {
     ee.events |= EPOLLOUT;
+  }
+
+  if ((old_mask | mask) & kPeerClose) {
+    ee.events |= EPOLLRDHUP;
   }
   return epoll_ctl(multiplexer_, EPOLL_CTL_MOD, fd, &ee);
 }
@@ -91,6 +99,10 @@ int NetEpoll::NetPoll(int timeout) {
 
     if (events_[i].events & EPOLLOUT) {
       ev.mask |= kWritable;
+    }
+
+    if (events_[i].events & EPOLLRDHUP) {
+      ev.mask |= kPeerClose;
     }
 
     if (events_[i].events & (EPOLLERR | EPOLLHUP)) {

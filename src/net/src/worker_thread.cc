@@ -189,7 +189,7 @@ void* WorkerThread::ThreadMain() {
           ReadStatus read_status = in_conn->GetRequest();
           in_conn->set_last_interaction(now);
           if (read_status == kReadAll) {
-            net_multiplexer_->NetModEvent(pfe->fd, 0, 0);
+            net_multiplexer_->NetModEvent(pfe->fd, 0, kPeerClose);
             // Wait for the conn complete asynchronous task and
             // Mod Event to kWritable
           } else if (read_status == kReadHalf) {
@@ -199,8 +199,15 @@ void* WorkerThread::ThreadMain() {
           }
         }
 
+        if ((should_close == 0) && ((pfe->mask & kPeerClose) != 0)) {
+          should_close = 1;
+        }
+
         if (((pfe->mask & kErrorEvent) != 0) || (should_close != 0)) {
           net_multiplexer_->NetDelEvent(pfe->fd, 0);
+          // TODO: in_conn may live longer than fd.
+          // eg. in_conn are being transferred to net_pubsub
+          // while peer client closing this connection
           CloseFd(in_conn);
           in_conn = nullptr;
           {
