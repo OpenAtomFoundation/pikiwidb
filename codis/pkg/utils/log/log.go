@@ -138,7 +138,7 @@ func New(writer io.Writer, prefix string) *Logger {
 	}
 	return &Logger{
 		out:   out,
-		log:   log.New(out, prefix, LstdFlags|Lshortfile),
+		log:   log.New(out, prefix, LstdFlags|Lshortfile|Lmicroseconds),
 		level: LevelAll,
 		trace: LevelError,
 	}
