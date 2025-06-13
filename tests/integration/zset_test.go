@@ -233,7 +233,26 @@ var _ = Describe("Zset Commands", func() {
 			Member: "two",
 		}}))
 	})
-
+	// Caiyu's test: verify that zadd with multiple scores for the same member in 
+	//a single command only keeps the last score, consistent with Redis behavior
+	It("should ZAdd with duplicate member in one command", func() {
+		added, err := client.ZAdd(ctx, "myzset", redis.Z{
+			Score:  100,
+			Member: "one",
+		}, redis.Z{
+			Score:  98,
+			Member: "one",
+		}).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(added).To(Equal(int64(1)))
+	
+		vals, err := client.ZRangeWithScores(ctx, "myzset", 0, -1).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(vals).To(Equal([]redis.Z{{
+			Score:  98,
+			Member: "one",
+		}}))
+	})
 	It("should ZAdd bytes", func() {
 		added, err := client.ZAdd(ctx, "zset", redis.Z{
 			Score:  1,
