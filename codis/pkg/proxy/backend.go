@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"pika/codis/v2/pkg/proxy/redis"
@@ -84,14 +85,14 @@ func (bc *BackendConn) KeepAlive() bool {
 	}
 	switch bc.state.Int64() {
 	default:
-		m := &Request{}
+		m := &Request{ReceiveTime: new(int64), SendToPikaTime: new(int64), ReceiveFromPikaTime: new(int64)}
 		m.Multi = []*redis.Resp{
 			redis.NewBulkBytes([]byte("PING")),
 		}
 		bc.PushBack(m)
 
 	case stateDataStale:
-		m := &Request{}
+		m := &Request{ReceiveTime: new(int64), SendToPikaTime: new(int64), ReceiveFromPikaTime: new(int64)}
 		m.Multi = []*redis.Resp{
 			redis.NewBulkBytes([]byte("INFO")),
 		}
@@ -284,7 +285,7 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 	}()
 	for r := range tasks {
 		resp, err := c.Decode()
-		r.ReceiveFromServerTime = time.Now().UnixNano()
+		atomic.StoreInt64(r.ReceiveFromPikaTime, time.Now().UnixNano())
 		if err != nil {
 			return bc.setResponse(r, nil, fmt.Errorf("backend conn failure, %s", err))
 		}
@@ -364,7 +365,7 @@ func (bc *BackendConn) loopWriter(round int) (err error) {
 		} else {
 			tasks <- r
 		}
-		r.SendToServerTime = time.Now().UnixNano()
+		atomic.CompareAndSwapInt64(r.SendToPikaTime, 0, time.Now().UnixNano())
 	}
 	return nil
 }

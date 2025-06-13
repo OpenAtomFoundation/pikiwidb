@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"pika/codis/v2/pkg/models"
@@ -184,7 +185,10 @@ func (s *Session) loopReader(tasks *RequestChan, d *Router) (err error) {
 		r.Multi = multi
 		r.Batch = &sync.WaitGroup{}
 		r.Database = s.database
-		r.ReceiveTime = start.UnixNano()
+		r.ReceiveTime = new(int64)
+		r.SendToPikaTime = new(int64)
+		r.ReceiveFromPikaTime = new(int64)
+		*r.ReceiveTime = time.Now().UnixNano()
 		r.TasksLen = int64(tasksLen)
 
 		if err := s.handleRequest(r, d); err != nil {
@@ -230,14 +234,16 @@ func (s *Session) loopWriter(tasks *RequestChan) (err error) {
 		if err := p.Encode(resp); err != nil {
 			return s.incrOpFails(r, err)
 		}
+		nowTime := time.Now().UnixNano()
+		receiveTime := atomic.LoadInt64(r.ReceiveTime)
+		duration := int64((nowTime - receiveTime) / 1e3)
+
 		fflush := tasks.IsEmpty()
 		if err := p.Flush(fflush); err != nil {
 			return s.incrOpFails(r, err)
 		} else {
-			s.incrOpStats(r, resp.Type)
+			s.incrOpStats(r, resp.Type, duration)
 		}
-		nowTime := time.Now().UnixNano()
-		duration := int64((nowTime - r.ReceiveTime) / 1e3)
 		s.updateMaxDelay(duration, r)
 		if fflush {
 			s.flushOpStats(false)
@@ -248,19 +254,22 @@ func (s *Session) loopWriter(tasks *RequestChan) (err error) {
 			//Record the waiting time from receiving the request from the client to sending it to the backend server
 			//the waiting time from sending the request to the backend server to receiving the response from the server
 			//the waiting time from receiving the server response to sending it to the client
+			sendToPikaTime := atomic.LoadInt64(r.SendToPikaTime)
+			receiveFromPikaTime := atomic.LoadInt64(r.ReceiveFromPikaTime)
+
 			var d0, d1, d2 int64 = -1, -1, -1
-			if r.SendToServerTime > 0 {
-				d0 = int64((r.SendToServerTime - r.ReceiveTime) / 1e3)
+			if sendToPikaTime > 0 {
+				d0 = int64((sendToPikaTime - receiveTime) / 1e3)
 			}
-			if r.SendToServerTime > 0 && r.ReceiveFromServerTime > 0 {
-				d1 = int64((r.ReceiveFromServerTime - r.SendToServerTime) / 1e3)
+			if sendToPikaTime > 0 && receiveFromPikaTime > 0 {
+				d1 = int64((receiveFromPikaTime - sendToPikaTime) / 1e3)
 			}
-			if r.ReceiveFromServerTime > 0 {
-				d2 = int64((nowTime - r.ReceiveFromServerTime) / 1e3)
+			if receiveFromPikaTime > 0 {
+				d2 = int64((nowTime - receiveFromPikaTime) / 1e3)
 			}
 			index := getWholeCmd(r.Multi, cmd)
-			log.Errorf("%s remote:%s, start_time(us):%d, duration(us): [%d, %d, %d], %d, tasksLen:%d, command:[%s].",
-				time.Unix(r.ReceiveTime/1e9, 0).Format("2006-01-02 15:04:05"), s.Conn.RemoteAddr(), r.ReceiveTime/1e3, d0, d1, d2, duration, r.TasksLen, string(cmd[:index]))
+			log.Warnf("%s remote:%s, start_time(us):%d, duration(us): [%d, %d, %d], %d, tasksLen:%d, command:[%s].",
+				time.Unix(receiveTime/1e9, 0).Format("2006-01-02 15:04:05"), s.Conn.RemoteAddr(), receiveTime/1e3, d0, d1, d2, duration, r.TasksLen, string(cmd[:index]))
 		}
 		return nil
 	})
@@ -675,10 +684,10 @@ func (s *Session) getOpStats(opstr string) *opStats {
 	return e
 }
 
-func (s *Session) incrOpStats(r *Request, t redis.RespType) {
+func (s *Session) incrOpStats(r *Request, t redis.RespType, duration int64) {
 	e := s.getOpStats(r.OpStr)
 	e.calls.Incr()
-	e.nsecs.Add(time.Now().UnixNano() - r.ReceiveTime)
+	e.nsecs.Add(duration)
 	switch t {
 	case redis.TypeError:
 		e.redis.errors.Incr()
