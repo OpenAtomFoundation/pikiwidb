@@ -300,6 +300,24 @@ var _ = Describe("String Commands", func() {
 			Expect(getRange.Val()).To(Equal("string"))
 		})
 
+		//Caiyu's test cases for GETRANGE and SETRANGE to fix bug #3092.
+		It("should not crash on huge GETRANGE", func() {
+			set := client.Set(ctx, "key1", "abc", 0)
+			Expect(set.Err()).NotTo(HaveOccurred())
+			Expect(set.Val()).To(Equal("OK"))
+			getRange1 := client.GetRange(ctx, "key1", 1, 4294967296)
+    		Expect(getRange1.Val()).To(Equal("bc"))
+    		getRange2 := client.GetRange(ctx, "key1", 1, 4294967296)
+    		Expect(getRange2.Val()).To(Equal("bc"))
+		})
+		It("should not crash on huge SETRANGE", func() {
+			set := client.Set(ctx, "key1", "abc", 0)
+			Expect(set.Err()).NotTo(HaveOccurred())
+			Expect(set.Val()).To(Equal("OK"))
+			setRange := client.SetRange(ctx, "key1", 9223372036854775757, "value2")
+			Expect(setRange.Err()).To(HaveOccurred())
+		})
+
 		It("should GetSet", func() {
 			incr := client.Incr(ctx, "key")
 			Expect(incr.Err()).NotTo(HaveOccurred())
