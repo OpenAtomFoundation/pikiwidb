@@ -144,6 +144,7 @@ void* WorkerThread::ThreadMain() {
               } else if (ti.notify_type() == kNotiEpollin) {
                 net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable);
               } else if (ti.notify_type() == kNotiEpolloutAndEpollin) {
+                // TODO(wangshaoyi): conn_fd might be closed already, so epoll_ctl might return non-zero
                 net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable | kWritable);
               } else if (ti.notify_type() == kNotiWait) {
                 // do not register events
@@ -209,6 +210,7 @@ void* WorkerThread::ThreadMain() {
           // eg. in_conn are being transferred to net_pubsub
           // while peer client closing this connection
           CloseFd(in_conn);
+          in_conn->SetClose(true);
           in_conn = nullptr;
           {
             std::lock_guard lock(rwlock_);

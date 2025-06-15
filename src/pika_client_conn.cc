@@ -338,6 +338,10 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
   std::unique_ptr<BgTaskArg> bg_arg(static_cast<BgTaskArg*>(arg));
   std::shared_ptr<PikaClientConn> conn_ptr = bg_arg->conn_ptr;
   conn_ptr->time_stat_->dequeue_ts_ = pstd::NowMicros();
+  if (conn_ptr->IsClose()) {
+    LOG(INFO) << "conn " << conn_ptr->ip_port() << " has already been closed, skip processing command";
+    return;
+  }
   if (bg_arg->redis_cmds.empty()) {
     conn_ptr->NotifyEpoll(false);
     return;
