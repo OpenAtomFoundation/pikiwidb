@@ -916,7 +916,7 @@ Status RedisZSets::ZRemrangebyscore(const Slice& key, double min, double max, bo
           del_cnt++;
           statistic++;
         }
-        if (!right_pass) {
+        if (right_pass) {
           break;
         }
       }

@@ -1266,7 +1266,31 @@ var _ = Describe("Zset Commands", func() {
 		Expect(zRangeByScore.Err()).NotTo(HaveOccurred())
 		Expect(zRangeByScore.Val()).To(Equal([]string{}))
 	})
-
+	//Caiyu's test: Verify the zset command ZREMRANGEBYSCORE to delete invalid items
+	It("should ZRemRangeByScore with big integer scores", func() {
+		err := client.ZAdd(ctx, "test01", redis.Z{Score: 1749168060267762, Member: "a"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "test01", redis.Z{Score: 1749168060267760, Member: "b"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "test01", redis.Z{Score: 1749168060267750, Member: "c"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		zRangeWithScores := client.ZRangeWithScores(ctx, "test01", 0, 3)
+		Expect(zRangeWithScores.Err()).NotTo(HaveOccurred())
+		Expect(zRangeWithScores.Val()).To(Equal([]redis.Z{
+			{Score: 1749168060267750, Member: "c"},
+			{Score: 1749168060267760, Member: "b"},
+			{Score: 1749168060267762, Member: "a"},
+		}))
+		zRemRangeByScore := client.ZRemRangeByScore(ctx, "test01", "1749168060267750", "1749168060267755")
+		Expect(zRemRangeByScore.Err()).NotTo(HaveOccurred())
+		Expect(zRemRangeByScore.Val()).To(Equal(int64(1)))
+		zRangeWithScores = client.ZRangeWithScores(ctx, "test01", 0, 3)
+		Expect(zRangeWithScores.Err()).NotTo(HaveOccurred())
+		Expect(zRangeWithScores.Val()).To(Equal([]redis.Z{
+			{Score: 1749168060267760, Member: "b"},
+			{Score: 1749168060267762, Member: "a"},
+		}))
+	})
 	It("should ZRangeByLex", func() {
 		err := client.ZAdd(ctx, "zset", redis.Z{
 			Score:  0,
