@@ -858,7 +858,6 @@ void Cmd::ProcessCommand(const HintKeys& hint_keys) {
     }
   }
 }
-
 void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   uint64_t start_us = pstd::NowMicros();
   pstd::lock::MultiRecordLock record_lock(db_->LockMgr());
@@ -869,14 +868,22 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (!IsSuspend()) {
     db_->DBLockShared();
   }
+  if(g_pika_server->IsConsistency()){
+    DoBinlog();
+    if(res().ok()){
+        DoCommand(hint_keys);
+    }
+    if (g_pika_conf->slowlog_slower_than() >= 0) {
+        do_duration_ += pstd::NowMicros() - start_us;
+    }
+  }else{
+    DoCommand(hint_keys);
+    if (g_pika_conf->slowlog_slower_than() >= 0) {
+        do_duration_ += pstd::NowMicros() - start_us;
+    }
 
-  uint64_t before_do_command_us = pstd::NowMicros();
-  this->acquire_lock_duration_ms = (before_do_command_us - start_us) / 1000;
-  DoCommand(hint_keys);
-
-  uint64_t before_do_binlog_us = pstd::NowMicros();
-  this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
-  DoBinlog();
+    DoBinlog();
+  }
 
   if (!IsSuspend()) {
     db_->DBUnlockShared();
@@ -963,9 +970,16 @@ void Cmd::DoBinlog() {
 
     Status s = sync_db_->ConsensusProposeLog(shared_from_this());
     if (!s.ok()) {
-      LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
-                   << s.ToString();
-      res().SetRes(CmdRes::kErrOther, s.ToString());
+       if(g_pika_server->IsConsistency()&&s.IsTimeout()){
+         res().SetRes(CmdRes::kConsistencyTimeout, "Timeout waiting for consistency");
+         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Slave node consistency timeout"
+                        << s.ToString();
+       }else{
+        LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
+                        << s.ToString();
+        res().SetRes(CmdRes::kErrOther, s.ToString());
+       }
+
       return;
     }
   }

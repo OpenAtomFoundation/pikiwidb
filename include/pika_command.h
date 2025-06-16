@@ -341,6 +341,7 @@ class CmdRes {
     kTxnAbort,
     kMultiKey,
     kNoExists,
+    kConsistencyTimeout,  // consistency time out
   };
 
   CmdRes() = default;
@@ -441,6 +442,8 @@ class CmdRes {
         break;
       case kNoExists:
         return message_;
+      case kConsistencyTimeout:
+        return "-ERR consistency timeout\r\n";
       default:
         break;
     }

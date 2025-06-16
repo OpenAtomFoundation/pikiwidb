@@ -88,6 +88,8 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
   }
 
   LogOffset ack_start;
+  LogOffset ack_end;
+
   if (only_keepalive) {
     ack_start = LogOffset();
   } else {
@@ -129,7 +131,14 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
       slave_db->SetReplState(ReplState::kTryConnect);
       return;
     }
-
+    if(db->GetISConsistency()){
+      const InnerMessage::BinlogOffset& committed_id = binlog_res.committed_id();
+      LogOffset master_committed_id(BinlogOffset(committed_id.filenum(),committed_id.offset()),LogicOffset(committed_id.term(),committed_id.index()));
+      Status s= db->CommitAppLog(master_committed_id);
+      if(!s.ok()){
+        return;
+      }
+    }
     // empty binlog treated as keepalive packet
     if (binlog_res.binlog().empty()) {
       continue;
@@ -148,10 +157,14 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
       LOG(WARNING) << "Redis parser failed";
       slave_db->SetReplState(ReplState::kTryConnect);
       return;
-    }
+    } 
+    db = g_pika_rm->GetSyncMasterDBByName(DBInfo(worker->db_name_));
+    if (!db) {
+       LOG(WARNING) << "DB " << worker->db_name_ << " Not Found";
+       return;
+     }
   }
 
-  LogOffset ack_end;
   if (only_keepalive) {
     ack_end = LogOffset();
   } else {
@@ -200,9 +213,13 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
       g_pika_rm->GetSyncMasterDBByName(DBInfo(worker->db_name_));
   if (!db) {
     LOG(WARNING) << worker->db_name_ << "Not found.";
+    return -1;
   }
-
-  db->ConsensusProcessLeaderLog(c_ptr, worker->binlog_item_);
+  if(db->GetISConsistency()){
+    db->AppendSlaveEntries(c_ptr, worker->binlog_item_);
+  }else{
+    db->ConsensusProcessLeaderLog(c_ptr, worker->binlog_item_);
+  }
   return 0;
 }
 

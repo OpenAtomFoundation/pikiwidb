@@ -41,7 +41,6 @@ void DoPurgeDir(void* arg) {
   LOG(INFO) << "Delete dir: " << *path << " done";
 }
 
-
 PikaServer::PikaServer()
     : exit_(false),
       slow_cmd_thread_pool_flag_(g_pika_conf->slow_cmd_pool()),
@@ -267,6 +266,11 @@ int PikaServer::master_port() {
 int PikaServer::role() {
   std::shared_lock l(state_protector_);
   return role_;
+}
+
+int PikaServer::last_role() {
+  std::shared_lock l(state_protector_);
+  return last_role_;
 }
 
 bool PikaServer::leader_protected_mode() {
@@ -529,6 +533,7 @@ Status PikaServer::DoSameThingEveryDB(const TaskType& type) {
 
 void PikaServer::BecomeMaster() {
   std::lock_guard l(state_protector_);
+  last_role_ = role_;
   role_ |= PIKA_ROLE_MASTER;
 }
 
@@ -561,6 +566,7 @@ void PikaServer::DeleteSlave(int fd) {
 
   if (slave_num == 0) {
     std::lock_guard l(state_protector_);
+    last_role_ = role_;
     role_ &= ~PIKA_ROLE_MASTER;
     leader_protected_mode_ = false;  // explicitly cancel protected mode
   }
@@ -666,6 +672,7 @@ void PikaServer::RemoveMaster() {
   {
     std::lock_guard l(state_protector_);
     repl_state_ = PIKA_REPL_NO_CONNECT;
+    last_role_ = role_;
     role_ &= ~PIKA_ROLE_SLAVE;
 
     if (!master_ip_.empty() && master_port_ != -1) {
@@ -681,7 +688,7 @@ void PikaServer::RemoveMaster() {
   }
 }
 
-bool PikaServer::SetMaster(std::string& master_ip, int master_port) {
+bool PikaServer::SetMaster(std::string& master_ip, int master_port, bool is_consistency) {
   if (master_ip == "127.0.0.1") {
     master_ip = host_;
   }
@@ -689,8 +696,12 @@ bool PikaServer::SetMaster(std::string& master_ip, int master_port) {
   if (((role_ ^ PIKA_ROLE_SLAVE) != 0) && repl_state_ == PIKA_REPL_NO_CONNECT) {
     master_ip_ = master_ip;
     master_port_ = master_port;
+    last_role_ = role_;
     role_ |= PIKA_ROLE_SLAVE;
     repl_state_ = PIKA_REPL_SHOULD_META_SYNC;
+    is_consistency_ = is_consistency;
+    LOG(INFO) << "Slavecmd Master, ip_port: " << master_ip_ << ":" << master_port_
+              << " consistency: " << is_consistency_;
     return true;
   }
   return false;
@@ -741,6 +752,14 @@ bool PikaServer::IsFirstMetaSync() {
   return first_meta_sync_;
 }
 
+bool PikaServer::IsConsistency() {
+  std::shared_lock sp_l(state_protector_);
+  return is_consistency_;
+}
+void PikaServer::SetConsistency(bool is_consistency) {
+  std::shared_lock sp_l(state_protector_);
+  is_consistency_ = is_consistency;
+}
 void PikaServer::SetFirstMetaSync(bool v) {
   std::lock_guard sp_l(state_protector_);
   first_meta_sync_ = v;
@@ -802,7 +821,6 @@ void PikaServer::PurgeDir(const std::string& path) {
   auto dir_path = new std::string(path);
   PurgeDirTaskSchedule(&DoPurgeDir, static_cast<void*>(dir_path));
 }
-
 
 void PikaServer::PurgeDirTaskSchedule(void (*function)(void*), void* arg) {
   purge_thread_.StartThread();
@@ -1293,7 +1311,7 @@ void PikaServer::AutoServerlogPurge() {
     log_time.tm_isdst = -1;
     time_t log_timestamp = mktime(&log_time);
     log_files_by_level[severity_level].push_back({file, log_timestamp});
-}
+  }
 
   // Process files for each log level
   for (auto& [level, files] : log_files_by_level) {

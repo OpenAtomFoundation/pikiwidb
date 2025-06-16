@@ -170,6 +170,36 @@ Status Binlog::GetProducerStatus(uint32_t* filenum, uint64_t* pro_offset, uint32
 
   return Status::OK();
 }
+Status Binlog::Put(const std::string& item, LogOffset *cur_logoffset,std::string& binlog){
+  if (!opened_.load()) {
+    return Status::Busy("Binlog is not open yet");
+  }
+  uint32_t filenum = 0;
+  uint32_t term = 0;
+  uint64_t offset = 0;
+  uint64_t logic_id = 0;
+
+  Lock();
+  DEFER {
+    Unlock();
+  };
+
+  Status s = GetProducerStatus(&filenum, &offset, &term, &logic_id);
+  if (!s.ok()) {
+    return s;
+  }
+  logic_id++;
+  std::string data = PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
+      time(nullptr), term, logic_id, filenum, offset, item, {});
+  cur_logoffset->l_offset.index=logic_id;
+  cur_logoffset->l_offset.term=term;
+  binlog=data;
+  s = Put(data.c_str(), static_cast<int>(data.size()),cur_logoffset, true);
+  if (!s.ok()) {
+    binlog_io_error_.store(true);
+  }
+  return s;
+}
 
 // Note: mutex lock should be held
 Status Binlog::Put(const std::string& item) {
@@ -202,7 +232,7 @@ Status Binlog::Put(const std::string& item) {
 }
 
 // Note: mutex lock should be held
-Status Binlog::Put(const char* item, int len) {
+Status Binlog::Put(const char* item, int len,LogOffset *cur_logoffset, bool is_consistency) {
   Status s;
 
   /* Check to roll log file */
@@ -234,6 +264,10 @@ Status Binlog::Put(const char* item, int len) {
     std::lock_guard l(version_->rwlock_);
     version_->pro_offset_ = pro_offset;
     version_->logic_id_++;
+    if(is_consistency && cur_logoffset != nullptr){
+      cur_logoffset->b_offset.filenum=version_->pro_num_;
+      cur_logoffset->b_offset.offset=version_->pro_offset_;
+    }
     version_->StableSave();
   }
 

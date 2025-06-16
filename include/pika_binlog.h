@@ -52,6 +52,7 @@ class Binlog : public pstd::noncopyable {
   void Unlock() { mutex_.unlock(); }
 
   pstd::Status Put(const std::string& item);
+  pstd::Status Put(const std::string& item, LogOffset *cur_logoffset,std::string& binlog);
   pstd::Status IsOpened();
   pstd::Status GetProducerStatus(uint32_t* filenum, uint64_t* pro_offset, uint32_t* term = nullptr, uint64_t* logic_id = nullptr);
   /*
@@ -78,7 +79,7 @@ class Binlog : public pstd::noncopyable {
   void Close();
 
  private:
-  pstd::Status Put(const char* item, int len);
+  pstd::Status Put(const char* item, int len,LogOffset *cur_logoffset = nullptr, bool is_consistency = false);
   pstd::Status EmitPhysicalRecord(RecordType t, const char* ptr, size_t n, int* temp_pro_offset);
   static pstd::Status AppendPadding(pstd::WritableFile* file, uint64_t* len);
   void InitLogFile();

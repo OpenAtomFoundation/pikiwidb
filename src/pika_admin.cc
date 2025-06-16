@@ -96,6 +96,7 @@ static AuthResult AuthenticateUser(const std::string& cmdName, const std::string
  * slaveof no one
  * slaveof ip port
  * slaveof ip port force
+ * slaveof ip port strong
  */
 void SlaveofCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -112,6 +113,7 @@ void SlaveofCmd::DoInitial() {
     is_none_ = true;
     return;
   }
+
   // self is master of A , want to slaveof B
   if ((g_pika_server->role() & PIKA_ROLE_MASTER) != 0) {
     res_.SetRes(CmdRes::kErrOther, "already master of others, invalid usage");
@@ -133,11 +135,14 @@ void SlaveofCmd::DoInitial() {
   if (argv_.size() == 4) {
     if (strcasecmp(argv_[3].data(), "force") == 0) {
       g_pika_server->SetForceFullSync(true);
+    } else if (strcasecmp(argv_[3].data(), "strong") == 0) {
+      is_consistency_cmd_ = true;  // 设置 is_consistency 为 true
     } else {
       res_.SetRes(CmdRes::kWrongNum, kCmdNameSlaveof);
     }
   }
 }
+
 
 void SlaveofCmd::Do() {
   // Check if we are already connected to the specified master
@@ -160,7 +165,7 @@ void SlaveofCmd::Do() {
    * the data synchronization was successful, but only changes the status of the
    * slaveof executor to slave */
 
-  bool sm_ret = g_pika_server->SetMaster(master_ip_, static_cast<int32_t>(master_port_));
+  bool sm_ret = g_pika_server->SetMaster(master_ip_, static_cast<int32_t>(master_port_),is_consistency_cmd_);
 
   if (sm_ret) {
     res_.SetRes(CmdRes::kOk);
