@@ -9,6 +9,7 @@
 #include <sys/time.h>
 #include <sstream>
 #include <string>
+#include <atomic>
 
 #ifdef __ENABLE_SSL
 #  include <openssl/err.h>
@@ -70,7 +71,7 @@ class NetConn : public std::enable_shared_from_this<NetConn>, public pstd::nonco
   std::string name() { return name_; }
   void set_name(std::string name) { name_ = std::move(name); }
 
-  bool IsClose() { return close_; }
+  bool IsClose() { return close_.load(); }
   void SetClose(bool close);
 
   void set_last_interaction(const struct timeval& now) { last_interaction_ = now; }
@@ -100,7 +101,7 @@ class NetConn : public std::enable_shared_from_this<NetConn>, public pstd::nonco
   std::string ip_port_;
   bool is_reply_ = false;
   bool is_writable_ = false;
-  bool close_ = false;
+  std::atomic_bool close_ = false;
   struct timeval last_interaction_;
   int flags_ = 0;
   std::string name_;

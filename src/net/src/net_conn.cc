@@ -23,6 +23,7 @@ NetConn::NetConn(const int fd, std::string  ip_port, Thread* thread, NetMultiple
 #ifdef __ENABLE_SSL
       ssl_(nullptr),
 #endif
+      close_(false),
       thread_(thread),
       net_multiplexer_(net_mpx) {
   gettimeofday(&last_interaction_, nullptr);
@@ -36,7 +37,7 @@ NetConn::~NetConn() {
 #endif
 
 void NetConn::SetClose(bool close) {
-  close_ = close;
+  close_.store(close);
 }
 
 bool NetConn::SetNonblock() {
