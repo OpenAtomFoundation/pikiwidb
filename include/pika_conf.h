@@ -18,6 +18,7 @@
 #include "pstd/include/pstd_string.h"
 
 #include "acl.h"
+#include "cache/include/config.h"
 #include "include/pika_define.h"
 #include "rocksdb/compression_type.h"
 
@@ -858,6 +859,54 @@ class PikaConf : public pstd::BaseConf {
     rsync_timeout_ms_.store(value);
   }
 
+  int RocksDBPerfLevel() const {
+    return rocksdb_perf_level_.load();
+  }
+
+  int CacheValueItemMaxSize() const {
+    return cache_value_item_max_size_.load();
+  } 
+
+  bool UpdateCacheValueItemMaxSize(int size) {
+    if (size > MAX_CACHE_ITEMS_SIZE || size <= 0) {
+      return false;
+    }
+    cache_value_item_max_size_.store(size);
+    return true;
+  }
+
+  size_t MaxKeySizeInCache() const {
+    return max_key_size_in_cache_.load();
+  } 
+
+  bool UpdateMaxKeySizeInCache(size_t size) {
+    if (size > MAX_CACHE_MAX_KEY_SIZE || size <= 0) {
+      return false;
+    }
+    max_key_size_in_cache_.store(size);
+    return true;
+  }
+
+  bool UpdateRocksDBPerfLevel(int perf_level) {
+    if (perf_level >= 6 || perf_level < 0) {
+      return false;
+    }
+    rocksdb_perf_level_.store(perf_level);
+    return true;
+  }
+
+  int RocksDBPerfPercent() const {
+    return rocksdb_perf_percent_.load();
+  }
+
+  bool UpdateRocksDBPerfPercent(int percent) {
+    if (percent > 100 || percent < 0) {
+      return false;
+    }
+    rocksdb_perf_percent_.store(percent);
+    return true;
+  }
+
   void SetAclPubsubDefault(const std::string& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("acl-pubsub-default", value);
@@ -935,6 +984,7 @@ class PikaConf : public pstd::BaseConf {
   int zset_cache_start_direction() { return zset_cache_start_direction_; }
   int zset_cache_field_num_per_key() { return zset_cache_field_num_per_key_; }
   int max_key_size_in_cache() { return max_key_size_in_cache_; }
+  int value_item_max_size_in_cache() { return cache_value_item_max_size_; }
   int cache_maxmemory_policy() { return cache_maxmemory_policy_; }
   int cache_maxmemory_samples() { return cache_maxmemory_samples_; }
   int cache_lfu_decay_time() { return cache_lfu_decay_time_; }
@@ -952,7 +1002,10 @@ class PikaConf : public pstd::BaseConf {
   int slow_cmd_thread_pool_size_ = 0;
   int admin_thread_pool_size_ = 0;
   std::unordered_set<std::string> slow_cmd_set_;
-  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor"};
+  // Because the exporter of Pika_exporter implements Auth authentication
+  // with the Exporter of Pika, and the Exporter authenticates the Auth when 
+  // users connect to Pika, the Auth is added to the management command thread pool
+  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor", "auth"};
   int sync_thread_num_ = 0;
   int sync_binlog_thread_num_ = 0;
   int expire_dump_days_ = 3;
@@ -1096,7 +1149,8 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_bit_ = 1;
   std::atomic_int zset_cache_start_direction_ = 0;
   std::atomic_int zset_cache_field_num_per_key_ = 512;
-  std::atomic_int max_key_size_in_cache_ = 512;
+  std::atomic_int cache_value_item_max_size_ = 1024;
+  std::atomic_size_t max_key_size_in_cache_ = 1024 * 1024;
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;
@@ -1120,6 +1174,21 @@ class PikaConf : public pstd::BaseConf {
   int throttle_bytes_per_second_ = 200 << 20; // 200MB/s
   int max_rsync_parallel_num_ = kMaxRsyncParallelNum;
   std::atomic_int64_t rsync_timeout_ms_ = 1000;
+
+  /*
+  kUninitialized = 0,             // unknown setting
+  kDisable = 1,                   // disable perf stats
+  kEnableCount = 2,               // enable only count stats
+  kEnableTimeExceptForMutex = 3,  // Other than count stats, also enable time
+                                  // stats except for mutexes
+  // Other than time, also measure CPU time counters. Still don't measure
+  // time (neither wall time nor CPU time) for mutexes.
+  kEnableTimeAndCPUTimeExceptForMutex = 4,
+  kEnableTime = 5,  // enable count and time stats
+  kOutOfBounds = 6  // N.B. Must always be the last value!
+  */
+  std::atomic_int rocksdb_perf_level_ = 2;
+  std::atomic_int rocksdb_perf_percent_ = 10;
 
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;

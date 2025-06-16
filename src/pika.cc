@@ -42,18 +42,6 @@ static void version() {
   std::cout << "redis_version: " << version << std::endl;
 }
 
-static void PrintPikaLogo() {
-  printf("   .............          ....     .....       .....           .....         \n"
-         "   #################      ####     #####      #####           #######        \n"
-         "   ####         #####     ####     #####    #####            #########       \n"
-         "   ####          #####    ####     #####  #####             ####  #####      \n"
-         "   ####         #####     ####     ##### #####             ####    #####     \n"
-         "   ################       ####     ##### #####            ####      #####    \n"
-         "   ####                   ####     #####   #####         #################   \n"
-         "   ####                   ####     #####    ######      #####         #####  \n"
-         "   ####                   ####     #####      ######   #####           ##### \n");
-}
-
 static void PikaConfInit(const std::string& path) {
   printf("path : %s\n", path.c_str());
   g_pika_conf = std::make_unique<PikaConf>(path);
@@ -63,7 +51,6 @@ static void PikaConfInit(const std::string& path) {
   version();
   printf("-----------Pika config list----------\n");
   g_pika_conf->DumpConf();
-  PrintPikaLogo();
   printf("-----------Pika config end----------\n");
 }
 

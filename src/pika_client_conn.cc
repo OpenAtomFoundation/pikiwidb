@@ -20,6 +20,10 @@
 #include "net/src/worker_thread.h"
 #include "src/pstd/include/scope_record_lock.h"
 
+#include "rocksdb/perf_context.h"
+#include "rocksdb/iostats_context.h"
+#include "util/random.h"
+
 extern std::unique_ptr<PikaConf> g_pika_conf;
 extern PikaServer* g_pika_server;
 extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
@@ -202,6 +206,16 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
     }
   }
 
+
+  // set rocksdb perflevel based on RocksDBPerfLevel and RocksDBPerfPercent
+  int rocksdb_perf_level = 2;
+  if (rocksdb::Random::GetTLSInstance()->PercentTrue(g_pika_conf->RocksDBPerfPercent())) {
+    rocksdb_perf_level = g_pika_conf->RocksDBPerfLevel();
+  }
+  rocksdb::SetPerfLevel(rocksdb::PerfLevel(rocksdb_perf_level));
+
+  // Perform some operations
+  rocksdb::get_perf_context()->Reset();
   // Process Command
   c_ptr->Execute();
   time_stat_->process_done_ts_ = pstd::NowMicros();
@@ -210,13 +224,13 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   (*cmdstat_map)[opt].cmd_time_consuming.fetch_add(time_stat_->total_time());
 
   if (g_pika_conf->slowlog_slower_than() >= 0) {
-    ProcessSlowlog(argv, c_ptr->GetDoDuration());
+    ProcessSlowlog(argv, c_ptr);
   }
 
   return c_ptr;
 }
 
-void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, uint64_t do_duration) {
+void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr) {
   if (time_stat_->total_time() > g_pika_conf->slowlog_slower_than()) {
     g_pika_server->SlowlogPushEntry(argv, time_stat_->start_ts() / 1000000, time_stat_->total_time());
     if (g_pika_conf->slowlog_write_errorlog()) {
@@ -241,7 +255,8 @@ void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, uint64_t do_dur
                  << ", before_queue_time(ms): " << time_stat_->before_queue_time() / 1000
                  << ", queue_time(ms): " << time_stat_->queue_time() / 1000
                  << ", process_time(ms): " << time_stat_->process_time() / 1000
-                 << ", cmd_time(ms): " << do_duration / 1000;
+                 << ", " << c_ptr->StagesDurationSummary(true /*skip zero counter*/)
+                 << ", " << rocksdb::get_perf_context()->ToString(true);
     }
   }
 }
@@ -371,8 +386,8 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
   resp_num--;
   if (read_status) {
     time_stat_->process_done_ts_ = pstd::NowMicros();
-    (*cmdstat_map)[argv[0]].cmd_count.fetch_add(1);
-    (*cmdstat_map)[argv[0]].cmd_time_consuming.fetch_add(time_stat_->total_time());
+    (*cmdstat_map)[opt].cmd_count.fetch_add(1);
+    (*cmdstat_map)[opt].cmd_time_consuming.fetch_add(time_stat_->total_time());
     resp_array.emplace_back(std::make_shared<std::string>(std::move(c_ptr->res().message())));
     TryWriteResp();
   }

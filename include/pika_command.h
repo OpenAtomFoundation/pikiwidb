@@ -17,8 +17,15 @@
 #include "net/include/net_conn.h"
 #include "net/include/redis_conn.h"
 #include "pstd/include/pstd_string.h"
+#include "pstd/include/stage_timer.h"
 
 #include "net/src/dispatch_thread.h"
+
+// Declare and set start time of the timer
+#define STAGE_TIMER_GUARD(metric, enabled)  \
+  pstd::StageTimer stage_timer_##metric(    \
+      &metric, enabled);                    \
+  stage_timer_##metric.Start();
 
 class SyncMasterDB;
 class SyncSlaveDB;
@@ -535,7 +542,7 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   // used for execute multikey command into different slots
   virtual void Split(const HintKeys& hint_keys) = 0;
   virtual void Merge() = 0;
-  virtual bool IsTooLargeKey(const int &max_sz) { return false; }
+  virtual bool IsTooLargeKey(const size_t &max_sz) { return false; }
 
   int8_t SubCmdIndex(const std::string& cmdName);  // if the command no subCommand，return -1；
 
@@ -555,7 +562,7 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   bool IsNeedReadCache() const;
   bool IsNeedCacheDo() const;
   bool HashtagIsConsistent(const std::string& lhs, const std::string& rhs) const;
-  uint64_t GetDoDuration() const { return do_duration_; };
+  virtual std::string StagesDurationSummary(bool exclude_zero_value) const;
   std::shared_ptr<DB> GetDB() const { return db_; };
   uint32_t AclCategory() const;
   void AddAclCategory(uint32_t aclCategory);
@@ -610,7 +617,13 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   std::weak_ptr<net::NetConn> conn_;
   std::weak_ptr<std::string> resp_;
   CmdStage stage_ = kNone;
-  uint64_t do_duration_ = 0;
+
+  uint64_t acquire_lock_duration_ms = 0;
+  uint64_t command_duration_ms = 0;
+  uint64_t binlog_duration_ms = 0;
+  uint64_t storage_duration_ms = 0;
+  uint64_t cache_duration_ms = 0;
+
   uint32_t cmdId_ = 0;
   uint32_t aclCategory_ = 0;
   bool cache_missed_in_rtc_{false};

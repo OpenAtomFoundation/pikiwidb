@@ -1,4 +1,4 @@
-<img src="https://s1.ax1x.com/2020/05/08/YnbjQf.png" alt="YnbjQf.png"  width="300" />
+![](docs/images/pikiwidb-logo.png)
 
 [![Build Status](https://travis-ci.org/Qihoo360/pika.svg?branch=master)](https://travis-ci.org/Qihoo360/pika) ![Downloads](https://img.shields.io/github/downloads/Qihoo360/pika/total)
 
@@ -8,23 +8,23 @@
 
 ## Introduction[中文](https://github.com/OpenAtomFoundation/pika/blob/unstable/README_CN.md)
 
-Pika is a high-performance, large-capacity, multi-tenant, data-persistent elastic KV data storage system using RocksDB as the storage engine. It is fully compatible with the Redis protocol and supports its commonly used data structures, such as string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream, etc. [Redis Interface](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5).
+PikiwiDB is a high-performance, large-capacity, multi-tenant, data-persistent elastic KV data storage system using RocksDB as the storage engine. It is fully compatible with the Redis protocol and supports its commonly used data structures, such as string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream, etc. [Redis Interface](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5).
 
-When Redis's in-memory usage exceeds 16GiB, it faces problems such as limited memory capacity, single-threaded blocking, long startup recovery time, high memory hardware costs, easily filled buffers, and high switching costs when one master and multiple replicas fail. The emergence of Pika is not to replace Redis but to complement it. Pika strives to completely comply with the Redis protocol, inherit Redis's convenient operation and maintenance design, and solve the bottleneck problem of Redis running out of memory capacity once the data volume becomes huge by using persistent storage. Additionally, Pika can support master-slave mode using the slaveof command, and it also supports full and incremental data synchronization.
+When Redis's in-memory usage exceeds 16GiB, it faces problems such as limited memory capacity, single-threaded blocking, long startup recovery time, high memory hardware costs, easily filled buffers, and high switching costs when one master and multiple replicas fail. The emergence of PikiwiDB is not to replace Redis but to complement it. PikiwiDB strives to completely comply with the Redis protocol, inherit Redis's convenient operation and maintenance design, and solve the bottleneck problem of Redis running out of memory capacity once the data volume becomes huge by using persistent storage. Additionally, PikiwiDB can support master-slave mode using the slaveof command, and it also supports full and incremental data synchronization.
 
-Pika can be deployed in a single-machine master-slave mode (slaveof) or in a [Codis](https://github.com/OpenAtomFoundation/pika/tree/unstable/codis) cluster mode, allowing for simple scaling and shrinking. Migration from Redis to Pika can be smoothly executed by [tools](https://github.com/OpenAtomFoundation/pika/tree/unstable/tools).
+PikiwiDB can be deployed in a single-machine master-slave mode (slaveof) or in a [Codis](https://github.com/OpenAtomFoundation/pika/tree/unstable/codis) cluster mode, allowing for simple scaling and shrinking. Migration from Redis to PikiwiDB can be smoothly executed by [tools](https://github.com/OpenAtomFoundation/pika/tree/unstable/tools).
 
-## Pika Features
+## PikiwiDB Features
 
 * **Protocol Compatibility**: Fully compatible with the Redis protocol, emphasizing high performance, large capacity, low cost, and scalability.
 * **Data Structures**: Supports Redis's common data structures, including String, Hash, List, Zset, Set, Geo, Hyperloglog, Pubsub, Bitmap, Stream, ACL, etc.
 * **Cold and Hot Data**: Caches hot data and persistently stores the full data in RocksDB, implementing a hierarchical storage of cold and hot data.
-* **High Capacity**: Compared to Redis's in-memory storage, Pika supports data volumes in the hundreds of gigabytes, significantly reducing server resource consumption and enhancing data reliability.
+* **High Capacity**: Compared to Redis's in-memory storage, PikiwiDB supports data volumes in the hundreds of gigabytes, significantly reducing server resource consumption and enhancing data reliability.
 * **Deployment Modes**: Supports single-machine master-slave mode (slaveof) and Codis cluster mode, making scaling and shrinking simple.
-* **Easy Migration**: Smooth migration from Redis to Pika without modifying code.
+* **Easy Migration**: Smooth migration from Redis to PikiwiDB without modifying code.
 * **Convenient Operation and Maintenance**: Comprehensive operation and maintenance command documentation.
 
-## Pika Storage Engine Architecture
+## PikiwiDB Storage Engine Architecture
 
 * Supports multiple platforms: CentOS, Ubuntu, macOS, Rocky Linux
 * Multi-threaded model
@@ -40,7 +40,7 @@ Pika can be deployed in a single-machine master-slave mode (slaveof) or in a [Co
 * Each data structure uses a separate RocksDB instance
 * Master-slave adopts binlog asynchronous replication
 
-![Pika-Master-Slave](docs/images/pika-master-slave.png)
+![PikiwiDB-Master-Slave](docs/images/pika-master-slave.png)
 
 ### 2. Distributed Cluster Mode
 
@@ -48,9 +48,9 @@ Pika can be deployed in a single-machine master-slave mode (slaveof) or in a [Co
 * Each group forms a master-slave set
 * Elastic scaling based on groups
 
-![Pika-Cluster](docs/images/pika-distributed-cluster.png)
+![PikiwiDB-Cluster](docs/images/pika-distributed-cluster.png)
 
-## Pika User Showcase
+## PikiwiDB User Showcase
 
 <table>
 <tr>
@@ -85,25 +85,25 @@ Pika can be deployed in a single-machine master-slave mode (slaveof) or in a [Co
 </tr>
 </table>
 
-Pika has been widely adopted by various companies for internal deployments, demonstrating its scalability and reliability. Some notable usage instances include:
+PikiwiDB has been widely adopted by various companies for internal deployments, demonstrating its scalability and reliability. Some notable usage instances include:
 
 * **360 Company**: Internal deployment with a scale of 10,000+ instances, each having a data volume of 1.8TB.
 * **Weibo**: Internal deployment with 10,000+ instances.
 * **Ximalaya(Xcache)**: 6,000+ instances with a massive data volume exceeding 120TB.
 * **Getui (个推) Company**: Internal deployment involving 300+ instances, with a cumulative data volume surpassing 30TB.
 
-Additionally, Pika is utilized by companies such as Xunlei, Xiaomi, Zhihu, New Oriental Education & Technology Group (好未来), Kuaishou, Sohu, Meituan, Maimai, and more. For a comprehensive list of users, you can refer to the official list provided by the Pika project.
+Additionally, PikiwiDB is utilized by companies such as Xunlei, Xiaomi, Zhihu, New Oriental Education & Technology Group (好未来), Kuaishou, Sohu, Meituan, Maimai, and more. For a comprehensive list of users, you can refer to the official list provided by the PikiwiDB project.
 
-These deployments across a diverse range of companies and industries underscore Pika's adaptability and effectiveness in handling large-scale, high-volume data storage requirements.
+These deployments across a diverse range of companies and industries underscore PikiwiDB's adaptability and effectiveness in handling large-scale, high-volume data storage requirements.
 
 [More](docs/USERS.md)
 
 
-## Getting Started with Pika
+## Getting Started with PikiwiDB
 
 ### 1. Binary Package Installation
 
-Users can directly download the latest binary version package from [releases](https://github.com/Qihoo360/pika/releases).
+Users can directly download the latest binary version package from [releases](https://github.com/Qihoo360/pikiwidb/releases).
 
 ### 2. Compilation from Source
 
@@ -126,7 +126,7 @@ Users can directly download the latest binary version package from [releases](ht
   * 2.3.1. Get the source code
 
     ```bash
-      git clone https://github.com/OpenAtomFoundation/pika.git
+      git clone https://github.com/OpenAtomFoundation/pikiwidb.git
     ```
 
   * 2.3.2. Switch to the latest release version
@@ -154,7 +154,7 @@ Users can directly download the latest binary version package from [releases](ht
 
     > Note: The compiled files will be saved in the output directory.
 
-    Pika is compiled by default in release mode, which does not support debugging. If debugging is needed, compile in debug mode.
+    PikiwiDB is compiled by default in release mode, which does not support debugging. If debugging is needed, compile in debug mode.
 
     ```bash
       rm -rf output/
@@ -175,11 +175,11 @@ Users can directly download the latest binary version package from [releases](ht
 
   * 2.3.4. (Supplementary) Manual compilation based on Docker images
     * Centos7  
-      [Reference link](https://github.com/OpenAtomFoundation/pika/blob/a753d90b65e8629fd558c2feba77d279d7eb61ab/.github/workflows/pika.yml#L93)
+      [Reference link](https://github.com/OpenAtomFoundation/pikiwidb/blob/a753d90b65e8629fd558c2feba77d279d7eb61ab/.github/workflows/pika.yml#L93)
         ```bash
             #1.Start a Centos container locally
   
-              sudo docker run -v /Youer/Path/pika:/pika --privileged=true -it centos:centos7
+              sudo docker run -v /Youer/Path/pikiwidb:/pikiwidb --privileged=true -it centos:centos7
   
             #2.Install dependent environment
             # Starting a new container requires installation
@@ -192,7 +192,7 @@ Users can directly download the latest binary version package from [releases](ht
 
             export PATH=/opt/rh/devtoolset-10/root/usr/bin/:$PATH
       
-            cd pika
+            cd pikiwidb
             #4.Start compilation
             # Choose DUSE-PIKA-TOOLS ON or OFF based on whether you need to recompile the tool
   
@@ -205,7 +205,7 @@ Users can directly download the latest binary version package from [releases](ht
       ```bash
       #1.Start a Ubuntu container locally
 
-      sudo docker run -v /Youer/Path/pika:/pika --privileged=true -it ubuntu:latest
+      sudo docker run -v /Youer/Path/pikiwidb:/pikiwidb --privileged=true -it ubuntu:latest
       
       /bin/bash
 
@@ -222,7 +222,7 @@ Users can directly download the latest binary version package from [releases](ht
       cmake --build debug --config Debug -j8
       ```
 
-* #### 2.4 Start Pika
+* #### 2.4 Start PikiwiDB
 
   ```bash
     ./output/pika -c ./conf/pika.conf
@@ -244,9 +244,9 @@ Users can directly download the latest binary version package from [releases](ht
     rm -rf output # regenerate cmake
   ```
 
-* #### 2.6 Pika Development Debugging
+* #### 2.6 PikiwiDB Development Debugging
 
-  [Setting up Pika Development Environment with CLion](./docs/ops/SetUpDevEnvironment.md)
+  [Setting up PikiwiDB Development Environment with CLion](./docs/ops/SetUpDevEnvironment.md)
   
 ### 3. Containerization
 
@@ -316,7 +316,7 @@ docker-compose.yaml
 
 > Note: The test results were obtained under specific conditions and scenarios, and may not represent the performance in all environments and scenarios. They are for reference only.
 
-__We recommend that you conduct detailed testing of Pika in your own environment based on the usage scenario to assess whether Pika meets your requirements.__
+__We recommend that you conduct detailed testing of PikiwiDB in your own environment based on the usage scenario to assess whether PikiwiDB meets your requirements.__
 
 ### 1. Test environment
 
@@ -326,7 +326,7 @@ __We recommend that you conduct detailed testing of Pika in your own environment
   * Disk: 3TB Flash
   * Network: 10GBase-T/Full * 2
   * Operating System: CentOS 6.6
-  * Pika Version: 2.2.4
+  * PikiwiDB Version: 2.2.4
 
 ### 2. Benchmarking Tool
 
@@ -339,11 +339,11 @@ __We recommend that you conduct detailed testing of Pika in your own environment
 
 * ##### Test Objective
 
-Evaluate the upper limit of QPS for Pika under different worker thread counts.
+Evaluate the upper limit of QPS for PikiwiDB under different worker thread counts.
 
 * ##### Test Conditions
 
-  * Pika Data Size: 800GB
+  * PikiwiDB Data Size: 800GB
   * Value: 128 bytes
   * CPU not bound
 
@@ -352,22 +352,22 @@ Evaluate the upper limit of QPS for Pika under different worker thread counts.
   <img src="https://deep011.github.io/public/images/pika_benchmark/pika_threads_test.png" height = "60%" width = "60%" alt="1"/>
 
   > Note：
-  > The x-axis represents Pika thread count, and the y-axis represents QPS with a value size of 128 bytes.
+  > The x-axis represents PikiwiDB thread count, and the y-axis represents QPS with a value size of 128 bytes.
   > "set3/get7" indicates 30% set and 70% get operations.
 
 * ##### Case One Conclusion
 
-  From the above graph, it can be observed that setting Pika's worker thread count to 20-24 is more cost-effective.
+  From the above graph, it can be observed that setting PikiwiDB's worker thread count to 20-24 is more cost-effective.
 
 #### 3.2 Case 2
 
 * ##### Test Objective
 
-  Evaluate the RTT performance of Pika with the optimal worker thread count (20 threads).
+  Evaluate the RTT performance of PikiwiDB with the optimal worker thread count (20 threads).
 
 * ##### Test Conditions
 
-  * Pika Data Size: 800GB
+  * PikiwiDB Data Size: 800GB
   * Value: 128 bytes
 
 * ##### Test Results
@@ -458,11 +458,11 @@ Evaluate the upper limit of QPS for Pika under different worker thread counts.
 
 * ##### Test Objective
 
-  Evaluate the maximum QPS for each command in Pika with the optimal worker thread count.
+  Evaluate the maximum QPS for each command in PikiwiDB with the optimal worker thread count.
 
 * ##### Test Conditions
 
-  * Pika Worker Thread Count: 20
+  * PikiwiDB Worker Thread Count: 20
   * Number of Keys: 10,000
   * Number of Fields: 100 (excluding lists)
   * Value: 128 bytes
@@ -512,11 +512,11 @@ Evaluate the upper limit of QPS for Pika under different worker thread counts.
 
 * ##### Test Objective
 
-  Compare the maximum QPS between Pika and Redis.
+  Compare the maximum QPS between PikiwiDB and Redis.
 
 * ##### Test Conditions
 
-  * Pika Worker Thread Count: 20
+  * PikiwiDB Worker Thread Count: 20
   * Number of Keys: 10,000
   * Number of Fields: 100 (excluding lists)
   * Value: 128 bytes
@@ -532,16 +532,16 @@ Evaluate the upper limit of QPS for Pika under different worker thread counts.
 
 ### Metrics
 
-1. Pika Server Info: system, ip, port, run_id, config file etc.
-2. Pika Data Info: db size, log size, memory usage etc.
-3. Pika Client Info: The number of connected clients.
-4. Pika Stats Info: status information of compact, slot, etc.
-5. Pika Network Info: Incoming and outgoing traffic and rate of client and master-slave replication.
-6. Pika CPU Info: cpu usage.
-7. Pika Replication Info: Status information of master-slave replication, binlog information.
-8. Pika Keyspace Info: key information of five data types.
-9. Pika Command Exec Count Info: command execution count.
-10. Pika Command Execution Time: Time-consuming command execution.
+1. PikiwiDB Server Info: system, ip, port, run_id, config file etc.
+2. PikiwiDB Data Info: db size, log size, memory usage etc.
+3. PikiwiDB Client Info: The number of connected clients.
+4. PikiwiDB Stats Info: status information of compact, slot, etc.
+5. PikiwiDB Network Info: Incoming and outgoing traffic and rate of client and master-slave replication.
+6. PikiwiDB CPU Info: cpu usage.
+7. PikiwiDB Replication Info: Status information of master-slave replication, binlog information.
+8. PikiwiDB Keyspace Info: key information of five data types.
+9. PikiwiDB Command Exec Count Info: command execution count.
+10. PikiwiDB Command Execution Time: Time-consuming command execution.
 11. RocksDB Metrics: RocksDB information of five data types, includes Memtable, Block Cache, Compaction, SST File, Blob File etc.
 
 More details on [Metrics](tools/pika_exporter/README.md).
@@ -551,9 +551,9 @@ More details on [Metrics](tools/pika_exporter/README.md).
 * [wiki](https://github.com/OpenAtomFoundation/pika/wiki)
 
 * release notes
-  -  [What's new in Pika v3.5.2](https://my.oschina.net/dubbogo/blog/10315913)
-  -  [What's new in Pika v3.5.1](https://my.oschina.net/dubbogo/blog/10114890)
-  -  [What's new in Pika v3.5.0](https://mp.weixin.qq.com/s/NNnmd0RtQ-vx9arW9YBcBA)
+  -  [What's new in PikiwiDB v3.5.2](https://my.oschina.net/dubbogo/blog/10315913)
+  -  [What's new in PikiwiDB v3.5.1](https://my.oschina.net/dubbogo/blog/10114890)
+  -  [What's new in PikiwiDB v3.5.0](https://mp.weixin.qq.com/s/NNnmd0RtQ-vx9arW9YBcBA)
 
 ## Contact Us
 

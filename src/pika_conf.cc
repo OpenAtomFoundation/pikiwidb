@@ -192,10 +192,7 @@ int PikaConf::Load() {
 
   std::string admin_cmd_list;
   GetConfStr("admin-cmd-list", &admin_cmd_list);
-  if (admin_cmd_list == "") {
-    admin_cmd_list = "info, monitor, ping";
-    SetAdminCmd(admin_cmd_list);
-  }
+  SetAdminCmd(admin_cmd_list);
 
   std::string unfinished_full_sync;
   GetConfStr("internal-used-unfinished-full-sync", &unfinished_full_sync);
@@ -683,16 +680,27 @@ int PikaConf::Load() {
   }
   zset_cache_field_num_per_key_ = zset_cache_field_num_per_key;
 
+  int cache_value_item_max_size = DEFAULT_CACHE_ITEMS_SIZE;
+  GetConfInt("cache-value-item-max-size", &cache_value_item_max_size);
+  if (cache_value_item_max_size <= 0) {
+    cache_value_item_max_size = DEFAULT_CACHE_ITEMS_SIZE;
+  } else if (cache_value_item_max_size > MAX_CACHE_ITEMS_SIZE) {
+    cache_value_item_max_size = MAX_CACHE_ITEMS_SIZE;
+  }
+  cache_value_item_max_size_ = cache_value_item_max_size;
+
   int max_key_size_in_cache = DEFAULT_CACHE_MAX_KEY_SIZE;
   GetConfInt("max-key-size-in-cache", &max_key_size_in_cache);
   if (max_key_size_in_cache <= 0) {
     max_key_size_in_cache = DEFAULT_CACHE_MAX_KEY_SIZE;
+  } else if (max_key_size_in_cache > MAX_CACHE_MAX_KEY_SIZE) {
+    max_key_size_in_cache = MAX_CACHE_MAX_KEY_SIZE; 
   }
   max_key_size_in_cache_ = max_key_size_in_cache;
 
   int64_t cache_maxmemory = PIKA_CACHE_SIZE_DEFAULT;
   GetConfInt64("cache-maxmemory", &cache_maxmemory);
-  cache_maxmemory_ = (PIKA_CACHE_SIZE_MIN > cache_maxmemory) ? PIKA_CACHE_SIZE_DEFAULT : cache_maxmemory;
+  cache_maxmemory_ = (PIKA_CACHE_SIZE_MIN > cache_maxmemory) ? PIKA_CACHE_SIZE_MIN : cache_maxmemory;
 
   int cache_maxmemory_policy = 1;
   GetConfInt("cache-maxmemory-policy", &cache_maxmemory_policy);

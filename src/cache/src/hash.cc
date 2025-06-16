@@ -31,12 +31,15 @@ Status RedisCache::HDel(std::string& key, std::vector<std::string> &fields) {
   return Status::OK();
 }
 
-Status RedisCache::HSet(std::string& key, std::string &field, std::string &value) {
+Status RedisCache::HSetIfKeyExist(std::string& key, std::string &field, std::string &value) {
   int res = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
   }
 
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   robj *fobj = createObject(OBJ_STRING, sdsnewlen(field.data(), field.size()));
   robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
@@ -46,6 +49,27 @@ Status RedisCache::HSet(std::string& key, std::string &field, std::string &value
   int ret = RcHSet(cache_, kobj, fobj, vobj);
   if (C_OK != ret) {
     return Status::Corruption("RcHSet failed");
+  }
+
+  return Status::OK();
+}
+
+Status RedisCache::HSetnxIfKeyExist(std::string& key, std::string &field, std::string &value) {
+  if (C_OK != RcFreeMemoryIfNeeded(cache_)) {
+    return Status::Corruption("[error] Free memory faild !");
+  }
+
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  robj *fobj = createObject(OBJ_STRING, sdsnewlen(field.data(), field.size()));
+  robj *vobj = createObject(OBJ_STRING, sdsnewlen(value.data(), value.size()));
+  DEFER {
+    DecrObjectsRefCount(kobj, fobj, vobj);
+  };
+  if (C_OK != RcHSetnx(cache_, kobj, fobj, vobj)) {
+    return Status::Corruption("RcHSetnx failed");
   }
 
   return Status::OK();
@@ -69,11 +93,38 @@ Status RedisCache::HSetnx(std::string& key, std::string &field, std::string &val
   return Status::OK();
 }
 
+Status RedisCache::HMSetIfKeyExist(std::string& key, std::vector<storage::FieldValue> &fvs) {
+  int res = RcFreeMemoryIfNeeded(cache_);
+  if (C_OK != res) {
+    return Status::Corruption("[error] Free memory faild !");
+  } 
+
+  if (!Exists(key)) {
+    return Status::NotFound("key not exist");
+  }
+  robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
+  unsigned int items_size = fvs.size() * 2;
+  robj **items = (robj **)zcallocate(sizeof(robj *) * items_size);
+  for (unsigned int i = 0; i < fvs.size(); ++i) {
+    items[i * 2] = createObject(OBJ_STRING, sdsnewlen(fvs[i].field.data(), fvs[i].field.size()));
+    items[i * 2 + 1] = createObject(OBJ_STRING, sdsnewlen(fvs[i].value.data(), fvs[i].value.size()));
+  }
+  DEFER {
+    FreeObjectList(items, items_size);
+    DecrObjectsRefCount(kobj);
+  };
+  int ret = RcHMSet(cache_, kobj, items, items_size);
+  if (C_OK != ret) {
+    return Status::Corruption("RcHMSet failed");
+  }
+  return Status::OK();
+}
+
 Status RedisCache::HMSet(std::string& key, std::vector<storage::FieldValue> &fvs) {
   int res = RcFreeMemoryIfNeeded(cache_);
   if (C_OK != res) {
     return Status::Corruption("[error] Free memory faild !");
-  }
+  } 
 
   robj *kobj = createObject(OBJ_STRING, sdsnewlen(key.data(), key.size()));
   unsigned int items_size = fvs.size() * 2;
@@ -141,7 +192,7 @@ Status RedisCache::HMGet(std::string& key, std::vector<std::string> &fields, std
     if (C_OK == items[i].status) {
       vss->push_back({std::string(items[i].value, sdslen(items[i].value)), rocksdb::Status::OK()});
     } else {
-      vss->push_back({std::string(), rocksdb::Status::NotFound()});
+      return Status::NotFound("field not in cache");
     }
   }
 
