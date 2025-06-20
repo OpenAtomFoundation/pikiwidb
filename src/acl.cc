@@ -497,6 +497,10 @@ void Acl::InitLimitUser(const std::string& bl, bool limit_exist) {
     }
     if (!pass.empty()) {
       u->SetUser(">" + pass);
+    } else {
+      //If the userpass password is empty, 
+      //disable the limit user to prevent password-free access
+      u->SetUser("off");
     }
   } else {
     if (pass.empty()) {
