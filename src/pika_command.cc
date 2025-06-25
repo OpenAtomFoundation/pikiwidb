@@ -874,20 +874,24 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
     db_->DBLockShared();
   }
   if(g_pika_server->IsConsistency()){
+    uint64_t before_do_binlog_us = pstd::NowMicros();
     DoBinlog();
+    uint64_t end_us = pstd::NowMicros();
+    this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
     if(res().ok()){
+        uint64_t before_do_command_us = pstd::NowMicros();
         DoCommand(hint_keys);
-    }
-    if (g_pika_conf->slowlog_slower_than() >= 0) {
-        do_duration_ += pstd::NowMicros() - start_us;
+        this->command_duration_ms = (pstd::NowMicros() - before_do_command_us) / 1000;
     }
   }else{
+    uint64_t before_do_command_us = pstd::NowMicros();
     DoCommand(hint_keys);
-    if (g_pika_conf->slowlog_slower_than() >= 0) {
-        do_duration_ += pstd::NowMicros() - start_us;
-    }
+    this->command_duration_ms = (pstd::NowMicros() - before_do_command_us) / 1000;
 
+    uint64_t before_do_binlog_us = pstd::NowMicros();
     DoBinlog();
+    uint64_t end_us = pstd::NowMicros();
+    this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
   }
 
   if (!IsSuspend()) {
@@ -896,9 +900,6 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (is_write()) {
     record_lock.Unlock(current_key());
   }
-
-  uint64_t end_us = pstd::NowMicros();
-  this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
 }
 
 void Cmd::DoCommand(const HintKeys& hint_keys) {
@@ -977,7 +978,6 @@ void Cmd::DoBinlog() {
                         << s.ToString();
         res().SetRes(CmdRes::kErrOther, s.ToString());
        }
-
       return;
     }
   }

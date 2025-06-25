@@ -437,9 +437,9 @@ Status SyncMasterDB::CommitAppLog(const LogOffset& master_committed_id){
   return coordinator_.CommitAppLog(master_committed_id);
 }
 Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, const LogOffset& offset) {
-   std::shared_ptr<SlaveNode> slave_ptr = GetSlaveNode(ip, port);  
+   std::shared_ptr<SlaveNode> slave_ptr = GetSlaveNode(ip, port);
   if (!slave_ptr) {
-    return Status::NotFound("ip " + ip + " port " + std::to_string(port)); 
+    return Status::NotFound("ip " + ip + " port " + std::to_string(port));
   }
 
   {
@@ -452,23 +452,23 @@ Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, cons
     if(slave_ptr->slave_state == KCandidate){
       LOG(INFO)<<"PacificA first binlog slave_state is Candidate";
     }
-    slave_ptr->sent_offset = offset;           
+    slave_ptr->sent_offset = offset;
     slave_ptr->acked_offset = offset;
     slave_ptr->target_offset =GetPreparedId();
     Status s = slave_ptr->InitBinlogFileReader(Logger(), offset.b_offset);
     if (!s.ok()) {
       return Status::Corruption("Init binlog file reader failed" + s.ToString());  // 如果初始化失败，返回错误状态
     }
-    g_pika_rm->DropItemInOneWriteQueue(ip, port, slave_ptr->DBName());  
-    slave_ptr->b_state = kReadFromFile; 
+    g_pika_rm->DropItemInOneWriteQueue(ip, port, slave_ptr->DBName());
+    slave_ptr->b_state = kReadFromFile;
   }
 
   Status s = coordinator_.SendBinlog(slave_ptr, slave_ptr->DBName());
   if (!s.ok()) {
-    return s;  
+    return s;
   }
 
-  return Status::OK();  
+  return Status::OK();
 }
 
 Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
@@ -489,9 +489,10 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count() < 10) {
         // Check if consensus has been achieved for the given log offset
         if (checkFinished(offset)) {
-            return Status::OK(); 
+            return Status::OK();
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        // TODO: 这里暂时注掉了sleep等待，50ms耗时过长，影响写入链路，后期需要改成条件变量唤醒方式
+        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
     }
 
     return Status::Timeout("No consistency achieved within 10 seconds");

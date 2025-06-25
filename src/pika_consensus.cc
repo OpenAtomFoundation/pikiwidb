@@ -65,7 +65,8 @@ Status Context::Init() {
 void Context::UpdateAppliedIndex(const LogOffset& offset) {
   std::lock_guard l(rwlock_);
   LogOffset cur_offset;
-  applied_win_.Update(SyncWinItem(offset), SyncWinItem(offset), &cur_offset);
+  // TODO: 暂时注释掉这一行，因为applied_win_没有push调用，只有update，窗口永远对不上
+  //applied_win_.Update(SyncWinItem(offset), SyncWinItem(offset), &cur_offset);
   if (cur_offset > applied_index_) {
     applied_index_ = cur_offset;
     StableSave();
@@ -811,6 +812,8 @@ bool ConsensusCoordinator::GetISConsistency() {
 }
 
 bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
+  //TODO: 暂时加了读写锁，后期考虑替换为原子变量
+  std::lock_guard l(committed_id_rwlock_);
   if (offset <= committed_id_) {
     return true;
   }
@@ -836,6 +839,8 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
     return s;
   }
   // If successful, append the log entry to the logs
+  // TODO: 这里logs_的appendlog操作和上边的stable_logger_->Logger()->Put不是原子的，可能导致offset大的先被追加到logs_中，
+  // 多线程写入的时候窗口会对不上，最终主从断开连接。需要加逻辑保证原子性
   logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
 
   SetPreparedId(cur_offset);
@@ -948,7 +953,8 @@ Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
   } else {
     int32_t wait_ms = 250;
     while (g_pika_rm->GetUnfinishedAsyncWriteDBTaskCount(db_name_) > 0) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+      // TODO: 暂时去掉了sleep的逻辑，考虑使用条件变量唤醒
+      //std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
       wait_ms *= 2;
       wait_ms = wait_ms < 3000 ? wait_ms : 3000;
     }
