@@ -614,8 +614,6 @@ int PikaConf::Load() {
   GetConfInt("cache-value-item-max-size", &cache_value_item_max_size);
   if (cache_value_item_max_size <= 0) {
     cache_value_item_max_size = DEFAULT_CACHE_ITEMS_SIZE;
-  } else if (cache_value_item_max_size > MAX_CACHE_ITEMS_SIZE) {
-    cache_value_item_max_size = MAX_CACHE_ITEMS_SIZE;
   }
   cache_value_item_max_size_ = cache_value_item_max_size;
 
@@ -623,8 +621,6 @@ int PikaConf::Load() {
   GetConfInt("max-key-size-in-cache", &max_key_size_in_cache);
   if (max_key_size_in_cache <= 0) {
     max_key_size_in_cache = DEFAULT_CACHE_MAX_KEY_SIZE;
-  } else if (max_key_size_in_cache > MAX_CACHE_MAX_KEY_SIZE) {
-    max_key_size_in_cache = MAX_CACHE_MAX_KEY_SIZE; 
   }
   max_key_size_in_cache_ = max_key_size_in_cache;
 

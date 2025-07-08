@@ -59,7 +59,6 @@ bool PikaCacheLoadThread::LoadKV(std::string& key, const std::shared_ptr<DB>& db
   int64_t ttl = -1;
   rocksdb::Status s = db->storage()->GetWithTTL(key, &value, &ttl);
   if (!s.ok() || key.size() > g_pika_conf->max_key_size_in_cache()) {
-    LOG(WARNING) << "load kv failed, key=" << key;
     return false;
   }
   std::string CachePrefixKeyK = PCacheKeyPrefixK + key;
@@ -94,8 +93,6 @@ bool PikaCacheLoadThread::LoadList(std::string& key, const std::shared_ptr<DB>& 
   // If the List type contains more than 2048 data members, 
   // it will not be updated to RedisCache
   if (len <= 0 || g_pika_conf->value_item_max_size_in_cache() < len || key.size() > g_pika_conf->max_key_size_in_cache()) {
-    LOG(WARNING) << "can not load key, because item size:" << len
-                 << " beyond max item size:" << g_pika_conf->value_item_max_size_in_cache();
     return false;
   }
 
@@ -117,8 +114,6 @@ bool PikaCacheLoadThread::LoadSet(std::string& key, const std::shared_ptr<DB>& d
   // If the Set type contains more than 2048 data members, 
   // it will not be updated to RedisCache
   if (0 >= len || g_pika_conf->value_item_max_size_in_cache() < len || key.size() > g_pika_conf->max_key_size_in_cache()) {
-    LOG(WARNING) << "can not load key, because item size:" << len
-                 << " beyond max item size:" << g_pika_conf->value_item_max_size_in_cache();
     return false;
   }
 
