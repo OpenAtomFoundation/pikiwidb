@@ -884,7 +884,7 @@ const std::string InfoCmd::kRocksDBSection = "rocksdb";
 const std::string InfoCmd::kDebugSection = "debug";
 const std::string InfoCmd::kCommandStatsSection = "commandstats";
 const std::string InfoCmd::kCacheSection = "cache";
-
+const std::string InfoCmd::kBigKeysSection = "bigkeys";
 
 const std::string ClientCmd::KILLTYPE_NORMAL = "normal";
 const std::string ClientCmd::KILLTYPE_PUBSUB = "pubsub";
@@ -910,6 +910,8 @@ void InfoCmd::DoInitial() {
     keyspace_scan_dbs_ = g_pika_server->GetAllDBName();
   } else if (strcasecmp(argv_[1].data(), kServerSection.data()) == 0) {
     info_section_ = kInfoServer;
+  } else if (strcasecmp(argv_[1].data(), "bigkeys") == 0) {
+    info_section_ = kInfoBigKeys;
   } else if (strcasecmp(argv_[1].data(), kClientsSection.data()) == 0) {
     info_section_ = kInfoClients;
   } else if (strcasecmp(argv_[1].data(), kStatsSection.data()) == 0) {
@@ -994,6 +996,9 @@ void InfoCmd::Do() {
       InfoReplication(info);
       info.append("\r\n");
       InfoKeyspace(info);
+      info.append("\r\n");
+      InfoBigKeys(info);
+      info.append("\r\n");
       break;
     case kInfoAll:
       InfoServer(info);
@@ -1017,6 +1022,9 @@ void InfoCmd::Do() {
       InfoKeyspace(info);
       info.append("\r\n");
       InfoRocksDB(info);
+      info.append("\r\n");
+      InfoBigKeys(info);
+      info.append("\r\n");
       break;
     case kInfoServer:
       InfoServer(info);
@@ -1053,6 +1061,9 @@ void InfoCmd::Do() {
       break;
     case kInfoCache:
       InfoCache(info, db_);
+      break;
+    case kInfoBigKeys:
+      InfoBigKeys(info);
       break;
     default:
       // kInfoErr is nothing
@@ -1094,7 +1105,21 @@ void InfoCmd::InfoServer(std::string& info) {
 
   info.append(tmp_stream.str());
 }
-
+void InfoCmd::InfoBigKeys(std::string& info) {
+  std::stringstream tmp_stream;
+  std::shared_lock db_rwl(g_pika_server->dbs_rw_);
+  for (const auto& db_item : g_pika_server->dbs_) {
+    if (!db_item.second) {
+      continue;
+    }
+    std::vector<storage::BigKeyInfo> bigkeys;
+    db_item.second->storage()->GetBigKeyStatistics(&bigkeys);
+    std::string bigkey_info;
+    storage::FormatBigKeyStatistics(bigkeys, &bigkey_info, g_pika_conf->bigkeys_show_limit());
+    tmp_stream << bigkey_info;
+  }
+  info.append(tmp_stream.str());
+}
 void InfoCmd::InfoClients(std::string& info) {
   std::stringstream tmp_stream;
   tmp_stream << "# Clients"
@@ -1833,7 +1858,27 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, "max-cache-statistic-keys");
     EncodeNumber(&config_body, g_pika_conf->max_cache_statistic_keys());
   }
-
+  //big keys
+  if (pstd::stringmatch(pattern.data(), "BIGKEYS_SHOW_LIMIT", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "BIGKEYS_SHOW_LIMIT");
+    EncodeNumber(&config_body, g_pika_conf->bigkeys_show_limit());
+  }
+  if (pstd::stringmatch(pattern.data(), "bigkeys_member_threshold", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "bigkeys_member_threshold");
+    EncodeNumber(&config_body, g_pika_conf->bigkeys_member_threshold());
+  }
+  if (pstd::stringmatch(pattern.data(), "bigkeys_key_value_length_threshold", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "bigkeys_key_value_length_threshold");
+    EncodeNumber(&config_body, g_pika_conf->bigkeys_key_value_length_threshold());
+  }
+  if (pstd::stringmatch(pattern.data(), "bigkeys_log_interval", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "bigkeys_log_interval");
+    EncodeNumber(&config_body, g_pika_conf->bigkeys_log_interval());
+  }
   if (pstd::stringmatch(pattern.data(), "small-compaction-threshold", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "small-compaction-threshold");
@@ -2962,6 +3007,35 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetMaxConnRbufSize(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  //big keys
+  } else if (set_item == "BIGKEYS_SHOW_LIMIT") {
+    if (!pstd::string2int(value.data(), value.size(), &ival) || ival < 0) {
+      res_.AppendStringRaw("-ERR Invalid argument '" + value + "' for CONFIG SET 'BIGKEYS_SHOW_LIMIT'\r\n");
+      return;
+    }
+    g_pika_conf->SetBigkeysShowLimit(ival);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "bigkeys_member_threshold") {
+    if (!pstd::string2int(value.data(), value.size(), &ival) || ival < 0) {
+      res_.AppendStringRaw("-ERR Invalid argument '" + value + "' for CONFIG SET 'bigkeys_member_threshold'\r\n");
+      return;
+    }
+    g_pika_conf->SetBigkeysMemberCountThreshold(ival);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "bigkeys_key_value_length_threshold") {
+    if (!pstd::string2int(value.data(), value.size(), &ival) || ival < 0) {
+      res_.AppendStringRaw("-ERR Invalid argument '" + value + "' for CONFIG SET 'bigkeys_key_value_length_threshold'\r\n");
+      return;
+    }
+    g_pika_conf->SetBigkeysKeyValueLengthThreshold(ival);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "bigkeys_log_interval") {
+    if (!pstd::string2int(value.data(), value.size(), &ival) || ival < 0) {
+      res_.AppendStringRaw("-ERR Invalid argument '" + value + "' for CONFIG SET 'bigkeys_log_interval'\r\n");
+      return;
+    }
+    g_pika_conf->SetBigkeysLogInterval(ival);
     res_.AppendStringRaw("+OK\r\n");
   } else {
     res_.AppendStringRaw("-ERR Unsupported CONFIG parameter: " + set_item + "\r\n");

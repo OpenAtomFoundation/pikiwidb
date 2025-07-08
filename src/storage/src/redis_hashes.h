@@ -18,7 +18,6 @@ class RedisHashes : public Redis {
  public:
   RedisHashes(Storage* s, const DataType& type);
   ~RedisHashes() override = default;
-
   // Common Commands
   Status Open(const StorageOptions& storage_options, const std::string& db_path) override;
   Status CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,

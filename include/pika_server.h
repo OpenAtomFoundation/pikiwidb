@@ -145,6 +145,7 @@ class PikaServer : public pstd::noncopyable {
   void DBSetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);
   void DBSetSmallCompactionThreshold(uint32_t small_compaction_threshold);
   void DBSetSmallCompactionDurationThreshold(uint32_t small_compaction_duration_threshold);
+  void UpdateDBBigKeysConfig();
   bool GetDBBinlogOffset(const std::string& db_name, BinlogOffset* boffset);
   pstd::Status DoSameThingEveryDB(const TaskType& type);
 
@@ -527,6 +528,8 @@ class PikaServer : public pstd::noncopyable {
   void AutoDeleteExpiredDump();
   void AutoUpdateNetworkMetric();
   void PrintThreadPoolQueueStatus();
+  void LogBigKeysInfo();
+  void CleanExpiredBigKeys();
   void StatDiskUsage();
   int64_t GetLastSaveTime(const std::string& dump_dir);
 

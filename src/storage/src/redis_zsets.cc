@@ -83,8 +83,10 @@ Status RedisZSets::Open(const StorageOptions& storage_options, const std::string
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   column_families.emplace_back("data_cf", data_cf_ops);
   column_families.emplace_back("score_cf", score_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  return s;
 }
+
 
 Status RedisZSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
   if (type == kMeta || type == kMetaAndData) {
@@ -399,6 +401,9 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
   }
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kZSets, *ret, key.ToString().size(), 0);
+  }
   return s;
 }
 
@@ -538,6 +543,15 @@ Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increme
   *ret = score;
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  if (s.ok()) {
+    int32_t count = 0;
+    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+    if (s.ok()) {
+      ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
+      count = parsed_zsets_meta_value.count();
+    }
+    CheckAndRecordBigKeys(key.ToString(), kZSets, count, key.ToString().size(), 0);
+  }
   return s;
 }
 
@@ -1520,6 +1534,7 @@ Status RedisZSets::Del(const Slice& key) {
       parsed_zsets_meta_value.InitialMetaValue();
       s = db_->Put(default_write_options_, handles_[0], key, meta_value);
       UpdateSpecificKeyStatistics(key.ToString(), statistic);
+      CheckAndRecordBigKeys(key.ToString(), kZSets, 0, 0, 0, true);
     }
   }
   return s;

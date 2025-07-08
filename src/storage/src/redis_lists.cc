@@ -25,6 +25,8 @@ const rocksdb::Comparator* ListsDataKeyComparator() {
 
 RedisLists::RedisLists(Storage* const s, const DataType& type) : Redis(s, type) {}
 
+
+
 Status RedisLists::Open(const StorageOptions& storage_options, const std::string& db_path) {
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
@@ -71,8 +73,10 @@ Status RedisLists::Open(const StorageOptions& storage_options, const std::string
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  return s;
 }
+
 
 Status RedisLists::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
   if (type == kMeta || type == kMetaAndData) {
@@ -316,8 +320,12 @@ Status RedisLists::LInsert(const Slice& key, const BeforeOrAfter& before_or_afte
         ListsDataKey lists_target_key(key, version, target_index);
         batch.Put(handles_[1], lists_target_key.Encode(), value);
         *ret = static_cast<int32_t>(parsed_lists_meta_value.count());
-        return db_->Write(default_write_options_, &batch);
-      }
+        Status write_status = db_->Write(default_write_options_, &batch);
+        if (write_status.ok()) {
+          CheckAndRecordBigKeys(key.ToString(), kLists, *ret, key.ToString().size(), 0);
+        }
+        return write_status;
+        }
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -429,7 +437,11 @@ Status RedisLists::LPush(const Slice& key, const std::vector<std::string>& value
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  s = db_->Write(default_write_options_, &batch);
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kLists, *ret, key.ToString().size(), 0);
+  }
+  return s;
 }
 
 Status RedisLists::LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
@@ -456,7 +468,11 @@ Status RedisLists::LPushx(const Slice& key, const std::vector<std::string>& valu
       }
       batch.Put(handles_[0], key, meta_value);
       *len = parsed_lists_meta_value.count();
-      return db_->Write(default_write_options_, &batch);
+      Status write_status = db_->Write(default_write_options_, &batch);
+      if (write_status.ok()) {
+        CheckAndRecordBigKeys(key.ToString(), kLists, *len, key.ToString().size(), 0);
+      }
+      return write_status;
     }
   }
   return s;
@@ -978,7 +994,11 @@ Status RedisLists::RPush(const Slice& key, const std::vector<std::string>& value
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  s = db_->Write(default_write_options_, &batch);
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kLists, *ret, key.ToString().size(), 0);
+  }
+  return s;
 }
 
 Status RedisLists::RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
@@ -1005,7 +1025,11 @@ Status RedisLists::RPushx(const Slice& key, const std::vector<std::string>& valu
       }
       batch.Put(handles_[0], key, meta_value);
       *len = parsed_lists_meta_value.count();
-      return db_->Write(default_write_options_, &batch);
+      Status write_status = db_->Write(default_write_options_, &batch);
+      if (write_status.ok()) {
+        CheckAndRecordBigKeys(key.ToString(), kLists, *len, key.ToString().size(), 0);
+      }
+      return write_status;
     }
   }
   return s;
@@ -1155,6 +1179,7 @@ Status RedisLists::Del(const Slice& key) {
       parsed_lists_meta_value.InitialMetaValue();
       s = db_->Put(default_write_options_, handles_[0], key, meta_value);
       UpdateSpecificKeyStatistics(key.ToString(), statistic);
+      CheckAndRecordBigKeys(key.ToString(), kLists, 0, 0, 0, true);
     }
   }
   return s;

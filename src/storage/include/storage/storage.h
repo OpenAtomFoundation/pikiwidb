@@ -127,7 +127,15 @@ struct ScoreMember {
 enum BeforeOrAfter { Before, After };
 
 enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets, kStreams };
-
+//Big Keys INFO struct
+struct BigKeyInfo {
+  std::string key;
+  DataType type;
+  uint64_t member_size; //Record the capacity of complex data types
+  uint64_t key_length; 
+  uint64_t value_length;
+};
+void FormatBigKeyStatistics(const std::vector<BigKeyInfo>& bigkeys, std::string* out, size_t bigkeys_limit);
 const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's', 'x'};
 
 enum class OptionType {
@@ -1100,6 +1108,16 @@ class Storage {
   Status EnableAutoCompaction(const OptionType& option_type, 
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
+  void GetBigKeyStatistics(std::vector<BigKeyInfo>* bigkeys);
+  // Update big keys related configuration
+  void UpdateBigKeysConfig(uint32_t log_interval, uint64_t member_threshold, uint64_t key_value_length_threshold, size_t show_limit);
+  // Add or remove big key from statistics
+  void CheckAndRecordBigKeys(const std::string& key, DataType type, uint64_t member_size, uint64_t key_length = 0, uint64_t value_length = 0, bool is_delete = false);
+  //big keys
+  uint32_t bigkeys_log_interval_;
+  uint64_t bigkeys_member_threshold_;
+  uint64_t bigkeys_key_value_length_threshold_;
+  size_t bigkeys_limit_;
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;

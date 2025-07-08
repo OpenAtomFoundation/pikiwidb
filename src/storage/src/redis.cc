@@ -5,7 +5,8 @@
 
 #include "src/redis.h"
 #include <sstream>
-
+#include <thread>
+#include <glog/logging.h>
 namespace storage {
 
 Redis::Redis(Storage* const s, const DataType& type)
@@ -13,7 +14,9 @@ Redis::Redis(Storage* const s, const DataType& type)
       type_(type),
       lock_mgr_(std::make_shared<LockMgr>(1000, 0, std::make_shared<MutexFactoryImpl>())),
       small_compaction_threshold_(5000),
-      small_compaction_duration_threshold_(10000) {
+      small_compaction_duration_threshold_(10000),
+      db_(nullptr),
+      big_keys_info_map_(){
   statistics_store_ = std::make_unique<LRUCache<std::string, KeyStatistics>>();
   scan_cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   scan_cursors_store_->SetCapacity(5000);
@@ -23,15 +26,19 @@ Redis::Redis(Storage* const s, const DataType& type)
 }
 
 Redis::~Redis() {
-  std::vector<rocksdb::ColumnFamilyHandle*> tmp_handles = handles_;
-  handles_.clear();
-  for (auto handle : tmp_handles) {
-    delete handle;
+  for (auto handle : handles_) {
+    if (handle != nullptr) {
+      delete handle;
+    }
   }
-  delete db_;
-
+  handles_.clear();
+  if (db_ != nullptr) {
+    delete db_;
+    db_ = nullptr;
+  }
   if (default_compact_range_options_.canceled) {
     delete default_compact_range_options_.canceled;
+    default_compact_range_options_.canceled = nullptr;
   }
 }
 
@@ -109,7 +116,17 @@ Status Redis::SetOptions(const OptionType& option_type, const std::unordered_map
   }
   return s;
 }
-
+inline const char* DataTypeName(DataType type) {
+  switch (type) {
+    case kStrings: return "string";
+    case kHashes: return "hash";
+    case kLists: return "list";
+    case kSets: return "set";
+    case kZSets: return "zset";
+    case kStreams: return "stream";
+    default: return "unknown";
+  }
+}
 void Redis::GetRocksDBInfo(std::string &info, const char *prefix) {
     std::ostringstream string_stream;
     string_stream << "#" << prefix << "RocksDB" << "\r\n";
@@ -191,6 +208,18 @@ void Redis::SetWriteWalOptions(const bool is_wal_disable) {
   default_write_options_.disableWAL = is_wal_disable;
 }
 
+void Redis::GetBigKeyStatistics(std::vector<BigKeyInfo>* bigkeys) {
+  if (!bigkeys) {
+    return;
+  }
+  
+  std::lock_guard<std::mutex> lock(big_keys_mutex_);
+  for (const auto& kv : big_keys_info_map_) {
+    BigKeyInfo info = kv.second;
+    info.key = kv.first;
+    bigkeys->push_back(info);
+  }
+}
 void Redis::SetCompactRangeOptions(const bool is_canceled) {
   if (!default_compact_range_options_.canceled) {
     default_compact_range_options_.canceled = new std::atomic<bool>(is_canceled);
@@ -198,5 +227,47 @@ void Redis::SetCompactRangeOptions(const bool is_canceled) {
     default_compact_range_options_.canceled->store(is_canceled);
   } 
 }
-
+//big keys
+void Redis::CheckAndRecordBigKeys(
+    const std::string& key,
+    DataType type,
+    uint64_t member_size,
+    uint64_t key_length,
+    uint64_t value_length,
+    bool is_delete) {
+  if (!storage_) {
+    LOG(WARNING) << "Storage is null in CheckAndRecordBigKeys";
+    return;
+  }
+  std::lock_guard<std::mutex> lock(big_keys_mutex_);
+  if (is_delete) {
+    auto it = big_keys_info_map_.find(key);
+    if (it != big_keys_info_map_.end()) {
+      big_keys_info_map_.erase(it);
+    }
+    return;
+  }
+  bool is_bigkey = false;
+  if (member_size > storage_->bigkeys_member_threshold_) {
+    is_bigkey = true;
+  }
+  if (type == kStrings && ((key_length > storage_->bigkeys_key_value_length_threshold_) || 
+                          (value_length > storage_->bigkeys_key_value_length_threshold_))) {
+    is_bigkey = true;
+  }
+  if (is_bigkey) {
+    BigKeyInfo info;
+    info.type = type;
+    info.member_size = member_size;
+    info.key_length = key_length;
+    info.value_length = value_length;
+    info.key = key;
+    big_keys_info_map_[key] = info;
+  } else {
+    auto it = big_keys_info_map_.find(key);
+    if (it != big_keys_info_map_.end()) {
+      big_keys_info_map_.erase(it);
+    }
+  }
+}
 }  // namespace storage

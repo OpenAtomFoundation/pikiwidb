@@ -361,6 +361,9 @@ func (e *exporter) registerMetrics() {
 	if config.Cache {
 		metrics.RegisterCache()
 	}
+	if config.BigKeys {
+		metrics.RegisterBigKeys()
+	}
 	metrics.RegisterBinlog()
 }
 

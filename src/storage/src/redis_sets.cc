@@ -25,13 +25,13 @@ namespace storage {
 RedisSets::RedisSets(Storage* const s, const DataType& type) : Redis(s, type) {
 }
 
-RedisSets::~RedisSets() = default;
+RedisSets::~RedisSets() {
+}
 
 rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std::string& db_path) {
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
   small_compaction_threshold_ = storage_options.small_compaction_threshold;
   small_compaction_duration_threshold_ = storage_options.small_compaction_duration_threshold;
-
   rocksdb::Options ops(storage_options.options);
   rocksdb::Status s = rocksdb::DB::Open(ops, db_path, &db_);
   if (s.ok()) {
@@ -71,7 +71,8 @@ rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Member CF
   column_families.emplace_back("member_cf", member_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  return s;
 }
 
 rocksdb::Status RedisSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
@@ -265,7 +266,11 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  s = db_->Write(default_write_options_, &batch);
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kSets, *ret, key.ToString().size(), 0);
+  }
+  return s;
 }
 
 rocksdb::Status RedisSets::SCard(const Slice& key, int32_t* ret) {
@@ -1380,6 +1385,7 @@ rocksdb::Status RedisSets::Del(const Slice& key) {
       parsed_sets_meta_value.InitialMetaValue();
       s = db_->Put(default_write_options_, handles_[0], key, meta_value);
       UpdateSpecificKeyStatistics(key.ToString(), statistic);
+      CheckAndRecordBigKeys(key.ToString(), kSets, 0, 0, 0, true);
     }
   }
   return s;

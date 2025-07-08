@@ -23,7 +23,7 @@ type InfoConfig struct {
 	Commandstats bool `toml:"commandstats"`
 	Rocksdb      bool `toml:"rocksdb"`
 	Cache        bool `toml:"cache"`
-
+	BigKeys      bool `toml:"bigkeys"`
 	Info    bool
 	InfoAll bool
 }

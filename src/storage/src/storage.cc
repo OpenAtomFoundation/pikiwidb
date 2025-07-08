@@ -1808,7 +1808,17 @@ std::string Storage::GetCurrentTaskType() {
       return "No";
   }
 }
-
+inline const char* DataTypeName(DataType type) {
+  switch (type) {
+    case kStrings: return "string";
+    case kHashes: return "hash";
+    case kLists: return "list";
+    case kSets: return "set";
+    case kZSets: return "zset";
+    case kStreams: return "stream";
+    default: return "unknown";
+  }
+}
 Status Storage::GetUsage(const std::string& property, uint64_t* const result) {
   *result = GetProperty(ALL_DB, property);
   return Status::OK();
@@ -1854,7 +1864,104 @@ uint64_t Storage::GetProperty(const std::string& db_type, const std::string& pro
   }
   return result;
 }
+void Storage::GetBigKeyStatistics(std::vector<BigKeyInfo>* bigkeys) {
+  hashes_db_->GetBigKeyStatistics(bigkeys);
+  lists_db_->GetBigKeyStatistics(bigkeys);
+  zsets_db_->GetBigKeyStatistics(bigkeys);
+  sets_db_->GetBigKeyStatistics(bigkeys);
+  streams_db_->GetBigKeyStatistics(bigkeys);
+  strings_db_->GetBigKeyStatistics(bigkeys);
+}
 
+void Storage::UpdateBigKeysConfig(uint32_t bigkeys_log_interval, 
+                                 uint64_t bigkeys_member_threshold, 
+                                 uint64_t bigkeys_key_value_length_threshold,
+                                 size_t bigkeys_show_limit) {
+  bigkeys_log_interval_ = bigkeys_log_interval;
+  bigkeys_member_threshold_ = bigkeys_member_threshold;
+  bigkeys_key_value_length_threshold_ = bigkeys_key_value_length_threshold;
+  bigkeys_limit_ = bigkeys_show_limit;
+}
+
+void Storage::CheckAndRecordBigKeys(const std::string& key, DataType type, uint64_t member_size, uint64_t key_length, uint64_t value_length, bool is_delete) {
+  switch (type) {
+    case kStrings:
+      strings_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    case kHashes:
+      hashes_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    case kLists:
+      lists_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    case kZSets:
+      zsets_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    case kSets:
+      sets_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    case kStreams:
+      streams_db_->CheckAndRecordBigKeys(key, type, member_size, key_length, value_length, is_delete);
+      break;
+    default:
+      break;
+  }
+}
+
+void FormatBigKeyStatistics(const std::vector<BigKeyInfo>& bigkeys, std::string* out, size_t bigkeys_limit) {
+  std::map<DataType, std::vector<const BigKeyInfo*>> type_map;
+  for (const auto& bk : bigkeys) {
+    type_map[bk.type].push_back(&bk);
+  }
+  std::ostringstream oss;
+  oss << "# BigKeys statistics" << std::endl;
+  oss << "# Show only the first " << bigkeys_limit << " big keys of each type" << std::endl;
+  oss << "Total number of big keys: " << bigkeys.size() << std::endl;
+  for (const auto& [type, vec] : type_map) {
+    std::string type_name = DataTypeName(type);
+    if (!type_name.empty()) {
+      type_name[0] = toupper(type_name[0]);
+    }
+    oss << "# " << type_name << std::endl;
+    oss << "Big Keys number: " << vec.size() << std::endl;
+    std::vector<const BigKeyInfo*> sorted_vec = vec;
+    if (type == DataType::kStrings) {
+      // String type: First sort by value_length in descending order, then by key_length in descending order when the same
+      std::stable_sort(sorted_vec.begin(), sorted_vec.end(), 
+        [](const BigKeyInfo* a, const BigKeyInfo* b) -> bool {
+          if (a->value_length != b->value_length) {
+            return a->value_length > b->value_length;
+          }
+          return a->key_length > b->key_length;
+        });
+    } else {
+      // Non-String type: First sort by member_size in descending order, then by key_length in descending order when the same
+      std::stable_sort(sorted_vec.begin(), sorted_vec.end(), 
+        [](const BigKeyInfo* a, const BigKeyInfo* b) -> bool {
+          if (a->member_size != b->member_size) {
+            return a->member_size > b->member_size;
+          }
+          return a->key_length > b->key_length;
+        });
+    }
+    size_t show_num = std::min(sorted_vec.size(), bigkeys_limit);
+    for (size_t i = 0; i < show_num; ++i) {
+      const auto* bk = sorted_vec[i];
+      if (type == DataType::kStrings) {
+        oss << "Type: string, key: " << bk->key
+            << ", key_length: " << bk->key_length
+            << ", value_length: " << bk->value_length;
+      } else {
+        oss << "Type: " << DataTypeName(type) << ", key: " << bk->key
+            << ", key_length: " << bk->key_length
+            << ", member_size: " << bk->member_size;
+      }
+      oss << std::endl;
+    }
+    oss << std::endl;
+  }
+  *out = oss.str();
+}
 Status Storage::GetKeyNum(std::vector<KeyInfo>* key_infos) {
   KeyInfo key_info;
   // NOTE: keep the db order with string, hash, list, zset, set

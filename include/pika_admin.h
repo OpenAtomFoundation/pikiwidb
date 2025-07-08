@@ -267,7 +267,8 @@ class InfoCmd : public Cmd {
     kInfoAll,
     kInfoDebug,
     kInfoCommandStats,
-    kInfoCache
+    kInfoCache,
+    kInfoBigKeys
   };
   InfoCmd(const std::string& name, int arity, uint32_t flag) : Cmd(name, arity, flag) {}
   void Do() override;
@@ -277,6 +278,7 @@ class InfoCmd : public Cmd {
   void Execute() override;
 
  private:
+  int bigkeys_limit_ = 0;
   InfoSection info_section_;
   bool rescan_ = false;  // whether to rescan the keyspace
   bool off_ = false;
@@ -295,15 +297,19 @@ class InfoCmd : public Cmd {
   const static std::string kDebugSection;
   const static std::string kCommandStatsSection;
   const static std::string kCacheSection;
+  const static std::string kBigKeysSection;
 
   void DoInitial() override;
   void Clear() override {
     rescan_ = false;
     off_ = false;
     keyspace_scan_dbs_.clear();
+    info_section_ = kInfoErr;
+    bigkeys_limit_ = 0;
   }
 
   void InfoServer(std::string& info);
+  void InfoBigKeys(std::string& info);
   void InfoClients(std::string& info);
   void InfoStats(std::string& info);
   void InfoExecCount(std::string& info);

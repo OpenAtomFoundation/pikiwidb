@@ -9,6 +9,7 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include <thread>
 
 #include "rocksdb/db.h"
 #include "rocksdb/slice.h"
@@ -20,11 +21,13 @@
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "storage/storage.h"
-
+#include <condition_variable>
+#include <atomic>
 namespace storage {
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
-
+//Big Keys INFO struct
+struct BigKeyInfo;
 class Redis {
  public:
   Redis(Storage* storage, const DataType& type);
@@ -115,7 +118,8 @@ class Redis {
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   std::vector<rocksdb::ColumnFamilyHandle*> GetHandles(){ return handles_;};
   void GetRocksDBInfo(std::string &info, const char *prefix);
-
+  virtual void GetBigKeyStatistics(std::vector<BigKeyInfo>* bigkeys);
+  void CheckAndRecordBigKeys(const std::string& key, DataType type, uint64_t member_size, uint64_t key_length = 0, uint64_t value_length = 0, bool is_delete = false);
  protected:
   Storage* const storage_;
   DataType type_;
@@ -126,6 +130,9 @@ class Redis {
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;
   rocksdb::CompactRangeOptions default_compact_range_options_;
+  // big keys
+  std::mutex big_keys_mutex_;
+  std::unordered_map<std::string, BigKeyInfo> big_keys_info_map_;
 
   // For Scan
   std::unique_ptr<LRUCache<std::string, std::string>> scan_cursors_store_;

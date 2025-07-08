@@ -13,7 +13,7 @@
 #include <fmt/core.h>
 #include <glog/logging.h>
 #include <iostream>
-
+#include "src/redis.h"
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
@@ -36,8 +36,8 @@ Status RedisStrings::Open(const StorageOptions& storage_options, const std::stri
   }
   table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
   ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_ops));
-
-  return rocksdb::DB::Open(ops, db_path, &db_);
+  Status s = rocksdb::DB::Open(ops, db_path, &db_);
+  return s;
 }
 
 Status RedisStrings::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,
@@ -176,7 +176,11 @@ Status RedisStrings::Append(const Slice& key, const Slice& value, int32_t* ret, 
       StringsValue strings_value(new_value);
       strings_value.set_timestamp(timestamp);
       *ret = static_cast<int32_t>(new_value.size());
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      s = db_->Put(default_write_options_, key, strings_value.Encode());
+      if (s.ok()) {
+        CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+      }
+      return s;
       *expired_timestamp_sec = timestamp;
     }
   } else if (s.IsNotFound()) {
@@ -540,7 +544,11 @@ Status RedisStrings::GetSet(const Slice& key, const Slice& value, std::string* o
     return s;
   }
   StringsValue strings_value(value);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  s = db_->Put(default_write_options_, key, strings_value.Encode());
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+  }
+  return s;
 }
 
 Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec) {
@@ -708,6 +716,7 @@ Status RedisStrings::MSet(const std::vector<KeyValue>& kvs) {
   for (const auto& kv : kvs) {
     StringsValue strings_value(kv.value);
     batch.Put(kv.key, strings_value.Encode());
+    CheckAndRecordBigKeys(kv.key, kStrings, 1, kv.key.size(), kv.value.size());
   }
   return db_->Write(default_write_options_, &batch);
 }
@@ -725,6 +734,7 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
         exists = true;
         break;
       }
+      CheckAndRecordBigKeys(kv.key, kStrings, 1, kv.key.size(), kv.value.size());
     }
   }
   if (!exists) {
@@ -739,7 +749,11 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  Status s = db_->Put(default_write_options_, key, strings_value.Encode());
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+  }
+  return s;
 }
 
 Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
@@ -765,7 +779,11 @@ Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, c
     if (ttl > 0) {
       strings_value.SetRelativeTimestamp(ttl);
     }
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    s = db_->Put(default_write_options_, key, strings_value.Encode());
+    if (s.ok()) {
+      CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+    }
+    return s;
   }
 }
 
@@ -827,7 +845,11 @@ Status RedisStrings::Setex(const Slice& key, const Slice& value, int32_t ttl) {
     return s;
   }
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  s = db_->Put(default_write_options_, key, strings_value.Encode());
+  if (s.ok()) {
+    CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+  }
+  return s;
 }
 
 Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
@@ -845,6 +867,7 @@ Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, c
       s = db_->Put(default_write_options_, key, strings_value.Encode());
       if (s.ok()) {
         *ret = 1;
+        CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
       }
     }
   } else if (s.IsNotFound()) {
@@ -855,6 +878,7 @@ Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, c
     s = db_->Put(default_write_options_, key, strings_value.Encode());
     if (s.ok()) {
       *ret = 1;
+      CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
     }
   }
   return s;
@@ -951,13 +975,21 @@ Status RedisStrings::Setrange(const Slice& key, int64_t start_offset, const Slic
     *ret = static_cast<int32_t>(new_value.length());
     StringsValue strings_value(new_value);
     strings_value.set_timestamp(timestamp);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    Status s = db_->Put(default_write_options_, key, strings_value.Encode());
+    if (s.ok()) {
+      CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+    }
+    return s;
   } else if (s.IsNotFound()) {
     std::string tmp(start_offset, '\0');
     new_value = tmp.append(value.data());
     *ret = static_cast<int32_t>(new_value.length());
     StringsValue strings_value(new_value);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    Status s = db_->Put(default_write_options_, key, strings_value.Encode());
+    if (s.ok()) {
+      CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), value.size());
+    }
+    return s;
   }
   return s;
 }
@@ -1306,6 +1338,7 @@ Status RedisStrings::Del(const Slice& key) {
     if (parsed_strings_value.IsStale()) {
       return Status::NotFound("Stale");
     }
+    CheckAndRecordBigKeys(key.ToString(), kStrings, 1, key.ToString().size(), 0, true);
     return db_->Delete(default_write_options_, key);
   }
   return s;

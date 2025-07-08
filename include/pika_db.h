@@ -128,6 +128,9 @@ class DB : public std::enable_shared_from_this<DB>, public pstd::noncopyable {
 
   void SetCompactRangeOptions(const bool is_canceled);
 
+  // Update big keys configuration
+  void UpdateStorageBigKeysConfig(uint32_t log_interval, uint64_t member_threshold, uint64_t key_value_length_threshold, size_t show_limit);
+
   std::shared_ptr<pstd::lock::LockMgr> LockMgr();
   /*
    * Cache used

@@ -95,7 +95,7 @@ Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_messag
   if (!s.ok()) {
     return s;
   }
-
+  CheckAndRecordBigKeys(key.ToString(), kStreams, stream_meta.length(), key.ToString().size(), 0);
   return Status::OK();
 }
 
@@ -367,9 +367,12 @@ Status RedisStreams::Open(const StorageOptions& storage_options, const std::stri
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  return s;
 }
-
 Status RedisStreams::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,
                                   const ColumnFamilyType& type) {
   if (type == kMeta || type == kMetaAndData) {
@@ -607,6 +610,7 @@ Status RedisStreams::Del(const Slice& key) {
       stream_meta_value.InitMetaValue();
       s = db_->Put(default_write_options_, handles_[0], key, stream_meta_value.value());
       UpdateSpecificKeyStatistics(key.ToString(), statistic);
+      CheckAndRecordBigKeys(key.ToString(), kStreams, 0, 0, 0, true);
     }
   }
   return s;

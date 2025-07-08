@@ -28,8 +28,22 @@ func parseInfo(info string) (*semver.Version, map[string]string, error) {
 	return version, extracts, nil
 }
 
+func parseInfoBigkey(s string) string {
+	if strings.Contains(s, "# BigKeys statistics") {
+		startIdx := strings.Index(s, "# BigKeys statistics")
+		if startIdx != -1 {
+			return s[startIdx:]
+		}
+	}
+	return ""
+}
+
 func extractInfo(s string) (map[string]string, error) {
 	m := make(map[string]string)
+	bigkeysOutput := parseInfoBigkey(s)
+	if len(bigkeysOutput) > 0 {
+		m["bigkeys_output"] = bigkeysOutput
+	}
 	scanner := bufio.NewScanner(strings.NewReader(s))
 	for scanner.Scan() {
 		line := scanner.Text()

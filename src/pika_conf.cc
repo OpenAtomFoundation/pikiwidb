@@ -61,7 +61,22 @@ int PikaConf::Load() {
   if (root_connection_num_ < 0) {
     root_connection_num_ = 2;
   }
-
+  GetConfInt("bigkeys_show_limit", &bigkeys_show_limit_);
+  if (bigkeys_show_limit_ <= 0) {
+    bigkeys_show_limit_ = 10;
+  }
+  GetConfInt("bigkeys_key_value_length_threshold", &bigkeys_key_value_length_threshold_);
+  if (bigkeys_key_value_length_threshold_ <= 0) {
+    bigkeys_key_value_length_threshold_ = 1048576;
+  }
+  GetConfInt("bigkeys_member_threshold", &bigkeys_member_threshold_);
+  if (bigkeys_member_threshold_ <= 0) {
+    bigkeys_member_threshold_ = 10000;
+  }
+  GetConfInt("bigkeys_log_interval", &bigkeys_log_interval_);
+  if (bigkeys_log_interval_ < 0) {
+    bigkeys_log_interval_ = 1;
+  }
   std::string swe;
   GetConfStr("slowlog-write-errorlog", &swe);
   slowlog_write_errorlog_.store(swe == "yes" ? true : false);
@@ -805,6 +820,11 @@ int PikaConf::ConfigRewrite() {
   SetConfInt64("thread-migrate-keys-num", thread_migrate_keys_num_);
   // slaveof config item is special
   SetConfStr("slaveof", slaveof_);
+  //big keys
+  SetConfInt("bigkeys_show_limit", bigkeys_show_limit_);
+  SetConfInt("bigkeys_key_value_length_threshold", bigkeys_key_value_length_threshold_);
+  SetConfInt("bigkeys_member_threshold", bigkeys_member_threshold_);
+  SetConfInt("bigkeys_log_interval", bigkeys_log_interval_);
   // cache config
   SetConfStr("cache-index-and-filter-blocks", cache_index_and_filter_blocks_ ? "yes" : "no");
   SetConfInt("cache-model", cache_mode_);

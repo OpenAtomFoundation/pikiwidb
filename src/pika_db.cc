@@ -194,6 +194,13 @@ void DB::SetCompactRangeOptions(const bool is_canceled) {
   storage_->SetCompactRangeOptions(is_canceled);
 }
 
+void DB::UpdateStorageBigKeysConfig(uint32_t log_interval, uint64_t member_threshold, uint64_t key_value_length_threshold, size_t show_limit) {
+  if (!opened_) {
+    return;
+  }
+  storage_->UpdateBigKeysConfig(log_interval, member_threshold, key_value_length_threshold, show_limit);
+}
+
 DisplayCacheInfo DB::GetCacheInfo() {
   std::lock_guard l(cache_info_rwlock_);
   return cache_info_;

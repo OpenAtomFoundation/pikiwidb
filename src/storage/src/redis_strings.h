@@ -17,7 +17,6 @@ class RedisStrings : public Redis {
  public:
   RedisStrings(Storage* s, const DataType& type);
   ~RedisStrings() override = default;
-
   // Common Commands
   Status Open(const StorageOptions& storage_options, const std::string& db_path) override;
   Status CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,

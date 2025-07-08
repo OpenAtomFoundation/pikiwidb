@@ -64,7 +64,8 @@ Status RedisHashes::Open(const StorageOptions& storage_options, const std::strin
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  return s;
 }
 
 Status RedisHashes::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
@@ -421,6 +422,15 @@ Status RedisHashes::HIncrby(const Slice& key, const Slice& field, int64_t value,
   }
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  if (s.ok()) {
+    int32_t current_count = 1;
+    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+    if (s.ok()) {
+      ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+      current_count = parsed_hashes_meta_value.count();
+    }
+    CheckAndRecordBigKeys(key.ToString(), kHashes, current_count, key.ToString().size(), 0);
+  }
   return s;
 }
 
@@ -495,6 +505,15 @@ Status RedisHashes::HIncrbyfloat(const Slice& key, const Slice& field, const Sli
   }
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  if (s.ok()) {
+    int32_t current_count = 1;
+    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+    if (s.ok()) {
+      ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+      current_count = parsed_hashes_meta_value.count();
+    }
+    CheckAndRecordBigKeys(key.ToString(), kHashes, current_count, key.ToString().size(), 0);
+  }
   return s;
 }
 
@@ -659,6 +678,15 @@ Status RedisHashes::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) 
   }
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  if (s.ok()) {
+    int32_t current_count = 1;
+    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+    if (s.ok()) {
+      ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+      current_count = parsed_hashes_meta_value.count();
+    }
+    CheckAndRecordBigKeys(key.ToString(), kHashes, current_count, key.ToString().size(), 0);
+  }
   return s;
 }
 
@@ -718,6 +746,8 @@ Status RedisHashes::HSet(const Slice& key, const Slice& field, const Slice& valu
   }
   s = db_->Write(default_write_options_, &batch);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
+  int32_t count = *res;
+  CheckAndRecordBigKeys(key.ToString(), kHashes, count, key.ToString().size(), 0);
   return s;
 }
 
@@ -768,7 +798,19 @@ Status RedisHashes::HSetnx(const Slice& key, const Slice& field, const Slice& va
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  s = db_->Write(default_write_options_, &batch);
+  if (s.ok()) {
+    int32_t current_count = 1;
+    if (*ret == 0) {
+      s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
+      if (s.ok()) {
+        ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
+        current_count = parsed_hashes_meta_value.count();
+      }
+    }
+    CheckAndRecordBigKeys(key.ToString(), kHashes, current_count, field.size(), 0);
+  }
+  return s;
 }
 
 Status RedisHashes::HVals(const Slice& key, std::vector<std::string>* values) {
@@ -1195,6 +1237,7 @@ Status RedisHashes::Del(const Slice& key) {
       parsed_hashes_meta_value.InitialMetaValue();
       s = db_->Put(default_write_options_, handles_[0], key, meta_value);
       UpdateSpecificKeyStatistics(key.ToString(), statistic);
+      CheckAndRecordBigKeys(key.ToString(), kHashes, 0, 0, 0, true);
     }
   }
   return s;

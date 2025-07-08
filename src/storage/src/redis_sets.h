@@ -9,7 +9,7 @@
 #include <string>
 #include <unordered_set>
 #include <vector>
-
+#include "src/redis.h"
 #include "src/custom_comparator.h"
 #include "src/lru_cache.h"
 #include "src/redis.h"

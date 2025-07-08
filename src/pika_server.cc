@@ -506,6 +506,20 @@ void PikaServer::DBSetSmallCompactionDurationThreshold(uint32_t small_compaction
   }
 }
 
+void PikaServer::UpdateDBBigKeysConfig() {
+  std::shared_lock l(dbs_rw_);
+  for (const auto& db_item : dbs_) {
+    db_item.second->DBLockShared();
+    db_item.second->UpdateStorageBigKeysConfig(
+      g_pika_conf->bigkeys_log_interval(),
+      g_pika_conf->bigkeys_member_threshold(),
+      g_pika_conf->bigkeys_key_value_length_threshold(),
+      g_pika_conf->bigkeys_show_limit()
+    );
+    db_item.second->DBUnlockShared();
+  }
+}
+
 bool PikaServer::GetDBBinlogOffset(const std::string& db_name, BinlogOffset* const boffset) {
   std::shared_ptr<SyncMasterDB> db = g_pika_rm->GetSyncMasterDBByName(DBInfo(db_name));
   if (!db) {
@@ -1143,6 +1157,8 @@ void PikaServer::DoTimingTask() {
   UpdateCacheInfo();
   // Print the queue status periodically
   PrintThreadPoolQueueStatus();
+  LogBigKeysInfo();
+  CleanExpiredBigKeys();
   StatDiskUsage();
 }
 
@@ -1901,3 +1917,127 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
   cache_cfg.lfu_decay_time = g_pika_conf->cache_lfu_decay_time();
 }
 void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }
+
+void PikaServer::LogBigKeysInfo() {
+  uint32_t interval_minutes = g_pika_conf->bigkeys_log_interval();
+  if (interval_minutes == 0) {
+    return;
+  }
+  
+  thread_local uint64_t last_output_time = 0;
+  uint64_t current_time = pstd::NowMicros();
+
+  uint64_t interval_us = static_cast<uint64_t>(interval_minutes) * 60 * 1000000;
+  
+  if (current_time - last_output_time < interval_us) {
+    return;
+  }
+  
+  last_output_time = current_time;
+  
+  std::shared_lock l(dbs_rw_);
+  for (const auto& db_item : dbs_) {
+    if (!db_item.second) {
+      continue;
+    }
+    
+    std::vector<storage::BigKeyInfo> bigkeys;
+    db_item.second->DBLockShared();
+    
+    db_item.second->storage()->GetBigKeyStatistics(&bigkeys);
+    
+    if (!bigkeys.empty()) {
+      std::map<storage::DataType, std::vector<const storage::BigKeyInfo*>> type_map;
+      for (const auto& bk : bigkeys) {
+        type_map[bk.type].push_back(&bk);
+      }
+      for (auto& [type, vec] : type_map) {
+        std::vector<const storage::BigKeyInfo*> sorted_vec = vec;
+        size_t bigkeys_limit = g_pika_conf->bigkeys_show_limit();
+        if (type == storage::DataType::kStrings) {
+          std::stable_sort(sorted_vec.begin(), sorted_vec.end(), 
+            [](const storage::BigKeyInfo* a, const storage::BigKeyInfo* b) -> bool {
+              if (a->value_length != b->value_length) {
+                return a->value_length > b->value_length;
+              }
+              return a->key_length > b->key_length;
+            });
+        } else {
+          std::stable_sort(sorted_vec.begin(), sorted_vec.end(), 
+            [](const storage::BigKeyInfo* a, const storage::BigKeyInfo* b) -> bool {
+              if (a->member_size != b->member_size) {
+                return a->member_size > b->member_size;
+              }
+              return a->key_length > b->key_length;
+            });
+        }
+        size_t show_num = std::min(sorted_vec.size(), bigkeys_limit);
+        LOG(WARNING) << "[BigKey]  Found " << sorted_vec.size() << " big keys, showing top " << show_num;
+        for (size_t i = 0; i < show_num; ++i) {
+          const auto& bk = *sorted_vec[i];
+          if (bk.type == storage::DataType::kStrings) {
+            LOG(WARNING) << "[BigKey] Type: string, key: " << bk.key
+                        << ", key_length: " << bk.key_length
+                        << ", value_length: " << bk.value_length;
+          } else {
+            std::string type_name;
+            switch (bk.type) {
+              case storage::DataType::kHashes: type_name = "hash"; break;
+              case storage::DataType::kLists: type_name = "list"; break;
+              case storage::DataType::kZSets: type_name = "zset"; break;
+              case storage::DataType::kSets: type_name = "set"; break;
+              case storage::DataType::kStreams: type_name = "stream"; break;
+              default: type_name = "unknown"; break;
+            }
+            LOG(WARNING) << "[BigKey] Type: " << type_name << ", key: " << bk.key
+                        << ", key_length: " << bk.key_length
+                        << ", member_size: " << bk.member_size;
+          }
+        }
+      }
+    }
+    
+    db_item.second->DBUnlockShared();
+  }
+}
+
+void PikaServer::CleanExpiredBigKeys() {
+  thread_local uint64_t last_check_time = 0;
+  uint64_t now = pstd::NowMicros();
+  uint64_t interval_us = static_cast<uint64_t>(g_pika_conf->bigkeys_log_interval()) * 60 * 1000000;
+  if (now - last_check_time < interval_us) {
+    return;
+  }
+  last_check_time = now;
+  
+  std::shared_lock l(dbs_rw_);
+  for (const auto& db_item : dbs_) {
+    if (!db_item.second) continue;
+    
+    std::vector<storage::BigKeyInfo> bigkeys;
+    db_item.second->DBLockShared();
+    
+    db_item.second->storage()->GetBigKeyStatistics(&bigkeys);
+    
+    for (const auto& bk : bigkeys) {
+      std::map<storage::DataType, int64_t> ttls;
+      std::map<storage::DataType, storage::Status> type_status;
+      
+      ttls = db_item.second->storage()->TTL(storage::Slice(bk.key), &type_status);
+      
+      bool all_expired = true;
+      for (const auto& ts : type_status) {
+        if (!ts.second.IsNotFound() && (ttls[ts.first] > 0 || ttls[ts.first] == -1)) {
+          all_expired = false;
+          break;
+        }
+      }
+      
+      if (all_expired) {
+        db_item.second->storage()->CheckAndRecordBigKeys(bk.key, bk.type, 0, 0, 0, true);
+      }
+    }
+    
+    db_item.second->DBUnlockShared();
+  }
+}

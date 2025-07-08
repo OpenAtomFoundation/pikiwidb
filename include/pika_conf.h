@@ -160,6 +160,23 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return binlog_writer_num_;
   }
+  //big keys
+  int bigkeys_show_limit() {
+    std::shared_lock l(rwlock_);
+    return bigkeys_show_limit_;
+  }
+  int bigkeys_member_threshold() {
+    std::shared_lock l(rwlock_);
+    return bigkeys_member_threshold_;
+  }
+  int bigkeys_key_value_length_threshold() {
+    std::shared_lock l(rwlock_);
+    return bigkeys_key_value_length_threshold_;
+  }
+  int bigkeys_log_interval() {
+    std::shared_lock l(rwlock_);
+    return bigkeys_log_interval_;
+  }
   bool slotmigrate() {
     std::shared_lock l(rwlock_);
     return slotmigrate_;
@@ -729,7 +746,23 @@ class PikaConf : public pstd::BaseConf {
       log_net_activities_.store(false);
     }
   }
-
+  //big keys
+  void SetBigkeysShowLimit(const int value) {
+    std::lock_guard l(rwlock_);
+    bigkeys_show_limit_ = value;
+  }
+  void SetBigkeysKeyValueLengthThreshold(const int value) {
+    std::lock_guard l(rwlock_);
+    bigkeys_key_value_length_threshold_ = value;
+  }
+  void SetBigkeysMemberCountThreshold(const int value) {
+    std::lock_guard l(rwlock_);
+    bigkeys_member_threshold_ = value;
+  }
+  void SetBigkeysLogInterval(const int value) {
+    std::lock_guard l(rwlock_);
+    bigkeys_log_interval_ = value;
+  }
   // Rsync Rate limiting configuration
   void SetThrottleBytesPerSecond(const int value) {
     std::lock_guard l(rwlock_);
@@ -895,6 +928,11 @@ class PikaConf : public pstd::BaseConf {
   int thread_pool_size_ = 0;
   int slow_cmd_thread_pool_size_ = 0;
   int admin_thread_pool_size_ = 0;
+  //big keys
+  int bigkeys_show_limit_ = 10;
+  int bigkeys_member_threshold_ = 10000;
+  int bigkeys_key_value_length_threshold_ = 1048576;
+  int bigkeys_log_interval_ = 60;
   std::unordered_set<std::string> slow_cmd_set_;
   // Because the exporter of Pika_exporter implements Auth authentication
   // with the Exporter of Pika, and the Exporter authenticates the Auth when 

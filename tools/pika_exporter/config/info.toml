@@ -6,7 +6,7 @@ cpu = true
 replication = true
 keyspace = true
 cache = true
-
+bigkeys = true
 execcount = false
 commandstats = false
 rocksdb = false
