@@ -1541,6 +1541,9 @@ void InfoCmd::InfoCommandP99(std::string& info) {
         tmp_stream << "Command: " << command_name << "\r\n";
       }
 
+      if (total_count < 100) {
+        continue;
+      }
       double tp99_threshold = total_count * 0.99;
       double tp999_threshold = total_count * 0.999;
       double tp9999_threshold = total_count * 0.9999;

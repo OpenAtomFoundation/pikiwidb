@@ -12,7 +12,7 @@ var collectCommandP99Metrics = map[string]MetricConfig{
     "command_p99_info": {
         Parser: &regexParser{
             name: "command_p99_info",
-            reg: regexp.MustCompile(`Command:\s*(?P<cmd>\S+)\s*\r?\n(?:.*\r?\n)*?TP99 ms:\s*(?P<tp99>[\d.]+)\s*\r?\n.*?TP999 ms:\s*(?P<tp999>[\d.]+)\s*\r?\n.*?TP9999 ms:\s*(?P<tp9999>[\d.]+)`),
+            reg: regexp.MustCompile(`Command:\s*(?P<cmd>\S+)[\s\S]*?TP99 ms:\s*(?P<tp99>[\d.]+)[\s\S]*?TP999 ms:\s*(?P<tp999>[\d.]+)[\s\S]*?TP9999 ms:\s*(?P<tp9999>[\d.]+)`),
             Parser: &normalParser{},
         },
         MetricMeta: MetaDatas{

@@ -82,15 +82,12 @@ prometheus::Histogram& PikaCmdTableManager::GetHistogram(const std::string& opt)
     data_copy = data_; 
   }
 
-  {
-    std::shared_lock<std::shared_mutex> read_lock(histograms_mutex_);
-    auto it = data_copy->histograms.find(opt);
-    if (it != data_copy->histograms.end()) {
-      return *(it->second);
-    }
+  std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
+  auto it = data_copy->histograms.find(opt);
+  if (it != data_copy->histograms.end()) {
+    return *(it->second);
   }
 
-  std::unique_lock<std::shared_mutex> write_lock(histograms_mutex_);
   auto& new_histogram = data_copy->family->Add(
       {{"command", opt}},
       prometheus::Histogram::BucketBoundaries{0.5, 1, 2, 3, 5, 7, 10, 15, 20, 30, 40, 50, 65, 75, 85, 100, 125, 140, 150, 160, 175, 185, 200, 300, 400, 500, 750, 1000, 2000, 5000, 10000}
@@ -109,19 +106,7 @@ std::shared_ptr<HistogramData> PikaCmdTableManager::GetHistogramsData() {
 }
 
 void PikaCmdTableManager::UpdateSlowCommandCount(const std::string& opt) {
-  {
-    std::shared_lock<std::shared_mutex> read_lock(slow_command_mutex_);
-    if (slow_command_count_.find(opt) != slow_command_count_.end()) {
-      slow_command_count_[opt].cmd_count.fetch_add(1);
-      return;
-    }
-  }
-
-  {
-    std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_);
-    slow_command_count_[opt]; 
-  }
-
+  std::unique_lock<std::shared_mutex> write_lock(slow_command_mutex_);
   slow_command_count_[opt].cmd_count.fetch_add(1);
 }
 
