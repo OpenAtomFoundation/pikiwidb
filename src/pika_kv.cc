@@ -888,16 +888,16 @@ std::string SetexCmd::ToRedisProtocol() {
   content.reserve(RAW_ARGS_LEN);
   RedisAppendLen(content, 4, "*");
 
-  // to pksetexat cmd
-  std::string pksetexat_cmd("pksetexat");
-  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
-  RedisAppendContent(content, pksetexat_cmd);
+  // to setex cmd
+  std::string setex_cmd("setex");
+  RedisAppendLenUint64(content, setex_cmd.size(), "$");
+  RedisAppendContent(content, setex_cmd);
   // key
   RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
   char buf[100];
-  auto time_stamp = time(nullptr) + ttl_sec_;
+  auto time_stamp = ttl_sec_;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
@@ -947,16 +947,16 @@ std::string PsetexCmd::ToRedisProtocol() {
   content.reserve(RAW_ARGS_LEN);
   RedisAppendLen(content, 4, "*");
 
-  // to pksetexat cmd
-  std::string pksetexat_cmd("pksetexat");
-  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
-  RedisAppendContent(content, pksetexat_cmd);
+  // to psetex cmd
+  std::string psetex_cmd("psetex");
+  RedisAppendLenUint64(content, psetex_cmd.size(), "$");
+  RedisAppendContent(content, psetex_cmd);
   // key
   RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
   char buf[100];
-  auto time_stamp = pstd::NowMillis() + ttl_millsec;
+  auto time_stamp = ttl_millsec;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
