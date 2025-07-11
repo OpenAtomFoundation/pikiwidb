@@ -72,10 +72,15 @@ void SPopCmd::Do() {
   STAGE_TIMER_GUARD(storage_duration_ms, true);
    s_ = db_->storage()->SPop(key_, &members_, count_);
   if (s_.ok()) {
-    res_.AppendArrayLenUint64(members_.size());
-    for (const auto& member : members_) {
-      res_.AppendStringLenUint64(member.size());
-      res_.AppendContent(member);
+    if (argv_.size() == 2) {
+      res_.AppendStringLen(members_[0].size());
+      res_.AppendContent(members_[0]);
+    } else {
+      res_.AppendArrayLenUint64(members_.size());
+      for (const auto& member : members_) {
+        res_.AppendStringLenUint64(member.size());
+        res_.AppendContent(member);
+      }
     }
   } else if (s_.IsNotFound()) {
     res_.AppendContent("$-1");
