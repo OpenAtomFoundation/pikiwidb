@@ -46,6 +46,7 @@ PikaServer::PikaServer()
     : exit_(false),
       slow_cmd_thread_pool_flag_(g_pika_conf->slow_cmd_pool()),
       last_check_compact_time_({0, 0}),
+      last_strategy_compact_time_({0, 0}),
       last_check_resume_time_({0, 0}),
       repl_state_(PIKA_REPL_NO_CONNECT),
       role_(PIKA_ROLE_SINGLE) {
@@ -1230,10 +1231,20 @@ void PikaServer::AutoCompactRange() {
     }
   }
 
-  if (g_pika_conf->compaction_strategy() == PikaConf::FullCompact) {
-    DoSameThingEveryDB(TaskType::kCompactAll);
-  } else if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
-    DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
+
+  struct timeval strategy_now;
+  gettimeofday(&strategy_now, nullptr);
+  // 处理基于策略的压缩，增加时间间隔控制，间隔时间（2小时 = 7200秒）
+  if (last_strategy_compact_time_.tv_sec == 0 || 
+    strategy_now.tv_sec - last_strategy_compact_time_.tv_sec >= 7200) {
+
+    // 更新上次策略压缩时间
+    gettimeofday(&last_strategy_compact_time_, nullptr);
+    
+    if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
+      LOG(INFO) << "[Strategy]schedule OldestOrBestDeleteRatioSst, interval: 2 hours";
+      DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
+    }
   }
 }
 

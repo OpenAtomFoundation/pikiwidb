@@ -550,6 +550,7 @@ class PikaServer : public pstd::noncopyable {
    */
   bool have_scheduled_crontask_ = false;
   struct timeval last_check_compact_time_;
+  struct timeval last_strategy_compact_time_;
 
   /*
    * ResumeDB used
