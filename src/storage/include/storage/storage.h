@@ -81,6 +81,7 @@ struct StorageOptions {
     int force_compact_min_delete_ratio_;
     int dont_compact_sst_created_in_seconds_;
     int best_delete_min_ratio_;
+    int obd_compact_interval_;
   };
   CompactParam compact_param_;
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);

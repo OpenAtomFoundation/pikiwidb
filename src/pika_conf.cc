@@ -334,6 +334,11 @@ int PikaConf::Load() {
   if (best_delete_min_ratio_ < 10) {
     best_delete_min_ratio_ = 10;
   }
+  
+  GetConfInt("obd-compact-interval", &obd_compact_interval_);
+  if (obd_compact_interval_ < 600) {
+    obd_compact_interval_ = 600;
+  }
 
   std::string cs_;
   GetConfStr("compaction-strategy", &cs_);
@@ -882,7 +887,10 @@ int PikaConf::ConfigRewrite() {
   if (best_delete_min_ratio_ < 10) {
     best_delete_min_ratio_ = 10;
   }
-
+  SetConfInt("obd-compact-interval", obd_compact_interval_);
+  if (obd_compact_interval_ < 600) {
+    obd_compact_interval_ = 600;
+  }
   std::string cs_;
   SetConfStr("compaction-strategy", cs_);
   if (cs_ == "full-compact") {

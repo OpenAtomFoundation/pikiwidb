@@ -2308,6 +2308,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->db_statistics_level());
   }
 
+  if (pstd::stringmatch(pattern.data(), "obd-compact-interval", 1)) {
+    elements += 2;
+    EncodeString(&config_body, "obd-compact-interval");
+    EncodeNumber(&config_body, g_pika_conf->obd_compact_interval());
+  }
+
   std::stringstream resp;
   resp << "*" << std::to_string(elements) << "\r\n" << config_body;
   ret = resp.str();
@@ -2370,6 +2376,7 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "zset-cache-field-num-per-key",
         "cache-lfu-decay-time",
         "max-conn-rbuf-size",
+        "obd-compact-interval",
     });
     res_.AppendStringVector(replyVt);
     return;
@@ -3092,6 +3099,13 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetMaxConnRbufSize(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "obd-compact-interval") {
+      if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival < 0) {
+        res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'obd-compact-interval'\r\n");
+        return;
+      }
+      g_pika_conf->SetObdCompactInterval(ival);
+      res_.AppendStringRaw("+OK\r\n");
   } else {
     res_.AppendStringRaw("-ERR Unsupported CONFIG parameter: " + set_item + "\r\n");
   }

@@ -1234,15 +1234,17 @@ void PikaServer::AutoCompactRange() {
 
   struct timeval strategy_now;
   gettimeofday(&strategy_now, nullptr);
-  // 处理基于策略的压缩，增加时间间隔控制，间隔时间（2小时 = 7200秒）
-  if (last_strategy_compact_time_.tv_sec == 0 || 
-    strategy_now.tv_sec - last_strategy_compact_time_.tv_sec >= 7200) {
+  if (last_strategy_compact_time_.tv_sec == 0){
+    gettimeofday(&last_strategy_compact_time_, nullptr);
+  }
+  if (last_strategy_compact_time_.tv_sec > 0 &&
+    strategy_now.tv_sec - last_strategy_compact_time_.tv_sec >= g_pika_conf->obd_compact_interval()) {
 
     // 更新上次策略压缩时间
     gettimeofday(&last_strategy_compact_time_, nullptr);
     
     if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
-      LOG(INFO) << "[Strategy]schedule OldestOrBestDeleteRatioSst, interval: 2 hours";
+        LOG(INFO) << "[Compaction]schedule OldestOrBestDeleteRatioSstCompact, interval: " << g_pika_conf->obd_compact_interval()  << " seconds";
       DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
     }
   }
@@ -1511,6 +1513,7 @@ void PikaServer::InitStorageOptions() {
 
  // For Storage compaction
   storage_options_.compact_param_.best_delete_min_ratio_ = g_pika_conf->best_delete_min_ratio();
+  storage_options_.compact_param_.obd_compact_interval_ = g_pika_conf->obd_compact_interval();
   storage_options_.compact_param_.dont_compact_sst_created_in_seconds_ = g_pika_conf->dont_compact_sst_created_in_seconds();
   storage_options_.compact_param_.force_compact_file_age_seconds_ = g_pika_conf->force_compact_file_age_seconds();
   storage_options_.compact_param_.force_compact_min_delete_ratio_ = g_pika_conf->force_compact_min_delete_ratio();

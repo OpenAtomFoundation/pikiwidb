@@ -143,6 +143,10 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return best_delete_min_ratio_;
   }
+  int obd_compact_interval () {
+    std::shared_lock l(rwlock_);
+    return obd_compact_interval_;
+  }
   CompactionStrategy compaction_strategy() {
     std::shared_lock l(rwlock_);
     return compaction_strategy_;
@@ -984,6 +988,11 @@ class PikaConf : public pstd::BaseConf {
     ConfigRewrite();
   }
 
+  void SetObdCompactInterval(const int value) {
+    std::unique_lock l(rwlock_);
+    obd_compact_interval_ = value < 600 ? 600 : value;
+  }
+
   size_t GetUnfinishedFullSyncCount() {
     std::shared_lock l(rwlock_);
     return internal_used_unfinished_full_sync_.size();
@@ -1038,6 +1047,7 @@ class PikaConf : public pstd::BaseConf {
   int force_compact_min_delete_ratio_;
   int dont_compact_sst_created_in_seconds_;
   int best_delete_min_ratio_;
+  int obd_compact_interval_;
   CompactionStrategy compaction_strategy_;
 
   int64_t resume_check_interval_ = 60; // seconds
