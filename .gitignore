@@ -62,7 +62,7 @@ src/build_version.cc
 
 
 #build
-build*/
+build/
 buildtrees
 deps
 pkg

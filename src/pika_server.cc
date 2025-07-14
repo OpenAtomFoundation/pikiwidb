@@ -1239,10 +1239,7 @@ void PikaServer::AutoCompactRange() {
   }
   if (last_strategy_compact_time_.tv_sec > 0 &&
     strategy_now.tv_sec - last_strategy_compact_time_.tv_sec >= g_pika_conf->obd_compact_interval()) {
-
-    // 更新上次策略压缩时间
     gettimeofday(&last_strategy_compact_time_, nullptr);
-    
     if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
         LOG(INFO) << "[Compaction]schedule OldestOrBestDeleteRatioSstCompact, interval: " << g_pika_conf->obd_compact_interval()  << " seconds";
       DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
