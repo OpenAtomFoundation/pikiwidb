@@ -23,6 +23,8 @@
 #include "storage/storage.h"
 #include <condition_variable>
 #include <atomic>
+#include <mutex>
+#include <shared_mutex>
 namespace storage {
 using Status = rocksdb::Status;
 using Slice = rocksdb::Slice;
@@ -131,7 +133,7 @@ class Redis {
   rocksdb::ReadOptions default_read_options_;
   rocksdb::CompactRangeOptions default_compact_range_options_;
   // big keys
-  std::mutex big_keys_mutex_;
+  std::shared_mutex big_keys_mutex_;
   std::unordered_map<std::string, BigKeyInfo> big_keys_info_map_;
 
   // For Scan

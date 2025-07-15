@@ -26,19 +26,15 @@ Redis::Redis(Storage* const s, const DataType& type)
 }
 
 Redis::~Redis() {
-  for (auto handle : handles_) {
-    if (handle != nullptr) {
-      delete handle;
-    }
-  }
+  std::vector<rocksdb::ColumnFamilyHandle*> tmp_handles = handles_;
   handles_.clear();
-  if (db_ != nullptr) {
-    delete db_;
-    db_ = nullptr;
+  for (auto handle : tmp_handles) {
+    delete handle;
   }
+  delete db_;
+
   if (default_compact_range_options_.canceled) {
     delete default_compact_range_options_.canceled;
-    default_compact_range_options_.canceled = nullptr;
   }
 }
 
@@ -213,7 +209,7 @@ void Redis::GetBigKeyStatistics(std::vector<BigKeyInfo>* bigkeys) {
     return;
   }
   
-  std::lock_guard<std::mutex> lock(big_keys_mutex_);
+  std::shared_lock<std::shared_mutex> lock(big_keys_mutex_);
   for (const auto& kv : big_keys_info_map_) {
     BigKeyInfo info = kv.second;
     info.key = kv.first;
@@ -239,7 +235,7 @@ void Redis::CheckAndRecordBigKeys(
     LOG(WARNING) << "Storage is null in CheckAndRecordBigKeys";
     return;
   }
-  std::lock_guard<std::mutex> lock(big_keys_mutex_);
+  std::unique_lock<std::shared_mutex> lock(big_keys_mutex_);
   if (is_delete) {
     auto it = big_keys_info_map_.find(key);
     if (it != big_keys_info_map_.end()) {

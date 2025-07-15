@@ -64,8 +64,7 @@ Status RedisHashes::Open(const StorageOptions& storage_options, const std::strin
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
-  return s;
+  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
 
 Status RedisHashes::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
@@ -424,8 +423,8 @@ Status RedisHashes::HIncrby(const Slice& key, const Slice& field, int64_t value,
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   if (s.ok()) {
     int32_t current_count = 1;
-    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
-    if (s.ok()) {
+
+    if (meta_value.size() > 0) {
       ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
       current_count = parsed_hashes_meta_value.count();
     }
@@ -507,8 +506,7 @@ Status RedisHashes::HIncrbyfloat(const Slice& key, const Slice& field, const Sli
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   if (s.ok()) {
     int32_t current_count = 1;
-    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
-    if (s.ok()) {
+    if (meta_value.size() > 0) {
       ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
       current_count = parsed_hashes_meta_value.count();
     }
@@ -680,8 +678,7 @@ Status RedisHashes::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) 
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   if (s.ok()) {
     int32_t current_count = 1;
-    s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
-    if (s.ok()) {
+    if (meta_value.size() > 0) {
       ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
       current_count = parsed_hashes_meta_value.count();
     }
@@ -802,8 +799,7 @@ Status RedisHashes::HSetnx(const Slice& key, const Slice& field, const Slice& va
   if (s.ok()) {
     int32_t current_count = 1;
     if (*ret == 0) {
-      s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
-      if (s.ok()) {
+      if (meta_value.size() > 0) {
         ParsedHashesMetaValue parsed_hashes_meta_value(&meta_value);
         current_count = parsed_hashes_meta_value.count();
       }
