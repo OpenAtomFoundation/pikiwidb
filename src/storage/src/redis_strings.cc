@@ -1671,7 +1671,14 @@ rocksdb::Status Redis::GetType(const storage::Slice& key, enum DataType& type) {
   BaseMetaKey base_meta_key(key);
   rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
-    type = static_cast<enum DataType>(static_cast<uint8_t>(meta_value[0]));
+    // 检查键是否已过期
+    if (ExpectedStale(meta_value)) {
+      type = DataType::kNones;  // 如果键已过期，返回"none"类型
+    } else {
+      type = static_cast<enum DataType>(static_cast<uint8_t>(meta_value[0]));
+    }
+  } else {
+    type = DataType::kNones;  // 如果键不存在，返回"none"类型
   }
   return Status::OK();
 }
