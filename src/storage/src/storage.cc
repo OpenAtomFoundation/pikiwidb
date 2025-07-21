@@ -1514,16 +1514,6 @@ Status Storage::GetType(const std::string& key, enum DataType& type) {
   return Status::OK();
 }
 
-Status Storage::Type(const std::string& key, std::vector<std::string>& types) {
-  types.clear();
-  DataType type;
-  Status s = GetType(key, type);
-  if (s.ok()) {
-    types.push_back(DataTypeToString(type));
-  }
-  return s;
-}
-
 Status Storage::Keys(const DataType& data_type, const std::string& pattern, std::vector<std::string>* keys) {
   keys->clear();
   std::vector<DataType> types;
