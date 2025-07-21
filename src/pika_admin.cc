@@ -45,11 +45,11 @@ static std::string ConstructPinginPubSubResp(const PikaCmdArgsType& argv) {
 }
 
 static double MethodofCommandStatistics(const uint64_t time_consuming, const uint64_t frequency) {
-  return (static_cast<double>(time_consuming) / 1000.0) / static_cast<double>(frequency);
+  return static_cast<double>(time_consuming) / static_cast<double>(frequency);
 }
 
 static double MethodofTotalTimeCalculation(const uint64_t time_consuming) {
-  return static_cast<double>(time_consuming) / 1000.0;
+  return static_cast<double>(time_consuming);
 }
 
 enum AuthResult {
