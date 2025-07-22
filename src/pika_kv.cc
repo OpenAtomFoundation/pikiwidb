@@ -897,7 +897,7 @@ std::string SetexCmd::ToRedisProtocol() {
   RedisAppendContent(content, key_);
   // time_stamp
   char buf[100];
-  auto time_stamp = time(nullptr) + ttl_sec_;
+  int64_t time_stamp  = static_cast<int64_t>(::time(nullptr)) + ttl_sec_;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
@@ -955,8 +955,9 @@ std::string PsetexCmd::ToRedisProtocol() {
   RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
+  int64_t expire_at_ms = pstd::NowMillis() + ttl_millsec;
+  int64_t time_stamp = expire_at_ms / 1000;
   char buf[100];
-  auto time_stamp = pstd::NowMillis() + ttl_millsec;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
@@ -1805,7 +1806,9 @@ void PKSetexAtCmd::DoInitial() {
 }
 
 void PKSetexAtCmd::Do() {
-  s_ = db_->storage()->PKSetexAt(key_, value_, static_cast<int32_t>(time_stamp_sec_ * 1000));
+  // Use int64_t to avoid overflow
+  int64_t time_stamp_ms = static_cast<int64_t>(time_stamp_sec_) * 1000;
+  s_ = db_->storage()->PKSetexAt(key_, value_, time_stamp_ms);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
   } else if (s_.IsInvalidArgument()) {
