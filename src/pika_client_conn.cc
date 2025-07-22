@@ -306,7 +306,13 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
     pstd::StringToLower(opt);
     bool is_slow_cmd = g_pika_conf->is_slow_cmd(opt);
     bool is_admin_cmd = g_pika_conf->is_admin_cmd(opt);
-
+    
+    // Special handling for auth command in pipeline
+    if (is_admin_cmd && opt == kCmdNameAuth && argvs.size() > 1) {
+      // This is a pipeline with auth as first command
+      // Force it to use client processor pool
+      is_admin_cmd = false;
+    }
     // we don't intercept pipeline batch (argvs.size() > 1)
     if (g_pika_conf->rtc_cache_read_enabled() && argvs.size() == 1 && IsInterceptedByRTC(opt) &&
         PIKA_CACHE_NONE != g_pika_conf->cache_mode() && !IsInTxn()) {
