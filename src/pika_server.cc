@@ -509,14 +509,14 @@ void PikaServer::DBSetSmallCompactionDurationThreshold(uint32_t small_compaction
 void PikaServer::UpdateDBBigKeysConfig() {
   std::shared_lock l(dbs_rw_);
   for (const auto& db_item : dbs_) {
-    db_item.second->DBLockShared();
+    db_item.second->DBLock();
     db_item.second->UpdateStorageBigKeysConfig(
       g_pika_conf->bigkeys_log_interval(),
       g_pika_conf->bigkeys_member_threshold(),
       g_pika_conf->bigkeys_key_value_length_threshold(),
       g_pika_conf->bigkeys_show_limit()
     );
-    db_item.second->DBUnlockShared();
+    db_item.second->DBUnlock();
   }
 }
 
@@ -1919,7 +1919,7 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
 void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }
 
 void PikaServer::LogBigKeysInfo() {
-  uint32_t interval_minutes = g_pika_conf->bigkeys_log_interval();
+  uint64_t interval_minutes = g_pika_conf->bigkeys_log_interval();
   if (interval_minutes == 0) {
     return;
   }
@@ -1927,7 +1927,7 @@ void PikaServer::LogBigKeysInfo() {
   thread_local uint64_t last_output_time = 0;
   uint64_t current_time = pstd::NowMicros();
 
-  uint64_t interval_us = static_cast<uint64_t>(interval_minutes) * 60 * 1000000;
+  uint64_t interval_us = interval_minutes * 60 * 1000000;
   
   if (current_time - last_output_time < interval_us) {
     return;

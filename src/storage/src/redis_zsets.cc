@@ -83,10 +83,8 @@ Status RedisZSets::Open(const StorageOptions& storage_options, const std::string
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   column_families.emplace_back("data_cf", data_cf_ops);
   column_families.emplace_back("score_cf", score_cf_ops);
-  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
-  return s;
+  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
-
 
 Status RedisZSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
   if (type == kMeta || type == kMetaAndData) {

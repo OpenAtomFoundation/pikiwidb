@@ -25,8 +25,7 @@ namespace storage {
 RedisSets::RedisSets(Storage* const s, const DataType& type) : Redis(s, type) {
 }
 
-RedisSets::~RedisSets() {
-}
+RedisSets::~RedisSets() = default;
 
 rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std::string& db_path) {
   statistics_store_->SetCapacity(storage_options.statistics_max_size);
@@ -71,8 +70,7 @@ rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Member CF
   column_families.emplace_back("member_cf", member_cf_ops);
-  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
-  return s;
+  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
 
 rocksdb::Status RedisSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {

@@ -36,8 +36,7 @@ Status RedisStrings::Open(const StorageOptions& storage_options, const std::stri
   }
   table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
   ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_ops));
-  Status s = rocksdb::DB::Open(ops, db_path, &db_);
-  return s;
+  return rocksdb::DB::Open(ops, db_path, &db_);
 }
 
 Status RedisStrings::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,

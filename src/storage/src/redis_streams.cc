@@ -367,11 +367,7 @@ Status RedisStreams::Open(const StorageOptions& storage_options, const std::stri
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
-  if (!s.ok()) {
-    return s;
-  }
-  return s;
+  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
 Status RedisStreams::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,
                                   const ColumnFamilyType& type) {
