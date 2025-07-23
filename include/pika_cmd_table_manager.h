@@ -8,10 +8,16 @@
 
 #include <shared_mutex>
 #include <thread>
+#include <prometheus/exposer.h>
+#include <prometheus/registry.h>
+#include <prometheus/counter.h>
+#include <prometheus/histogram.h>
 
 #include "include/acl.h"
 #include "include/pika_command.h"
 #include "include/pika_data_distribution.h"
+
+using namespace prometheus;
 
 struct CommandStatistics {
   CommandStatistics() = default;
@@ -21,6 +27,23 @@ struct CommandStatistics {
   }
   std::atomic<uint64_t> cmd_count = 0;
   std::atomic<uint64_t> cmd_time_consuming = 0;
+};
+
+struct HistogramData {
+  std::shared_ptr<prometheus::Registry> registry;
+  prometheus::Family<prometheus::Histogram>* family;
+  std::unordered_map<std::string, prometheus::Histogram*> histograms;
+
+  HistogramData() {
+    registry = std::make_shared<prometheus::Registry>();
+    family = &prometheus::BuildHistogram()
+        .Name("pika_command_duration_seconds")
+        .Help("Execution time of Pika commands in seconds")
+        .Register(*registry);
+  }
+
+  HistogramData(const HistogramData&) = delete;
+  HistogramData& operator=(const HistogramData&) = delete;
 };
 
 class PikaCmdTableManager {
@@ -42,6 +65,11 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
+  std::unordered_map<std::string, CommandStatistics> GetSlowCommandCount();
+  void UpdateSlowCommandCount(const std::string& opt);
+  void ResetCommandCount();
+  prometheus::Histogram& GetHistogram(const std::string& opt);
+  std::shared_ptr<HistogramData> GetHistogramsData();
 
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
@@ -60,5 +88,10 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
+  std::unordered_map<std::string, CommandStatistics> slow_command_count_;
+  std::shared_mutex slow_command_mutex_;
+  std::shared_mutex histograms_mutex_;
+  std::mutex data_mutex_;
+  std::shared_ptr<HistogramData> data_; 
 };
 #endif
