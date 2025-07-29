@@ -28,23 +28,15 @@ func parseInfo(info string) (*semver.Version, map[string]string, error) {
 	return version, extracts, nil
 }
 
-func parseInfoBigkey(s string) string {
-	if strings.Contains(s, "# BigKeys statistics") {
-		startIdx := strings.Index(s, "# BigKeys statistics")
-		if startIdx != -1 {
-			return s[startIdx:]
-		}
-	}
-	return ""
-}
-
 func extractInfo(s string) (map[string]string, error) {
 	m := make(map[string]string)
-	bigkeysOutput := parseInfoBigkey(s)
-	if len(bigkeysOutput) > 0 {
-		m["bigkeys_output"] = bigkeysOutput
+
+	kvPart, bigKeysOutput := extractBigKeys(s)
+	if bigKeysOutput != "" {
+		m["bigkeys_output"] = bigKeysOutput
 	}
-	scanner := bufio.NewScanner(strings.NewReader(s))
+
+	scanner := bufio.NewScanner(strings.NewReader(kvPart))
 	for scanner.Scan() {
 		line := scanner.Text()
 
@@ -61,6 +53,15 @@ func extractInfo(s string) (map[string]string, error) {
 	}
 
 	return m, scanner.Err()
+}
+
+func extractBigKeys(s string) (kvPart, bigKeysOutput string) {
+	if startIdx := strings.Index(s, "# BigKeys statistics"); startIdx != -1 {
+		// Ensure we split at a line boundary
+		lineStartIdx := strings.LastIndex(s[:startIdx], "\n") + 1
+		return s[:lineStartIdx], s[lineStartIdx:]
+	}
+	return s, ""
 }
 
 func trimSpace(s string) string {

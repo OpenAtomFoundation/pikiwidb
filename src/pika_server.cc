@@ -507,7 +507,7 @@ void PikaServer::DBSetSmallCompactionDurationThreshold(uint32_t small_compaction
 }
 
 void PikaServer::UpdateDBBigKeysConfig() {
-  std::shared_lock l(dbs_rw_);
+  std::lock_guard l(dbs_rw_);
   for (const auto& db_item : dbs_) {
     db_item.second->DBLock();
     db_item.second->UpdateStorageBigKeysConfig(
@@ -2027,9 +2027,21 @@ void PikaServer::CleanExpiredBigKeys() {
       
       bool all_expired = true;
       for (const auto& ts : type_status) {
-        if (!ts.second.IsNotFound() && (ttls[ts.first] > 0 || ttls[ts.first] == -1)) {
-          all_expired = false;
-          break;
+        if (ts.second.ok()) {  // A key with this name and type exists.
+          auto ttl_it = ttls.find(ts.first);
+          if (ttl_it != ttls.end()) {
+            // We found a TTL for it. Check if it's persistent or has time left.
+            const int64_t ttl = ttl_it->second;
+            if (ttl > 0 || ttl == -1) {
+              all_expired = false;
+              break;
+            }
+          } else {
+            // This is unexpected. The key exists but TTL was not returned.
+            // To be safe, we assume it is persistent and do not clean it.
+            all_expired = false;
+            break;
+          }
         }
       }
       

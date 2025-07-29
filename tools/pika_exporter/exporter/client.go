@@ -84,18 +84,6 @@ func (c *client) GetInfo() (string, error) {
 		return info, nil
 	}
 
-	info, err := c.Info()
-	if err != nil {
-		return "", err
-	}
-	if InfoConf.BigKeys {
-		bigkeysInfo, err := c.InfoBigKeys()
-		if err != nil {
-			return "", err
-		}
-		info += "\n" + bigkeysInfo
-	}
-
 	if InfoConf.Info {
 		var rst []string
 
@@ -130,10 +118,6 @@ func (c *client) InfoAll() (string, error) {
 
 func (c *client) InfoCommand(command string) (string, error) {
 	return redis.String(c.conn.Do("INFO", command))
-}
-
-func (c *client) InfoBigKeys() (string, error) {
-	return redis.String(c.conn.Do("INFO", "BIGKEYS"))
 }
 
 func (c *client) InfoNoneCommandList() (string, error) {
