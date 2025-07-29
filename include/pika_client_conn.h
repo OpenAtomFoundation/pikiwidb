@@ -128,12 +128,13 @@ class PikaClientConn : public net::RedisConn {
   std::shared_ptr<User> user_;
 
   std::shared_ptr<Cmd> DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
-                             const std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc);
+                             const std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc,
+                             int pipeline_idx, int pipeline_total);
 
-  void ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr);
+  void ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr, int pipeline_idx, int pipeline_total);
   void ProcessMonitor(const PikaCmdArgsType& argv);
 
-  void ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc);
+  void ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc, int pipeline_idx, int pipeline_total);
   void TryWriteResp();
 };
 
