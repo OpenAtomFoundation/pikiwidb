@@ -213,6 +213,7 @@ void PikaServer::Start() {
   LOG(INFO) << "Pika Server going to start";
   rsync_server_->Start();
   while (!exit_) {
+    //LOG(INFO) << "Pika Server start a new round of timing tasks";
     DoTimingTask();
     // wake up every 5 seconds
     if (!exit_ && exit_mutex_.try_lock_for(std::chrono::seconds(5))) {
@@ -790,13 +791,16 @@ void PikaServer::SetFirstMetaSync(bool v) {
 
 void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_cmd, bool is_admin_cmd) {
   if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
+    //LOG(INFO) << "Schedule task to slow cmd thread pool";
     pika_slow_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
   if (is_admin_cmd) {
+    //LOG(INFO) << "Schedule task to admin cmd thread pool";
     pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
+  //LOG(INFO) << "Schedule task to client processor thread pool";
   pika_client_processor_->SchedulePool(func, arg);
 }
 
@@ -1094,11 +1098,20 @@ std::unordered_map<std::string, uint64_t> PikaServer::ServerExecCountDB() {
 
 std::unordered_map<std::string, QpsStatistic> PikaServer::ServerAllDBStat() { return statistic_.AllDBStat(); }
 
-int PikaServer::SendToPeer() { return g_pika_rm->ConsumeWriteQueue(); }
+int PikaServer::SendToPeer() {
+  //LOG(INFO) << "Pika auxiliary thread SendToPeer";
+  return g_pika_rm->ConsumeWriteQueue();
+}
 
-void PikaServer::SignalAuxiliary() { pika_auxiliary_thread_->cv_.notify_one(); }
+void PikaServer::SignalAuxiliary() {
+  //LOG(INFO) << "Signal auxiliary thread to work";
+  pika_auxiliary_thread_->cv_.notify_one();
+}
 
-Status PikaServer::TriggerSendBinlogSync() { return g_pika_rm->WakeUpBinlogSync(); }
+Status PikaServer::TriggerSendBinlogSync() {
+  //LOG(INFO) << "Pika auxiliary thread TriggerSendBinlogSync";
+  return g_pika_rm->WakeUpBinlogSync();
+}
 
 int PikaServer::PubSubNumPat() { return pika_pubsub_thread_->PubSubNumPat(); }
 

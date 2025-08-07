@@ -21,6 +21,7 @@ PikaReplServerConn::PikaReplServerConn(int fd, const std::string& ip_port, net::
 PikaReplServerConn::~PikaReplServerConn() = default;
 
 void PikaReplServerConn::HandleMetaSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle MetaSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -100,6 +101,7 @@ void PikaReplServerConn::HandleMetaSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleTrySyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle TrySync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -275,6 +277,7 @@ bool PikaReplServerConn::TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>&
 }
 
 void PikaReplServerConn::HandleDBSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle DBSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -356,6 +359,7 @@ void PikaReplServerConn::HandleDBSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle BinlogSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -435,6 +439,7 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleRemoveSlaveNodeRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle RemoveSlaveNode Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;

@@ -5,12 +5,17 @@
 
 #include "include/pika_repl_bgworker.h"
 
+#include <utility>
+
+#include <arpa/inet.h>
+#include <netinet/in.h>
 #include <glog/logging.h>
 
 #include "include/pika_cmd_table_manager.h"
 #include "include/pika_conf.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "pstd/include/pstd_string.h"
 #include "pstd/include/pstd_defer.h"
 #include "src/pstd/include/scope_record_lock.h"
 #include "include/pika_conf.h"
@@ -53,6 +58,9 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
   PikaReplBgWorker* worker = task_arg->worker;
   worker->ip_port_ = conn->ip_port();
 
+  LOG(INFO) << "HandleBGWorkerWriteBinlog: Received binlog from master " << worker->ip_port_ 
+            << ", index size: " << index->size();
+
   DEFER { 
     delete index;
     delete task_arg;
@@ -94,8 +102,10 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
 
   if (only_keepalive) {
     ack_start = LogOffset();
+    ack_end = LogOffset();
   } else {
     ack_start = pb_begin;
+    ack_end = pb_end;
   }
 
   // because DispatchBinlogRes() have been order them.
@@ -115,6 +125,7 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     return;
   }
 
+  int processed_count = 0;
   for (int i : *index) {
     const InnerMessage::InnerResponse::BinlogSync& binlog_res = res->binlog_sync(i);
     // if pika are not current a slave or DB not in
@@ -136,6 +147,7 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     if(db->GetISConsistency()){
       const InnerMessage::BinlogOffset& committed_id = binlog_res.committed_id();
       LogOffset master_committed_id(BinlogOffset(committed_id.filenum(),committed_id.offset()),LogicOffset(committed_id.term(),committed_id.index()));
+      LOG(INFO) << "Processing committed_id from master: " << master_committed_id.ToString();
       Status s= db->CommitAppLog(master_committed_id);
       if(!s.ok()){
         return;
@@ -143,32 +155,69 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     }
     // empty binlog treated as keepalive packet
     if (binlog_res.binlog().empty()) {
+      LOG(INFO) << "Received keepalive packet from master";
       continue;
     }
-    if (!PikaBinlogTransverter::BinlogItemWithoutContentDecode(TypeFirst, binlog_res.binlog(), &worker->binlog_item_)) {
-      LOG(WARNING) << "Binlog item decode failed";
-      slave_db->SetReplState(ReplState::kTryConnect);
-      return;
+    
+    std::vector<std::string> individual_binlogs;
+    const std::string& received_binlog = binlog_res.binlog();
+    const uint32_t BATCH_MAGIC = htonl(PIKA_BATCH_MAGIC);
+
+    if (received_binlog.size() >= sizeof(BATCH_MAGIC) &&
+        *reinterpret_cast<const uint32_t*>(received_binlog.data()) == BATCH_MAGIC) {
+      // This is a batched binlog
+      LOG(INFO) << "Received batched binlog from master, size: " << received_binlog.size();
+      const char* ptr = received_binlog.data() + sizeof(BATCH_MAGIC);
+      const char* end = received_binlog.data() + received_binlog.size();
+      while (ptr < end) {
+        if (ptr + sizeof(uint32_t) > end) {
+          LOG(WARNING) << "Batched binlog format error: incomplete length field.";
+          slave_db->SetReplState(ReplState::kTryConnect);
+          return;
+        }
+        uint32_t item_len = ntohl(*reinterpret_cast<const uint32_t*>(ptr));
+        ptr += sizeof(uint32_t);
+        if (ptr + item_len > end) {
+          LOG(WARNING) << "Batched binlog format error: incomplete binlog data.";
+          slave_db->SetReplState(ReplState::kTryConnect);
+          return;
+        }
+        individual_binlogs.emplace_back(ptr, item_len);
+        ptr += item_len;
+      }
+      LOG(INFO) << "Received " << individual_binlogs.size() << " individual binlogs in batch for db " << db_name;
+    } else {
+      // This is a single binlog
+      LOG(INFO) << "Received single binlog from master, size: " << received_binlog.size();
+      individual_binlogs.push_back(received_binlog);
     }
-    const char* redis_parser_start = binlog_res.binlog().data() + BINLOG_ENCODE_LEN;
-    int redis_parser_len = static_cast<int>(binlog_res.binlog().size()) - BINLOG_ENCODE_LEN;
-    int processed_len = 0;
-    net::RedisParserStatus ret =
-        worker->redis_parser_.ProcessInputBuffer(redis_parser_start, redis_parser_len, &processed_len);
-    if (ret != net::kRedisParserDone) {
-      LOG(WARNING) << "Redis parser failed";
-      slave_db->SetReplState(ReplState::kTryConnect);
-      return;
-    } 
-    db = g_pika_rm->GetSyncMasterDBByName(DBInfo(worker->db_name_));
-    if (!db) {
-       LOG(WARNING) << "DB " << worker->db_name_ << " Not Found";
-       return;
-     }
+
+    for (const auto& binlog_str : individual_binlogs) {
+      if (!PikaBinlogTransverter::BinlogItemWithoutContentDecode(TypeFirst, binlog_str, &worker->binlog_item_)) {
+        LOG(WARNING) << "Binlog item decode failed";
+        slave_db->SetReplState(ReplState::kTryConnect);
+        return;
+      }
+      const char* redis_parser_start = binlog_str.data() + BINLOG_ENCODE_LEN;
+      int redis_parser_len = static_cast<int>(binlog_str.size()) - BINLOG_ENCODE_LEN;
+      int processed_len = 0;
+      net::RedisParserStatus ret =
+          worker->redis_parser_.ProcessInputBuffer(redis_parser_start, redis_parser_len, &processed_len);
+      if (ret != net::kRedisParserDone) {
+        LOG(WARNING) << "Redis parser failed";
+        slave_db->SetReplState(ReplState::kTryConnect);
+        return;
+      }
+      processed_count++;
+    }
+    LOG(INFO) << "Processed " << processed_count << " binlog entries for db " << db_name;
   }
+  
+  LOG(INFO) << "Successfully processed " << processed_count << " binlog entries";
 
   if (only_keepalive) {
     ack_end = LogOffset();
+    LOG(INFO) << "Sending keepalive ACK to master";
   } else {
     LogOffset productor_status;
     // Reply Ack to master immediately
@@ -177,8 +226,18 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
                               &productor_status.l_offset.term, &productor_status.l_offset.index);
     ack_end = productor_status;
     ack_end.l_offset.term = pb_end.l_offset.term;
+    
+    //Force flush to ensure data persistence
+    Status s = logger->Sync();
+    if (!s.ok()) {
+      LOG(WARNING) << "Failed to sync binlog to disk: " << s.ToString();
+      return;
+    }
+    LOG(INFO) << "Synced binlog to disk, sending ACK to master from " 
+              << ack_start.ToString() << " to " << ack_end.ToString();
   }
 
+  LOG(INFO) << "Sending ACK for db " << db_name << " from " << ack_start.ToString() << " to " << ack_end.ToString();
   g_pika_rm->SendBinlogSyncAckRequest(db_name, ack_start, ack_end);
 }
 
@@ -226,8 +285,8 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
 }
 
 void PikaReplBgWorker::HandleBGWorkerWriteDB(void* arg) {
-  std::unique_ptr<ReplClientWriteDBTaskArg> task_arg(static_cast<ReplClientWriteDBTaskArg*>(arg));
-  const std::shared_ptr<Cmd> c_ptr = task_arg->cmd_ptr;
+  std::unique_ptr<std::shared_ptr<Cmd>> cmd_ptr_ptr(static_cast<std::shared_ptr<Cmd>*>(arg));
+  const std::shared_ptr<Cmd> c_ptr = *cmd_ptr_ptr;
   WriteDBInSyncWay(c_ptr);
 }
 

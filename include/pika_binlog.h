@@ -61,6 +61,8 @@ class Binlog : public pstd::noncopyable {
    * Set Producer pro_num and pro_offset with lock
    */
   pstd::Status SetProducerStatus(uint32_t pro_num, uint64_t pro_offset, uint32_t term = 0, uint64_t index = 0);
+  // Force sync data to disk
+  pstd::Status Sync();
   // Need to hold Lock();
   pstd::Status Truncate(uint32_t pro_num, uint64_t pro_offset, uint64_t index);
 

@@ -4,6 +4,8 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 
 #include <utility>
+#include <set>
+#include <arpa/inet.h>
 
 #include "include/pika_consensus.h"
 
@@ -67,8 +69,8 @@ void Context::UpdateAppliedIndex(const LogOffset& offset) {
   LogOffset cur_offset;
   // TODO: 暂时注释掉这一行，因为applied_win_没有push调用，只有update，窗口永远对不上
   //applied_win_.Update(SyncWinItem(offset), SyncWinItem(offset), &cur_offset);
-  if (cur_offset > applied_index_) {
-    applied_index_ = cur_offset;
+  if (offset > applied_index_) {
+    applied_index_ = offset;
     StableSave();
   }
 }
@@ -813,7 +815,7 @@ bool ConsensusCoordinator::GetISConsistency() {
 
 bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
   //TODO: 暂时加了读写锁，后期考虑替换为原子变量
-  std::lock_guard l(committed_id_rwlock_);
+  std::lock_guard l(committed_id_mu_);
   if (offset <= committed_id_) {
     return true;
   }
@@ -823,6 +825,7 @@ bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
 //// pacificA private:
 
 Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset) {
+  std::lock_guard l(order_mu_);
   std::string content = cmd_ptr->ToRedisProtocol();
   std::string binlog = std::string();
   LogOffset offset = LogOffset();
@@ -830,19 +833,27 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
   LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
   cur_offset = offset;
   if (!s.ok()) {
-    std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
-    std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
-    if (db) {
-      db->SetBinlogIoError();
-    }
+    // std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
+    // std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
+    // if (db) {
+    //   db->SetBinlogIoError();
+    // }
 
     return s;
   }
+
+  // Force flush to ensure data persistence on master
+  s = stable_logger_->Logger()->Sync();
+  if (!s.ok()) {
+    LOG(WARNING) << "Failed to sync binlog to disk on master: " << s.ToString();
+    return s;
+  }
+
   // If successful, append the log entry to the logs
   // TODO: 这里logs_的appendlog操作和上边的stable_logger_->Logger()->Put不是原子的，可能导致offset大的先被追加到logs_中，
   // 多线程写入的时候窗口会对不上，最终主从断开连接。需要加逻辑保证原子性
   logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
-
+  LOG(INFO) << "After AppendLog: logs_->Size()=" << logs_->Size() << ", logs_->LastOffset()=" << logs_->LastOffset().ToString();
   SetPreparedId(cur_offset);
 
   return stable_logger_->Logger()->IsOpened();
@@ -860,6 +871,11 @@ Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, 
   // make sure stable log and mem log consistent
   Status s = PersistAppendBinlog(cmd_ptr, cur_logoffset);
   if (!s.ok()) {
+    std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
+    std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
+    if (db) {
+      db->SetBinlogIoError();
+    }
     return s;
   }
 
@@ -867,6 +883,11 @@ Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, 
   return Status::OK();
 }
 Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
+  BinlogOffset b_offset(attribute.filenum(), attribute.offset());
+  LogicOffset l_offset(attribute.term_id(), attribute.logic_id());
+  LogOffset log_offset(b_offset, l_offset);
+  LOG(INFO) << "Received binlog from master: " << log_offset.ToString() << " for db: " << db_name_;
+
   LogOffset last_index = logs_->LastOffset();
   if (attribute.logic_id() < last_index.l_offset.index) {
     LOG(WARNING) << DBInfo(db_name_).ToString() << "Drop log from leader logic_id " << attribute.logic_id()
@@ -885,15 +906,22 @@ Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_
  * @brief Commit logs up to the given offset and update the committed ID.
  */
 Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) {
+  LOG(INFO) << "Slave CommitAppLog for db " << db_name_ << ", master_committed_id: " << master_committed_id.ToString();
   int index = logs_->FindOffset(logs_->FirstOffset());
   int log_size = logs_->Size();  // Cache log size
+  std::vector<Log::LogItem> logs_to_apply;
   for (int i = index; i < log_size; ++i) {
     Log::LogItem log = logs_->At(i);
     if (master_committed_id >= log.offset) {
-      LOG(INFO) << "PacificA master_committed_id: " << master_committed_id.ToString()
-                << ", ApplyLog: " << log.offset.ToString();
-      ApplyBinlog(log.cmd_ptr);
+      logs_to_apply.push_back(log);
+    } else {
+      break;
     }
+  }
+
+  if (!logs_to_apply.empty()) {
+    LOG(INFO) << "Applying " << logs_to_apply.size() << " logs in a batch for db " << db_name_;
+    ApplyBinlog(logs_to_apply);
   }
 
   logs_->TruncateFrom(master_committed_id);  // Truncate logs
@@ -946,31 +974,39 @@ Status ConsensusCoordinator::ProcessCoordination() {
   return Status::OK();
 }
 // Execute the operation of writing to DB
-Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
-  auto opt = cmd_ptr->argv()[0];
-  if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
-    InternalApplyFollower(cmd_ptr);
-  } else {
-    int32_t wait_ms = 250;
-    while (g_pika_rm->GetUnfinishedAsyncWriteDBTaskCount(db_name_) > 0) {
-      // TODO: 暂时去掉了sleep的逻辑，考虑使用条件变量唤醒
-      //std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
-      wait_ms *= 2;
-      wait_ms = wait_ms < 3000 ? wait_ms : 3000;
+Status ConsensusCoordinator::ApplyBinlog(const std::vector<Log::LogItem>& logs) {
+  for (const auto& log : logs) {
+    const auto& cmd_ptr = log.cmd_ptr;
+    auto opt = cmd_ptr->argv()[0];
+    LOG(INFO) << "Slave ApplyBinlog for db " << db_name_ << ", command: " << opt;
+    if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
+      PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
+    } else {
+      // int32_t wait_ms = 250;
+      // while (g_pika_rm->GetUnfinishedAsyncWriteDBTaskCount(db_name_) > 0) {
+      //   // TODO: 暂时去掉了sleep的逻辑，考虑使用条件变量唤醒
+      //   //std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+      //   wait_ms *= 2;
+      //   wait_ms = wait_ms < 3000 ? wait_ms : 3000;
+      // }
+      g_pika_rm->WaitForAsyncWriteDBTaskEnd(db_name_);
+      PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
     }
-    PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
   }
-
   return Status::OK();
 }
 
 Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name) {
   std::vector<WriteTask> tasks;
-
+  LogOffset prev_offset = slave_ptr->sent_offset;
+  LOG(INFO) << "SendBinlog: logs_->LastOffset()=" << logs_->LastOffset().ToString()
+            << ", slave_ptr->sent_offset=" << slave_ptr->sent_offset.ToString();
   // Check if there are new log entries that need to be sent to the slave
   if (logs_->LastOffset() >= slave_ptr->acked_offset) {
+    LOG(INFO) << "SendBinlog: logs_->Size()=" << logs_->Size();
     // Find the index of the log entry corresponding to the slave's acknowledged offset
     int index = logs_->FindOffset(slave_ptr->acked_offset);
+    LOG(INFO) << "SendBinlog: index=" << index;
     if (index < logs_->Size()) {
       for (int i = index; i < logs_->Size(); ++i) {
         const Log::LogItem& item = logs_->At(i);
@@ -978,9 +1014,10 @@ Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, st
         slave_ptr->SetLastSendTime(pstd::NowMicros());
 
         RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), slave_ptr->DBName(), slave_ptr->SessionId());
-        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), slave_ptr->sent_offset, GetCommittedId());
+        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), prev_offset, GetCommittedId());
         tasks.emplace_back(std::move(task));
-
+        
+        prev_offset = item.offset;
         slave_ptr->sent_offset = item.offset;
       }
     }

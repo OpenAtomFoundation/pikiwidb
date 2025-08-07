@@ -888,6 +888,9 @@ class PikaConf : public pstd::BaseConf {
   int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
 
+  int consensus_batch_size() const;
+  int consensus_timeout() const;
+
  private:
   int port_ = 0;
   int slave_priority_ = 100;
@@ -1065,6 +1068,10 @@ class PikaConf : public pstd::BaseConf {
 
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;
+
+  // Consensus configuration
+  int consensus_batch_size_;
+  int consensus_timeout_;
 };
 
 #endif

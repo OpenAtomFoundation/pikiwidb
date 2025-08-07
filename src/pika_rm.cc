@@ -186,6 +186,9 @@ Status SyncMasterDB::ReadBinlogFileToWq(const std::shared_ptr<SlaveNode>& slave_
   }
 
   if (!tasks.empty()) {
+    LOG(INFO) << "Batch sending " << tasks.size() << " logs to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port() 
+            << ", first offset: " << tasks.front().binlog_chip_.offset_.ToString() 
+            << ", last offset: " << tasks.back().binlog_chip_.offset_.ToString();
     g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_info_.db_name_, tasks);
   }
   return Status::OK();
@@ -229,6 +232,7 @@ Status SyncMasterDB::GetSlaveState(const std::string& ip, int port, SlaveState* 
 }
 
 Status SyncMasterDB::WakeUpSlaveBinlogSync() {
+    //LOG(INFO) << "Master DB (" << db_info_.db_name_ << ") WakeUpSlaveBinlogSync";
     std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
     std::vector<std::shared_ptr<SlaveNode>> to_del;
     for (auto& slave_iter : slaves) {
@@ -428,7 +432,11 @@ Status SyncMasterDB::ProcessCoordination(){
   return coordinator_.ProcessCoordination();
 }
 Status SyncMasterDB::UpdateCommittedID(){
-  return coordinator_.UpdateCommittedID();
+  Status s = coordinator_.UpdateCommittedID();
+  if (s.ok()) {
+    coordinator_.GetCommittedIdCv()->notify_all();
+  }
+  return s;
 }
 Status SyncMasterDB::Truncate(const LogOffset& offset){
   return coordinator_.Truncate(offset);
@@ -476,26 +484,39 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     if (!coordinator_.GetISConsistency()) {
         return coordinator_.ProposeLog(cmd_ptr);
     }
+    //LOG(INFO) << "Master DB (" << db_info_.db_name_ << ") ConsensusProposeLog";
 
-    auto start = std::chrono::steady_clock::now();
+    //auto start = std::chrono::steady_clock::now();
     LogOffset offset;
     Status s = coordinator_.AppendEntries(cmd_ptr, offset); // Append the log entry to the coordinator
+    g_pika_rm->WakeUpBinlogSync();
 
     if (!s.ok()) {
         return s;
     }
 
     // Wait for consensus to be achieved within 10 seconds
-    while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count() < 10) {
-        // Check if consensus has been achieved for the given log offset
-        if (checkFinished(offset)) {
-            return Status::OK();
-        }
-        // TODO: 这里暂时注掉了sleep等待，50ms耗时过长，影响写入链路，后期需要改成条件变量唤醒方式
-        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
+    // while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count() < 10) {
+    //     // Check if consensus has been achieved for the given log offset
+    //     if (checkFinished(offset)) {
+    //         return Status::OK();
+    //     }
+    //     // TODO: 这里暂时注掉了sleep等待，50ms耗时过长，影响写入链路，后期需要改成条件变量唤醒方式
+    //     //std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // }
 
-    return Status::Timeout("No consistency achieved within 10 seconds");
+    // Wait for consensus to be achieved using condition variable
+    pstd::Mutex* mu = coordinator_.GetCommittedIdMu();
+    pstd::CondVar* cv = coordinator_.GetCommittedIdCv();
+    std::unique_lock<pstd::Mutex> lock(*mu);
+
+    auto timeout = std::chrono::seconds(10);
+    while (offset > coordinator_.GetCommittedId()) {
+        if (cv->wait_for(lock, timeout) == std::cv_status::timeout) {
+            return Status::Timeout("No consistency achieved within 10 seconds");
+        }
+    }
+    return Status::OK();
 }
 
 
@@ -696,73 +717,97 @@ void PikaReplicaManager::InitDB() {
 
 void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std::string db_name,
                                            const std::vector<WriteTask>& tasks) {
+  //LOG(INFO) << "ProduceWriteQueue for " << ip << ":" << port << " db " << db_name << " task_num:" << tasks.size();
   std::lock_guard l(write_queue_mu_);
   std::string index = ip + ":" + std::to_string(port);
+  uint64_t now_ms = pstd::NowMicros() / 1000;
   for (auto& task : tasks) {
-    write_queues_[index][db_name].push(task);
+    write_queues_[index][db_name].push({task, now_ms});
   }
 }
 
 int PikaReplicaManager::ConsumeWriteQueue() {
-  std::unordered_map<std::string, std::vector<std::vector<WriteTask>>> to_send_map;
+  // A list of sending jobs to be executed outside the lock.
+  // Each job is a tuple of (ip, port, tasks_to_send).
+  std::vector<std::tuple<std::string, int, std::vector<WriteTask>>> all_sends;
   int counter = 0;
+
+  // === Start of Critical Section ===
+  // Scope for the lock_guard. We prepare all batches here.
   {
     std::lock_guard l(write_queue_mu_);
-    for (auto& iter : write_queues_) {
-      const std::string& ip_port = iter.first;
-      std::unordered_map<std::string, std::queue<WriteTask>>& p_map = iter.second;
-      for (auto& db_queue : p_map) {
-        std::queue<WriteTask>& queue = db_queue.second;
-        for (int i = 0; i < kBinlogSendPacketNum; ++i) {
-          if (queue.empty()) {
-            break;
-          }
-          size_t batch_index = queue.size() > kBinlogSendBatchNum ? kBinlogSendBatchNum : queue.size();
-          std::vector<WriteTask> to_send;
-          size_t batch_size = 0;
-          for (size_t i = 0; i < batch_index; ++i) {
-            WriteTask& task = queue.front();
-            batch_size += task.binlog_chip_.binlog_.size();
-            // make sure SerializeToString will not over 2G
-            if (batch_size > PIKA_MAX_CONN_RBUF_HB) {
-              break;
-            }
-            to_send.push_back(task);
-            queue.pop();
-            counter++;
-          }
-          if (!to_send.empty()) {
-            to_send_map[ip_port].push_back(std::move(to_send));
-          }
-        }
-      }
-    }
-  }
-
-  std::vector<std::string> to_delete;
-  for (auto& iter : to_send_map) {
-    std::string ip;
-    int port = 0;
-    if (!pstd::ParseIpPortString(iter.first, ip, port)) {
-      LOG(WARNING) << "Parse ip_port error " << iter.first;
-      continue;
-    }
-    for (auto& to_send : iter.second) {
-      Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
-      if (!s.ok()) {
-        LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
-        to_delete.push_back(iter.first);
+    auto slave_iter = write_queues_.begin();
+    while (slave_iter != write_queues_.end()) {
+      std::string ip;
+      int port = 0;
+      if (!pstd::ParseIpPortString(slave_iter->first, ip, port)) {
+        LOG(WARNING) << "Parse ip_port error " << slave_iter->first;
+        slave_iter = write_queues_.erase(slave_iter);
         continue;
       }
+
+      auto& p_map = slave_iter->second;
+      auto db_iter = p_map.begin();
+      while (db_iter != p_map.end()) {
+        auto& queue = db_iter->second;
+        if (queue.empty()) {
+          db_iter = p_map.erase(db_iter);
+          continue;
+        }
+
+        LOG(INFO) << "Preparing batch for " << ip << ":" << port << ", db: " << db_iter->first
+                  << ", queue size: " << queue.size() << ", first create_time_ms: " << queue.front().second;
+
+        const size_t BATCH_SIZE_LIMIT = g_pika_conf->consensus_batch_size();
+        const int MAX_BATCH_WAIT_TIME_MS = 5;
+        bool is_timeout = (pstd::NowMicros() / 1000) - queue.front().second > MAX_BATCH_WAIT_TIME_MS;
+        LOG(INFO) << "is_timeout: " << is_timeout;
+
+        std::vector<WriteTask> to_send;
+        while (!queue.empty()) {
+          if (!to_send.empty() && (to_send.size() >= BATCH_SIZE_LIMIT || is_timeout)) {
+            break;
+          }
+          to_send.push_back(queue.front().first);
+          queue.pop();
+        }
+
+        if (!to_send.empty()) {
+          LOG(INFO) << "Prepared batch of size: " << to_send.size();
+          all_sends.emplace_back(ip, port, std::move(to_send));
+        }
+
+        if (queue.empty()) {
+          db_iter = p_map.erase(db_iter);
+        } else {
+          ++db_iter;
+        }
+      }
+
+      if (p_map.empty()) {
+        slave_iter = write_queues_.erase(slave_iter);
+      } else {
+        ++slave_iter;
+      }
+    }
+  }
+  // === End of Critical Section ===
+
+  // Now, execute all the prepared network IO jobs outside the lock.
+  for (auto& send_job : all_sends) {
+    std::string& ip = std::get<0>(send_job);
+    int port = std::get<1>(send_job);
+    std::vector<WriteTask>& to_send = std::get<2>(send_job);
+
+    counter += to_send.size();
+    Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
+    if (!s.ok()) {
+      LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
+      // Drop the slave connection and any remaining items in its queue on failure.
+      DropItemInWriteQueue(ip, port);
     }
   }
 
-  if (!to_delete.empty()) {
-    std::lock_guard l(write_queue_mu_);
-    for (auto& del_queue : to_delete) {
-      write_queues_.erase(del_queue);
-    }
-  }
   return counter;
 }
 
@@ -800,6 +845,14 @@ void PikaReplicaManager::ScheduleWriteBinlogTask(const std::string& db,
 
 void PikaReplicaManager::ScheduleWriteDBTask(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& db_name) {
   pika_repl_client_->ScheduleWriteDBTask(cmd_ptr, db_name);
+}
+
+void PikaReplicaManager::SignalAsyncWriteDBTaskEnd(const std::string& db_name) {
+  pika_repl_client_->SignalAsyncWriteDBTaskEnd(db_name);
+}
+
+void PikaReplicaManager::WaitForAsyncWriteDBTaskEnd(const std::string& db_name) {
+  pika_repl_client_->WaitForAsyncWriteDBTaskEnd(db_name);
 }
 
 void PikaReplicaManager::ReplServerRemoveClientConn(int fd) { pika_repl_server_->RemoveClientConn(fd); }

@@ -707,6 +707,11 @@ int PikaConf::Load() {
     rsync_timeout_ms_.store(tmp_rsync_timeout_ms);
   }
 
+  consensus_batch_size_ = 100;
+  consensus_timeout_ = 1000; // 1s
+
+  GetConfInt("consensus-batch-size", &consensus_batch_size_);
+  GetConfInt("consensus-timeout", &consensus_timeout_);
   return ret;
 }
 
@@ -912,3 +917,7 @@ std::vector<rocksdb::CompressionType> PikaConf::compression_per_level() {
   }
   return types;
 }
+
+int PikaConf::consensus_batch_size() const { return consensus_batch_size_; }
+
+int PikaConf::consensus_timeout() const { return consensus_timeout_; }

@@ -257,7 +257,7 @@ class ConsensusCoordinator {
   pstd::Status AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
   pstd::Status CommitAppLog(const LogOffset& master_committed_id);
   pstd::Status UpdateCommittedID();
-  pstd::Status ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status ApplyBinlog(const std::vector<Log::LogItem>& logs);
   pstd::Status ProcessCoordination();
 
   LogOffset GetCommittedId() {
@@ -276,7 +276,10 @@ class ConsensusCoordinator {
     std::lock_guard l(committed_id_rwlock_);
     committed_id_ = offset;
     context_->UpdateAppliedIndex(committed_id_);
+    committed_id_cv_.notify_all();
   }
+  pstd::Mutex* GetCommittedIdMu() { return &committed_id_mu_; }
+  pstd::CondVar* GetCommittedIdCv() { return &committed_id_cv_; }
 
  private:
   pstd::Status PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset);
@@ -285,6 +288,8 @@ class ConsensusCoordinator {
   std::shared_mutex is_consistency_rwlock_;
   bool is_consistency_ = false;
   std::shared_mutex committed_id_rwlock_;
+  pstd::Mutex committed_id_mu_;
+  pstd::CondVar committed_id_cv_;
   LogOffset committed_id_ = LogOffset();
   std::shared_mutex prepared_id__rwlock_;
   LogOffset prepared_id_ = LogOffset();

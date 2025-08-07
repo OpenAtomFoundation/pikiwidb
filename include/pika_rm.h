@@ -207,6 +207,8 @@ class PikaReplicaManager {
                                const std::shared_ptr<InnerMessage::InnerResponse>& res,
                                const std::shared_ptr<net::PbConn>& conn, void* res_private_data);
   void ScheduleWriteDBTask(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& db_name);
+  void SignalAsyncWriteDBTaskEnd(const std::string& db_name);
+  void WaitForAsyncWriteDBTaskEnd(const std::string& db_name);
   void ScheduleReplClientBGTaskByDBName(net::TaskFunc , void* arg, const std::string &db_name);
   void ReplServerRemoveClientConn(int fd);
   void ReplServerUpdateClientConnMap(const std::string& ip_port, int fd);
@@ -244,7 +246,7 @@ class PikaReplicaManager {
   pstd::Mutex write_queue_mu_;
 
   // every host owns a queue, the key is "ip + port"
-  std::unordered_map<std::string, std::unordered_map<std::string, std::queue<WriteTask>>> write_queues_;
+  std::unordered_map<std::string, std::unordered_map<std::string, std::queue<std::pair<WriteTask, uint64_t>>>> write_queues_;
   std::unique_ptr<PikaReplClient> pika_repl_client_;
   std::unique_ptr<PikaReplServer> pika_repl_server_;
 };
