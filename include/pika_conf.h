@@ -749,6 +749,8 @@ class PikaConf : public pstd::BaseConf {
     rsync_timeout_ms_.store(value);
   }
 
+  int binlog_fsync_interval() const;
+
   void SetProtoMaxBulkLen(const int64_t value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("proto-max-bulk-len", std::to_string(value));
@@ -887,9 +889,6 @@ class PikaConf : public pstd::BaseConf {
   int ConfigRewrite();
   int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
-
-  int consensus_batch_size() const;
-  int consensus_timeout() const;
 
  private:
   int port_ = 0;
@@ -1069,9 +1068,8 @@ class PikaConf : public pstd::BaseConf {
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;
 
-  // Consensus configuration
-  int consensus_batch_size_;
-  int consensus_timeout_;
+  // Binlog fsync interval
+  int binlog_fsync_interval_;
 };
 
 #endif

@@ -42,6 +42,7 @@ class PikaReplBgWorker {
   net::RedisParser redis_parser_;
   std::string ip_port_;
   std::string db_name_;
+  int binlog_fsync_counter_ = 0;
 
  private:
   net::BGThread bg_thread_;

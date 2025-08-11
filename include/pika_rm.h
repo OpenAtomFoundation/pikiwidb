@@ -245,8 +245,15 @@ class PikaReplicaManager {
 
   pstd::Mutex write_queue_mu_;
 
+  // db_name -> a queue of write task
+  using DBWriteTaskQueue = std::map<std::string, std::queue<WriteTask>>;
+  // ip:port -> a map of DBWriteTaskQueue
+  using SlaveWriteTaskQueue = std::map<std::string, DBWriteTaskQueue>;
+
   // every host owns a queue, the key is "ip + port"
-  std::unordered_map<std::string, std::unordered_map<std::string, std::queue<std::pair<WriteTask, uint64_t>>>> write_queues_;
+  SlaveWriteTaskQueue write_queues_;
+
+  // client for replica
   std::unique_ptr<PikaReplClient> pika_repl_client_;
   std::unique_ptr<PikaReplServer> pika_repl_server_;
 };

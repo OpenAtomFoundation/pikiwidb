@@ -528,6 +528,10 @@ int PikaConf::Load() {
   if (binlog_file_size_ < 1024 || static_cast<int64_t>(binlog_file_size_) > (1024LL * 1024 * 1024)) {
     binlog_file_size_ = 100 * 1024 * 1024;  // 100M
   }
+  GetConfInt("binlog-fsync-interval", &binlog_fsync_interval_);
+  if (binlog_fsync_interval_ < 0) {
+    binlog_fsync_interval_ = 0;
+  }
   GetConfStr("pidfile", &pidfile_);
 
   // db sync
@@ -707,11 +711,6 @@ int PikaConf::Load() {
     rsync_timeout_ms_.store(tmp_rsync_timeout_ms);
   }
 
-  consensus_batch_size_ = 100;
-  consensus_timeout_ = 1000; // 1s
-
-  GetConfInt("consensus-batch-size", &consensus_batch_size_);
-  GetConfInt("consensus-timeout", &consensus_timeout_);
   return ret;
 }
 
@@ -918,6 +917,4 @@ std::vector<rocksdb::CompressionType> PikaConf::compression_per_level() {
   return types;
 }
 
-int PikaConf::consensus_batch_size() const { return consensus_batch_size_; }
-
-int PikaConf::consensus_timeout() const { return consensus_timeout_; }
+int PikaConf::binlog_fsync_interval() const { return binlog_fsync_interval_; }

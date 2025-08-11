@@ -8,6 +8,7 @@
 
 #include <bitset>
 #include <utility>
+#include <future>
 
 #include "acl.h"
 #include "include/pika_command.h"
@@ -52,6 +53,13 @@ class PikaClientConn : public net::RedisConn {
     bool cache_miss_in_rtc_;
   };
 
+  struct ParallelTask {
+    std::vector<std::shared_ptr<std::string>> resps;
+    std::vector<std::future<void>> futures;
+    std::atomic<size_t> completed_count{0};
+    size_t total_tasks{0};
+  };
+
   struct TxnStateBitMask {
    public:
     static constexpr uint8_t Start = 0;
@@ -72,6 +80,7 @@ class PikaClientConn : public net::RedisConn {
   void BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>& argvs, bool cache_miss_in_rtc);
   int DealMessage(const net::RedisCmdArgsType& argv, std::string* response) override { return 0; }
   static void DoBackgroundTask(void* arg);
+  static void ParallelExecRedisCmd(void* arg);
 
   bool IsPubSub() { return is_pubsub_; }
   void SetIsPubSub(bool is_pubsub) { is_pubsub_ = is_pubsub; }

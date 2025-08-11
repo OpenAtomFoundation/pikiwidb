@@ -384,12 +384,12 @@ Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const 
       std::lock_guard l(slave_ptr->slave_mu);
       slave_ptr->acked_offset = end;
       sync_pros_.AddMatchIndex(ip, port, slave_ptr->acked_offset);
-      LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
-                << slave_ptr->acked_offset.ToString();
+      // LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
+      //           << slave_ptr->acked_offset.ToString();
       if (slave_ptr->slave_state != kSlaveBinlogSync && slave_ptr->acked_offset >= slave_ptr->target_offset) {
         slave_ptr->slave_state = kSlaveBinlogSync;
-        LOG(INFO) << "PacificA change slave_state kSlaveBinlogSync acked_offset: " << slave_ptr->acked_offset.ToString()
-                  << ", target_offset: " << slave_ptr->target_offset.ToString();
+        // LOG(INFO) << "PacificA change slave_state kSlaveBinlogSync acked_offset: " << slave_ptr->acked_offset.ToString()
+        //           << ", target_offset: " << slave_ptr->target_offset.ToString();
       }
     }
   } else {
@@ -830,7 +830,7 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
   std::string binlog = std::string();
   LogOffset offset = LogOffset();
   Status s = stable_logger_->Logger()->Put(content, &offset, binlog);
-  LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
+  //LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
   cur_offset = offset;
   if (!s.ok()) {
     // std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
@@ -842,18 +842,19 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
     return s;
   }
 
-  // Force flush to ensure data persistence on master
-  s = stable_logger_->Logger()->Sync();
-  if (!s.ok()) {
-    LOG(WARNING) << "Failed to sync binlog to disk on master: " << s.ToString();
-    return s;
+  if (++binlog_fsync_counter_ % g_pika_conf->binlog_fsync_interval() == 0) {
+    s = stable_logger_->Logger()->Sync();
+    if (!s.ok()) {
+      LOG(WARNING) << "Failed to sync binlog to disk on master: " << s.ToString();
+      return s;
+    }
   }
 
   // If successful, append the log entry to the logs
   // TODO: 这里logs_的appendlog操作和上边的stable_logger_->Logger()->Put不是原子的，可能导致offset大的先被追加到logs_中，
   // 多线程写入的时候窗口会对不上，最终主从断开连接。需要加逻辑保证原子性
   logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
-  LOG(INFO) << "After AppendLog: logs_->Size()=" << logs_->Size() << ", logs_->LastOffset()=" << logs_->LastOffset().ToString();
+  //LOG(INFO) << "After AppendLog: logs_->Size()=" << logs_->Size() << ", logs_->LastOffset()=" << logs_->LastOffset().ToString();
   SetPreparedId(cur_offset);
 
   return stable_logger_->Logger()->IsOpened();
@@ -886,7 +887,7 @@ Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_
   BinlogOffset b_offset(attribute.filenum(), attribute.offset());
   LogicOffset l_offset(attribute.term_id(), attribute.logic_id());
   LogOffset log_offset(b_offset, l_offset);
-  LOG(INFO) << "Received binlog from master: " << log_offset.ToString() << " for db: " << db_name_;
+  //LOG(INFO) << "Received binlog from master: " << log_offset.ToString() << " for db: " << db_name_;
 
   LogOffset last_index = logs_->LastOffset();
   if (attribute.logic_id() < last_index.l_offset.index) {
@@ -906,7 +907,7 @@ Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_
  * @brief Commit logs up to the given offset and update the committed ID.
  */
 Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) {
-  LOG(INFO) << "Slave CommitAppLog for db " << db_name_ << ", master_committed_id: " << master_committed_id.ToString();
+  //LOG(INFO) << "Slave CommitAppLog for db " << db_name_ << ", master_committed_id: " << master_committed_id.ToString();
   int index = logs_->FindOffset(logs_->FirstOffset());
   int log_size = logs_->Size();  // Cache log size
   std::vector<Log::LogItem> logs_to_apply;
@@ -920,7 +921,6 @@ Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) 
   }
 
   if (!logs_to_apply.empty()) {
-    LOG(INFO) << "Applying " << logs_to_apply.size() << " logs in a batch for db " << db_name_;
     ApplyBinlog(logs_to_apply);
   }
 
@@ -951,7 +951,7 @@ Status ConsensusCoordinator::UpdateCommittedID() {
     return Status::Error("slave_prepared_id < master_committedId");
   }
   SetCommittedId(slave_prepared_id);
-  LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
+  //LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
   return Status::OK();
 }
 Status ConsensusCoordinator::ProcessCoordination() {
@@ -998,33 +998,39 @@ Status ConsensusCoordinator::ApplyBinlog(const std::vector<Log::LogItem>& logs) 
 
 Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name) {
   std::vector<WriteTask> tasks;
-  LogOffset prev_offset = slave_ptr->sent_offset;
-  LOG(INFO) << "SendBinlog: logs_->LastOffset()=" << logs_->LastOffset().ToString()
-            << ", slave_ptr->sent_offset=" << slave_ptr->sent_offset.ToString();
-  // Check if there are new log entries that need to be sent to the slave
-  if (logs_->LastOffset() >= slave_ptr->acked_offset) {
-    LOG(INFO) << "SendBinlog: logs_->Size()=" << logs_->Size();
-    // Find the index of the log entry corresponding to the slave's acknowledged offset
-    int index = logs_->FindOffset(slave_ptr->acked_offset);
-    LOG(INFO) << "SendBinlog: index=" << index;
-    if (index < logs_->Size()) {
-      for (int i = index; i < logs_->Size(); ++i) {
-        const Log::LogItem& item = logs_->At(i);
+  if (!g_pika_server->IsConsistency()) {
+    return Status::OK();
+  }
+  std::string ip = slave_ptr->Ip();
+  int port = slave_ptr->Port();
+  int32_t session_id = slave_ptr->SessionId();
 
-        slave_ptr->SetLastSendTime(pstd::NowMicros());
+  LogOffset last_sent = slave_ptr->sent_offset;
+  if (logs_->LastOffset() > last_sent) {
+    int send_start_index = logs_->FindOffset(last_sent);
+    if (send_start_index < 0) {
+      LOG(WARNING) << "Binlog offset not found, maybe purged. last_sent: " << last_sent.ToString();
+      return Status::Corruption("cant find the file_num");
+    }
 
-        RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), slave_ptr->DBName(), slave_ptr->SessionId());
-        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), prev_offset, GetCommittedId());
-        tasks.emplace_back(std::move(task));
-        
-        prev_offset = item.offset;
-        slave_ptr->sent_offset = item.offset;
-      }
+    if (send_start_index < logs_->Size() && logs_->At(send_start_index).offset == last_sent) {
+      send_start_index++;
+    }
+
+    if (send_start_index < logs_->Size()) {
+      LogOffset prev_offset = send_start_index > 0 ? logs_->At(send_start_index - 1).offset : LogOffset();
+      const auto& item = logs_->At(send_start_index);
+      RmNode rm_node(ip, port, db_name, session_id);
+      WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), prev_offset, GetCommittedId());
+      tasks.emplace_back(std::move(task));
     }
   }
 
   if (!tasks.empty()) {
-    g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
+    g_pika_rm->ProduceWriteQueue(ip, port, db_name, tasks);
+    slave_ptr->sent_offset = tasks.back().binlog_chip_.offset_;
+    // LOG(INFO) << "SendBinlog tasks to queue, slave: " << ip << ":" << port << " tasks: " << tasks.size()
+    //           << " new sent_offset: " << slave_ptr->sent_offset.ToString();
   }
   return Status::OK();
 }

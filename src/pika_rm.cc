@@ -238,20 +238,18 @@ Status SyncMasterDB::WakeUpSlaveBinlogSync() {
     for (auto& slave_iter : slaves) {
         std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
         std::lock_guard l(slave_ptr->slave_mu);
-        if (slave_ptr->sent_offset == slave_ptr->acked_offset) {
-          Status s;
-          if (coordinator_.GetISConsistency()) {
-            if(slave_ptr->slave_state == SlaveState::kSlaveBinlogSync||slave_ptr->slave_state == SlaveState::KCandidate){
-              s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
-            }
-          } else {
-            s = ReadBinlogFileToWq(slave_ptr);
+        Status s;
+        if (coordinator_.GetISConsistency()) {
+          if(slave_ptr->slave_state == SlaveState::kSlaveBinlogSync||slave_ptr->slave_state == SlaveState::KCandidate){
+            s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
           }
-          if (!s.ok()) {
-            to_del.push_back(slave_ptr);
-            LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
-                             << slave_ptr->ToStringStatus() << " - " << s.ToString();
-          }
+        } else {
+          s = ReadBinlogFileToWq(slave_ptr);
+        }
+        if (!s.ok()) {
+          to_del.push_back(slave_ptr);
+          LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
+                           << slave_ptr->ToStringStatus() << " - " << s.ToString();
         }
     }
 
@@ -489,7 +487,7 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     //auto start = std::chrono::steady_clock::now();
     LogOffset offset;
     Status s = coordinator_.AppendEntries(cmd_ptr, offset); // Append the log entry to the coordinator
-    g_pika_rm->WakeUpBinlogSync();
+    // g_pika_rm->WakeUpBinlogSync();
 
     if (!s.ok()) {
         return s;
@@ -720,9 +718,8 @@ void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std:
   //LOG(INFO) << "ProduceWriteQueue for " << ip << ":" << port << " db " << db_name << " task_num:" << tasks.size();
   std::lock_guard l(write_queue_mu_);
   std::string index = ip + ":" + std::to_string(port);
-  uint64_t now_ms = pstd::NowMicros() / 1000;
   for (auto& task : tasks) {
-    write_queues_[index][db_name].push({task, now_ms});
+    write_queues_[index][db_name].push(task);
   }
 }
 
@@ -755,25 +752,13 @@ int PikaReplicaManager::ConsumeWriteQueue() {
           continue;
         }
 
-        LOG(INFO) << "Preparing batch for " << ip << ":" << port << ", db: " << db_iter->first
-                  << ", queue size: " << queue.size() << ", first create_time_ms: " << queue.front().second;
-
-        const size_t BATCH_SIZE_LIMIT = g_pika_conf->consensus_batch_size();
-        const int MAX_BATCH_WAIT_TIME_MS = 5;
-        bool is_timeout = (pstd::NowMicros() / 1000) - queue.front().second > MAX_BATCH_WAIT_TIME_MS;
-        LOG(INFO) << "is_timeout: " << is_timeout;
-
         std::vector<WriteTask> to_send;
         while (!queue.empty()) {
-          if (!to_send.empty() && (to_send.size() >= BATCH_SIZE_LIMIT || is_timeout)) {
-            break;
-          }
-          to_send.push_back(queue.front().first);
+          to_send.push_back(queue.front());
           queue.pop();
         }
 
         if (!to_send.empty()) {
-          LOG(INFO) << "Prepared batch of size: " << to_send.size();
           all_sends.emplace_back(ip, port, std::move(to_send));
         }
 
@@ -878,10 +863,10 @@ Status PikaReplicaManager::UpdateSyncBinlogStatus(const RmNode& slave, const Log
       return s;
     }
   }
-  s = db->SyncBinlogToWq(slave.Ip(), slave.Port());
-  if (!s.ok()) {
-    return s;
-  }
+  // s = db->SyncBinlogToWq(slave.Ip(), slave.Port());
+  // if (!s.ok()) {
+  //   return s;
+  // }
   return Status::OK();
 }
 

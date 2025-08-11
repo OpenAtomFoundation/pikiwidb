@@ -294,6 +294,7 @@ class ConsensusCoordinator {
   std::shared_mutex prepared_id__rwlock_;
   LogOffset prepared_id_ = LogOffset();
   std::shared_ptr<Log> logs_;
+  int binlog_fsync_counter_ = 0;
 };
 
 #endif  // INCLUDE_PIKA_CONSENSUS_H_
