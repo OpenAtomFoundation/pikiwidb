@@ -469,3 +469,10 @@ Status Binlog::Truncate(uint32_t pro_num, uint64_t pro_offset, uint64_t index) {
 
   return Status::OK();
 }
+
+Status Binlog::Sync() {
+  if (queue_) {
+    return queue_->Sync();
+  }
+  return Status::Corruption("Logger not initialized");
+}

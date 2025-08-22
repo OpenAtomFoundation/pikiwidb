@@ -88,14 +88,22 @@ class PikaReplClient {
     async_write_db_task_counts_[db_index].fetch_sub(incr_step, std::memory_order::memory_order_seq_cst);
   }
 
-  int32_t GetUnfinishedAsyncWriteDBTaskCount(const std::string& db_name) {
-    int32_t db_index = db_name.back() - '0';
-    assert(db_index >= 0 && db_index <= 7);
-    return async_write_db_task_counts_[db_index].load(std::memory_order_seq_cst);
-  }
+  int32_t GetUnfinishedAsyncWriteDBTaskCount(const std::string& db_name);
+  void SignalAsyncWriteDBTaskEnd(const std::string& db_name);
+  void WaitForAsyncWriteDBTaskEnd(const std::string& db_name);
+
+  // unfinished_async_write_db_tasks related
+  pstd::Mutex unfinished_async_write_db_tasks_mu_;
+  std::unordered_map<std::string, int32_t> unfinished_async_write_db_tasks_;
+  pstd::CondVar async_write_db_tasks_cond_;
+
+  // db_write_block_fds_ related
+  pstd::Mutex db_write_block_fds_mu_;
+  std::set<int> db_write_block_fds_;
 
  private:
-  size_t GetBinlogWorkerIndexByDBName(const std::string &db_name);
+  size_t GetBinlogWorkerIndexByDBName(const std::string& db_name);
+  size_t GetDBWorkerIndexByDBName(const std::string& db_name);
   size_t GetHashIndexByKey(const std::string& key);
   void UpdateNextAvail() { next_avail_ = (next_avail_ + 1) % static_cast<int32_t>(write_binlog_workers_.size()); }
 

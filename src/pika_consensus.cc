@@ -102,8 +102,9 @@ std::unordered_map<std::string, std::shared_ptr<SlaveNode>> SyncProgress::GetAll
 
 Status SyncProgress::AddSlaveNode(const std::string& ip, int port, const std::string& db_name, int session_id) {
   std::string slave_key = MakeSlaveKey(ip, port);
-  std::shared_ptr<SlaveNode> exist_ptr = GetSlaveNode(ip, port);
-  if (exist_ptr) {
+  std::lock_guard l(rwlock_);
+  if (slaves_.find(slave_key) != slaves_.end()) {
+    std::shared_ptr<SlaveNode> exist_ptr = slaves_[slave_key];
     LOG(WARNING) << "SlaveNode " << exist_ptr->ToString() << " already exist, set new session " << session_id;
     exist_ptr->SetSessionId(session_id);
     return Status::OK();
@@ -112,12 +113,11 @@ Status SyncProgress::AddSlaveNode(const std::string& ip, int port, const std::st
   slave_ptr->SetLastSendTime(pstd::NowMicros());
   slave_ptr->SetLastRecvTime(pstd::NowMicros());
 
-  {
-    std::lock_guard l(rwlock_);
-    slaves_[slave_key] = slave_ptr;
-    // add slave to match_index
-    match_index_[slave_key] = LogOffset();
-  }
+  slaves_[slave_key] = slave_ptr;
+  // add slave to match_index
+  match_index_[slave_key] = LogOffset();
+  
+  LOG(INFO) << "AddSlaveNode: Successfully added slave " << ip << ":" << port << " with session " << session_id;
   return Status::OK();
 }
 
@@ -228,6 +228,16 @@ ConsensusCoordinator::ConsensusCoordinator(const std::string& db_name)
   stable_logger_ = std::make_shared<StableLog>(db_name, log_path);
   mem_logger_ = std::make_shared<MemLog>();
   logs_ = std::make_shared<Log>();
+  
+  // Initialize prepared_id
+  LogOffset last_offset;
+  BinlogOffset b_offset;
+  Status s = stable_logger_->Logger()->GetProducerStatus(&b_offset.filenum, &b_offset.offset);
+  if (s.ok()) {
+    last_offset.b_offset = b_offset;
+    SetPreparedId(last_offset);
+    LOG(INFO) << "Init: Initialized prepared_id to " << last_offset.ToString();
+  }
 }
 
 ConsensusCoordinator::~ConsensusCoordinator() = default;
@@ -290,6 +300,7 @@ void ConsensusCoordinator::Init() {
     redis_parser.data = nullptr;
 
     mem_logger_->AppendLog(MemLog::LogItem(offset, cmd_ptr, nullptr, nullptr));
+    logs_->AppendLog(Log::LogItem(offset, cmd_ptr, binlog));
   }
 }
 
@@ -332,6 +343,72 @@ Status ConsensusCoordinator::ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
   }
 
   g_pika_server->SignalAuxiliary();
+  return Status::OK();
+}
+
+Status ConsensusCoordinator::BatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets) {
+  if (cmd_ptrs.empty()) {
+    return Status::OK();
+  }
+
+  // Reserve space for all command offsets
+  offsets->resize(cmd_ptrs.size());
+
+  // Process each command in the batch
+  for (size_t i = 0; i < cmd_ptrs.size(); i++) {
+    const auto& cmd_ptr = cmd_ptrs[i];
+    std::vector<std::string> keys = cmd_ptr->current_key();
+    
+    // Skip slot keys
+    if (cmd_ptr->name() == kCmdNameSAdd && !keys.empty() &&
+        (keys[0].compare(0, SlotKeyPrefix.length(), SlotKeyPrefix) == 0 || 
+         keys[0].compare(0, SlotTagPrefix.length(), SlotTagPrefix) == 0)) {
+      continue;
+    }
+
+    // Generate binlog content
+    std::string content = cmd_ptr->ToRedisProtocol();
+    std::string binlog;
+    
+    // Get offset for this command
+    LogOffset offset;
+    Status s = stable_logger_->Logger()->Put(content, &offset, binlog);
+    
+    if (!s.ok()) {
+      std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
+      std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
+      if (db) {
+        db->SetBinlogIoError();
+      }
+      return s;
+    }
+
+    // Store the offset for this command
+    (*offsets)[i] = offset;
+    
+    // If we're using PacificA consistency, append to logs
+    LOG(INFO) << "In BatchProposeLog, checking consistency mode for db " << db_name_ << ". IsConsistency: " << (GetISConsistency() ? "true" : "false");
+    if (GetISConsistency()) {
+      LOG(INFO) << "BatchProposeLog: [Thread " << std::this_thread::get_id() << "] Adding log entry to logs_ with offset " << offset.ToString() << ", current logs size: " << logs_->Size() << ", logs_ addr: " << logs_.get();
+      logs_->AppendLog(Log::LogItem(offset, cmd_ptr, binlog));
+      LOG(INFO) << "BatchProposeLog: [Thread " << std::this_thread::get_id() << "] After adding, logs size: " << logs_->Size();
+    } else {
+      LOG(INFO) << "BatchProposeLog: Consistency disabled, not adding to logs_";
+    }
+  }
+  
+  // Signal auxiliary thread to handle these binlogs
+  g_pika_server->SignalAuxiliary();
+  
+  // Master node batch Binlog flush disk - this ensures all data is persisted to disk
+  stable_logger_->Logger()->Sync();
+  
+  // 成功提交日志后，更新prepared_id为最后一个日志的offset
+  if (!offsets->empty()) {
+    SetPreparedId(offsets->back());
+    LOG(INFO) << "BatchProposeLog: Updated prepared_id to " << offsets->back().ToString();
+  }
+
   return Status::OK();
 }
 
@@ -380,6 +457,15 @@ Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const 
     }
     {
       std::lock_guard l(slave_ptr->slave_mu);
+      // Check if the received ACK is stale
+      if (end < slave_ptr->acked_offset) {
+        LOG(WARNING) << "Received older ACK from slave - ip: " << ip << ", port: " << port 
+                     << ", received: " << end.ToString() 
+                     << ", current: " << slave_ptr->acked_offset.ToString();
+        // Ignore the stale ACK but do not return an error
+        return Status::OK();
+      }
+      // Update the slave's acknowledged offset
       slave_ptr->acked_offset = end;
       sync_pros_.AddMatchIndex(ip, port, slave_ptr->acked_offset);
       LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
@@ -823,6 +909,7 @@ bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
 //// pacificA private:
 
 Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset) {
+  std::lock_guard l(order_mu_);
   std::string content = cmd_ptr->ToRedisProtocol();
   std::string binlog = std::string();
   LogOffset offset = LogOffset();
@@ -868,9 +955,23 @@ Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, 
 }
 Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
   LogOffset last_index = logs_->LastOffset();
+  // Check for index gaps but allow normal continuous log appending
   if (attribute.logic_id() < last_index.l_offset.index) {
+    // If the log index gap is too large, it may be due to expired logs
     LOG(WARNING) << DBInfo(db_name_).ToString() << "Drop log from leader logic_id " << attribute.logic_id()
                  << " cur last index " << last_index.l_offset.index;
+    // log the details of the received log
+    LOG(INFO) << "Leader log details: filenum: " << attribute.filenum()
+              << " offset: " << attribute.offset()
+              << " term: " << attribute.term_id()
+              << " logic_id: " << attribute.logic_id();
+    return Status::InvalidArgument("log expired");
+  }
+  
+  // 允许接收与当前索引相同的日志(防止重复发送的情况)
+  if (attribute.logic_id() == last_index.l_offset.index) {
+    LOG(INFO) << DBInfo(db_name_).ToString() << "Received duplicate log with logic_id " 
+              << attribute.logic_id() << ", ignored";
     return Status::OK();
   }
   LogOffset offset = LogOffset();
@@ -885,46 +986,187 @@ Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_
  * @brief Commit logs up to the given offset and update the committed ID.
  */
 Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) {
-  int index = logs_->FindOffset(logs_->FirstOffset());
-  int log_size = logs_->Size();  // Cache log size
-  for (int i = index; i < log_size; ++i) {
-    Log::LogItem log = logs_->At(i);
-    if (master_committed_id >= log.offset) {
-      LOG(INFO) << "PacificA master_committed_id: " << master_committed_id.ToString()
-                << ", ApplyLog: " << log.offset.ToString();
-      ApplyBinlog(log.cmd_ptr);
-    }
+  LOG(INFO) << "CommitAppLog: Starting - master_committed_id: " << master_committed_id.ToString() 
+            << ", db_name: " << db_name_;
+
+  // 获取当前的committed_id
+  LogOffset current_committed_id = GetCommittedId();
+  
+  // 如果收到的master_committed_id小于当前的committed_id，记录日志但不更新
+  if (master_committed_id < current_committed_id) {
+    LOG(WARNING) << "CommitAppLog: Received master_committed_id " << master_committed_id.ToString() 
+                << " is less than current committed_id " << current_committed_id.ToString() 
+                << ", ignoring update";
+    return Status::OK();
+  }
+  
+  // 如果收到的master_committed_id等于当前的committed_id，无需更新
+  if (master_committed_id == current_committed_id) {
+    LOG(INFO) << "CommitAppLog: Received master_committed_id equals current committed_id: " 
+              << current_committed_id.ToString() << ", no update needed";
+    return Status::OK();
   }
 
-  logs_->TruncateFrom(master_committed_id);  // Truncate logs
-  SetCommittedId(master_committed_id);       // Update committed ID
+  // 记录日志条目数量和第一个条目的偏移量
+  int logs_size = logs_->Size();
+  LogOffset first_offset = logs_->FirstOffset();
+  LOG(INFO) << "CommitAppLog: Found " << logs_size << " logs, starting from index 0, first_offset: " << first_offset.ToString();
+
+  // 应用所有小于等于master_committed_id的日志条目
+  int applied_count = 0;
+  for (int i = 0; i < logs_size; ++i) {
+    Log::LogItem item = logs_->At(i);
+    
+    // 如果日志条目的偏移量大于master_committed_id，跳过
+    if (item.offset > master_committed_id) {
+      LOG(INFO) << "CommitAppLog: Skipping log at offset " << item.offset.ToString() 
+                << " because it's beyond committed_id: " << master_committed_id.ToString();
+      continue;
+    }
+    
+    // 如果日志条目的偏移量小于等于当前的committed_id，说明已经应用过，跳过
+    if (item.offset <= current_committed_id) {
+      LOG(INFO) << "CommitAppLog: Skipping log at offset " << item.offset.ToString() 
+                << " because it's already committed: " << current_committed_id.ToString();
+      continue;
+    }
+    
+    // 应用日志条目
+    LOG(INFO) << "CommitAppLog: Applying log at offset " << item.offset.ToString();
+    Status s = ApplyBinlog(item.cmd_ptr);
+    if (!s.ok()) {
+      LOG(WARNING) << "CommitAppLog: Failed to apply log at offset " << item.offset.ToString() 
+                  << ", error: " << s.ToString();
+      return s;
+    }
+    applied_count++;
+  }
+
+  LOG(INFO) << "CommitAppLog: Applied " << applied_count << " logs";
+  
+  // 更新committed_id
+  if (master_committed_id > current_committed_id) {
+    LOG(INFO) << "CommitAppLog: Updated committed_id from " << current_committed_id.ToString() 
+              << " to " << master_committed_id.ToString();
+    SetCommittedId(master_committed_id);
+  }
+  
   return Status::OK();
 }
 
 /**
- * @brief Update the committed ID based on the Prepared ID of the slave
+ * @brief Update the committed ID based on the acknowledged offsets of all slaves.
  */
 Status ConsensusCoordinator::UpdateCommittedID() {
+  // 获取当前的prepared_id
+  LogOffset current_prepared_id;
+  {
+    std::lock_guard l(prepared_id__rwlock_);
+    current_prepared_id = prepared_id_;
+  }
+  
+  // 获取当前的committed_id
+  LogOffset current_committed_id;
+  {
+    std::lock_guard l(committed_id_rwlock_);
+    current_committed_id = committed_id_;
+  }
+  
   std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = sync_pros_.GetAllSlaveNodes();
-  LogOffset slave_prepared_id = LogOffset();
+  LogOffset min_acked_offset;
+  int active_slave_count = 0;
+  int total_slave_count = slaves.size();
+  int binlog_sync_slave_count = 0;
+  
+  // 初始化min_acked_offset为主节点的prepared_id
+  min_acked_offset = current_prepared_id;
+  
+  LOG(INFO) << "UpdateCommittedID: Master prepared_id: " << current_prepared_id.ToString() 
+            << ", current_committed_id: " << current_committed_id.ToString()
+            << ", Total slaves: " << total_slave_count;
 
-  for (const auto& slave : slaves) {
-    if (slave.second->slave_state == kSlaveBinlogSync) {
-      if (slave_prepared_id == LogOffset()) {
-        slave_prepared_id = slave.second->acked_offset;
-      } else if (slave.second->acked_offset < slave_prepared_id) {
-        slave_prepared_id = slave.second->acked_offset;
+  // 如果没有从节点或没有活跃从节点，且prepared_id > committed_id，直接更新committed_id
+  if (total_slave_count == 0 && current_prepared_id > current_committed_id) {
+    LOG(INFO) << "UpdateCommittedID: No slaves, updating committed_id to prepared_id: " 
+              << current_prepared_id.ToString();
+    SetCommittedId(current_prepared_id);
+    return Status::OK();
+  }
+
+  // 查找所有活跃从节点中的最小acked_offset
+  for (const auto& slave_pair : slaves) {
+    const auto& slave = slave_pair.second;
+    // 记录从节点的状态和acked_offset，无论状态如何
+    LOG(INFO) << "UpdateCommittedID: Slave " << slave->Ip() << ":" << slave->Port()
+              << " state: " << SlaveStateMsg[slave->slave_state]
+              << " acked_offset: " << slave->acked_offset.ToString();
+              
+    // 考虑所有状态的从节点，只要它们有有效的acked_offset
+    if (slave->acked_offset.IsValid()) {
+      if (active_slave_count == 0) {
+        min_acked_offset = slave->acked_offset;
+      } else {
+        if (slave->acked_offset < min_acked_offset) {
+          min_acked_offset = slave->acked_offset;
+        }
+      }
+      active_slave_count++;
+      
+      // 如果是BinlogSync或Candidate状态，计数
+      if (slave->slave_state == kSlaveBinlogSync || slave->slave_state == KCandidate) {
+        binlog_sync_slave_count++;
       }
     }
   }
-  if (slave_prepared_id < GetCommittedId()) {
-    LOG(WARNING) << "Error: slave_prepared_id (" << slave_prepared_id.ToString() << ") < master_committedId ("
-                 << GetCommittedId().ToString() << ")";
-    return Status::Error("slave_prepared_id < master_committedId");
+
+  LOG(INFO) << "UpdateCommittedID: Active slaves: " << active_slave_count 
+            << ", Total slaves: " << total_slave_count 
+            << ", BinlogSync slaves: " << binlog_sync_slave_count;
+
+  // 确定新的committed_id
+  LogOffset new_committed_id;
+  if (active_slave_count == 0) {
+    // 如果没有活跃的从节点，使用prepared_id作为new_committed_id
+    new_committed_id = current_prepared_id;
+    LOG(INFO) << "UpdateCommittedID: No active slaves, using prepared_id: " << current_prepared_id.ToString();
+  } else if (active_slave_count < total_slave_count) {
+    // 如果有部分从节点活跃，使用min_acked_offset作为new_committed_id
+    new_committed_id = min_acked_offset;
+    LOG(INFO) << "UpdateCommittedID: Partial slaves acknowledged (" << active_slave_count << "/" << total_slave_count 
+              << "), using minimum acked offset: " << min_acked_offset.ToString();
+  } else {
+    // 如果所有从节点都活跃，使用min_acked_offset作为new_committed_id
+    new_committed_id = min_acked_offset;
+    LOG(INFO) << "UpdateCommittedID: All slaves acknowledged (" << active_slave_count << "/" << total_slave_count 
+              << "), using minimum acked offset: " << min_acked_offset.ToString();
   }
-  SetCommittedId(slave_prepared_id);
-  LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
-  return Status::OK();
+
+  // 确保new_committed_id不低于当前的committed_id
+  if (new_committed_id < current_committed_id) {
+    LOG(WARNING) << "UpdateCommittedID: New committed_id " << new_committed_id.ToString() 
+                << " is less than current committed_id " << current_committed_id.ToString() 
+                << ", keeping current value";
+    new_committed_id = current_committed_id;
+  }
+  
+  // 确保new_committed_id不超过prepared_id
+  if (new_committed_id > current_prepared_id) {
+    LOG(WARNING) << "UpdateCommittedID: new_committed_id " << new_committed_id.ToString() 
+                << " exceeds prepared_id " << current_prepared_id.ToString() 
+                << ", adjusting to prepared_id";
+    new_committed_id = current_prepared_id;
+  }
+  
+  // 如果committed_id有变化，更新它
+  if (new_committed_id > current_committed_id) {
+    LOG(INFO) << "UpdateCommittedID: Updating committed_id from " << current_committed_id.ToString() 
+              << " to " << new_committed_id.ToString();
+    SetCommittedId(new_committed_id);
+    return Status::OK();
+  } else {
+    LOG(INFO) << "UpdateCommittedID: No update needed, current committed ID: " << current_committed_id.ToString();
+    return Status::OK();
+  }
 }
 Status ConsensusCoordinator::ProcessCoordination() {
   LogOffset offset = LogOffset();
@@ -966,29 +1208,98 @@ Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
 
 Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name) {
   std::vector<WriteTask> tasks;
+  const int MAX_BATCH_SIZE = 100; // Maximum number of logs to send in a single batch
+
+  // Get current committed_id to ensure it's sent to the slave
+  LogOffset current_committed_id = GetCommittedId();
+  LOG(INFO) << "SendBinlog: [Thread " << std::this_thread::get_id() << "] Current committed_id: " << current_committed_id.ToString()
+            << ", sending to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port()
+            << ", logs_ addr: " << logs_.get() << ", db_name: " << db_name_;
 
   // Check if there are new log entries that need to be sent to the slave
-  if (logs_->LastOffset() >= slave_ptr->acked_offset) {
+  LOG(INFO) << "SendBinlog: logs_->LastOffset()=" << logs_->LastOffset().ToString() 
+            << ", slave_ptr->acked_offset=" << slave_ptr->acked_offset.ToString()
+            << ", logs_->Size()=" << logs_->Size();
+            
+  if (logs_->Size() > 0 && logs_->LastOffset() >= slave_ptr->acked_offset) {
     // Find the index of the log entry corresponding to the slave's acknowledged offset
     int index = logs_->FindOffset(slave_ptr->acked_offset);
+    int entries_to_send = logs_->Size() - index;
+    LOG(INFO) << "SendBinlog: Found " << entries_to_send << " new log entries to send, "
+              << "starting from index " << index << " of " << logs_->Size();
+    
     if (index < logs_->Size()) {
-      for (int i = index; i < logs_->Size(); ++i) {
-        const Log::LogItem& item = logs_->At(i);
-
-        slave_ptr->SetLastSendTime(pstd::NowMicros());
-
-        RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), slave_ptr->DBName(), slave_ptr->SessionId());
-        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), slave_ptr->sent_offset, GetCommittedId());
-        tasks.emplace_back(std::move(task));
-
-        slave_ptr->sent_offset = item.offset;
+      // Send log entries in optimized batches
+      RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), db_name, slave_ptr->SessionId());
+      
+      // For large batches, use specialized batch handling
+      if (entries_to_send > MAX_BATCH_SIZE) {
+        LOG(INFO) << "SendBinlog: Using optimized batch sending for " << entries_to_send << " entries";
+        
+        // Process in chunks of MAX_BATCH_SIZE
+        for (int batch_start = index; batch_start < logs_->Size(); batch_start += MAX_BATCH_SIZE) {
+          int batch_end = std::min(batch_start + MAX_BATCH_SIZE, logs_->Size());
+          std::string combined_binlog;
+          LogOffset first_offset, last_offset;
+          
+          // Combine binlogs in the batch
+          for (int i = batch_start; i < batch_end; ++i) {
+            Log::LogItem item = logs_->At(i);
+            if (i == batch_start) first_offset = item.offset;
+            if (i == batch_end - 1) last_offset = item.offset;
+            combined_binlog += item.binlog_;
+          }
+          
+          // Create a batch task with the combined binlog
+          // The offset field contains the first offset in the batch
+          // The task knows this is a batch through a special flag
+          WriteTask batch_task(rm_node, BinlogChip(first_offset, combined_binlog, true), 
+                              last_offset, current_committed_id);
+          tasks.push_back(batch_task);
+          
+          LOG(INFO) << "SendBinlog: Created batch from index " << batch_start 
+                    << " to " << (batch_end-1) << " with offsets " 
+                    << first_offset.ToString() << " to " << last_offset.ToString();
+        }
+      } else {
+        // For small batches, use the original approach
+        for (int i = index; i < logs_->Size(); ++i) {
+          Log::LogItem item = logs_->At(i);
+          WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), item.offset, current_committed_id);
+          tasks.push_back(task);
+        }
       }
+    } else {
+      LOG(INFO) << "SendBinlog: No new log entries to send, index " << index << " is out of range (logs size: " << logs_->Size() << ")";
+    }
+  } else {
+    if (logs_->Size() == 0) {
+      LOG(INFO) << "SendBinlog: No logs available yet (logs_->Size()=0), will send empty binlog to maintain connection";
+    } else {
+      LOG(INFO) << "SendBinlog: Slave is already up to date, last offset: " << logs_->LastOffset().ToString()
+                << ", slave acked offset: " << slave_ptr->acked_offset.ToString();
     }
   }
 
-  if (!tasks.empty()) {
-    g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
+  // Even if there are no new log entries, send an empty binlog with the current committed_id
+  // This ensures slaves always receive the latest committed_id
+  if (tasks.empty()) {
+    LOG(INFO) << "SendBinlog: Sending empty binlog with current committed_id: " << current_committed_id.ToString();
+    RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), db_name, slave_ptr->SessionId());
+    // Create an empty WriteTask that includes the current committed_id
+    WriteTask empty_task(rm_node, BinlogChip(LogOffset(), ""), LogOffset(), current_committed_id);
+    tasks.push_back(empty_task);
   }
+
+  // Send the tasks to the slave
+  if (!tasks.empty()) {
+    LOG(INFO) << "SendBinlog: Sending " << tasks.size() << " tasks to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port();
+    extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
+    g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
+  } else {
+    LOG(INFO) << "SendBinlog: No tasks to send to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port();
+  }
+
   return Status::OK();
 }
 

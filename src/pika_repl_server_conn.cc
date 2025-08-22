@@ -21,6 +21,7 @@ PikaReplServerConn::PikaReplServerConn(int fd, const std::string& ip_port, net::
 PikaReplServerConn::~PikaReplServerConn() = default;
 
 void PikaReplServerConn::HandleMetaSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle MetaSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -100,6 +101,7 @@ void PikaReplServerConn::HandleMetaSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleTrySyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle TrySync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -138,8 +140,13 @@ void PikaReplServerConn::HandleTrySyncRequest(void* arg) {
     response.set_code(InnerMessage::kOk);
   }
 
+  LOG(INFO) << "HandleTrySyncRequest: pre_success=" << pre_success;
   if (pre_success && TrySyncOffsetCheck(db, try_sync_request, try_sync_response)) {
+    LOG(INFO) << "HandleTrySyncRequest: TrySyncOffsetCheck passed, calling TrySyncUpdateSlaveNode";
     TrySyncUpdateSlaveNode(db, try_sync_request, conn, try_sync_response);
+    LOG(INFO) << "HandleTrySyncRequest: TrySyncUpdateSlaveNode completed";
+  } else {
+    LOG(WARNING) << "HandleTrySyncRequest: TrySyncOffsetCheck failed or pre_success=false";
   }
 
   std::string reply_str;
@@ -148,6 +155,8 @@ void PikaReplServerConn::HandleTrySyncRequest(void* arg) {
     conn->NotifyClose();
     return;
   }
+  LOG(INFO) << "HandleTrySyncRequest: Response sent successfully to " << try_sync_request.node().ip() 
+            << ":" << try_sync_request.node().port();
   conn->NotifyWrite();
 }
 
@@ -156,7 +165,13 @@ bool PikaReplServerConn::TrySyncUpdateSlaveNode(const std::shared_ptr<SyncMaster
                                                 const std::shared_ptr<net::PbConn>& conn,
                                                 InnerMessage::InnerResponse::TrySync* try_sync_response) {
   const InnerMessage::Node& node = try_sync_request.node();
-  if (!db->CheckSlaveNodeExist(node.ip(), node.port())) {
+  LOG(INFO) << "TrySyncUpdateSlaveNode: Starting for slave " << node.ip() << ":" << node.port();
+  
+  LOG(INFO) << "TrySyncUpdateSlaveNode: Checking if slave node exists...";
+  bool slave_exists = db->CheckSlaveNodeExist(node.ip(), node.port());
+  LOG(INFO) << "TrySyncUpdateSlaveNode: Slave exists check result: " << slave_exists;
+  
+  if (!slave_exists) {
     int32_t session_id = db->GenSessionId();
     if (session_id == -1) {
       try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kError);
@@ -165,7 +180,9 @@ bool PikaReplServerConn::TrySyncUpdateSlaveNode(const std::shared_ptr<SyncMaster
     }
     try_sync_response->set_session_id(session_id);
     // incremental sync
+    LOG(INFO) << "TrySyncUpdateSlaveNode: Adding new slave node with session_id=" << session_id;
     Status s = db->AddSlaveNode(node.ip(), node.port(), session_id);
+    LOG(INFO) << "TrySyncUpdateSlaveNode: AddSlaveNode result: " << s.ToString();
     if (!s.ok()) {
       try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kError);
       LOG(WARNING) << "DB: " << db->DBName() << " TrySync Failed, " << s.ToString();
@@ -176,8 +193,10 @@ bool PikaReplServerConn::TrySyncUpdateSlaveNode(const std::shared_ptr<SyncMaster
     try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kOk);
     LOG(INFO) << "DB: " << db->DBName() << " TrySync Success, Session: " << session_id;
   } else {
+    LOG(INFO) << "TrySyncUpdateSlaveNode: Slave already exists, getting session ID...";
     int32_t session_id;
     Status s = db->GetSlaveNodeSession(node.ip(), node.port(), &session_id);
+    LOG(INFO) << "TrySyncUpdateSlaveNode: GetSlaveNodeSession result: " << s.ToString();
     if (!s.ok()) {
       try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kError);
       LOG(WARNING) << "DB: " << db->DBName() << " Get Session id Failed" << s.ToString();
@@ -187,6 +206,7 @@ bool PikaReplServerConn::TrySyncUpdateSlaveNode(const std::shared_ptr<SyncMaster
     try_sync_response->set_session_id(session_id);
     LOG(INFO) << "DB: " << db->DBName() << " TrySync Success, Session: " << session_id;
   }
+  LOG(INFO) << "TrySyncUpdateSlaveNode: Completed successfully, returning true";
   return true;
 }
 
@@ -238,9 +258,13 @@ bool PikaReplServerConn::TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>&
         return false;
       }
       LOG(INFO)<<"master_CommittedId >= slave committed_id";
+      LOG(INFO) << "TrySyncOffsetCheck: Seeking to committed_id: " << committed_id.b_offset.filenum 
+                << ":" << committed_id.b_offset.offset;
       reader.Seek(db->Logger(), committed_id.b_offset.filenum, committed_id.b_offset.offset);
       BinlogOffset seeked_offset;
       reader.GetReaderStatus(&(seeked_offset.filenum), &(seeked_offset.offset));
+      LOG(INFO) << "TrySyncOffsetCheck: Seeked to: " << seeked_offset.filenum << ":" << seeked_offset.offset;
+      
       if (seeked_offset.filenum != committed_id.b_offset.filenum ||
           seeked_offset.offset != committed_id.b_offset.offset) {
         try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kError);
@@ -252,6 +276,7 @@ bool PikaReplServerConn::TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>&
                     << ", offset: " << seeked_offset.offset;
         return false;
       }
+      LOG(INFO) << "TrySyncOffsetCheck: Seek validation passed for committed_id";
       InnerMessage::BinlogOffset* master_prepared_id = try_sync_response->mutable_prepared_id();
       g_pika_rm->BuildBinlogOffset(db->GetPreparedId(), master_prepared_id);
     }else{
@@ -261,9 +286,13 @@ bool PikaReplServerConn::TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>&
     }
   }
 
+  LOG(INFO) << "TrySyncOffsetCheck: Now checking slave binlog offset: " << slave_boffset.filenum() 
+            << ":" << slave_boffset.offset();
   reader.Seek(db->Logger(), slave_boffset.filenum(), slave_boffset.offset());
   BinlogOffset seeked_offset;
   reader.GetReaderStatus(&(seeked_offset.filenum), &(seeked_offset.offset));
+  LOG(INFO) << "TrySyncOffsetCheck: Slave offset seek result: " << seeked_offset.filenum << ":" << seeked_offset.offset;
+  
   if (seeked_offset.filenum != slave_boffset.filenum() || seeked_offset.offset != slave_boffset.offset()) {
     try_sync_response->set_reply_code(InnerMessage::InnerResponse::TrySync::kError);
     LOG(WARNING) << "Slave offset is not a start point of cur log, Slave ip: " << node.ip()
@@ -271,10 +300,13 @@ bool PikaReplServerConn::TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>&
                  << seeked_offset.filenum << ", offset: " << seeked_offset.offset;
     return false;
   }
+  
+  LOG(INFO) << "TrySyncOffsetCheck: All validations passed, returning true";
   return true;
 }
 
 void PikaReplServerConn::HandleDBSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle DBSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -356,6 +388,7 @@ void PikaReplServerConn::HandleDBSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle BinlogSync Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -408,13 +441,18 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
     }
     if (master_db->GetISConsistency()) {
       Status s = master_db->AppendCandidateBinlog(node.ip(), node.port(), range_start);
+      if (!s.ok()) {
+        LOG(WARNING) << "Append Candidate Binlog failed " << slave_node.ToString() << " " << s.ToString();
+        conn->NotifyClose();
+        return;
+      }
     } else {
       Status s = master_db->ActivateSlaveBinlogSync(node.ip(), node.port(), range_start);
-    }
-    if (!s.ok()) {
-      LOG(WARNING) << "Activate Binlog Sync failed " << slave_node.ToString() << " " << s.ToString();
-      conn->NotifyClose();
-      return;
+      if (!s.ok()) {
+        LOG(WARNING) << "Activate Binlog Sync failed " << slave_node.ToString() << " " << s.ToString();
+        conn->NotifyClose();
+        return;
+      }
     }
     return;
   }
@@ -422,8 +460,12 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
   // not the first_send the range_ack cant be 0
   // set this case as ping
   if (range_start.b_offset == BinlogOffset() && range_end.b_offset == BinlogOffset()) {
+    LOG(INFO) << "Received ping from slave: " << slave_node.ToString();
     return;
   }
+  LOG(INFO) << "Received binlog ack from slave: " << slave_node.ToString() 
+            << ", range_start: " << range_start.ToString() 
+            << ", range_end: " << range_end.ToString();
   s = g_pika_rm->UpdateSyncBinlogStatus(slave_node, range_start, range_end);
   if (!s.ok()) {
     LOG(WARNING) << "Update binlog ack failed " << db_name << " " << s.ToString();
@@ -435,6 +477,7 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
 }
 
 void PikaReplServerConn::HandleRemoveSlaveNodeRequest(void* arg) {
+  //LOG(INFO) << "ReplServer BG thread handle RemoveSlaveNode Request";
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;

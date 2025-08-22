@@ -35,6 +35,21 @@ StableLog::StableLog(std::string db_name, std::string log_path)
 
 StableLog::~StableLog() = default;
 
+std::shared_ptr<ConsensusCoordinator> StableLog::coordinator() {
+  // Get and return the coordinator pointer directly from SyncMasterDB
+  auto master_db = g_pika_rm->GetSyncMasterDBByName(DBInfo(db_name_));
+  if (master_db) {
+    // Return a nullptr if GetCoordinator is not ready
+    try {
+      // Use aliasing constructor instead of dangerous custom deleter
+      return std::shared_ptr<ConsensusCoordinator>(master_db, &master_db->GetCoordinator());
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Failed to get coordinator for " << db_name_ << ": " << e.what();
+      return nullptr;
+    }
+  }
+  return nullptr;
+}
 void StableLog::Leave() {
   Close();
   RemoveStableLogDir();

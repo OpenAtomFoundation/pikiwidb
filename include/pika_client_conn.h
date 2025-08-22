@@ -8,6 +8,7 @@
 
 #include <bitset>
 #include <utility>
+#include <future>
 
 #include "acl.h"
 #include "include/pika_command.h"
@@ -51,6 +52,7 @@ class PikaClientConn : public net::RedisConn {
     std::string db_name;
     bool cache_miss_in_rtc_;
   };
+
 
   struct TxnStateBitMask {
    public:

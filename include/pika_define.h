@@ -140,7 +140,9 @@ struct LogOffset {
   bool operator<=(const LogOffset& other) const { return b_offset <= other.b_offset; }
   bool operator>=(const LogOffset& other) const { return b_offset >= other.b_offset; }
   bool operator>(const LogOffset& other) const { return b_offset > other.b_offset; }
+  bool operator!=(const LogOffset& other) const { return b_offset != other.b_offset; }
   std::string ToString() const { return b_offset.ToString() + " " + l_offset.ToString(); }
+  bool IsValid() const { return b_offset.filenum > 0 || b_offset.offset > 0; }
   BinlogOffset b_offset;
   LogicOffset l_offset;
 };
@@ -178,10 +180,18 @@ const std::string BinlogSyncStateMsg[] = {"NotSync", "ReadFromCache", "ReadFromF
 struct BinlogChip {
   LogOffset offset_;
   std::string binlog_;
-  BinlogChip(const LogOffset& offset, std::string binlog) : offset_(offset), binlog_(std::move(binlog)) {}
+  bool is_batch_ = false;
+  
+  BinlogChip(const LogOffset& offset, std::string binlog) 
+    : offset_(offset), binlog_(std::move(binlog)), is_batch_(false) {}
+  
+  BinlogChip(const LogOffset& offset, std::string binlog, bool is_batch) 
+    : offset_(offset), binlog_(std::move(binlog)), is_batch_(is_batch) {}
+  
   BinlogChip(const BinlogChip& binlog_chip) {
     offset_ = binlog_chip.offset_;
     binlog_ = binlog_chip.binlog_;
+    is_batch_ = binlog_chip.is_batch_;
   }
 };
 
@@ -257,7 +267,7 @@ class RmNode : public Node {
   void SetSessionId(int32_t session_id) { session_id_ = session_id; }
   int32_t SessionId() const { return session_id_; }
   std::string ToString() const {
-    return "db=" + DBName() + "_,ip_port=" + Ip() + ":" +
+    return "db=" + DBName() + ",ip_port=" + Ip() + ":" +
            std::to_string(Port()) + ",session id=" + std::to_string(SessionId());
   }
   void SetLastSendTime(uint64_t last_send_time) { last_send_time_ = last_send_time; }
@@ -353,6 +363,14 @@ const int64_t kPoolSize = 1073741824;
 
 const std::string kBinlogPrefix = "write2file";
 const size_t kBinlogPrefixLen = 10;
+
+/* 
+ * PIKA_BATCH_MAGIC: Core identifier for binlog batch processing.
+ * - Master: Prefixes batched binlogs with this magic in SendBinlog
+ * - Slave: Detects this magic in HandleBGWorkerWriteBinlog
+ *   to switch between batch and single-binlog parsing modes.
+ */
+const uint32_t PIKA_BATCH_MAGIC = 0x42544348; // "BTCH" in ASCII
 
 const std::string kPikaMeta = "meta";
 const std::string kManifest = "manifest";

@@ -16,9 +16,11 @@
 #include "include/pika_define.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "include/pika_command_collector.h"
 #include "net/src/dispatch_thread.h"
 #include "net/src/worker_thread.h"
 #include "src/pstd/include/scope_record_lock.h"
+#include <future>
 
 #include "rocksdb/perf_context.h"
 #include "rocksdb/iostats_context.h"
@@ -357,14 +359,84 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
 }
 
 void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>& argvs, bool cache_miss_in_rtc) {
-  resp_num.store(static_cast<int32_t>(argvs.size()));
-  for (const auto& argv : argvs) {
-    std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
-    resp_array.push_back(resp_ptr);
-    ExecRedisCmd(argv, resp_ptr, cache_miss_in_rtc);
+  if (argvs.empty()) {
+    return;
   }
-  time_stat_->process_done_ts_ = pstd::NowMicros();
-  TryWriteResp();
+  
+  // Always use command collector batch processing when enabled, regardless of batch size
+  if (g_pika_conf->command_batch_enabled()) {
+    std::vector<std::shared_ptr<std::string>> responses(argvs.size());
+    std::vector<std::shared_ptr<Cmd>> cmd_ptrs(argvs.size());
+    bool has_write_cmds = false;
+    
+    // First, prepare response objects and parse commands for each command in the batch
+    for (size_t i = 0; i < argvs.size(); i++) {
+      responses[i] = std::make_shared<std::string>();
+      
+      std::string opt = argvs[i][0];
+      pstd::StringToLower(opt);
+      if (opt == kClusterPrefix && argvs[i].size() >= 2) {
+        opt += argvs[i][1];
+        pstd::StringToLower(opt);
+      }
+      
+      cmd_ptrs[i] = DoCmd(argvs[i], opt, responses[i], cache_miss_in_rtc);
+      
+      // If it's a write command and not in a transaction, we'll need batch processing
+      if (cmd_ptrs[i]->is_write() && !IsInTxn()) {
+        has_write_cmds = true;
+      } else {
+        // For read commands or commands in transactions, process result immediately
+        *(responses[i]) = std::move(cmd_ptrs[i]->res().message());
+      }
+    }
+    
+    // For writing commands, use the command collector for efficient batch processing
+    if (has_write_cmds) {
+      // Log batch processing metrics
+      LOG(INFO) << "BatchExecRedisCmd: Processing batch of " << argvs.size() << " commands, with write commands";
+      
+      // Group all write commands for batch processing
+      for (size_t i = 0; i < cmd_ptrs.size(); i++) {
+        if (cmd_ptrs[i]->is_write() && !IsInTxn()) {
+          // Use shared responses array to avoid memory copy
+          g_pika_server->CommandCollector()->AddCommand(cmd_ptrs[i], 
+            [responses, i, cmd = cmd_ptrs[i]](const LogOffset& offset, pstd::Status status) {
+              if (!status.ok()) {
+                LOG(WARNING) << "Command failed with status: " << status.ToString();
+                *(responses[i]) = "-ERR " + status.ToString() + "\r\n";
+              } else {
+                *(responses[i]) = cmd->res().message();
+              }
+            });
+        }
+      }
+      
+      // Flush the batch immediately to optimize latency
+      g_pika_server->CommandCollector()->FlushCommands(true);
+    }
+    
+    // Send all responses to client
+    for (const auto& resp : responses) {
+      WriteResp(*resp);
+    }
+    
+    if (write_completed_cb_) {
+      write_completed_cb_();
+      write_completed_cb_ = nullptr;
+    }
+    NotifyEpoll(true);
+  } else {
+    // Legacy non-batched processing path
+    resp_num.store(static_cast<int32_t>(argvs.size()));
+    for (const auto& argv : argvs) {
+      std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
+      resp_array.push_back(resp_ptr);
+      ExecRedisCmd(argv, resp_ptr, cache_miss_in_rtc);
+    }
+    time_stat_->process_done_ts_ = pstd::NowMicros();
+    TryWriteResp();
+  }
 }
 
 bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std::string& opt) {
@@ -553,8 +625,20 @@ void PikaClientConn::ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<s
   }
 
   std::shared_ptr<Cmd> cmd_ptr = DoCmd(argv, opt, resp_ptr, cache_miss_in_rtc);
-  *resp_ptr = std::move(cmd_ptr->res().message());
-  resp_num--;
+  if (cmd_ptr->is_write() && g_pika_conf->command_batch_enabled() && !IsInTxn()) {
+    // Use command collector for batch processing
+    g_pika_server->CommandCollector()->AddCommand(cmd_ptr, [this, resp_ptr](const LogOffset& offset, pstd::Status status) {
+      if (!status.ok()) {
+        *resp_ptr = "-ERR " + status.ToString() + "\r\n";
+      }
+      // Decrease response count
+      resp_num--;
+    });
+  } else {
+    // Handling for non-write commands or when batch processing is disabled
+    *resp_ptr = std::move(cmd_ptr->res().message());
+    resp_num--;
+  }
 }
 
 std::queue<std::shared_ptr<Cmd>> PikaClientConn::GetTxnCmdQue() { return txn_cmd_que_; }

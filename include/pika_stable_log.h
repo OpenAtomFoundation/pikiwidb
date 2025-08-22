@@ -11,6 +11,9 @@
 
 #include "include/pika_binlog.h"
 
+// Forward declaration to avoid circular dependency
+class ConsensusCoordinator;
+
 class StableLog : public std::enable_shared_from_this<StableLog> {
  public:
   StableLog(std::string table_name, std::string log_path);
@@ -25,6 +28,9 @@ class StableLog : public std::enable_shared_from_this<StableLog> {
     std::shared_lock l(offset_rwlock_);
     return first_offset_;
   }
+  // Return a direct reference to the ConsensusCoordinator without copying
+  std::shared_ptr<ConsensusCoordinator> coordinator();
+  void set_coordinator(std::shared_ptr<ConsensusCoordinator> coordinator);
   // Need to hold binlog lock
   pstd::Status TruncateTo(const LogOffset& offset);
 

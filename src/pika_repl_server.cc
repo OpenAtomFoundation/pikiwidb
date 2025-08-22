@@ -53,6 +53,7 @@ int PikaReplServer::Stop() {
 
 pstd::Status PikaReplServer::SendSlaveBinlogChips(const std::string& ip, int port,
                                                   const std::vector<WriteTask>& tasks) {
+  LOG(INFO) << "SendSlaveBinlogChips: Preparing to send " << tasks.size() << " tasks to " << ip << ":" << port;
   InnerMessage::InnerResponse response;
   BuildBinlogSyncResp(tasks, &response);
 
@@ -77,7 +78,10 @@ pstd::Status PikaReplServer::SendSlaveBinlogChips(const std::string& ip, int por
     }
     return pstd::Status::OK();
   }
-  return Write(ip, port, binlog_chip_pb);
+  LOG(INFO) << "SendSlaveBinlogChips: Calling Write to send " << binlog_chip_pb.size() << " bytes to " << ip << ":" << port;
+  pstd::Status result = Write(ip, port, binlog_chip_pb);
+  LOG(INFO) << "SendSlaveBinlogChips: Write result: " << (result.ok() ? "SUCCESS" : result.ToString());
+  return result;
 }
 
 void PikaReplServer::BuildBinlogOffset(const LogOffset& offset, InnerMessage::BinlogOffset* boffset) {
@@ -87,12 +91,26 @@ void PikaReplServer::BuildBinlogOffset(const LogOffset& offset, InnerMessage::Bi
   boffset->set_index(offset.l_offset.index);
 }
 
-void PikaReplServer::BuildBinlogSyncResp(const std::vector<WriteTask>& tasks, InnerMessage::InnerResponse* response) {
-  response->set_code(InnerMessage::kOk);
+void PikaReplServer::BuildBinlogSyncResp(const std::vector<WriteTask>& tasks, InnerMessage::InnerResponse* response){
+  if (tasks.empty()) {
+    return;
+  }
+  
+  LOG(INFO) << "BuildBinlogSyncResp: Building response for " << tasks.size() << " tasks";
+  
   response->set_type(InnerMessage::Type::kBinlogSync);
-  for (const auto& task : tasks) {
+  response->set_code(InnerMessage::kOk);
+  
+  // Add batch magic number if there are multiple tasks
+  bool is_batch = tasks.size() > 1;
+  LOG(INFO) << "BuildBinlogSyncResp: is_batch=" << (is_batch ? "true" : "false") << ", batch_size=" << tasks.size();
+  
+  for (size_t task_idx = 0; task_idx < tasks.size(); task_idx++) {
+    const auto& task = tasks[task_idx];
     InnerMessage::InnerResponse::BinlogSync* binlog_sync = response->add_binlog_sync();
-    binlog_sync->set_session_id(task.rm_node_.SessionId());
+    const RmNode& node = task.rm_node_;
+    binlog_sync->set_session_id(node.SessionId());
+
     InnerMessage::Slot* db = binlog_sync->mutable_slot();
     db->set_db_name(task.rm_node_.DBName());
     /*
@@ -103,11 +121,57 @@ void PikaReplServer::BuildBinlogSyncResp(const std::vector<WriteTask>& tasks, In
     db->set_slot_id(0);
     InnerMessage::BinlogOffset* boffset = binlog_sync->mutable_binlog_offset();
     BuildBinlogOffset(task.binlog_chip_.offset_, boffset);
-    if(g_pika_server->IsConsistency()){
+    
+    LOG(INFO) << "BuildBinlogSyncResp: Task " << task_idx << " offset=" << task.binlog_chip_.offset_.ToString() 
+              << " binlog_size=" << task.binlog_chip_.binlog_.size();
+    
+    // Always add committed_id, regardless of strong consistency mode
       InnerMessage::BinlogOffset* committed_id = binlog_sync->mutable_committed_id();
       BuildBinlogOffset(task.committed_id_, committed_id);
+      LOG(INFO) << "BuildBinlogSyncResp: Task " << task_idx << " committed_id=" << task.committed_id_.ToString();
+    
+    // For batch binlog transmission, add PIKA_BATCH_MAGIC at the beginning of the first binlog entry
+    if (is_batch && binlog_sync == response->mutable_binlog_sync(0)) {
+      // Prepend the magic number to indicate this is a batch
+      std::string magic_binlog;
+      magic_binlog.resize(sizeof(uint32_t));
+      memcpy(&magic_binlog[0], &PIKA_BATCH_MAGIC, sizeof(uint32_t));
+      
+      // Log the magic number as hex for debugging
+      LOG(INFO) << "BuildBinlogSyncResp: Adding magic number: 0x" 
+                << std::hex << PIKA_BATCH_MAGIC << std::dec;
+      
+      // Check if binlog is empty before appending
+      if (task.binlog_chip_.binlog_.empty()) {
+        LOG(WARNING) << "BuildBinlogSyncResp: WARNING - Empty binlog content in batch task " << task_idx;
+      }
+      
+      magic_binlog.append(task.binlog_chip_.binlog_);
+      binlog_sync->set_binlog(magic_binlog);
+      
+      // Detailed logging of the binlog content
+      LOG(INFO) << "BuildBinlogSyncResp: Added PIKA_BATCH_MAGIC (0x" << std::hex << PIKA_BATCH_MAGIC << std::dec 
+                << ") to first binlog in batch of size " << tasks.size() 
+                << ", original size=" << task.binlog_chip_.binlog_.size()
+                << ", new size=" << magic_binlog.size();
+      
+      // Verify the magic number was correctly added by reading it back
+      if (magic_binlog.size() >= sizeof(uint32_t)) {
+        uint32_t verification = 0;
+        memcpy(&verification, magic_binlog.data(), sizeof(uint32_t));
+        LOG(INFO) << "BuildBinlogSyncResp: Verified magic number in prepared binlog: 0x" 
+                  << std::hex << verification << std::dec;
+      }
+    } else {
+      // Check if binlog is empty before setting
+      if (task.binlog_chip_.binlog_.empty()) {
+        LOG(WARNING) << "BuildBinlogSyncResp: WARNING - Empty binlog content in regular task " << task_idx;
+      }
+      
+      binlog_sync->set_binlog(task.binlog_chip_.binlog_);
+      LOG(INFO) << "BuildBinlogSyncResp: Regular binlog for task " << task_idx 
+                << ", size=" << task.binlog_chip_.binlog_.size();
     }
-    binlog_sync->set_binlog(task.binlog_chip_.binlog_);
   }
 }
 

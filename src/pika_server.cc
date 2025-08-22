@@ -24,6 +24,7 @@
 #include "include/pika_monotonic_time.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "include/pika_command_collector.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -169,6 +170,12 @@ void PikaServer::Start() {
   }
   */
 
+  if (g_pika_conf->command_batch_enabled()) {
+    command_collector_ = std::make_shared<PikaCommandCollector>(
+        g_pika_rm->GetConsensusCoordinator(g_pika_conf->default_db()));
+    LOG(INFO) << "Command collector created successfully";
+  }
+
   ret = pika_client_processor_->Start();
   if (ret != net::kSuccess) {
     dbs_.clear();
@@ -213,6 +220,7 @@ void PikaServer::Start() {
   LOG(INFO) << "Pika Server going to start";
   rsync_server_->Start();
   while (!exit_) {
+    //LOG(INFO) << "Pika Server start a new round of timing tasks";
     DoTimingTask();
     // wake up every 5 seconds
     if (!exit_ && exit_mutex_.try_lock_for(std::chrono::seconds(5))) {
@@ -583,15 +591,26 @@ void PikaServer::DeleteSlave(int fd) {
   }
 
   if (is_find) {
+    LOG(INFO) << "DeleteSlave: Processing slave deletion for " << ip << ":" << port << ", clearing write queues";
     g_pika_rm->LostConnection(ip, port);
     g_pika_rm->DropItemInWriteQueue(ip, port);
+    LOG(INFO) << "DeleteSlave: Completed slave deletion for " << ip << ":" << port;
   }
 
   if (slave_num == 0) {
-    std::lock_guard l(state_protector_);
-    last_role_ = role_;
-    role_ &= ~PIKA_ROLE_MASTER;
-    leader_protected_mode_ = false;  // explicitly cancel protected mode
+    // Check if slaveof is configured, if so, do not remove MASTER role
+    // Because a Pika configured as a slave is still the master node for its clients
+    std::string slaveof = g_pika_conf->slaveof();
+    if (slaveof.empty()) {
+      // Only remove MASTER role when slaveof is not configured
+      std::lock_guard l(state_protector_);
+      last_role_ = role_;
+      role_ &= ~PIKA_ROLE_MASTER;
+      leader_protected_mode_ = false;  // explicitly cancel protected mode
+      LOG(INFO) << "DeleteSlave: Removed MASTER role for standalone node";
+    } else {
+      LOG(INFO) << "DeleteSlave: Kept MASTER role for slaveof-configured node (slaveof: " << slaveof << ")";
+    }
   }
 }
 
@@ -790,13 +809,16 @@ void PikaServer::SetFirstMetaSync(bool v) {
 
 void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_cmd, bool is_admin_cmd) {
   if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
+    //LOG(INFO) << "Schedule task to slow cmd thread pool";
     pika_slow_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
   if (is_admin_cmd) {
+    //LOG(INFO) << "Schedule task to admin cmd thread pool";
     pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
+  //LOG(INFO) << "Schedule task to client processor thread pool";
   pika_client_processor_->SchedulePool(func, arg);
 }
 
@@ -1098,7 +1120,13 @@ int PikaServer::SendToPeer() { return g_pika_rm->ConsumeWriteQueue(); }
 
 void PikaServer::SignalAuxiliary() { pika_auxiliary_thread_->cv_.notify_one(); }
 
-Status PikaServer::TriggerSendBinlogSync() { return g_pika_rm->WakeUpBinlogSync(); }
+Status PikaServer::TriggerSendBinlogSync() { 
+  // Only execute on master nodes
+  if (!(role_ & PIKA_ROLE_MASTER)) {
+    return Status::OK();
+  }
+  return g_pika_rm->WakeUpBinlogSync(); 
+}
 
 int PikaServer::PubSubNumPat() { return pika_pubsub_thread_->PubSubNumPat(); }
 

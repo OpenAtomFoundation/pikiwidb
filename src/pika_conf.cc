@@ -412,6 +412,20 @@ int PikaConf::Load() {
     max_cache_statistic_keys_ = 0;
   }
   
+  // 命令批处理相关配置
+  std::string command_batch_enabled;
+  GetConfStr("command-batch-enabled", &command_batch_enabled);
+  command_batch_enabled_ = (command_batch_enabled == "yes");
+  
+  GetConfInt("batch-size", &batch_size_);
+  if (batch_size_ <= 0) {
+    batch_size_ = 100;
+  }
+  
+  GetConfInt("batch_max_wait_time", &batch_max_wait_time_);
+  if (batch_max_wait_time_ <= 0) {
+    batch_max_wait_time_ = 5;
+  }
   // disable_auto_compactions
   GetConfBool("disable_auto_compactions", &disable_auto_compactions_);
 
@@ -707,9 +721,13 @@ int PikaConf::Load() {
     rsync_timeout_ms_.store(tmp_rsync_timeout_ms);
   }
 
-  return ret;
-}
-
+  GetConfInt("replication-ack-timeout", &replication_ack_timeout_);
+  if (replication_ack_timeout_ <= 0) {
+    replication_ack_timeout_ = 5000;
+  }
+   return ret;
+ }
+ 
 void PikaConf::TryPushDiffCommands(const std::string& command, const std::string& value) {
   if (!CheckConfExist(command)) {
     diff_commands_[command] = value;
@@ -770,6 +788,9 @@ int PikaConf::ConfigRewrite() {
   SetConfStr("run-id", run_id_);
   SetConfStr("replication-id", replication_id_);
   SetConfInt("max-cache-statistic-keys", max_cache_statistic_keys_);
+  SetConfStr("command-batch-enabled", command_batch_enabled_ ? "yes" : "no");
+  SetConfInt("batch-size", batch_size_);
+  SetConfInt("batch-max-wait-time", batch_max_wait_time_);
   SetConfInt("small-compaction-threshold", small_compaction_threshold_);
   SetConfInt("small-compaction-duration-threshold", small_compaction_duration_threshold_);
   SetConfInt("max-client-response-size", static_cast<int32_t>(max_client_response_size_));
@@ -790,6 +811,7 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("replication-num", replication_num_.load());
   SetConfStr("slow-cmd-list", pstd::Set2String(slow_cmd_set_, ','));
   SetConfInt("max-conn-rbuf-size", max_conn_rbuf_size_.load());
+  SetConfInt("replication-ack-timeout", replication_ack_timeout_);
   // options for storage engine
   SetConfInt("max-cache-files", max_cache_files_);
   SetConfInt("max-background-compactions", max_background_compactions_);

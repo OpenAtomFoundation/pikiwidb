@@ -39,14 +39,26 @@ void* PikaAuxiliaryThread::ThreadMain() {
     if (!s.ok()) {
       LOG(WARNING) << s.ToString();
     }
-    // send to peer
-    int res = g_pika_server->SendToPeer();
-    if (res == 0) {
-      // sleep 100 ms
+    // send to peer (only for master nodes)
+    int current_role = g_pika_server->role();
+    static int role_log_counter = 0;
+    // if (++role_log_counter % 100 == 0) { // Log role every 100 iterations
+    //   LOG(INFO) << "PikaAuxiliaryThread: Current role=" << current_role << " (MASTER=" << PIKA_ROLE_MASTER << ")";
+    // }
+    
+    if (current_role & PIKA_ROLE_MASTER) {
+      int res = g_pika_server->SendToPeer();
+      if (res == 0) {
+        // sleep 100 ms
+        std::unique_lock lock(mu_);
+        cv_.wait_for(lock, 100ms);
+      } else {
+        LOG(INFO) << "PikaAuxiliaryThread: Processed " << res << " binlog tasks";
+      }
+    } else {
+      // For slave nodes, just sleep
       std::unique_lock lock(mu_);
       cv_.wait_for(lock, 100ms);
-    } else {
-      // LOG_EVERY_N(INFO, 1000) << "Consume binlog number " << res;
     }
   }
   return nullptr;

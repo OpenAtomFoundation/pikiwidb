@@ -1539,7 +1539,7 @@ void SlotsReloadCmd::Do() {
   g_pika_server->Bgslotsreload(db_);
   const PikaServer::BGSlotsReload &info = g_pika_server->bgslots_reload();
   char buf[256];
-  snprintf(buf, sizeof(buf), "+%s : %lld", info.s_start_time.c_str(), g_pika_server->GetSlotsreloadingCursor());
+  snprintf(buf, sizeof(buf), "+%s : %ld", info.s_start_time.c_str(), g_pika_server->GetSlotsreloadingCursor());
   res_.AppendContent(buf);
   return;
 }

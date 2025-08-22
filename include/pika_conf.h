@@ -69,6 +69,21 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return sync_thread_num_;
   }
+  
+  bool command_batch_enabled() {
+    std::shared_lock l(rwlock_);
+    return command_batch_enabled_;
+  }
+  
+  int batch_size() {
+    std::shared_lock l(rwlock_);
+    return batch_size_;
+  }
+  
+  int batch_max_wait_time() {
+    std::shared_lock l(rwlock_);
+    return batch_max_wait_time_;
+  }
   int sync_binlog_thread_num() {
     std::shared_lock l(rwlock_);
     return sync_binlog_thread_num_;
@@ -350,6 +365,16 @@ class PikaConf : public pstd::BaseConf {
   int max_conn_rbuf_size() { return max_conn_rbuf_size_.load(); }
   int consensus_level() { return consensus_level_.load(); }
   int replication_num() { return replication_num_.load(); }
+  int replication_ack_timeout() {
+    std::shared_lock l(rwlock_);
+    return replication_ack_timeout_;
+  }
+  
+  // Function to set replication acknowledgment timeout (used by batch system)
+  void SetReplicationAckTimeout(int timeout) {
+    std::lock_guard l(rwlock_);
+    replication_ack_timeout_ = timeout;
+  }
   int rate_limiter_mode() {
     std::shared_lock l(rwlock_);
     return rate_limiter_mode_;
@@ -436,7 +461,6 @@ class PikaConf : public pstd::BaseConf {
   bool is_admin_cmd(const std::string& cmd) {
     return admin_cmd_set_.find(cmd) != admin_cmd_set_.end();
   }
-
   // Immutable config items, we don't use lock.
   bool daemonize() { return daemonize_; }
   bool rtc_cache_read_enabled() { return rtc_cache_read_enabled_; }
@@ -461,6 +485,23 @@ class PikaConf : public pstd::BaseConf {
   void SetThreadNum(const int value) {
     std::lock_guard l(rwlock_);
     thread_num_ = value;
+  }
+  
+  void SetCommandBatchEnabled(const bool value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("command-batch-enabled", value ? "yes" : "no");
+    command_batch_enabled_ = value;
+  }
+  
+  void SetCommandBatchSize(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("batch-size", std::to_string(value));
+    batch_size_ = value;
+  }
+  void SetCommandBatchMaxWaitTime(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("batch-max-wait-time", std::to_string(value));
+    batch_max_wait_time_ = value;
   }
   void SetTimeout(const int value) {
     std::lock_guard l(rwlock_);
@@ -664,6 +705,17 @@ class PikaConf : public pstd::BaseConf {
   void SetMaxConnRbufSize(const int& value) {
     TryPushDiffCommands("max-conn-rbuf-size", std::to_string(value));
     max_conn_rbuf_size_.store(value);
+  }
+  void SetConsensusBatchSize(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("batch-size", std::to_string(value));
+    batch_size_ = value;
+  }
+  // This method is used by config update system
+  void UpdateReplicationAckTimeout(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("replication-ack-timeout", std::to_string(value));
+    replication_ack_timeout_ = value;
   }
   void SetMaxCacheFiles(const int& value) {
     std::lock_guard l(rwlock_);
@@ -929,6 +981,12 @@ class PikaConf : public pstd::BaseConf {
   std::string server_id_;
   std::string run_id_;
   std::string replication_id_;
+  
+  // 命令批处理相关配置
+  bool command_batch_enabled_ = true;
+  int batch_size_ = 100;
+  int batch_max_wait_time_ = 5;
+  int replication_ack_timeout_ = 5000;
   std::string requirepass_;
   std::string masterauth_;
   std::string userpass_;
@@ -1047,7 +1105,7 @@ class PikaConf : public pstd::BaseConf {
   int throttle_bytes_per_second_ = 200 << 20; // 200MB/s
   int max_rsync_parallel_num_ = kMaxRsyncParallelNum;
   std::atomic_int64_t rsync_timeout_ms_ = 1000;
-
+  
   /*
   kUninitialized = 0,             // unknown setting
   kDisable = 1,                   // disable perf stats

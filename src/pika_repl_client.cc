@@ -119,16 +119,51 @@ void PikaReplClient::ScheduleWriteBinlogTask(const std::string& db_name,
 }
 
 void PikaReplClient::ScheduleWriteDBTask(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& db_name) {
+  std::lock_guard<pstd::Mutex> lock(unfinished_async_write_db_tasks_mu_);
   const PikaCmdArgsType& argv = cmd_ptr->argv();
   std::string dispatch_key = argv.size() >= 2 ? argv[1] : argv[0];
   size_t index = GetHashIndexByKey(dispatch_key);
-  auto task_arg = new ReplClientWriteDBTaskArg(cmd_ptr);
+  auto task_arg = new std::shared_ptr<Cmd>(cmd_ptr);
 
-  IncrAsyncWriteDBTaskCount(db_name, 1);
-  std::function<void()> task_finish_call_back = [this, db_name]() { this->DecrAsyncWriteDBTaskCount(db_name, 1); };
+  unfinished_async_write_db_tasks_[db_name]++;
+  LOG(INFO) << "Scheduling WriteDB task for db " << db_name << ", command: " << argv[0] << ". Unfinished tasks: "
+            << unfinished_async_write_db_tasks_[db_name];
+  std::function<void()> task_finish_call_back = [this, db_name]() { this->SignalAsyncWriteDBTaskEnd(db_name); };
 
   write_db_workers_[index]->Schedule(&PikaReplBgWorker::HandleBGWorkerWriteDB, static_cast<void*>(task_arg),
                                      task_finish_call_back);
+}
+
+int32_t PikaReplClient::GetUnfinishedAsyncWriteDBTaskCount(const std::string& db_name) {
+  std::lock_guard<pstd::Mutex> lock(unfinished_async_write_db_tasks_mu_);
+  if (unfinished_async_write_db_tasks_.find(db_name) == unfinished_async_write_db_tasks_.end()) {
+    return 0;
+  }
+  return unfinished_async_write_db_tasks_.at(db_name);
+}
+
+void PikaReplClient::SignalAsyncWriteDBTaskEnd(const std::string& db_name) {
+  std::lock_guard<pstd::Mutex> lock(unfinished_async_write_db_tasks_mu_);
+  if (unfinished_async_write_db_tasks_.find(db_name) != unfinished_async_write_db_tasks_.end()) {
+    unfinished_async_write_db_tasks_[db_name]--;
+    LOG(INFO) << "Finished WriteDB task for db " << db_name << ". Unfinished tasks: " << unfinished_async_write_db_tasks_[db_name];
+    if (unfinished_async_write_db_tasks_[db_name] == 0) {
+      LOG(INFO) << "All WriteDB tasks finished for db " << db_name << ". Notifying waiting threads.";
+      async_write_db_tasks_cond_.notify_all();
+    }
+  }
+}
+
+void PikaReplClient::WaitForAsyncWriteDBTaskEnd(const std::string& db_name) {
+  std::unique_lock<pstd::Mutex> lock(unfinished_async_write_db_tasks_mu_);
+  if (unfinished_async_write_db_tasks_.count(db_name) && unfinished_async_write_db_tasks_[db_name] > 0) {
+    LOG(INFO) << "Waiting for " << unfinished_async_write_db_tasks_[db_name]
+              << " async write DB tasks to end for db " << db_name;
+  }
+  while (unfinished_async_write_db_tasks_.count(db_name) && unfinished_async_write_db_tasks_[db_name] > 0) {
+    async_write_db_tasks_cond_.wait(lock);
+  }
+  LOG(INFO) << "Finished waiting for async write DB tasks for db " << db_name;
 }
 
 size_t PikaReplClient::GetBinlogWorkerIndexByDBName(const std::string &db_name) {
@@ -142,6 +177,10 @@ size_t PikaReplClient::GetBinlogWorkerIndexByDBName(const std::string &db_name) 
         if (db_num < 0) { assert(false && "db_num invalid, check if the db_name in the request is valid, also check the ERROR Log of Pika."); }
     }
     return db_num % write_binlog_workers_.size();
+}
+
+size_t PikaReplClient::GetDBWorkerIndexByDBName(const std::string& db_name) {
+  return std::hash<std::string>()(db_name) % write_db_workers_.size();
 }
 
 size_t PikaReplClient::GetHashIndexByKey(const std::string& key) {

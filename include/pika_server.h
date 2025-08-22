@@ -78,6 +78,8 @@ struct TaskArg {
 void DoBgslotscleanup(void* arg);
 void DoBgslotsreload(void* arg);
 
+class PikaCommandCollector;
+
 class PikaServer : public pstd::noncopyable {
  public:
   PikaServer();
@@ -523,6 +525,11 @@ class PikaServer : public pstd::noncopyable {
       exec_stat_map.insert(std::make_pair(cmd_name, 0));
     }
   }
+  
+  // 命令收集器访问
+  std::shared_ptr<PikaCommandCollector> CommandCollector() {
+    return command_collector_;
+  }
 
  private:
   /*
@@ -574,6 +581,11 @@ class PikaServer : public pstd::noncopyable {
   std::unique_ptr<net::ThreadPool> pika_slow_cmd_thread_pool_;
   std::unique_ptr<net::ThreadPool> pika_admin_cmd_thread_pool_;
   std::unique_ptr<PikaDispatchThread> pika_dispatch_thread_ = nullptr;
+
+  /*
+   * command collector for batch processing
+   */
+  std::shared_ptr<PikaCommandCollector> command_collector_;
 
   /*
    * Slave used

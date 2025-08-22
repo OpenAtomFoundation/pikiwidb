@@ -33,7 +33,7 @@ class LockMgr : public pstd::noncopyable {
 
  private:
   // Default number of lock map stripes
-  const size_t default_num_stripes_[[maybe_unused]];
+  const size_t default_num_stripes_;
 
   // Limit on number of keys locked per column family
   const int64_t max_num_locks_;
