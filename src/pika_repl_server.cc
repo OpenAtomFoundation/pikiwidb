@@ -88,9 +88,16 @@ void PikaReplServer::BuildBinlogOffset(const LogOffset& offset, InnerMessage::Bi
 }
 
 void PikaReplServer::BuildBinlogSyncResp(const std::vector<WriteTask>& tasks, InnerMessage::InnerResponse* response) {
+  if (tasks.empty()) {
+    return;
+  }
   response->set_code(InnerMessage::kOk);
   response->set_type(InnerMessage::Type::kBinlogSync);
-  for (const auto& task : tasks) {
+
+  // Since CommandCollector is enabled, all data should be treated as batch processing
+  bool is_batch = g_pika_conf->command_batch_enabled();
+  for (size_t task_idx = 0; task_idx < tasks.size(); task_idx++) {
+    const auto& task = tasks[task_idx];
     InnerMessage::InnerResponse::BinlogSync* binlog_sync = response->add_binlog_sync();
     binlog_sync->set_session_id(task.rm_node_.SessionId());
     InnerMessage::Slot* db = binlog_sync->mutable_slot();
@@ -103,11 +110,23 @@ void PikaReplServer::BuildBinlogSyncResp(const std::vector<WriteTask>& tasks, In
     db->set_slot_id(0);
     InnerMessage::BinlogOffset* boffset = binlog_sync->mutable_binlog_offset();
     BuildBinlogOffset(task.binlog_chip_.offset_, boffset);
-    if(g_pika_server->IsConsistency()){
+
+    // For batch binlog transmission (when CommandCollector is enabled), 
+    // add PIKA_BATCH_MAGIC at the beginning of the first binlog entry
+    if (is_batch && task_idx == 0) {
+      std::string magic_binlog;
+      magic_binlog.resize(sizeof(uint32_t));
+      memcpy(&magic_binlog[0], &PIKA_BATCH_MAGIC, sizeof(uint32_t));
+      magic_binlog.append(task.binlog_chip_.binlog_);
+      binlog_sync->set_binlog(magic_binlog);
+    } else {
+      binlog_sync->set_binlog(task.binlog_chip_.binlog_);
+    }
+
+    if (g_pika_server->IsConsistency()) {
       InnerMessage::BinlogOffset* committed_id = binlog_sync->mutable_committed_id();
       BuildBinlogOffset(task.committed_id_, committed_id);
     }
-    binlog_sync->set_binlog(task.binlog_chip_.binlog_);
   }
 }
 

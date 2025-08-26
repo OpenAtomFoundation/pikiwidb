@@ -153,7 +153,7 @@ WriteStatus PbConn::SendReply() {
     if (item_len - write_buf_.item_pos_ != 0) {
       return kWriteHalf;
     }
-    LOG(ERROR) << "write item success";
+    //LOG(ERROR) << "write item success";
   }
   return kWriteAll;
 }

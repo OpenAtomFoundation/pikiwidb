@@ -12,6 +12,7 @@
 
 #include <utility>
 #include <chrono>
+#include <unordered_set>
 
 #include "net/include/net_cli.h"
 
@@ -25,6 +26,7 @@ using pstd::Status;
 
 extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
 extern PikaServer* g_pika_server;
+extern std::unique_ptr<PikaConf> g_pika_conf;
 
 /* SyncDB */
 
@@ -53,11 +55,14 @@ Status SyncMasterDB::GetSlaveNodeSession(const std::string& ip, int port, int32_
     return Status::NotFound("slave " + ip + ":" + std::to_string(port) + " not found");
   }
 
-  slave_ptr->Lock();
-  *session = slave_ptr->SessionId();
-  slave_ptr->Unlock();
-
-  return Status::OK();
+  if (slave_ptr->slave_mu.try_lock()) {
+    *session = slave_ptr->SessionId();
+    slave_ptr->slave_mu.unlock();
+    return Status::OK();
+  } else {
+    LOG(WARNING) << "GetSlaveNodeSession: Failed to acquire lock for " << ip << ":" << port << ", slave may be busy";
+    return Status::Busy("Slave node is busy, try again later");
+  }
 }
 
 Status SyncMasterDB::AddSlaveNode(const std::string& ip, int port, int session_id) {
@@ -229,34 +234,32 @@ Status SyncMasterDB::GetSlaveState(const std::string& ip, int port, SlaveState* 
 }
 
 Status SyncMasterDB::WakeUpSlaveBinlogSync() {
-    std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
-    std::vector<std::shared_ptr<SlaveNode>> to_del;
-    for (auto& slave_iter : slaves) {
-        std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
-        std::lock_guard l(slave_ptr->slave_mu);
-        if (slave_ptr->sent_offset == slave_ptr->acked_offset) {
-          Status s;
-          if (coordinator_.GetISConsistency()) {
-            if(slave_ptr->slave_state == SlaveState::kSlaveBinlogSync||slave_ptr->slave_state == SlaveState::KCandidate){
-              s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
-            }
-          } else {
-            s = ReadBinlogFileToWq(slave_ptr);
-          }
-          if (!s.ok()) {
-            to_del.push_back(slave_ptr);
-            LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
-                             << slave_ptr->ToStringStatus() << " - " << s.ToString();
-          }
-        }
-    }
+  std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
+  std::vector<std::shared_ptr<SlaveNode>> to_del;
+  for (auto& slave_iter : slaves) {
+    std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
 
-    for (const auto& to_del_slave : to_del) {
-        RemoveSlaveNode(to_del_slave->Ip(), to_del_slave->Port());
-        LOG(INFO) << "Removed slave: " << to_del_slave->ToStringStatus();
-    }
+    slave_ptr->Lock();
+    SlaveState current_state = slave_ptr->slave_state;
+    slave_ptr->Unlock();
 
-    return Status::OK();
+    // Only send to slaves that are actively waiting for binlogs
+    if (current_state == SlaveState::kSlaveBinlogSync || current_state == SlaveState::KCandidate) {
+      Status s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
+      if (!s.ok()) {
+        to_del.push_back(slave_ptr);
+        LOG(WARNING) << "WakeUpSlaveBinlogSync: SendBinlog failed for slave " << slave_ptr->ToString() << ": "
+                     << s.ToString();
+      }
+    }
+  }
+
+  for (const auto& to_del_slave : to_del) {
+    RemoveSlaveNode(to_del_slave->Ip(), to_del_slave->Port());
+    LOG(INFO) << "Removed slave due to SendBinlog failure: " << to_del_slave->ToStringStatus();
+  }
+
+  return Status::OK();
 }
 
 
@@ -424,11 +427,33 @@ LogOffset SyncMasterDB::GetCommittedId(){
 Status SyncMasterDB::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
   return coordinator_.AppendSlaveEntries(cmd_ptr, attribute);
 }
+
+Status SyncMasterDB::BatchAppendSlaveEntries(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, 
+                                            const std::vector<BinlogItem>& attributes) {
+  if (cmd_ptrs.empty() || cmd_ptrs.size() != attributes.size()) {
+    return Status::InvalidArgument("Invalid batch parameters");
+  }
+
+  std::vector<LogOffset> offsets;
+  Status s = coordinator_.BatchPersistAppendBinlog(cmd_ptrs, attributes, &offsets);
+  if (!s.ok()) {
+    return s;
+  }
+
+  return Status::OK();
+}
 Status SyncMasterDB::ProcessCoordination(){
   return coordinator_.ProcessCoordination();
 }
 Status SyncMasterDB::UpdateCommittedID(){
-  return coordinator_.UpdateCommittedID();
+  Status s = coordinator_.UpdateCommittedID();
+  if (s.ok()) {
+    // UpdateCommittedID success - removed verbose logging
+    int slave_count = GetNumberOfSlaveNode();
+  } else {
+    LOG(WARNING) << "UpdateCommittedID failed: " << s.ToString();
+  }
+  return s;
 }
 Status SyncMasterDB::Truncate(const LogOffset& offset){
   return coordinator_.Truncate(offset);
@@ -471,6 +496,71 @@ Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, cons
   return Status::OK();
 }
 
+pstd::Status SyncMasterDB::WaitForSlaveAcks(const LogOffset& target_offset, int timeout_ms) {
+  // bug: 重发有问题
+  // Get slave count
+  int slave_count = GetNumberOfSlaveNode();
+  LOG(INFO) << "WaitForSlaveAcks: Waiting for ACKs from master and " << slave_count << " slave(s) for target " << target_offset.ToString();
+
+  // If no slaves, return success immediately
+  if (slave_count == 0) {
+    LOG(INFO) << "WaitForSlaveAcks: No slaves connected, returning success immediately";
+    // Update committed_id
+    coordinator_.SetCommittedId(target_offset);
+    return Status::OK();
+  }
+  
+  g_pika_rm->WakeUpBinlogSync();
+
+  // Use efficient polling mechanism to avoid creating extra threads
+  auto start_time = std::chrono::steady_clock::now();
+  auto timeout_duration = std::chrono::milliseconds(timeout_ms);
+  const int POLL_INTERVAL_MS = 10; // 10ms polling interval
+  
+  while (true) {
+    // Check if timeout
+    auto elapsed = std::chrono::steady_clock::now() - start_time;
+    if (elapsed >= timeout_duration) {
+      LOG(WARNING) << "WaitForSlaveAcks:   after " << timeout_ms << "ms waiting for target " << target_offset.ToString();
+      return Status::Timeout("Strong consistency replication timed out");
+    }
+    
+    // Check acknowledgment status of each slave node
+    std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
+    int ack_count = 1; // Master node is already acknowledged
+    
+    for (const auto& slave_pair : slaves) {
+      std::shared_ptr<SlaveNode> slave = slave_pair.second;
+      if (slave) {
+        slave->Lock();
+        LogOffset acked_offset = slave->acked_offset;
+        slave->Unlock();
+        
+        if (acked_offset >= target_offset) {
+          ack_count++;
+        }
+      }
+    }
+    
+    // Check if all nodes have acknowledged (1 master + N slaves)
+    int expected_acks = 1 + slave_count;
+    if (ack_count >= expected_acks) {
+      LOG(INFO) << "WaitForSlaveAcks: All " << expected_acks << " nodes have acknowledged target " << target_offset.ToString();
+      // Update committed_id
+      coordinator_.SetCommittedId(target_offset);
+      return Status::OK();
+    }
+    
+    // Sleep briefly then retry
+    std::this_thread::sleep_for(std::chrono::milliseconds(POLL_INTERVAL_MS));
+    
+    // Periodically trigger binlog sync to ensure slave nodes receive data
+    if (elapsed.count() % 100 == 0) { // Trigger every 100ms
+      g_pika_rm->WakeUpBinlogSync();
+    }
+  }
+}
+
 Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     // If consistency is not required, directly propose the log without waiting for consensus
     if (!coordinator_.GetISConsistency()) {
@@ -498,6 +588,114 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     return Status::Timeout("No consistency achieved within 10 seconds");
 }
 
+Status SyncMasterDB::ConsensusBatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets) {
+    // If the batch is empty, nothing to do
+    if (cmd_ptrs.empty()) {
+        return Status::OK();
+    }
+    
+    // For large batches, log batch size for monitoring
+    if (cmd_ptrs.size() > 10) {
+        LOG(INFO) << "ConsensusBatchProposeLog: Processing large batch of " << cmd_ptrs.size() << " commands";
+    }
+    
+    // First, propose the log batch to the coordinator with optimized performance
+    auto batch_start = std::chrono::steady_clock::now();
+    Status s = coordinator_.BatchProposeLog(cmd_ptrs, offsets);
+    auto batch_end = std::chrono::steady_clock::now();
+    auto batch_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(batch_end - batch_start).count();
+    
+    if (!s.ok()) {
+        LOG(WARNING) << "ConsensusBatchProposeLog: Failed to propose log batch: " << s.ToString();
+        return s;
+    }
+    
+    // Performance logging for large batches
+    if (cmd_ptrs.size() > 10) {
+        LOG(INFO) << "ConsensusBatchProposeLog: Successfully proposed batch of " << cmd_ptrs.size()
+                 << " commands in " << batch_time_ms << "ms ("
+                 << (cmd_ptrs.size() / (batch_time_ms ? batch_time_ms : 1)) << " commands/ms)";
+    }
+    
+    // If consistency is not required, return immediately without waiting for replication
+    if (!coordinator_.GetISConsistency()) {
+        LOG(INFO) << "ConsensusBatchProposeLog: Consistency not required, returning immediately";
+        return s;
+    }
+    
+    // Record the current committed_id and slave node count
+    LogOffset current_committed_id = GetCommittedId();
+    int slave_count = GetNumberOfSlaveNode();
+    
+    LOG(INFO) << "ConsensusBatchProposeLog: Before BatchProposeLog - Current committed_id: " << current_committed_id.ToString()
+              << ", expecting ACKs from 1 master and " << slave_count << " slave(s)";
+    
+    // 在BatchProposeLog完成后，获取实际的prepared_id作为等待目标
+    LogOffset actual_prepared_id = GetPreparedId();
+    LogOffset last_cmd_offset;
+    if (!offsets->empty()) {
+        last_cmd_offset = offsets->back();
+        LOG(INFO) << "ConsensusBatchProposeLog: Last command offset in batch: " << last_cmd_offset.ToString();
+        LOG(INFO) << "ConsensusBatchProposeLog: After BatchProposeLog - actual prepared_id: " << actual_prepared_id.ToString();
+    }
+    
+    // For strong consistency mode, set a batch-level timeout that applies to the entire batch
+    int batch_timeout_ms = g_pika_conf->replication_ack_timeout();
+    // Adjust timeout based on batch size for large batches
+    if (cmd_ptrs.size() > 100) {
+        // Scale timeout logarithmically with batch size
+        batch_timeout_ms = static_cast<int>(batch_timeout_ms * (1 + log10(cmd_ptrs.size() / 100.0)));
+        LOG(INFO) << "ConsensusBatchProposeLog: Adjusted batch timeout to " << batch_timeout_ms << "ms for large batch";
+    }
+    
+    // For strong consistency mode, wait for the batch to be committed
+    LOG(INFO) << "ConsensusBatchProposeLog: Waiting for batch to be committed (target: " << actual_prepared_id.ToString() 
+              << ") with timeout of " << batch_timeout_ms << "ms";
+    
+    s = WaitForSlaveAcks(actual_prepared_id, batch_timeout_ms);
+    
+    // Process synchronization results
+    if (!s.ok()) {
+        if (s.IsTimeout()) {
+            LOG(WARNING) << "ConsensusBatchProposeLog: Batch timed out waiting for ACKs: " << s.ToString();
+        } else if (s.IsIncomplete()) {
+            LOG(WARNING) << "ConsensusBatchProposeLog: Not all nodes acknowledged the batch: " << s.ToString();
+        } else {
+            LOG(WARNING) << "ConsensusBatchProposeLog: Batch operation failed with status: " << s.ToString();
+        }
+        LOG(WARNING) << "ConsensusBatchProposeLog: Batch operation could not be confirmed with strong consistency, "
+                     << "batch size: " << cmd_ptrs.size();
+    } else {
+        LogOffset new_committed_id = GetCommittedId();
+        LOG(INFO) << "ConsensusBatchProposeLog: Successfully received ACKs for entire batch, "
+                  << "new committed_id: " << new_committed_id.ToString();
+        
+        // Verify that synchronization successfully included all offsets in this batch of commands
+        if (!offsets->empty() && new_committed_id < last_cmd_offset) {
+            LOG(WARNING) << "ConsensusBatchProposeLog: New committed_id " << new_committed_id.ToString() 
+                        << " is less than last command offset " << last_cmd_offset.ToString()
+                        << ", some commands in batch may not be fully replicated";
+            
+            // For strong consistency, we should ensure all commands are replicated
+            // But if there are no slaves, we don't need to worry about replication
+            if (slave_count > 0) {
+                LOG(WARNING) << "ConsensusBatchProposeLog: Some commands may not be fully replicated to all slaves, but proceeding";
+            } else {
+                LOG(INFO) << "ConsensusBatchProposeLog: No slaves connected, no replication needed";
+            }
+        }
+    }
+    return s;
+}
+
+// Per-DB global batching window across threads
+struct WindowState {
+  pstd::Mutex mu;
+  std::atomic<uint64_t> start_us{0};
+  std::atomic<int> accepted{0};
+};
+static std::unordered_map<std::string, WindowState> g_db_windows;
+static pstd::Mutex g_db_windows_mu;
 
 Status SyncMasterDB::ConsensusProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
   return coordinator_.ProcessLeaderLog(cmd_ptr, attribute);
@@ -514,6 +712,8 @@ std::shared_ptr<SlaveNode> SyncMasterDB::GetSlaveNode(const std::string& ip, int
 std::unordered_map<std::string, std::shared_ptr<SlaveNode>> SyncMasterDB::GetAllSlaveNodes() {
   return coordinator_.SyncPros().GetAllSlaveNodes();
 }
+
+std::shared_ptr<PikaCommandCollector> SyncMasterDB::GetCommandCollector() { return command_collector_; }
 
 /* SyncSlaveDB */
 SyncSlaveDB::SyncSlaveDB(const std::string& db_name)
@@ -704,63 +904,85 @@ void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std:
 }
 
 int PikaReplicaManager::ConsumeWriteQueue() {
-  std::unordered_map<std::string, std::vector<std::vector<WriteTask>>> to_send_map;
-  int counter = 0;
+  // Quick check if there are any tasks
   {
     std::lock_guard l(write_queue_mu_);
-    for (auto& iter : write_queues_) {
-      const std::string& ip_port = iter.first;
-      std::unordered_map<std::string, std::queue<WriteTask>>& p_map = iter.second;
-      for (auto& db_queue : p_map) {
-        std::queue<WriteTask>& queue = db_queue.second;
-        for (int i = 0; i < kBinlogSendPacketNum; ++i) {
-          if (queue.empty()) {
-            break;
-          }
-          size_t batch_index = queue.size() > kBinlogSendBatchNum ? kBinlogSendBatchNum : queue.size();
-          std::vector<WriteTask> to_send;
-          size_t batch_size = 0;
-          for (size_t i = 0; i < batch_index; ++i) {
-            WriteTask& task = queue.front();
-            batch_size += task.binlog_chip_.binlog_.size();
-            // make sure SerializeToString will not over 2G
-            if (batch_size > PIKA_MAX_CONN_RBUF_HB) {
-              break;
-            }
-            to_send.push_back(task);
-            queue.pop();
-            counter++;
-          }
-          if (!to_send.empty()) {
-            to_send_map[ip_port].push_back(std::move(to_send));
-          }
+    if (write_queues_.empty()) {
+      static int empty_counter = 0;
+      return 0;
+    }
+  }
+  if (g_pika_conf->command_batch_enabled()) {
+    for (auto& db_item : sync_master_dbs_) {
+      if (db_item.second) {
+        auto command_collector = db_item.second->GetCommandCollector();
+        if (command_collector) {
+          command_collector->FlushCommands();
         }
       }
     }
   }
+  // A list of sending jobs to be executed outside the lock.
+  // Each job is a tuple of (ip, port, tasks_to_send).
+  std::vector<std::tuple<std::string, int, std::vector<WriteTask>>> all_sends;
+  int counter = 0;
 
-  std::vector<std::string> to_delete;
-  for (auto& iter : to_send_map) {
-    std::string ip;
-    int port = 0;
-    if (!pstd::ParseIpPortString(iter.first, ip, port)) {
-      LOG(WARNING) << "Parse ip_port error " << iter.first;
-      continue;
-    }
-    for (auto& to_send : iter.second) {
-      Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
-      if (!s.ok()) {
-        LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
-        to_delete.push_back(iter.first);
+  // === Start of Critical Section ===
+  {
+    std::lock_guard l(write_queue_mu_);
+    LOG(INFO) << "ConsumeWriteQueue: write_queues_ size: " << write_queues_.size();
+    auto slave_iter = write_queues_.begin();
+    while (slave_iter != write_queues_.end()) {
+      std::string ip;
+      int port = 0;
+      if (!pstd::ParseIpPortString(slave_iter->first, ip, port)) {
+        LOG(WARNING) << "Parse ip_port error " << slave_iter->first;
+        slave_iter = write_queues_.erase(slave_iter);
         continue;
       }
+
+      // Collect all tasks for this slave from all its dbs
+      std::vector<WriteTask> tasks_for_this_slave;
+      auto& p_map = slave_iter->second;
+      auto db_iter = p_map.begin();
+      while (db_iter != p_map.end()) {
+        auto& queue = db_iter->second;
+        while (!queue.empty()) {
+          tasks_for_this_slave.push_back(std::move(queue.front()));
+          queue.pop();
+        }
+        // Since the queue is now empty, erase this db entry
+        db_iter = p_map.erase(db_iter);
+      }
+
+      if (!tasks_for_this_slave.empty()) {
+        LOG(INFO) << "ConsumeWriteQueue: Found " << tasks_for_this_slave.size() << " tasks for slave " << ip << ":" << port;
+        all_sends.emplace_back(ip, port, std::move(tasks_for_this_slave));
+      } else {
+        LOG(INFO) << "ConsumeWriteQueue: No tasks found for slave " << ip << ":" << port;
+      }
+
+      // Since all db entries for this slave are processed and erased,
+      // erase the slave entry itself.
+      slave_iter = write_queues_.erase(slave_iter);
     }
   }
+  // === End of Critical Section ===
 
-  if (!to_delete.empty()) {
-    std::lock_guard l(write_queue_mu_);
-    for (auto& del_queue : to_delete) {
-      write_queues_.erase(del_queue);
+  // Now, execute all the prepared network IO jobs outside the lock.
+  for (auto& send_job : all_sends) {
+    std::string& ip = std::get<0>(send_job);
+    int port = std::get<1>(send_job);
+    std::vector<WriteTask>& to_send = std::get<2>(send_job);
+
+    counter += to_send.size();
+    LOG(INFO) << "ConsumeWriteQueue: Sending " << to_send.size() << " tasks to " << ip << ":" << port;
+    Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
+    if (!s.ok()) {
+      LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
+      DropItemInWriteQueue(ip, port);
+    } else {
+      LOG(INFO) << "ConsumeWriteQueue: Successfully sent " << to_send.size() << " tasks to " << ip << ":" << port;
     }
   }
   return counter;
@@ -1156,6 +1378,16 @@ void PikaReplicaManager::FindCommonMaster(std::string* master) {
   if (!common_master_ip.empty() && common_master_port != 0) {
     *master = common_master_ip + ":" + std::to_string(common_master_port);
   }
+}
+
+std::shared_ptr<ConsensusCoordinator> PikaReplicaManager::GetConsensusCoordinator(const std::string& db_name) {
+  std::shared_lock l(dbs_rw_);
+  DBInfo p_info(db_name);
+  if (sync_master_dbs_.find(p_info) == sync_master_dbs_.end()) {
+    return nullptr;
+  }
+  // Return a pointer to the existing coordinator instead of creating a copy
+  return sync_master_dbs_[p_info]->StableLogger()->coordinator();
 }
 
 void PikaReplicaManager::RmStatus(std::string* info) {

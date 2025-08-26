@@ -24,6 +24,7 @@
 #include "include/pika_monotonic_time.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "include/pika_command_collector.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -168,6 +169,14 @@ void PikaServer::Start() {
                << ", Listen on this port to receive Master FullSync Data";
   }
   */
+
+  if (g_pika_conf->command_batch_enabled()) {
+    auto master_db = g_pika_rm->GetSyncMasterDBByName(DBInfo(g_pika_conf->default_db()));
+    if (master_db) {
+      auto command_collector = master_db->GetCommandCollector();
+      LOG(INFO) << "Command batch enabled, command collector accessed successfully";
+    }
+  }
 
   ret = pika_client_processor_->Start();
   if (ret != net::kSuccess) {
@@ -588,10 +597,17 @@ void PikaServer::DeleteSlave(int fd) {
   }
 
   if (slave_num == 0) {
-    std::lock_guard l(state_protector_);
-    last_role_ = role_;
-    role_ &= ~PIKA_ROLE_MASTER;
-    leader_protected_mode_ = false;  // explicitly cancel protected mode
+    // Check if slaveof is configured, if so, do not remove MASTER role
+    // Because a Pika configured as a slave is still the master node for its clients
+    std::string slaveof = g_pika_conf->slaveof();
+    if (slaveof.empty()) {
+      // Only remove MASTER role when slaveof is not configured
+      std::lock_guard l(state_protector_);
+      last_role_ = role_;
+      role_ &= ~PIKA_ROLE_MASTER;
+      leader_protected_mode_ = false;  // explicitly cancel protected mode
+      LOG(INFO) << "DeleteSlave: Removed MASTER role for standalone node";
+    }
   }
 }
 
@@ -1098,7 +1114,13 @@ int PikaServer::SendToPeer() { return g_pika_rm->ConsumeWriteQueue(); }
 
 void PikaServer::SignalAuxiliary() { pika_auxiliary_thread_->cv_.notify_one(); }
 
-Status PikaServer::TriggerSendBinlogSync() { return g_pika_rm->WakeUpBinlogSync(); }
+Status PikaServer::TriggerSendBinlogSync() { 
+  // Only execute on master nodes
+  if (!(role_ & PIKA_ROLE_MASTER)) {
+    return Status::OK();
+  }
+  return g_pika_rm->WakeUpBinlogSync(); 
+}
 
 int PikaServer::PubSubNumPat() { return pika_pubsub_thread_->PubSubNumPat(); }
 

@@ -22,6 +22,7 @@
 #include "include/pika_slave_node.h"
 #include "include/pika_stable_log.h"
 #include "include/rsync_client.h"
+#include "include/pika_command_collector.h"
 
 #define kBinlogSendPacketNum 40
 #define kBinlogSendBatchNum 100
@@ -69,6 +70,7 @@ class SyncMasterDB : public SyncDB {
   // consensus use
   pstd::Status ConsensusUpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end);
   pstd::Status ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status ConsensusBatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets);
   pstd::Status ConsensusProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
   LogOffset ConsensusCommittedIndex();
 
@@ -83,16 +85,22 @@ class SyncMasterDB : public SyncDB {
     return coordinator_.StableLogger()->Logger();
   }
 
+  std::shared_ptr<SlaveNode> GetSlaveNode(const std::string& ip, int port);
+  // Make coordinator_ accessible to StableLog class
+  ConsensusCoordinator& GetCoordinator() { return coordinator_; }
+  std::shared_ptr<PikaCommandCollector> GetCommandCollector();
+
  private:
   // invoker need to hold slave_mu_
   pstd::Status ReadBinlogFileToWq(const std::shared_ptr<SlaveNode>& slave_ptr);
 
-  std::shared_ptr<SlaveNode> GetSlaveNode(const std::string& ip, int port);
+  //std::shared_ptr<SlaveNode> GetSlaveNode(const std::string& ip, int port);
   std::unordered_map<std::string, std::shared_ptr<SlaveNode>> GetAllSlaveNodes();
 
   pstd::Mutex session_mu_;
   int32_t session_id_ = 0;
   ConsensusCoordinator coordinator_;
+  std::shared_ptr<PikaCommandCollector> command_collector_;
 
   //pacificA public:
  public:
@@ -108,12 +116,12 @@ class SyncMasterDB : public SyncDB {
   LogOffset GetPreparedId();
   LogOffset GetCommittedId();
   pstd::Status AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
+  pstd::Status BatchAppendSlaveEntries(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, const std::vector<BinlogItem>& attributes);
   pstd::Status AppendCandidateBinlog(const std::string& ip, int port, const LogOffset& offset);
   pstd::Status UpdateCommittedID();
   pstd::Status CommitAppLog(const LogOffset& master_committed_id);
   pstd::Status Truncate(const LogOffset& offset);
-
-
+  pstd::Status WaitForSlaveAcks(const LogOffset& target_offset, int timeout_ms);
 };
 
 class SyncSlaveDB : public SyncDB {
@@ -163,6 +171,7 @@ class PikaReplicaManager {
   pstd::Status SendMetaSyncRequest();
   pstd::Status SendRemoveSlaveNodeRequest(const std::string& table);
   pstd::Status SendTrySyncRequest(const std::string& db_name);
+  std::shared_ptr<ConsensusCoordinator> GetConsensusCoordinator(const std::string& db_name);
   pstd::Status SendDBSyncRequest(const std::string& db_name);
   pstd::Status SendBinlogSyncAckRequest(const std::string& table, const LogOffset& ack_start,
                                         const LogOffset& ack_end, bool is_first_send = false);
@@ -243,10 +252,27 @@ class PikaReplicaManager {
 
   pstd::Mutex write_queue_mu_;
 
+  // db_name -> a queue of write task
+  using DBWriteTaskQueue = std::map<std::string, std::queue<WriteTask>>;
+  // ip:port -> a map of DBWriteTaskQueue
+  using SlaveWriteTaskQueue = std::map<std::string, DBWriteTaskQueue>;
+
   // every host owns a queue, the key is "ip + port"
-  std::unordered_map<std::string, std::unordered_map<std::string, std::queue<WriteTask>>> write_queues_;
+  SlaveWriteTaskQueue write_queues_;
+
+  // client for replica
   std::unique_ptr<PikaReplClient> pika_repl_client_;
   std::unique_ptr<PikaReplServer> pika_repl_server_;
+
+  // one-shot switch to force immediate send on next SendBinlog
+  std::atomic<bool> immediate_send_once_{false};
+ 
+  // Condition variable for signaling when the write queue has new items
+  pstd::CondVar write_queue_cv_;
+
+  std::shared_mutex is_consistency_rwlock_;
+  bool is_consistency_ = true;
+  std::shared_mutex committed_id_rwlock_;
 };
 
 #endif  //  PIKA_RM_H

@@ -155,6 +155,8 @@ class ConsensusCoordinator {
   pstd::Status Reset(const LogOffset& offset);
 
   pstd::Status ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr);
+  // Batch processing of commands
+  pstd::Status BatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets);
   pstd::Status UpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end);
   pstd::Status AddSlaveNode(const std::string& ip, int port, int session_id);
   pstd::Status RemoveSlaveNode(const std::string& ip, int port);
@@ -244,6 +246,10 @@ class ConsensusCoordinator {
   SyncProgress sync_pros_;
   std::shared_ptr<StableLog> stable_logger_;
   std::shared_ptr<MemLog> mem_logger_;
+  
+  // Make db_name accessible to external classes
+  public:
+  const std::string& db_name() const { return db_name_; }
 
   // pacificA
  public:
@@ -258,8 +264,12 @@ class ConsensusCoordinator {
   pstd::Status CommitAppLog(const LogOffset& master_committed_id);
   pstd::Status UpdateCommittedID();
   pstd::Status ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status BatchApplyBinlogs(const std::vector<Log::LogItem>& logs_to_apply);
+  void BatchInternalApplyFollower(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs);
   pstd::Status ProcessCoordination();
 
+  // Batch operations for slave entries
+  pstd::Status BatchPersistAppendBinlog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs,const std::vector<BinlogItem>& attributes,std::vector<LogOffset>* offsets);
   LogOffset GetCommittedId() {
     std::lock_guard l(committed_id_rwlock_);
     return committed_id_;
@@ -273,9 +283,16 @@ class ConsensusCoordinator {
     prepared_id_ = offset;
   }
   void SetCommittedId(const LogOffset& offset) {
-    std::lock_guard l(committed_id_rwlock_);
-    committed_id_ = offset;
-    context_->UpdateAppliedIndex(committed_id_);
+    {
+      std::lock_guard l(committed_id_rwlock_);
+      if (committed_id_ >= offset) {
+        return;
+      }
+      committed_id_ = offset;
+      context_->UpdateAppliedIndex(committed_id_);
+    }
+    notification_counter_.fetch_add(1);
+    LOG(INFO) << "SetCommittedId: Updated to " << offset.ToString();
   }
 
  private:
@@ -283,9 +300,10 @@ class ConsensusCoordinator {
 
  private:
   std::shared_mutex is_consistency_rwlock_;
-  bool is_consistency_ = false;
+  bool is_consistency_ = true;
   std::shared_mutex committed_id_rwlock_;
   LogOffset committed_id_ = LogOffset();
+  std::atomic<uint64_t> notification_counter_{0};
   std::shared_mutex prepared_id__rwlock_;
   LogOffset prepared_id_ = LogOffset();
   std::shared_ptr<Log> logs_;

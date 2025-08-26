@@ -581,7 +581,7 @@ class PikaServer : public pstd::noncopyable {
   std::string master_ip_;
   int master_port_ = 0;
   int repl_state_ = PIKA_REPL_NO_CONNECT;
-  bool is_consistency_ = false;
+  bool is_consistency_ = true;
   int role_ = PIKA_ROLE_SINGLE;
   int last_role_ = PIKA_ROLE_SINGLE;
   int last_meta_sync_timestamp_ = 0;

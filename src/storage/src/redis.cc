@@ -14,6 +14,7 @@ Redis::Redis(Storage* const s, const DataType& type)
       lock_mgr_(std::make_shared<LockMgr>(1000, 0, std::make_shared<MutexFactoryImpl>())),
       small_compaction_threshold_(5000),
       small_compaction_duration_threshold_(10000) {
+  default_write_options_.disableWAL = true;
   statistics_store_ = std::make_unique<LRUCache<std::string, KeyStatistics>>();
   scan_cursors_store_ = std::make_unique<LRUCache<std::string, std::string>>();
   scan_cursors_store_->SetCapacity(5000);
