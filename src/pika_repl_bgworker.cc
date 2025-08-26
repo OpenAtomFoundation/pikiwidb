@@ -215,15 +215,11 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
   if (only_keepalive) {
     ack_end = LogOffset();
   } else {
-    LogOffset productor_status;
-    // Reply Ack to master immediately
-    std::shared_ptr<Binlog> logger = db->Logger();
-    logger->GetProducerStatus(&productor_status.b_offset.filenum, &productor_status.b_offset.offset,
-                              &productor_status.l_offset.term, &productor_status.l_offset.index);
-    ack_end = productor_status;
-    ack_end.l_offset.term = pb_end.l_offset.term;
+    // The slave node uses the binlog offset sent by the master node as ACK
+    ack_end = pb_end;
     
     // slave nodes batch Binlog flush disk
+    std::shared_ptr<Binlog> logger = db->Logger();
     logger->Sync();
   }
 
@@ -266,7 +262,7 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
     return -1;
   }
   if(db->GetISConsistency()){
-    db->AppendSlaveEntries(c_ptr, worker->binlog_item_);
+    PikaReplBgWorker::WriteDBInSyncWay(c_ptr);
   }else{
     db->ConsensusProcessLeaderLog(c_ptr, worker->binlog_item_);
   }
