@@ -219,8 +219,44 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
 
   // Perform some operations
   rocksdb::get_perf_context()->Reset();
-  // Process Command
-  c_ptr->Execute();
+  
+  // Process Command - route write commands through CommandCollector for batching
+  if (c_ptr->is_write() && g_pika_conf->command_batch_enabled()) {
+    // Get the appropriate SyncMasterDB for command batching
+    auto sync_db = g_pika_rm->GetSyncMasterDBByName(DBInfo(c_ptr->db_name()));
+    if (sync_db) {
+      auto command_collector = sync_db->GetCommandCollector();
+      if (command_collector) {
+        // Create callback to handle command completion
+        auto callback = [this, c_ptr](const LogOffset& offset, pstd::Status status) {
+          if (status.ok()) {
+            // Command was successfully processed through the pipeline
+            LOG(INFO) << "Command " << c_ptr->name() << " completed via CommandCollector";
+          } else {
+            // Set error response
+            c_ptr->res().SetRes(CmdRes::kErrOther, "Command processing failed: " + status.ToString());
+            LOG(ERROR) << "Command " << c_ptr->name() << " failed in CommandCollector: " << status.ToString();
+          }
+        };
+        
+        // Add command to collector for batch processing
+        bool added = command_collector->AddCommand(c_ptr, callback);
+        if (!added) {
+          LOG(WARNING) << "Failed to add command " << c_ptr->name() << " to CommandCollector, executing directly";
+          c_ptr->Execute();
+        }
+      } else {
+        LOG(WARNING) << "CommandCollector not available, executing command directly";
+        c_ptr->Execute();
+      }
+    } else {
+      LOG(WARNING) << "SyncMasterDB not found for " << c_ptr->db_name() << ", executing command directly";
+      c_ptr->Execute();
+    }
+  } else {
+    // Non-write commands or batching disabled - execute directly
+    c_ptr->Execute();
+  }
 
   time_stat_->process_done_ts_ = pstd::NowMicros();
   auto cmdstat_map = g_pika_cmd_table_manager->GetCommandStatMap();

@@ -38,7 +38,7 @@ echo "Replication setup successful."
 
 echo "Running benchmark..."
 
-redis-benchmark -p 9301 -t set -r 100000 -n 100000 -c 500 --threads 4
+redis-benchmark -p 9301 -t set -r 100000 -n 100000 -c 10000 --threads 4
 echo "Benchmark finished." 
 
 echo -e "\n==== 主节点 INFO 日志 ===="

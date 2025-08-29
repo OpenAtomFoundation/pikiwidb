@@ -364,14 +364,6 @@ const int64_t kPoolSize = 1073741824;
 const std::string kBinlogPrefix = "write2file";
 const size_t kBinlogPrefixLen = 10;
 
-/* 
- * PIKA_BATCH_MAGIC: Core identifier for binlog batch processing.
- * - Master: Prefixes batched binlogs with this magic in SendBinlog
- * - Slave: Detects this magic in HandleBGWorkerWriteBinlog
- *   to switch between batch and single-binlog parsing modes.
- */
-const uint32_t PIKA_BATCH_MAGIC = 0x42544348; // "BTCH" in ASCII
-
 const std::string kPikaMeta = "meta";
 const std::string kManifest = "manifest";
 const std::string kContext = "context";

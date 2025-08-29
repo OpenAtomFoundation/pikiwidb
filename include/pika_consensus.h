@@ -155,8 +155,6 @@ class ConsensusCoordinator {
   pstd::Status Reset(const LogOffset& offset);
 
   pstd::Status ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr);
-  // Batch processing of commands
-  pstd::Status BatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets);
   pstd::Status UpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end);
   pstd::Status AddSlaveNode(const std::string& ip, int port, int session_id);
   pstd::Status RemoveSlaveNode(const std::string& ip, int port);
@@ -268,8 +266,6 @@ class ConsensusCoordinator {
   void BatchInternalApplyFollower(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs);
   pstd::Status ProcessCoordination();
 
-  // Batch operations for slave entries
-  pstd::Status BatchPersistAppendBinlog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs,const std::vector<BinlogItem>& attributes,std::vector<LogOffset>* offsets);
   LogOffset GetCommittedId() {
     std::lock_guard l(committed_id_rwlock_);
     return committed_id_;
@@ -300,7 +296,7 @@ class ConsensusCoordinator {
 
  private:
   std::shared_mutex is_consistency_rwlock_;
-  bool is_consistency_ = true;
+  bool is_consistency_ = false;
   std::shared_mutex committed_id_rwlock_;
   LogOffset committed_id_ = LogOffset();
   std::atomic<uint64_t> notification_counter_{0};

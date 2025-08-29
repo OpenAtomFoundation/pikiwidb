@@ -145,61 +145,16 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     if (binlog_res.binlog().empty()) {
       continue;
     }
-    // Handle binlog data with batch magic number detection
-    const std::string& received_binlog = binlog_res.binlog();
-    std::string binlog_str = received_binlog;
-    // Check if this is the first binlog entry in a batch (contains PIKA_BATCH_MAGIC)
-    bool has_batch_magic = false;
-    if (i == (*index)[0] && received_binlog.size() >= sizeof(uint32_t)) {
-      uint32_t magic_num = 0;
-      memcpy(&magic_num, received_binlog.data(), sizeof(uint32_t));
-      if (magic_num == PIKA_BATCH_MAGIC) {
-        has_batch_magic = true;
-        // Remove the magic number from the binlog data
-        binlog_str = received_binlog.substr(sizeof(uint32_t));
-        LOG(INFO) << "HandleBGWorkerWriteBinlog: Detected PIKA_BATCH_MAGIC in binlog entry " << i
-                  << ", processing as batch, original size: " << received_binlog.size()
-                  << ", new size after removing magic: " << binlog_str.size();
-      }
-    }
-
-    // Validate binlog data
-    if (binlog_str.empty()) {
-      only_keepalive = true;
-      continue;
-    }
-
-    if (binlog_str.size() < BINLOG_ENCODE_LEN) {
-      LOG(WARNING) << "HandleBGWorkerWriteBinlog: Binlog data too small (" << binlog_str.size()
-                   << " bytes), minimum required: " << BINLOG_ENCODE_LEN;
-      continue;
-    }
-
-    // Decode the binlog item
-    if (!PikaBinlogTransverter::BinlogItemWithoutContentDecode(TypeFirst, binlog_str, &worker->binlog_item_)) {
+    if (!PikaBinlogTransverter::BinlogItemWithoutContentDecode(TypeFirst, binlog_res.binlog(), &worker->binlog_item_)) {
+      LOG(WARNING) << "Binlog item decode failed";
       slave_db->SetReplState(ReplState::kTryConnect);
       return;
     }
-
-    // Extract Redis command data
-    const char* redis_parser_start = binlog_str.data() + BINLOG_ENCODE_LEN;
-    int redis_parser_len = static_cast<int>(binlog_str.size()) - BINLOG_ENCODE_LEN;
-
-    if (redis_parser_len <= 0) {
-      LOG(WARNING) << "HandleBGWorkerWriteBinlog: No Redis command data after binlog header for entry " << i;
-      continue;
-    }
-
-    // Create a new parser instance for each binlog entry to ensure clean state
-    net::RedisParser temp_parser;
-    net::RedisParserSettings settings; 
-    settings.DealMessage = &(PikaReplBgWorker::HandleWriteBinlog);
-    temp_parser.RedisParserInit(REDIS_PARSER_REQUEST, settings);
-    temp_parser.data = worker;
-
+    const char* redis_parser_start = binlog_res.binlog().data() + BINLOG_ENCODE_LEN;
+    int redis_parser_len = static_cast<int>(binlog_res.binlog().size()) - BINLOG_ENCODE_LEN;
     int processed_len = 0;
     net::RedisParserStatus ret =
-        temp_parser.ProcessInputBuffer(redis_parser_start, redis_parser_len, &processed_len);
+        worker->redis_parser_.ProcessInputBuffer(redis_parser_start, redis_parser_len, &processed_len);
     if (ret != net::kRedisParserDone) {
       LOG(WARNING) << "Redis parser failed";
       slave_db->SetReplState(ReplState::kTryConnect);
@@ -215,12 +170,13 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
   if (only_keepalive) {
     ack_end = LogOffset();
   } else {
-    // The slave node uses the binlog offset sent by the master node as ACK
-    ack_end = pb_end;
-    
-    // slave nodes batch Binlog flush disk
+    LogOffset productor_status;
+    // Reply Ack to master immediately
     std::shared_ptr<Binlog> logger = db->Logger();
-    logger->Sync();
+    logger->GetProducerStatus(&productor_status.b_offset.filenum, &productor_status.b_offset.offset,
+                              &productor_status.l_offset.term, &productor_status.l_offset.index);
+    ack_end = productor_status;
+    ack_end.l_offset.term = pb_end.l_offset.term;
   }
 
   g_pika_rm->SendBinlogSyncAckRequest(db_name, ack_start, ack_end);
@@ -262,7 +218,7 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
     return -1;
   }
   if(db->GetISConsistency()){
-    PikaReplBgWorker::WriteDBInSyncWay(c_ptr);
+    db->AppendSlaveEntries(c_ptr, worker->binlog_item_);
   }else{
     db->ConsensusProcessLeaderLog(c_ptr, worker->binlog_item_);
   }
@@ -270,8 +226,8 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
 }
 
 void PikaReplBgWorker::HandleBGWorkerWriteDB(void* arg) {
-  std::unique_ptr<std::shared_ptr<Cmd>> cmd_ptr_ptr(static_cast<std::shared_ptr<Cmd>*>(arg));
-  const std::shared_ptr<Cmd> c_ptr = *cmd_ptr_ptr;
+  std::unique_ptr<ReplClientWriteDBTaskArg> task_arg(static_cast<ReplClientWriteDBTaskArg*>(arg));
+  const std::shared_ptr<Cmd> c_ptr = task_arg->cmd_ptr;
   WriteDBInSyncWay(c_ptr);
 }
 

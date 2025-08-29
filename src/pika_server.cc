@@ -597,17 +597,10 @@ void PikaServer::DeleteSlave(int fd) {
   }
 
   if (slave_num == 0) {
-    // Check if slaveof is configured, if so, do not remove MASTER role
-    // Because a Pika configured as a slave is still the master node for its clients
-    std::string slaveof = g_pika_conf->slaveof();
-    if (slaveof.empty()) {
-      // Only remove MASTER role when slaveof is not configured
-      std::lock_guard l(state_protector_);
-      last_role_ = role_;
-      role_ &= ~PIKA_ROLE_MASTER;
-      leader_protected_mode_ = false;  // explicitly cancel protected mode
-      LOG(INFO) << "DeleteSlave: Removed MASTER role for standalone node";
-    }
+    std::lock_guard l(state_protector_);
+    last_role_ = role_;
+    role_ &= ~PIKA_ROLE_MASTER;
+    leader_protected_mode_ = false;  // explicitly cancel protected mode
   }
 }
 
@@ -1114,13 +1107,7 @@ int PikaServer::SendToPeer() { return g_pika_rm->ConsumeWriteQueue(); }
 
 void PikaServer::SignalAuxiliary() { pika_auxiliary_thread_->cv_.notify_one(); }
 
-Status PikaServer::TriggerSendBinlogSync() { 
-  // Only execute on master nodes
-  if (!(role_ & PIKA_ROLE_MASTER)) {
-    return Status::OK();
-  }
-  return g_pika_rm->WakeUpBinlogSync(); 
-}
+Status PikaServer::TriggerSendBinlogSync() { return g_pika_rm->WakeUpBinlogSync(); }
 
 int PikaServer::PubSubNumPat() { return pika_pubsub_thread_->PubSubNumPat(); }
 

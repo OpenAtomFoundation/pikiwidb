@@ -40,7 +40,9 @@ std::string SyncDB::DBName() {
 /* SyncMasterDB*/
 
 SyncMasterDB::SyncMasterDB(const std::string& db_name)
-    : SyncDB(db_name),  coordinator_(db_name) {}
+    : SyncDB(db_name),  coordinator_(db_name) {
+  command_collector_ = std::make_shared<PikaCommandCollector>(&coordinator_, 5);
+}
 
 int SyncMasterDB::GetNumberOfSlaveNode() { return coordinator_.SyncPros().SlaveSize(); }
 
@@ -55,14 +57,11 @@ Status SyncMasterDB::GetSlaveNodeSession(const std::string& ip, int port, int32_
     return Status::NotFound("slave " + ip + ":" + std::to_string(port) + " not found");
   }
 
-  if (slave_ptr->slave_mu.try_lock()) {
-    *session = slave_ptr->SessionId();
-    slave_ptr->slave_mu.unlock();
-    return Status::OK();
-  } else {
-    LOG(WARNING) << "GetSlaveNodeSession: Failed to acquire lock for " << ip << ":" << port << ", slave may be busy";
-    return Status::Busy("Slave node is busy, try again later");
-  }
+  slave_ptr->Lock();
+  *session = slave_ptr->SessionId();
+  slave_ptr->Unlock();
+
+  return Status::OK();
 }
 
 Status SyncMasterDB::AddSlaveNode(const std::string& ip, int port, int session_id) {
@@ -234,32 +233,34 @@ Status SyncMasterDB::GetSlaveState(const std::string& ip, int port, SlaveState* 
 }
 
 Status SyncMasterDB::WakeUpSlaveBinlogSync() {
-  std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
-  std::vector<std::shared_ptr<SlaveNode>> to_del;
-  for (auto& slave_iter : slaves) {
-    std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
-
-    slave_ptr->Lock();
-    SlaveState current_state = slave_ptr->slave_state;
-    slave_ptr->Unlock();
-
-    // Only send to slaves that are actively waiting for binlogs
-    if (current_state == SlaveState::kSlaveBinlogSync || current_state == SlaveState::KCandidate) {
-      Status s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
-      if (!s.ok()) {
-        to_del.push_back(slave_ptr);
-        LOG(WARNING) << "WakeUpSlaveBinlogSync: SendBinlog failed for slave " << slave_ptr->ToString() << ": "
-                     << s.ToString();
+    std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
+    std::vector<std::shared_ptr<SlaveNode>> to_del;
+    for (auto& slave_iter : slaves) {
+        std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
+        std::lock_guard l(slave_ptr->slave_mu);
+        if (slave_ptr->sent_offset == slave_ptr->acked_offset) {
+          Status s;
+          if (coordinator_.GetISConsistency()) {
+            if(slave_ptr->slave_state == SlaveState::kSlaveBinlogSync||slave_ptr->slave_state == SlaveState::KCandidate){
+              s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
+            }
+          } else {
+            s = ReadBinlogFileToWq(slave_ptr);
+          }
+          if (!s.ok()) {
+            to_del.push_back(slave_ptr);
+            LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
+                             << slave_ptr->ToStringStatus() << " - " << s.ToString();
+        }
       }
+  }
+
+    for (const auto& to_del_slave : to_del) {
+        RemoveSlaveNode(to_del_slave->Ip(), to_del_slave->Port());
+        LOG(INFO) << "Removed slave: " << to_del_slave->ToStringStatus();
     }
-  }
 
-  for (const auto& to_del_slave : to_del) {
-    RemoveSlaveNode(to_del_slave->Ip(), to_del_slave->Port());
-    LOG(INFO) << "Removed slave due to SendBinlog failure: " << to_del_slave->ToStringStatus();
-  }
-
-  return Status::OK();
+    return Status::OK();
 }
 
 
@@ -428,28 +429,20 @@ Status SyncMasterDB::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, con
   return coordinator_.AppendSlaveEntries(cmd_ptr, attribute);
 }
 
-Status SyncMasterDB::BatchAppendSlaveEntries(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, 
-                                            const std::vector<BinlogItem>& attributes) {
-  if (cmd_ptrs.empty() || cmd_ptrs.size() != attributes.size()) {
-    return Status::InvalidArgument("Invalid batch parameters");
-  }
-
-  std::vector<LogOffset> offsets;
-  Status s = coordinator_.BatchPersistAppendBinlog(cmd_ptrs, attributes, &offsets);
-  if (!s.ok()) {
-    return s;
-  }
-
-  return Status::OK();
-}
 Status SyncMasterDB::ProcessCoordination(){
   return coordinator_.ProcessCoordination();
 }
 Status SyncMasterDB::UpdateCommittedID(){
   Status s = coordinator_.UpdateCommittedID();
   if (s.ok()) {
-    // UpdateCommittedID success - removed verbose logging
-    int slave_count = GetNumberOfSlaveNode();
+    // Notify RocksDB thread of new CommittedID
+    LogOffset committed_id = coordinator_.GetCommittedId();
+    if (committed_id.IsValid()) {
+      extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
+      if (g_pika_rm) {
+        g_pika_rm->NotifyCommittedID(committed_id);
+      }
+    }
   } else {
     LOG(WARNING) << "UpdateCommittedID failed: " << s.ToString();
   }
@@ -496,6 +489,7 @@ Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, cons
   return Status::OK();
 }
 
+/* 
 pstd::Status SyncMasterDB::WaitForSlaveAcks(const LogOffset& target_offset, int timeout_ms) {
   // bug: 重发有问题
   // Get slave count
@@ -560,6 +554,7 @@ pstd::Status SyncMasterDB::WaitForSlaveAcks(const LogOffset& target_offset, int 
     }
   }
 }
+*/
 
 Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     // If consistency is not required, directly propose the log without waiting for consensus
@@ -567,7 +562,6 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
         return coordinator_.ProposeLog(cmd_ptr);
     }
 
-    auto start = std::chrono::steady_clock::now();
     LogOffset offset;
     Status s = coordinator_.AppendEntries(cmd_ptr, offset); // Append the log entry to the coordinator
 
@@ -575,127 +569,22 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
         return s;
     }
 
-    // Wait for consensus to be achieved within 10 seconds
-    while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count() < 10) {
-        // Check if consensus has been achieved for the given log offset
-        if (checkFinished(offset)) {
-            return Status::OK();
-        }
-        // TODO: 这里暂时注掉了sleep等待，50ms耗时过长，影响写入链路，后期需要改成条件变量唤醒方式
-        //std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    }
+    // // Wait for consensus to be achieved within 10 seconds
+    // while (std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - start).count() < 10) {
+    //     // Check if consensus has been achieved for the given log offset
+    //     if (checkFinished(offset)) {
+    //         return Status::OK();
+    //     }
+    //     // TODO: 这里暂时注掉了sleep等待，50ms耗时过长，影响写入链路，后期需要改成条件变量唤醒方式
+    //     //std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    // }
 
-    return Status::Timeout("No consistency achieved within 10 seconds");
+    // return Status::Timeout("No consistency achieved within 10 seconds");
+    LOG(INFO) << "ConsensusProposeLog: Successfully appended cmd " << cmd_ptr->name() 
+              << " with offset " << offset.ToString() << ", delegating to RocksDBThreadLoop";
+
+    return Status::OK();
 }
-
-Status SyncMasterDB::ConsensusBatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets) {
-    // If the batch is empty, nothing to do
-    if (cmd_ptrs.empty()) {
-        return Status::OK();
-    }
-    
-    // For large batches, log batch size for monitoring
-    if (cmd_ptrs.size() > 10) {
-        LOG(INFO) << "ConsensusBatchProposeLog: Processing large batch of " << cmd_ptrs.size() << " commands";
-    }
-    
-    // First, propose the log batch to the coordinator with optimized performance
-    auto batch_start = std::chrono::steady_clock::now();
-    Status s = coordinator_.BatchProposeLog(cmd_ptrs, offsets);
-    auto batch_end = std::chrono::steady_clock::now();
-    auto batch_time_ms = std::chrono::duration_cast<std::chrono::milliseconds>(batch_end - batch_start).count();
-    
-    if (!s.ok()) {
-        LOG(WARNING) << "ConsensusBatchProposeLog: Failed to propose log batch: " << s.ToString();
-        return s;
-    }
-    
-    // Performance logging for large batches
-    if (cmd_ptrs.size() > 10) {
-        LOG(INFO) << "ConsensusBatchProposeLog: Successfully proposed batch of " << cmd_ptrs.size()
-                 << " commands in " << batch_time_ms << "ms ("
-                 << (cmd_ptrs.size() / (batch_time_ms ? batch_time_ms : 1)) << " commands/ms)";
-    }
-    
-    // If consistency is not required, return immediately without waiting for replication
-    if (!coordinator_.GetISConsistency()) {
-        LOG(INFO) << "ConsensusBatchProposeLog: Consistency not required, returning immediately";
-        return s;
-    }
-    
-    // Record the current committed_id and slave node count
-    LogOffset current_committed_id = GetCommittedId();
-    int slave_count = GetNumberOfSlaveNode();
-    
-    LOG(INFO) << "ConsensusBatchProposeLog: Before BatchProposeLog - Current committed_id: " << current_committed_id.ToString()
-              << ", expecting ACKs from 1 master and " << slave_count << " slave(s)";
-    
-    // 在BatchProposeLog完成后，获取实际的prepared_id作为等待目标
-    LogOffset actual_prepared_id = GetPreparedId();
-    LogOffset last_cmd_offset;
-    if (!offsets->empty()) {
-        last_cmd_offset = offsets->back();
-        LOG(INFO) << "ConsensusBatchProposeLog: Last command offset in batch: " << last_cmd_offset.ToString();
-        LOG(INFO) << "ConsensusBatchProposeLog: After BatchProposeLog - actual prepared_id: " << actual_prepared_id.ToString();
-    }
-    
-    // For strong consistency mode, set a batch-level timeout that applies to the entire batch
-    int batch_timeout_ms = g_pika_conf->replication_ack_timeout();
-    // Adjust timeout based on batch size for large batches
-    if (cmd_ptrs.size() > 100) {
-        // Scale timeout logarithmically with batch size
-        batch_timeout_ms = static_cast<int>(batch_timeout_ms * (1 + log10(cmd_ptrs.size() / 100.0)));
-        LOG(INFO) << "ConsensusBatchProposeLog: Adjusted batch timeout to " << batch_timeout_ms << "ms for large batch";
-    }
-    
-    // For strong consistency mode, wait for the batch to be committed
-    LOG(INFO) << "ConsensusBatchProposeLog: Waiting for batch to be committed (target: " << actual_prepared_id.ToString() 
-              << ") with timeout of " << batch_timeout_ms << "ms";
-    
-    s = WaitForSlaveAcks(actual_prepared_id, batch_timeout_ms);
-    
-    // Process synchronization results
-    if (!s.ok()) {
-        if (s.IsTimeout()) {
-            LOG(WARNING) << "ConsensusBatchProposeLog: Batch timed out waiting for ACKs: " << s.ToString();
-        } else if (s.IsIncomplete()) {
-            LOG(WARNING) << "ConsensusBatchProposeLog: Not all nodes acknowledged the batch: " << s.ToString();
-        } else {
-            LOG(WARNING) << "ConsensusBatchProposeLog: Batch operation failed with status: " << s.ToString();
-        }
-        LOG(WARNING) << "ConsensusBatchProposeLog: Batch operation could not be confirmed with strong consistency, "
-                     << "batch size: " << cmd_ptrs.size();
-    } else {
-        LogOffset new_committed_id = GetCommittedId();
-        LOG(INFO) << "ConsensusBatchProposeLog: Successfully received ACKs for entire batch, "
-                  << "new committed_id: " << new_committed_id.ToString();
-        
-        // Verify that synchronization successfully included all offsets in this batch of commands
-        if (!offsets->empty() && new_committed_id < last_cmd_offset) {
-            LOG(WARNING) << "ConsensusBatchProposeLog: New committed_id " << new_committed_id.ToString() 
-                        << " is less than last command offset " << last_cmd_offset.ToString()
-                        << ", some commands in batch may not be fully replicated";
-            
-            // For strong consistency, we should ensure all commands are replicated
-            // But if there are no slaves, we don't need to worry about replication
-            if (slave_count > 0) {
-                LOG(WARNING) << "ConsensusBatchProposeLog: Some commands may not be fully replicated to all slaves, but proceeding";
-            } else {
-                LOG(INFO) << "ConsensusBatchProposeLog: No slaves connected, no replication needed";
-            }
-        }
-    }
-    return s;
-}
-
-// Per-DB global batching window across threads
-struct WindowState {
-  pstd::Mutex mu;
-  std::atomic<uint64_t> start_us{0};
-  std::atomic<int> accepted{0};
-};
-static std::unordered_map<std::string, WindowState> g_db_windows;
-static pstd::Mutex g_db_windows_mu;
 
 Status SyncMasterDB::ConsensusProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
   return coordinator_.ProcessLeaderLog(cmd_ptr, attribute);
@@ -846,6 +735,9 @@ PikaReplicaManager::PikaReplicaManager() {
   int port = g_pika_conf->port() + kPortShiftReplServer;
   pika_repl_client_ = std::make_unique<PikaReplClient>(3000, 60);
   pika_repl_server_ = std::make_unique<PikaReplServer>(ips, port, 3000);
+  command_queue_ = std::make_unique<CommandQueue>(500);
+  // Initialize CommittedID tracking
+  last_committed_id_ = LogOffset();
   InitDB();
 }
 
@@ -862,9 +754,17 @@ void PikaReplicaManager::Start() {
     LOG(FATAL) << "Start Repl Server Error: " << ret
                << (ret == net::kCreateThreadError ? ": create thread error " : ": other error");
   }
+      // Start command queue background thread
+    StartCommandQueueThread();
+    // Start RocksDB background thread
+    StartRocksDBThread();
 }
 
 void PikaReplicaManager::Stop() {
+  // Stop RocksDB background thread first
+  StopRocksDBThread();
+  // Stop command queue background thread
+  StopCommandQueueThread();
   pika_repl_client_->Stop();
   pika_repl_server_->Stop();
 }
@@ -904,85 +804,63 @@ void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std:
 }
 
 int PikaReplicaManager::ConsumeWriteQueue() {
-  // Quick check if there are any tasks
+  std::unordered_map<std::string, std::vector<std::vector<WriteTask>>> to_send_map;
+  int counter = 0;
   {
     std::lock_guard l(write_queue_mu_);
-    if (write_queues_.empty()) {
-      static int empty_counter = 0;
-      return 0;
-    }
-  }
-  if (g_pika_conf->command_batch_enabled()) {
-    for (auto& db_item : sync_master_dbs_) {
-      if (db_item.second) {
-        auto command_collector = db_item.second->GetCommandCollector();
-        if (command_collector) {
-          command_collector->FlushCommands();
+    for (auto& iter : write_queues_) {
+      const std::string& ip_port = iter.first;
+      std::map<std::string, std::queue<WriteTask>>& p_map = iter.second;
+      for (auto& db_queue : p_map) {
+        std::queue<WriteTask>& queue = db_queue.second;
+        for (int i = 0; i < kBinlogSendPacketNum; ++i) {
+          if (queue.empty()) {
+            break;
+          }
+          size_t batch_index = queue.size() > kBinlogSendBatchNum ? kBinlogSendBatchNum : queue.size();
+          std::vector<WriteTask> to_send;
+          size_t batch_size = 0;
+          for (size_t i = 0; i < batch_index; ++i) {
+            WriteTask& task = queue.front();
+            batch_size += task.binlog_chip_.binlog_.size();
+            // make sure SerializeToString will not over 2G
+            if (batch_size > PIKA_MAX_CONN_RBUF_HB) {
+              break;
+            }
+            to_send.push_back(task);
+            queue.pop();
+            counter++;
+          }
+          if (!to_send.empty()) {
+            to_send_map[ip_port].push_back(std::move(to_send));
+          }
         }
       }
     }
   }
-  // A list of sending jobs to be executed outside the lock.
-  // Each job is a tuple of (ip, port, tasks_to_send).
-  std::vector<std::tuple<std::string, int, std::vector<WriteTask>>> all_sends;
-  int counter = 0;
 
-  // === Start of Critical Section ===
-  {
-    std::lock_guard l(write_queue_mu_);
-    LOG(INFO) << "ConsumeWriteQueue: write_queues_ size: " << write_queues_.size();
-    auto slave_iter = write_queues_.begin();
-    while (slave_iter != write_queues_.end()) {
-      std::string ip;
-      int port = 0;
-      if (!pstd::ParseIpPortString(slave_iter->first, ip, port)) {
-        LOG(WARNING) << "Parse ip_port error " << slave_iter->first;
-        slave_iter = write_queues_.erase(slave_iter);
+  std::vector<std::string> to_delete;
+  for (auto& iter : to_send_map) {
+    std::string ip;
+    int port = 0;
+    if (!pstd::ParseIpPortString(iter.first, ip, port)) {
+      LOG(WARNING) << "Parse ip_port error " << iter.first;
+      continue;
+    }
+    for (auto& to_send : iter.second) {
+      Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
+      if (!s.ok()) {
+        LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
+        to_delete.push_back(iter.first);
         continue;
       }
-
-      // Collect all tasks for this slave from all its dbs
-      std::vector<WriteTask> tasks_for_this_slave;
-      auto& p_map = slave_iter->second;
-      auto db_iter = p_map.begin();
-      while (db_iter != p_map.end()) {
-        auto& queue = db_iter->second;
-        while (!queue.empty()) {
-          tasks_for_this_slave.push_back(std::move(queue.front()));
-          queue.pop();
-        }
-        // Since the queue is now empty, erase this db entry
-        db_iter = p_map.erase(db_iter);
-      }
-
-      if (!tasks_for_this_slave.empty()) {
-        LOG(INFO) << "ConsumeWriteQueue: Found " << tasks_for_this_slave.size() << " tasks for slave " << ip << ":" << port;
-        all_sends.emplace_back(ip, port, std::move(tasks_for_this_slave));
-      } else {
-        LOG(INFO) << "ConsumeWriteQueue: No tasks found for slave " << ip << ":" << port;
-      }
-
-      // Since all db entries for this slave are processed and erased,
-      // erase the slave entry itself.
-      slave_iter = write_queues_.erase(slave_iter);
     }
   }
-  // === End of Critical Section ===
 
-  // Now, execute all the prepared network IO jobs outside the lock.
-  for (auto& send_job : all_sends) {
-    std::string& ip = std::get<0>(send_job);
-    int port = std::get<1>(send_job);
-    std::vector<WriteTask>& to_send = std::get<2>(send_job);
-
-    counter += to_send.size();
-    LOG(INFO) << "ConsumeWriteQueue: Sending " << to_send.size() << " tasks to " << ip << ":" << port;
-    Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
-    if (!s.ok()) {
-      LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
-      DropItemInWriteQueue(ip, port);
-    } else {
-      LOG(INFO) << "ConsumeWriteQueue: Successfully sent " << to_send.size() << " tasks to " << ip << ":" << port;
+  if (!to_delete.empty()) {
+    std::lock_guard l(write_queue_mu_);
+    for (auto& del_queue : to_delete) {
+      write_queues_.erase(del_queue);
     }
   }
   return counter;
@@ -1380,16 +1258,6 @@ void PikaReplicaManager::FindCommonMaster(std::string* master) {
   }
 }
 
-std::shared_ptr<ConsensusCoordinator> PikaReplicaManager::GetConsensusCoordinator(const std::string& db_name) {
-  std::shared_lock l(dbs_rw_);
-  DBInfo p_info(db_name);
-  if (sync_master_dbs_.find(p_info) == sync_master_dbs_.end()) {
-    return nullptr;
-  }
-  // Return a pointer to the existing coordinator instead of creating a copy
-  return sync_master_dbs_[p_info]->StableLogger()->coordinator();
-}
-
 void PikaReplicaManager::RmStatus(std::string* info) {
   std::shared_lock l(dbs_rw_);
   std::stringstream tmp_stream;
@@ -1412,4 +1280,400 @@ void PikaReplicaManager::BuildBinlogOffset(const LogOffset& offset, InnerMessage
   boffset->set_offset(offset.b_offset.offset);
   boffset->set_term(offset.l_offset.term);
   boffset->set_index(offset.l_offset.index);
+}
+
+// Command Queue related implementations
+void PikaReplicaManager::EnqueueCommandBatch(std::shared_ptr<CommandBatch> batch) {
+  if (command_queue_) {
+    bool success = command_queue_->EnqueueBatch(batch);
+    if (success) {
+      // Notify the command queue thread that new data is available
+      {
+        std::lock_guard<std::mutex> lock(command_queue_mutex_);
+        command_queue_cv_.notify_one();
+      }
+    } else {
+      LOG(ERROR) << "Failed to enqueue command batch with " << batch->Size() << " commands";
+    }
+  } else {
+    LOG(ERROR) << "Command queue not initialized";
+  }
+}
+
+std::shared_ptr<CommandBatch> PikaReplicaManager::DequeueCommandBatch() {
+  if (command_queue_) {
+    return command_queue_->DequeueBatch();
+  } else {
+    LOG(ERROR) << "Command queue not initialized";
+    return nullptr;
+  }
+}
+
+size_t PikaReplicaManager::GetCommandQueueSize() const {
+  if (command_queue_) {
+    return command_queue_->Size();
+  }
+  return 0;
+}
+
+bool PikaReplicaManager::IsCommandQueueEmpty() const {
+  if (command_queue_) {
+    return command_queue_->Empty();
+  }
+  return true;
+}
+
+void PikaReplicaManager::StartCommandQueueThread() {
+  if (command_queue_running_.load()) {
+    LOG(WARNING) << "Command queue thread is already running";
+    return;
+  }
+  command_queue_running_.store(true);
+  command_queue_thread_ = std::make_unique<std::thread>(&PikaReplicaManager::CommandQueueLoop, this);
+  LOG(INFO) << "Command queue background thread started";
+}
+
+void PikaReplicaManager::StopCommandQueueThread() {
+  if (!command_queue_running_.load()) {
+    return;
+  }
+  command_queue_running_.store(false);
+  // Notify the condition variable to wake up the thread
+  {
+    std::lock_guard<std::mutex> lock(command_queue_mutex_);
+    command_queue_cv_.notify_one();
+  }
+  
+  if (command_queue_thread_ && command_queue_thread_->joinable()) {
+    command_queue_thread_->join();
+  }
+  LOG(INFO) << "Command queue background thread stopped";
+}
+
+void PikaReplicaManager::CommandQueueLoop() {
+  LOG(INFO) << "Command queue loop started";
+  while (command_queue_running_.load()) {
+    try {
+      std::unique_lock<std::mutex> lock(command_queue_mutex_);
+      // Wait for notification or timeout
+      command_queue_cv_.wait(lock, [this] {
+        return !command_queue_running_.load() || !command_queue_->Empty();
+      });
+      
+      // Check if we should exit
+      if (!command_queue_running_.load()) {
+        break;
+      }
+      
+      // Release lock before processing
+      lock.unlock();
+      
+      // Continuously process batches until queue is empty
+      bool processed_any_batch = false;
+      do {
+        // Non-blocking dequeue all available batches
+        auto batches = command_queue_->DequeueAllBatches();
+        
+        if (!batches.empty()) {
+          // Process all batches
+          ProcessCommandBatches(batches);
+          processed_any_batch = true;
+          LOG(INFO) << "Processed " << batches.size() << " batches, checking for more...";
+        } else {
+          processed_any_batch = false;
+        }
+        // Continue processing if we processed any batches (there might be more)
+      } while (processed_any_batch && command_queue_running_.load());
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Error in command queue loop: " << e.what();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+  LOG(INFO) << "Command queue loop ended";
+}
+
+void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr<CommandBatch>>& batches) {
+  if (batches.empty()) {
+    return;
+  }
+  size_t total_commands = 0;
+  for (const auto& batch : batches) {
+    total_commands += batch->Size();
+  }
+  LOG(INFO) << "Processing " << batches.size() << " batches with " << total_commands << " total commands";
+  
+  // Merge all commands from all batches for unified batch processing
+  std::vector<std::shared_ptr<Cmd>> all_commands;
+  std::map<size_t, std::pair<std::shared_ptr<CommandBatch>, size_t>> command_to_batch_map;
+  size_t global_cmd_idx = 0;
+  for (const auto& batch : batches) {
+    if (!batch || batch->Empty()) {
+      continue;
+    }
+    for (size_t i = 0; i < batch->commands.size(); ++i) {
+      all_commands.push_back(batch->commands[i]);
+      command_to_batch_map[global_cmd_idx] = std::make_pair(batch, i);
+      global_cmd_idx++;
+    }
+  }
+  
+  if (all_commands.empty()) {
+    LOG(WARNING) << "No valid commands found in batches";
+    return;
+  }
+  
+  // Use the first batch's database for consensus
+  std::string db_name = batches[0]->db_name;
+  std::shared_ptr<SyncMasterDB> sync_db = GetSyncMasterDBByName(DBInfo(db_name));
+  if (!sync_db) {
+    LOG(WARNING) << "SyncMasterDB not found for database: " << db_name;
+    // Call callbacks with error for all batches
+    for (const auto& batch : batches) {
+      for (size_t i = 0; i < batch->callbacks.size(); ++i) {
+        if (batch->callbacks[i]) {
+          batch->callbacks[i](LogOffset(), pstd::Status::NotFound("Database not found"));
+        }
+      }
+    }
+    return;
+  }
+  
+  try {
+    // Process each command individually using AppendEntries
+    std::vector<LogOffset> all_offsets;
+    all_offsets.resize(all_commands.size());
+    
+    // Process each command using the original single-command logic
+    for (size_t cmd_idx = 0; cmd_idx < all_commands.size(); ++cmd_idx) {
+      const auto& cmd_ptr = all_commands[cmd_idx];
+      LogOffset cmd_offset;
+      
+      if (sync_db->GetISConsistency()) {
+        // For consistency mode, use ConsensusProposeLog directly  
+        pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to append command " << cmd_ptr->name() << ": " << s.ToString();
+          // Call callbacks with error for remaining commands
+          for (size_t error_idx = cmd_idx; error_idx < all_commands.size(); ++error_idx) {
+            auto& batch_info = command_to_batch_map[error_idx];
+            auto batch = batch_info.first;
+            size_t batch_cmd_idx = batch_info.second;
+            if (batch_cmd_idx < batch->callbacks.size() && batch->callbacks[batch_cmd_idx]) {
+              batch->callbacks[batch_cmd_idx](LogOffset(), s);
+            }
+          }
+          return;
+        }
+        // Get the prepared ID as the offset
+        cmd_offset = sync_db->GetPreparedId();
+      } else {
+        // For non-consistency mode, use ConsensusProposeLog as well
+        pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to propose command " << cmd_ptr->name() << ": " << s.ToString();
+          // Call callbacks with error for remaining commands
+          for (size_t error_idx = cmd_idx; error_idx < all_commands.size(); ++error_idx) {
+            auto& batch_info = command_to_batch_map[error_idx];
+            auto batch = batch_info.first;
+            size_t batch_cmd_idx = batch_info.second;
+            if (batch_cmd_idx < batch->callbacks.size() && batch->callbacks[batch_cmd_idx]) {
+              batch->callbacks[batch_cmd_idx](LogOffset(), s);
+            }
+          }
+          return;
+        }
+        // Get the prepared ID as the offset
+        cmd_offset = sync_db->GetPreparedId();
+      }
+      
+      all_offsets[cmd_idx] = cmd_offset;
+      
+      // Update individual batch offsets
+      auto& batch_info = command_to_batch_map[cmd_idx];
+      auto batch = batch_info.first;
+      size_t batch_cmd_idx = batch_info.second;
+      
+      // Ensure the batch has enough space for offsets
+      if (batch->binlog_offsets.size() <= batch_cmd_idx) {
+        batch->binlog_offsets.resize(batch->commands.size());
+      }
+      batch->binlog_offsets[batch_cmd_idx] = cmd_offset;
+    }
+    
+    LOG(INFO) << "Successfully processed " << all_commands.size() << " commands individually";
+    
+    // Create BatchGroup with the last offset as end_offset
+    LogOffset end_offset = all_offsets.back();
+    auto batch_group = std::make_shared<BatchGroup>(batches, end_offset);
+    
+    // Enqueue the BatchGroup
+    {
+      std::lock_guard<std::mutex> lock(pending_batch_groups_mutex_);
+      pending_batch_groups_.push(batch_group);
+    }
+    LOG(INFO) << "Created BatchGroup with " << batches.size() << " batches and end_offset: " << end_offset.ToString();
+  } catch (const std::exception& e) {
+    LOG(ERROR) << "Exception in ProcessCommandBatches: " << e.what();
+    // Call callbacks with error for all batches
+    for (const auto& batch : batches) {
+      for (size_t i = 0; i < batch->callbacks.size(); ++i) {
+        if (batch->callbacks[i]) {
+          batch->callbacks[i](LogOffset(), pstd::Status::Corruption("Exception in processing"));
+        }
+      }
+    }
+  }
+  
+  // Signal auxiliary thread once after processing all batches
+  g_pika_server->SignalAuxiliary();
+}
+
+// RocksDB Background Thread Implementation
+void PikaReplicaManager::StartRocksDBThread() {
+  if (rocksdb_thread_running_.load()) {
+    LOG(WARNING) << "RocksDB background thread is already running";
+    return;
+  }
+  rocksdb_thread_running_.store(true);
+  rocksdb_back_thread_ = std::make_unique<std::thread>(&PikaReplicaManager::RocksDBThreadLoop, this);
+  LOG(INFO) << "RocksDB background thread started";
+}
+
+void PikaReplicaManager::StopRocksDBThread() {
+  if (!rocksdb_thread_running_.load()) {
+    return;
+  }
+  rocksdb_thread_running_.store(false);
+  // Notify the condition variable to wake up the thread
+  {
+    std::lock_guard<std::mutex> lock(rocksdb_thread_mutex_);
+    rocksdb_thread_cv_.notify_one();
+  }
+  if (rocksdb_back_thread_ && rocksdb_back_thread_->joinable()) {
+    rocksdb_back_thread_->join();
+  }
+  LOG(INFO) << "RocksDB background thread stopped";
+}
+
+void PikaReplicaManager::RocksDBThreadLoop() {
+  LOG(INFO) << "RocksDB_back_thread started";
+  while (rocksdb_thread_running_.load()) {
+    try {
+      std::unique_lock<std::mutex> lock(rocksdb_thread_mutex_);
+      // Wait for CommittedID notification or shutdown signal
+      rocksdb_thread_cv_.wait(lock, [this] {
+        bool has_pending;
+        {
+          std::lock_guard<std::mutex> pending_lock(pending_batch_groups_mutex_);
+          has_pending = !pending_batch_groups_.empty();
+        }
+        return !rocksdb_thread_running_.load() || has_pending;
+      });
+      // Check if we should exit
+      if (!rocksdb_thread_running_.load()) {
+        break;
+      }
+      lock.unlock();
+      // Get current committed ID
+      LogOffset committed_id;
+      {
+        std::lock_guard<std::mutex> id_lock(last_committed_id_mutex_);
+        committed_id = last_committed_id_;
+      }
+      
+      // Process committed BatchGroups
+      if (committed_id.IsValid()) {
+        size_t groups_processed = ProcessCommittedBatchGroups(committed_id);
+        if (groups_processed > 0) {
+          LOG(INFO) << "Processed " << groups_processed << " committed BatchGroups";
+        }
+      }
+    } catch (const std::exception& e) {
+      LOG(ERROR) << "Error in RocksDB thread loop: " << e.what();
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+  }
+  LOG(INFO) << "RocksDB_back_thread ended";
+}
+
+size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committed_id) {
+  std::queue<std::shared_ptr<BatchGroup>> groups_to_process;
+  // Get pending BatchGroups and separate committed from uncommitted
+  {
+    std::lock_guard<std::mutex> lock(pending_batch_groups_mutex_);
+    while (!pending_batch_groups_.empty()) {
+      auto batch_group = pending_batch_groups_.front();
+      // Check if this BatchGroup is committed by comparing its end_offset with committed_id
+      bool is_committed = (batch_group->end_offset <= committed_id);
+      if (is_committed) {
+        groups_to_process.push(batch_group);
+        pending_batch_groups_.pop();
+        LOG(INFO) << "BatchGroup with end_offset " << batch_group->end_offset.ToString() 
+                  << " is committed (committed_id: " << committed_id.ToString() << ")";
+      } else {
+        // First uncommitted BatchGroup found, stop processing
+        static LogOffset last_uncommitted_offset;
+        if (last_uncommitted_offset != batch_group->end_offset) {
+          LOG(INFO) << "BatchGroup with end_offset " << batch_group->end_offset.ToString() 
+                    << " is not yet committed (committed_id: " << committed_id.ToString() << ")";
+          last_uncommitted_offset = batch_group->end_offset;
+        }
+        break;
+      }
+    }
+  }
+  // Store the number of groups to process for return value
+  size_t groups_count = groups_to_process.size();
+  // Process committed BatchGroups
+  while (!groups_to_process.empty()) {
+    auto batch_group = groups_to_process.front();
+    groups_to_process.pop();
+    LOG(INFO) << "Processing committed BatchGroup with " << batch_group->BatchCount() 
+              << " batches for RocksDB Put operations and client callbacks";
+    
+    // Process all batches in this group
+    for (const auto& batch : batch_group->batches) {
+      // Execute RocksDB Put operations for each command in the batch
+      for (size_t i = 0; i < batch->commands.size(); ++i) {
+        const auto& cmd_ptr = batch->commands[i];
+        try {
+          // Execute the command (this will perform the RocksDB Put operation)
+          cmd_ptr->Execute();          
+          if (cmd_ptr->res().ok()) {
+            LOG(INFO) << "Successfully executed RocksDB Put for command: " << cmd_ptr->name();
+            // Execute callback with BatchGroup's end_offset (all commands in the group get the same offset)
+            if (i < batch->callbacks.size() && batch->callbacks[i]) {
+              batch->callbacks[i](batch_group->end_offset, pstd::Status::OK());
+            }
+          } else {
+            LOG(WARNING) << "Command " << cmd_ptr->name() << " execution failed: " << cmd_ptr->res().message();
+            // Execute callback with command error, still use BatchGroup's end_offset
+            if (i < batch->callbacks.size() && batch->callbacks[i]) {
+              batch->callbacks[i](batch_group->end_offset, pstd::Status::Corruption("Command execution failed: " + cmd_ptr->res().message()));
+            }
+          }
+        } catch (const std::exception& e) {
+          LOG(ERROR) << "Exception during command execution: " << e.what();
+          // Execute callback with exception error, still use BatchGroup's end_offset
+          if (i < batch->callbacks.size() && batch->callbacks[i]) {
+            batch->callbacks[i](batch_group->end_offset, pstd::Status::Corruption("Exception during execution: " + std::string(e.what())));
+          }
+        }
+      }
+    }
+  }
+  return groups_count;
+}
+
+void PikaReplicaManager::NotifyCommittedID(const LogOffset& committed_id) {
+  {
+    std::lock_guard<std::mutex> lock(last_committed_id_mutex_);
+    last_committed_id_ = committed_id;
+  }
+  // Notify RocksDB thread
+  {
+    std::lock_guard<std::mutex> lock(rocksdb_thread_mutex_);
+    rocksdb_thread_cv_.notify_one();
+  }
+  LOG(INFO) << "Notified RocksDB thread of new CommittedID: " << committed_id.ToString();
 }

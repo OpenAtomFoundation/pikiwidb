@@ -12,6 +12,10 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <thread>
+#include <atomic>
+#include <condition_variable>
+#include <mutex>
 
 #include "pstd/include/pstd_status.h"
 
@@ -23,6 +27,7 @@
 #include "include/pika_stable_log.h"
 #include "include/rsync_client.h"
 #include "include/pika_command_collector.h"
+#include "include/pika_command_queue.h"
 
 #define kBinlogSendPacketNum 40
 #define kBinlogSendBatchNum 100
@@ -70,7 +75,6 @@ class SyncMasterDB : public SyncDB {
   // consensus use
   pstd::Status ConsensusUpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end);
   pstd::Status ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr);
-  pstd::Status ConsensusBatchProposeLog(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, std::vector<LogOffset>* offsets);
   pstd::Status ConsensusProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
   LogOffset ConsensusCommittedIndex();
 
@@ -116,12 +120,11 @@ class SyncMasterDB : public SyncDB {
   LogOffset GetPreparedId();
   LogOffset GetCommittedId();
   pstd::Status AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
-  pstd::Status BatchAppendSlaveEntries(const std::vector<std::shared_ptr<Cmd>>& cmd_ptrs, const std::vector<BinlogItem>& attributes);
   pstd::Status AppendCandidateBinlog(const std::string& ip, int port, const LogOffset& offset);
   pstd::Status UpdateCommittedID();
   pstd::Status CommitAppLog(const LogOffset& master_committed_id);
   pstd::Status Truncate(const LogOffset& offset);
-  pstd::Status WaitForSlaveAcks(const LogOffset& target_offset, int timeout_ms);
+  // pstd::Status WaitForSlaveAcks(const LogOffset& target_offset, int timeout_ms);
 };
 
 class SyncSlaveDB : public SyncDB {
@@ -171,7 +174,6 @@ class PikaReplicaManager {
   pstd::Status SendMetaSyncRequest();
   pstd::Status SendRemoveSlaveNodeRequest(const std::string& table);
   pstd::Status SendTrySyncRequest(const std::string& db_name);
-  std::shared_ptr<ConsensusCoordinator> GetConsensusCoordinator(const std::string& db_name);
   pstd::Status SendDBSyncRequest(const std::string& db_name);
   pstd::Status SendBinlogSyncAckRequest(const std::string& table, const LogOffset& ack_start,
                                         const LogOffset& ack_end, bool is_first_send = false);
@@ -242,6 +244,14 @@ class PikaReplicaManager {
     return pika_repl_client_->GetUnfinishedAsyncWriteDBTaskCount(db_name);
   }
 
+  // Command Queue related methods
+  void EnqueueCommandBatch(std::shared_ptr<CommandBatch> batch);
+  std::shared_ptr<CommandBatch> DequeueCommandBatch();
+  size_t GetCommandQueueSize() const;
+  bool IsCommandQueueEmpty() const;
+  // CommittedID notification for RocksDB thread
+  void NotifyCommittedID(const LogOffset& committed_id);
+
  private:
   void InitDB();
   pstd::Status SelectLocalIp(const std::string& remote_ip, int remote_port, std::string* local_ip);
@@ -263,9 +273,6 @@ class PikaReplicaManager {
   // client for replica
   std::unique_ptr<PikaReplClient> pika_repl_client_;
   std::unique_ptr<PikaReplServer> pika_repl_server_;
-
-  // one-shot switch to force immediate send on next SendBinlog
-  std::atomic<bool> immediate_send_once_{false};
  
   // Condition variable for signaling when the write queue has new items
   pstd::CondVar write_queue_cv_;
@@ -273,6 +280,41 @@ class PikaReplicaManager {
   std::shared_mutex is_consistency_rwlock_;
   bool is_consistency_ = true;
   std::shared_mutex committed_id_rwlock_;
+
+  // Command queue for collected batches
+  std::unique_ptr<CommandQueue> command_queue_;
+  
+  // Background thread for processing command queue
+  std::unique_ptr<std::thread> command_queue_thread_;
+  std::atomic<bool> command_queue_running_{false};
+  std::mutex command_queue_mutex_;
+  std::condition_variable command_queue_cv_;
+  
+  // RocksDB background thread for Put operations and client responses
+  std::unique_ptr<std::thread> rocksdb_back_thread_;
+  std::atomic<bool> rocksdb_thread_running_{false};
+  std::mutex rocksdb_thread_mutex_;
+  std::condition_variable rocksdb_thread_cv_;
+  
+  // Pending batch groups waiting for CommittedID
+  std::queue<std::shared_ptr<BatchGroup>> pending_batch_groups_;
+  std::mutex pending_batch_groups_mutex_;
+  
+  // Last committed ID for RocksDB thread processing
+  LogOffset last_committed_id_;
+  std::mutex last_committed_id_mutex_;
+  
+  // Background thread processing methods
+  void StartCommandQueueThread();
+  void StopCommandQueueThread();
+  void CommandQueueLoop();
+  void ProcessCommandBatches(const std::vector<std::shared_ptr<CommandBatch>>& batches);
+  
+  // RocksDB background thread methods
+  void StartRocksDBThread();
+  void StopRocksDBThread();
+  void RocksDBThreadLoop();
+  size_t ProcessCommittedBatchGroups(const LogOffset& committed_id);
 };
 
 #endif  //  PIKA_RM_H
