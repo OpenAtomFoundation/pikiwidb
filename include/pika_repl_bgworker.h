@@ -47,6 +47,7 @@ class PikaReplBgWorker {
   net::BGThread bg_thread_;
   static int HandleWriteBinlog(net::RedisParser* parser, const net::RedisCmdArgsType& argv);
   static void ParseBinlogOffset(const InnerMessage::BinlogOffset& pb_offset, LogOffset* offset);
+  static void ParseAndSendPikaCommand(const std::shared_ptr<Cmd>& c_ptr);
 };
 
 #endif  // PIKA_REPL_BGWROKER_H_

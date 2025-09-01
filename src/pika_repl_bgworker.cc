@@ -229,6 +229,7 @@ void PikaReplBgWorker::WriteDBInSyncWay(const std::shared_ptr<Cmd>& c_ptr) {
       && PIKA_CACHE_NONE != g_pika_conf->cache_mode()
       && c_ptr->GetDB()->cache()->CacheStatus() == PIKA_CACHE_STATUS_OK) {
     if (c_ptr->is_write()) {
+      ParseAndSendPikaCommand(c_ptr);
       c_ptr->DoThroughDB();
       if (c_ptr->IsNeedUpdateCache()) {
         c_ptr->DoUpdateCache();
@@ -237,6 +238,7 @@ void PikaReplBgWorker::WriteDBInSyncWay(const std::shared_ptr<Cmd>& c_ptr) {
       LOG(WARNING) << "It is impossbile to reach here";
     }
   } else {
+    ParseAndSendPikaCommand(c_ptr);
     c_ptr->Do();
   }
   if (!c_ptr->IsSuspend()) {
@@ -270,5 +272,35 @@ void PikaReplBgWorker::WriteDBInSyncWay(const std::shared_ptr<Cmd>& c_ptr) {
         LOG(INFO) << "command: " << argv[0] << ", start_time(s): " << start_time << ", duration(us): " << duration;
       }
     }
+  }
+}
+
+void PikaReplBgWorker::ParseAndSendPikaCommand(const std::shared_ptr<Cmd>& c_ptr) {
+  const PikaCmdArgsType& argv = c_ptr->argv();
+  if (!strcasecmp(argv[0].data(), "pksetexat")) {
+    if (argv.size() != 4) {
+      LOG(WARNING) << "find invaild command, command size: " << argv.size();
+      return;
+    } else {
+      std::string key = argv[1];
+      int timestamp = std::atoi(argv[2].data());
+      std::string value = argv[3];
+
+      int seconds = timestamp - time(NULL);
+      PikaCmdArgsType tmp_argv;
+      tmp_argv.push_back("setex");
+      tmp_argv.push_back(key);
+      tmp_argv.push_back(std::to_string(seconds));
+      tmp_argv.push_back(value);
+
+      std::string command;
+      net::SerializeRedisCommand(tmp_argv, &command);
+      g_pika_server->SendRedisCommand(command, key);
+    }
+  } else {
+    std::string key = argv.size() >= 2 ? argv[1] : argv[0];
+    std::string command;
+    net::SerializeRedisCommand(argv, &command);
+    g_pika_server->SendRedisCommand(command, key);
   }
 }

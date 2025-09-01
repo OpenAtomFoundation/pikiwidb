@@ -216,6 +216,9 @@ int PikaConf::Load() {
 
   if (classic_mode_.load()) {
     GetConfInt("databases", &databases_);
+    if (databases_ != 1) {
+      LOG(FATAL) << "pika-migrate-tool only support 1 db";
+    }
     if (databases_ < 1 || databases_ > MAX_DB_NUM) {
       LOG(FATAL) << "config databases error, limit [1 ~ 8], the actual is: " << databases_;
     }
@@ -796,6 +799,25 @@ int PikaConf::Load() {
   }
 
   GetConfBool("wash-data", &wash_data_);
+
+  // redis-migrate conifg args
+  target_redis_host_ = "127.0.0.1";
+  GetConfStr("target-redis-host", &target_redis_host_);
+
+  target_redis_port_ = 6379;
+  GetConfInt("target-redis-port", &target_redis_port_);
+
+  target_redis_pwd_ = "";
+  GetConfStr("target-redis-pwd" , &target_redis_pwd_);
+
+  target_redis_user_ = "";
+  GetConfStr("target-redis-user", &target_redis_user_);
+
+  sync_batch_num_ = 100;
+  GetConfInt("sync-batch-num", &sync_batch_num_);
+
+  redis_sender_num_ = 8;
+  GetConfInt("redis-sender-num", &redis_sender_num_);
 
   return ret;
 }

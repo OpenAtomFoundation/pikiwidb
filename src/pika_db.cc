@@ -508,6 +508,8 @@ bool DB::TryUpdateMasterOffset() {
   LOG(INFO) << "DB: " << db_name_ << " Information from dbsync info"
             << ",  master_ip: " << master_ip << ", master_port: " << master_port << ", filenum: " << filenum
             << ", offset: " << offset << ", term: " << term << ", index: " << index;
+  // Retransmit Data to target redis
+  g_pika_server->RetransmitData(dbsync_path_);
 
   pstd::DeleteFile(info_path);
   if (!ChangeDb(dbsync_path_)) {

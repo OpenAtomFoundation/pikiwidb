@@ -48,6 +48,7 @@
 #include "include/pika_statistic.h"
 #include "include/pika_transaction.h"
 #include "include/rsync_server.h"
+#include "include/redis_sender.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
@@ -514,6 +515,13 @@ class PikaServer : public pstd::noncopyable {
       exec_stat_map.insert(std::make_pair(cmd_name, 0));
     }
   }
+
+  /*
+   * migrate use
+   */
+  int SendRedisCommand(const std::string& command, const std::string& key);
+  void RetransmitData(const std::string& path);
+ 
  private:
   /*
    * TimingTask use
@@ -657,6 +665,11 @@ class PikaServer : public pstd::noncopyable {
    * fast and slow thread pools
    */
   bool slow_cmd_thread_pool_flag_;
+
+  /*
+   * migrate to redis used
+   */
+  std::vector<std::unique_ptr<RedisSender>> redis_senders_;
 };
 
 #endif

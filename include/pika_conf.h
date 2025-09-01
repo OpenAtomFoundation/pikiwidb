@@ -1001,6 +1001,12 @@ class PikaConf : public pstd::BaseConf {
   int ConfigRewrite();
   int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
+  std::string target_redis_host() { return target_redis_host_; }
+  int target_redis_port() { return target_redis_port_; }
+  std::string target_redis_pwd() { return target_redis_pwd_; }
+  std::string target_redis_user() { return target_redis_user_; }
+  int sync_batch_num() { return sync_batch_num_; }
+  int redis_sender_num() { return redis_sender_num_; }
 
  private:
   // TODO: replace mutex with atomic value
@@ -1205,6 +1211,14 @@ class PikaConf : public pstd::BaseConf {
 
   // for wash data from 4.0.0 to 4.0.1
   bool wash_data_;
+
+  // migrate configure items
+  std::string target_redis_host_;
+  int target_redis_port_;
+  std::string target_redis_pwd_;
+  std::string target_redis_user_;
+  int sync_batch_num_;
+  int redis_sender_num_;
 };
 
 #endif
