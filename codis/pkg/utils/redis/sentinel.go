@@ -106,8 +106,8 @@ func (i *InfoReplication) UnmarshalJSON(b []byte) error {
 	}
 
 	i.Role = kvmap["role"]
-	i.MasterPort = kvmap["master_host"]
-	i.MasterHost = kvmap["master_port"]
+	i.MasterPort = kvmap["master_port"]
+	i.MasterHost = kvmap["master_host"]
 	i.MasterLinkStatus = kvmap["master_link_status"]
 	i.IsEligibleForMasterElection = kvmap["is_eligible_for_master_election"] == "true"
 

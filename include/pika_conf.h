@@ -18,6 +18,7 @@
 #include "pstd/include/pstd_string.h"
 
 #include "acl.h"
+#include "cache/include/config.h"
 #include "include/pika_define.h"
 #include "rocksdb/compression_type.h"
 
@@ -86,9 +87,8 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return log_retention_time_;
   }
-  std::string log_level() {
-    std::shared_lock l(rwlock_);
-    return log_level_;
+  bool log_net_activities() {
+    return log_net_activities_.load(std::memory_order::memory_order_relaxed);
   }
   std::string db_path() {
     std::shared_lock l(rwlock_);
@@ -166,6 +166,10 @@ class PikaConf : public pstd::BaseConf {
   int64_t write_buffer_size() {
     std::shared_lock l(rwlock_);
     return write_buffer_size_;
+  }
+  int64_t proto_max_bulk_len() {
+    std::shared_lock l(rwlock_);
+    return proto_max_bulk_len_;
   }
   int min_write_buffer_number_to_merge() {
     std::shared_lock l(rwlock_);
@@ -772,6 +776,11 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("write-buffer-size", std::to_string(value));
     write_buffer_size_ = value;
   }
+  void SetLogRetentionTime(const int& value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("log-retention-time", std::to_string(value));
+    log_retention_time_ = value;
+  }
   void SetMinWriteBufferNumberToMerge(const int& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("min-write-buffer-number-to-merge", std::to_string(value));
@@ -826,10 +835,13 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
-  void SetLogLevel(const std::string& value) {
-    std::lock_guard l(rwlock_);
-    TryPushDiffCommands("loglevel", value);
-    log_level_ = value;
+  void SetLogNetActivities(std::string& value) {
+    TryPushDiffCommands("log-net-activities", value);
+    if (value == "yes") {
+      log_net_activities_.store(true);
+    } else {
+      log_net_activities_.store(false);
+    }
   }
 
   // Rsync Rate limiting configuration
@@ -849,6 +861,59 @@ class PikaConf : public pstd::BaseConf {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("rsync-timeout-ms", std::to_string(value));
     rsync_timeout_ms_.store(value);
+  }
+  void SetProtoMaxBulkLen(const int64_t value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("proto-max-bulk-len", std::to_string(value));
+    proto_max_bulk_len_ = value;
+  }
+
+  int RocksDBPerfLevel() const {
+    return rocksdb_perf_level_.load();
+  }
+
+  int CacheValueItemMaxSize() const {
+    return cache_value_item_max_size_.load();
+  } 
+
+  bool UpdateCacheValueItemMaxSize(int size) {
+    if (size > MAX_CACHE_ITEMS_SIZE || size <= 0) {
+      return false;
+    }
+    cache_value_item_max_size_.store(size);
+    return true;
+  }
+
+  size_t MaxKeySizeInCache() const {
+    return max_key_size_in_cache_.load();
+  } 
+
+  bool UpdateMaxKeySizeInCache(size_t size) {
+    if (size > MAX_CACHE_MAX_KEY_SIZE || size <= 0) {
+      return false;
+    }
+    max_key_size_in_cache_.store(size);
+    return true;
+  }
+
+  bool UpdateRocksDBPerfLevel(int perf_level) {
+    if (perf_level >= 6 || perf_level < 0) {
+      return false;
+    }
+    rocksdb_perf_level_.store(perf_level);
+    return true;
+  }
+
+  int RocksDBPerfPercent() const {
+    return rocksdb_perf_percent_.load();
+  }
+
+  bool UpdateRocksDBPerfPercent(int percent) {
+    if (percent > 100 || percent < 0) {
+      return false;
+    }
+    rocksdb_perf_percent_.store(percent);
+    return true;
   }
 
   void SetAclPubsubDefault(const std::string& value) {
@@ -928,11 +993,13 @@ class PikaConf : public pstd::BaseConf {
   int zset_cache_start_direction() { return zset_cache_start_direction_; }
   int zset_cache_field_num_per_key() { return zset_cache_field_num_per_key_; }
   int max_key_size_in_cache() { return max_key_size_in_cache_; }
+  int value_item_max_size_in_cache() { return cache_value_item_max_size_; }
   int cache_maxmemory_policy() { return cache_maxmemory_policy_; }
   int cache_maxmemory_samples() { return cache_maxmemory_samples_; }
   int cache_lfu_decay_time() { return cache_lfu_decay_time_; }
   int Load();
   int ConfigRewrite();
+  int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
 
  private:
@@ -944,7 +1011,10 @@ class PikaConf : public pstd::BaseConf {
   int slow_cmd_thread_pool_size_ = 0;
   int admin_thread_pool_size_ = 0;
   std::unordered_set<std::string> slow_cmd_set_;
-  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor"};
+  // Because the exporter of Pika_exporter implements Auth authentication
+  // with the Exporter of Pika, and the Exporter authenticates the Auth when 
+  // users connect to Pika, the Auth is added to the management command thread pool
+  std::unordered_set<std::string> admin_cmd_set_ = {"info", "ping", "monitor", "auth"};
   int sync_thread_num_ = 0;
   int sync_binlog_thread_num_ = 0;
   int expire_dump_days_ = 3;
@@ -952,7 +1022,6 @@ class PikaConf : public pstd::BaseConf {
   std::string slaveof_;
   std::string log_path_;
   int log_retention_time_;
-  std::string log_level_;
   std::string db_path_;
   int db_instance_num_ = 0;
   std::string db_sync_path_;
@@ -975,6 +1044,7 @@ class PikaConf : public pstd::BaseConf {
   int64_t least_free_disk_to_resume_ = 268435456; // 256 MB
   double min_check_resume_ratio_ = 0.7;
   int64_t write_buffer_size_ = 0;
+  int64_t proto_max_bulk_len_ = 0;
   int64_t arena_block_size_ = 0;
   int64_t slotmigrate_thread_num_ = 0;
   int64_t thread_migrate_keys_num_ = 0;
@@ -1089,10 +1159,13 @@ class PikaConf : public pstd::BaseConf {
   std::atomic_int cache_bit_ = 1;
   std::atomic_int zset_cache_start_direction_ = 0;
   std::atomic_int zset_cache_field_num_per_key_ = 512;
-  std::atomic_int max_key_size_in_cache_ = 512;
+  std::atomic_int cache_value_item_max_size_ = 1024;
+  std::atomic_size_t max_key_size_in_cache_ = 1024 * 1024;
   std::atomic_int cache_maxmemory_policy_ = 1;
   std::atomic_int cache_maxmemory_samples_ = 5;
   std::atomic_int cache_lfu_decay_time_ = 1;
+  std::atomic<bool> log_net_activities_ = false;
+
 
   // rocksdb blob
   bool enable_blob_files_ = false;
@@ -1111,6 +1184,21 @@ class PikaConf : public pstd::BaseConf {
   int throttle_bytes_per_second_ = 200 << 20; // 200MB/s
   int max_rsync_parallel_num_ = kMaxRsyncParallelNum;
   std::atomic_int64_t rsync_timeout_ms_ = 1000;
+
+  /*
+  kUninitialized = 0,             // unknown setting
+  kDisable = 1,                   // disable perf stats
+  kEnableCount = 2,               // enable only count stats
+  kEnableTimeExceptForMutex = 3,  // Other than count stats, also enable time
+                                  // stats except for mutexes
+  // Other than time, also measure CPU time counters. Still don't measure
+  // time (neither wall time nor CPU time) for mutexes.
+  kEnableTimeAndCPUTimeExceptForMutex = 4,
+  kEnableTime = 5,  // enable count and time stats
+  kOutOfBounds = 6  // N.B. Must always be the last value!
+  */
+  std::atomic_int rocksdb_perf_level_ = 2;
+  std::atomic_int rocksdb_perf_percent_ = 10;
 
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;

@@ -477,11 +477,7 @@ void Acl::UpdateDefaultUserPassword(const std::string& pass) {
   if (pass.empty()) {
     u->SetUser("nopass");
   } else {
-    if (g_pika_conf->userpass().empty()) {
-      u->SetUser("nopass");
-    } else {
-      u->SetUser(">" + pass);
-    }
+    u->SetUser(">" + pass);
   }
 }
 
@@ -501,6 +497,10 @@ void Acl::InitLimitUser(const std::string& bl, bool limit_exist) {
     }
     if (!pass.empty()) {
       u->SetUser(">" + pass);
+    } else {
+      //If the userpass password is empty, 
+      //disable the limit user to prevent password-free access
+      u->SetUser("off");
     }
   } else {
     if (pass.empty()) {

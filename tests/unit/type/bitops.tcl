@@ -131,6 +131,46 @@ start_server {tags {"bitops"}} {
         r get s
     } "\x55\xff\x00\xaa"
 
+    test {SetBit and GetBit with large offset} {
+        set max_offset [expr {2**32 - 1}]
+        set invalid_offset [expr {2**32}]
+
+        r setbit large_key $max_offset 1
+        set result [r getbit large_key $max_offset]
+        set invalid_result [catch {r setbit large_key $invalid_offset 1} err]
+
+        list $result $invalid_result $err
+    } {1 1 {ERR bit offset is not an integer or out of range}}
+
+    test {BITCOUNT with large offset} {
+        r setbit count_key 0 1
+        r setbit count_key 100 1
+        r setbit count_key [expr {2**32 - 1}] 1
+
+        set total_count [r bitcount count_key]
+        set range_count [r bitcount count_key 0 12]
+
+        list $total_count $range_count
+    } {3 2}
+    
+    test {BITPOS with large offset} {
+        r setbit pos_key [expr {2**32 - 1}] 1
+        set first_one [r bitpos pos_key 1]
+        set first_zero [r bitpos pos_key 0]
+        list $first_one $first_zero
+    } {4294967295 0}
+
+    test {BITOP operations} {
+        r setbit key1 0 1
+        r setbit key2 [expr {2**32 - 1}] 1
+        r bitop or result_key key1 key2
+
+        set result_bit1 [r getbit result_key 0]
+        set result_bit2 [r getbit result_key [expr {2**32 - 1}]]
+
+        list $result_bit1 $result_bit2
+    } {1 1}
+    
     test {BITOP AND|OR|XOR don't change the string with single input key} {
         r set a "\x01\x02\xff"
         r bitop and res1 a

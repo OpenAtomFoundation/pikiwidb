@@ -55,7 +55,11 @@ func getEnvInt(key string, defaultVal int) int {
 func main() {
 	flag.Parse()
 
-	log.Println("Pika Metrics Exporter ", BuildVersion, "build date:", BuildDate, "sha:", BuildCommitSha, "go version:", GoVersion)
+	log.Println("Pika Metrics Exporter")
+	log.Println("Pika Exporter Version: ", PikaExporterVersion)
+	log.Println("Build Date: ", BuildDate)
+	log.Println("Commit SHA: ", BuildCommitSha)
+	log.Println("Go Version: ", GoVersion)
 	if *showVersion {
 		return
 	}

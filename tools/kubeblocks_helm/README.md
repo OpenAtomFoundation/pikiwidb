@@ -77,3 +77,18 @@ redis-cli -p 9221
 helm uninstall pika-master-slave-cluster
 helm uninstall pika-master-slave
 ```
+
+### Back up and restore a cluster
+Ensure that the default BackupRepo is defined
+Fellow the kubeblock docs [kubeblocks](https://www.kubeblocks.io/docs/preview/user_docs/maintenance/backup-and-restore/backup/backup-repo)
+
+create backup
+```bash
+kbcli cluster backup pika-master-slave-cluster --method datafile
+```
+
+Select a backup and create a cluster.
+
+```bash
+kbcli cluster restore <clusterName> --backup <backup-name>
+```

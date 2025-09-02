@@ -1,0 +1,1 @@
+helm uninstall pika-cluster && helm uninstall pika

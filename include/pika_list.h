@@ -364,6 +364,8 @@ class RPopLPushCmd : public BlockingBaseCmd {
   void ReadCache() override;
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
+  void DoThroughDB() override;
+  void DoUpdateCache() override;
   Cmd* Clone() override { return new RPopLPushCmd(*this); }
   void DoBinlog() override;
 

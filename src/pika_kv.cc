@@ -65,6 +65,7 @@ void SetCmd::DoInitial() {
 
 void SetCmd::Do() {
   int32_t res = 1;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   switch (condition_) {
     case SetCmd::kXX:
       s_ = db_->storage()->Setxx(key_, value_, &res, ttl_millsec);
@@ -111,7 +112,7 @@ void SetCmd::DoUpdateCache() {
   }
   if (s_.ok()) {
     if (has_ttl_) {
-      db_->cache()->Setxx(key_, value_, ttl_millsec / 1000);
+      db_->cache()->Setxx(key_, value_, ttl_millsec > 0 ? ttl_millsec / 1000 : ttl_millsec);
     } else {
       db_->cache()->SetxxWithoutTTL(key_, value_);
     }
@@ -191,7 +192,7 @@ void GetCmd::DoUpdateCache() {
     return;
   }
   if (s_.ok()) {
-    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ / 1000);
+    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ > 0 ? ttl_millsec_ / 1000 : ttl_millsec_);
   }
 }
 
@@ -453,6 +454,7 @@ void DecrCmd::DoInitial() {
 }
 
 void DecrCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Decrby(key_, 1, &new_value_);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
@@ -490,6 +492,7 @@ void DecrbyCmd::DoInitial() {
 }
 
 void DecrbyCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Decrby(key_, by_, &new_value_);
   if (s_.ok()) {
     AddSlotKey("k", key_, db_);
@@ -526,6 +529,7 @@ void GetsetCmd::DoInitial() {
 
 void GetsetCmd::Do() {
   std::string old_value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetSet(key_, new_value_, &old_value);
   if (s_.ok()) {
     if (old_value.empty()) {
@@ -641,6 +645,7 @@ void MgetCmd::Do() {
     cache_miss_keys_ = keys_;
   }
   db_value_status_array_.clear();
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MGetWithTTL(cache_miss_keys_, &db_value_status_array_);
   if (!s_.ok()) {
     if (s_.IsInvalidArgument()) {
@@ -657,6 +662,7 @@ void MgetCmd::Do() {
 void MgetCmd::Split(const HintKeys& hint_keys) {
   std::vector<storage::ValueStatus> vss;
   const std::vector<std::string>& keys = hint_keys.keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MGet(keys, &vss);
   if (s.ok()) {
     if (hint_keys.hints.size() != vss.size()) {
@@ -689,6 +695,7 @@ void MgetCmd::DoThroughDB() {
 }
 
 void MgetCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : keys_) {
     std::string value;
     auto s = db_->cache()->Get(const_cast<std::string&>(key), &value);
@@ -707,6 +714,7 @@ void MgetCmd::ReadCache() {
 
 void MgetCmd::DoUpdateCache() {
   size_t db_index = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   for (const auto key : cache_miss_keys_) {
     if (db_index < db_value_status_array_.size() && db_value_status_array_[db_index].status.ok()) {
       int64_t ttl_millsec = db_value_status_array_[db_index].ttl_millsec;
@@ -779,6 +787,7 @@ void KeysCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   do {
     keys.clear();
     cursor = db_->storage()->Scan(type_, cursor, pattern_, PIKA_SCAN_STEP_LENGTH, &keys);
@@ -808,6 +817,7 @@ void SetnxCmd::DoInitial() {
 
 void SetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setnx(key_, value_, &success_);
   if (s_.ok()) {
     res_.AppendInteger(success_);
@@ -887,7 +897,7 @@ std::string SetexCmd::ToRedisProtocol() {
   RedisAppendContent(content, key_);
   // time_stamp
   char buf[100];
-  auto time_stamp = time(nullptr) + ttl_sec_;
+  int64_t time_stamp  = static_cast<int64_t>(::time(nullptr)) + ttl_sec_;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
@@ -928,7 +938,7 @@ void PsetexCmd::DoThroughDB() {
 
 void PsetexCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->Setxx(key_, value_,  ttl_millsec / 1000);
+    db_->cache()->Setxx(key_, value_, ttl_millsec / 1000);
   }
 }
 
@@ -945,8 +955,9 @@ std::string PsetexCmd::ToRedisProtocol() {
   RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
+  int64_t expire_at_ms = pstd::NowMillis() + ttl_millsec;
+  int64_t time_stamp = expire_at_ms / 1000;
   char buf[100];
-  auto time_stamp = pstd::NowMillis() + ttl_millsec;
   pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
   RedisAppendLenUint64(content, at.size(), "$");
@@ -967,6 +978,7 @@ void DelvxCmd::DoInitial() {
 }
 
 void DelvxCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Delvx(key_, value_, &success_);
   if (s.ok() || s.IsNotFound()) {
     res_.AppendInteger(success_);
@@ -994,6 +1006,7 @@ void MsetCmd::DoInitial() {
 }
 
 void MsetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->MSet(kvs_);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1035,6 +1048,7 @@ void MsetCmd::Split(const HintKeys& hint_keys) {
       return;
     }
   }
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   storage::Status s = db_->storage()->MSet(kvs);
   if (s.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -1079,6 +1093,7 @@ void MsetnxCmd::DoInitial() {
 
 void MsetnxCmd::Do() {
   success_ = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_);
   if (s.ok()) {
     res_.AppendInteger(success_);
@@ -1130,7 +1145,9 @@ void GetrangeCmd::DoInitial() {
 
 void GetrangeCmd::Do() {
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_= db_->storage()->Getrange(key_, start_, end_, &substr);
+  
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendStringLenUint64(substr.size());
     res_.AppendContent(substr);
@@ -1155,6 +1172,7 @@ void GetrangeCmd::ReadCache() {
 void GetrangeCmd::DoThroughDB() {
   res_.clear();
   std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->GetrangeWithValue(key_, start_, end_, &substr, &value_, &sec_);
   if (s_.ok()) {
     res_.AppendStringLen(substr.size());
@@ -1178,16 +1196,30 @@ void SetrangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameSetrange);
     return;
   }
-  key_ = argv_[1];
+  key_ = argv_[1];  
   if (pstd::string2int(argv_[2].data(), argv_[2].size(), &offset_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
+  
   value_ = argv_[3];
+  
+  // Read the proto-max-bulk-len parameter settings in the pika configuration file pika_conf
+  const int64_t PROTO_MAX_BULK_LEN = g_pika_conf->proto_max_bulk_len();
+  //Handle the overflow issue of offset_
+  if (offset_ < 0) {
+    res_.SetRes(CmdRes::kInvalidInt, "offset is out of range");
+    return;
+  }
+  if (offset_ > PROTO_MAX_BULK_LEN - static_cast<int64_t>(value_.size())) {
+    res_.SetRes(CmdRes::kErrOther, "string exceeds maximum allowed size (proto-max-bulk-len)");
+    return;
+  }
 }
 
 void SetrangeCmd::Do() {
   int32_t new_len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len);
   if (s_.ok()) {
     res_.AppendInteger(new_len);
@@ -1205,7 +1237,8 @@ void SetrangeCmd::DoThroughDB() {
 
 void SetrangeCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->SetRangexx(key_, offset_, value_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SetRangeIfKeyExist(key_, offset_, value_);
   }
 }
 
@@ -1219,6 +1252,7 @@ void StrlenCmd::DoInitial() {
 
 void StrlenCmd::Do() {
   int32_t len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->Strlen(key_, &len);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(len);
@@ -1663,6 +1697,7 @@ void ScanCmd::Do() {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   // To avoid memory overflow, we call the Scan method in batches
   do {
     keys.clear();
@@ -1739,6 +1774,7 @@ void ScanxCmd::DoInitial() {
 void ScanxCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->Scanx(type_, start_key_, pattern_, count_, &keys, &next_key);
 
   if (s.ok()) {
@@ -1770,7 +1806,9 @@ void PKSetexAtCmd::DoInitial() {
 }
 
 void PKSetexAtCmd::Do() {
-  s_ = db_->storage()->PKSetexAt(key_, value_, static_cast<int32_t>(time_stamp_sec_ * 1000));
+  // Use int64_t to avoid overflow
+  int64_t time_stamp_ms = static_cast<int64_t>(time_stamp_sec_) * 1000;
+  s_ = db_->storage()->PKSetexAt(key_, value_, time_stamp_ms);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
   } else if (s_.IsInvalidArgument()) {
@@ -1853,6 +1891,7 @@ void PKScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_), &keys, &kvs, &next_key);
 
   if (s_.ok()) {
@@ -1938,6 +1977,7 @@ void PKRScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
   std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->PKRScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_),
                                 &keys, &kvs, &next_key);
 

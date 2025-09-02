@@ -264,6 +264,10 @@ void* ServerThread::ThreadMain() {
   return nullptr;
 }
 
+void ServerThread::SetLogNetActivities(bool value) {
+  log_net_activities_.store(value, std::memory_order::memory_order_relaxed);
+}
+
 #ifdef __ENABLE_SSL
 static std::vector<std::unique_ptr<pstd::Mutex>> ssl_mutex_;
 

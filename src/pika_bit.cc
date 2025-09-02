@@ -241,7 +241,7 @@ void BitPosCmd::Do() {
     s_ = db_->storage()->BitPos(key_, static_cast<int32_t>(bit_val_), start_offset_, end_offset_, &pos);
   }
   if (s_.ok()) {
-    res_.AppendInteger(static_cast<int>(pos));
+    res_.AppendInteger(pos);
   } else if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kMultiKey);
   } else {

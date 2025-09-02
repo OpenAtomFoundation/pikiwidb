@@ -26,6 +26,7 @@ void HDelCmd::DoInitial() {
 }
 
 void HDelCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HDel(key_, fields_, &deleted_);
 
   if (s_.ok() || s_.IsNotFound()) {
@@ -43,6 +44,7 @@ void HDelCmd::DoThroughDB() {
 
 void HDelCmd::DoUpdateCache() {
   if (s_.ok() && deleted_ > 0) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->HDel(key_, fields_);
   }
 }
@@ -58,6 +60,7 @@ void HSetCmd::DoInitial() {
 }
 
 void HSetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   int32_t ret = 0;
   s_ = db_->storage()->HSet(key_, field_, value_, &ret);
   if (s_.ok()) {
@@ -79,6 +82,7 @@ void HSetCmd::DoUpdateCache() {
   if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
     return;
   }
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   if (s_.ok()) {
     db_->cache()->HSetIfKeyExist(key_, field_, value_);
   }
@@ -94,6 +98,7 @@ void HGetCmd::DoInitial() {
 }
 
 void HGetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   std::string value;
   s_ = db_->storage()->HGet(key_, field_, &value);
   if (s_.ok()) {
@@ -109,6 +114,7 @@ void HGetCmd::Do() {
 }
 
 void HGetCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   std::string value;
   auto s = db_->cache()->HGet(key_, field_, &value);
   if (s.ok()) {
@@ -131,6 +137,8 @@ void HGetCmd::DoUpdateCache() {
     return;
   }
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -151,6 +159,7 @@ void HGetallCmd::Do() {
   std::string raw;
   std::vector<storage::FieldValue> fvs;
 
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   do {
     fvs.clear();
     s_ = db_->storage()->HScan(key_, cursor, "*", PIKA_SCAN_STEP_LENGTH, &fvs, &next_cursor);
@@ -184,6 +193,7 @@ void HGetallCmd::Do() {
 
 void HGetallCmd::ReadCache() {
   std::vector<storage::FieldValue> fvs;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HGetall(key_, &fvs);
   if (s.ok()) {
     res_.AppendArrayLen(fvs.size() * 2);
@@ -207,6 +217,8 @@ void HGetallCmd::DoThroughDB() {
 
 void HGetallCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -221,6 +233,7 @@ void HExistsCmd::DoInitial() {
 }
 
 void HExistsCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HExists(key_, field_);
   if (s_.ok()) {
     res_.AppendContent(":1");
@@ -234,6 +247,7 @@ void HExistsCmd::Do() {
 }
 
 void HExistsCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HExists(key_, field_);
   if (s.ok()) {
     res_.AppendContent(":1");
@@ -251,6 +265,8 @@ void HExistsCmd::DoThroughDB() {
 
 void HExistsCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -270,6 +286,7 @@ void HIncrbyCmd::DoInitial() {
 
 void HIncrbyCmd::Do() {
   int64_t new_value = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HIncrby(key_, field_, by_, &new_value);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendContent(":" + std::to_string(new_value));
@@ -291,6 +308,7 @@ void HIncrbyCmd::DoThroughDB() {
 
 void HIncrbyCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->HIncrbyxx(key_, field_, by_);
   }
 }
@@ -307,6 +325,7 @@ void HIncrbyfloatCmd::DoInitial() {
 
 void HIncrbyfloatCmd::Do() {
   std::string new_value;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HIncrbyfloat(key_, field_, by_, &new_value);
   if (s_.ok()) {
     res_.AppendStringLenUint64(new_value.size());
@@ -331,6 +350,7 @@ void HIncrbyfloatCmd::DoUpdateCache() {
   if (s_.ok()) {
     long double long_double_by;
     if (storage::StrToLongDouble(by_.data(), by_.size(), &long_double_by) != -1) {
+      STAGE_TIMER_GUARD(cache_duration_ms, true);
       db_->cache()->HIncrbyfloatxx(key_, field_, long_double_by);
     }
   }
@@ -346,6 +366,7 @@ void HKeysCmd::DoInitial() {
 
 void HKeysCmd::Do() {
   std::vector<std::string> fields;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HKeys(key_, &fields);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendArrayLenUint64(fields.size());
@@ -361,6 +382,7 @@ void HKeysCmd::Do() {
 
 void HKeysCmd::ReadCache() {
   std::vector<std::string> fields;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HKeys(key_, &fields);
   if (s.ok()) {
     res_.AppendArrayLen(fields.size());
@@ -381,6 +403,8 @@ void HKeysCmd::DoThroughDB() {
 
 void HKeysCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -395,6 +419,7 @@ void HLenCmd::DoInitial() {
 
 void HLenCmd::Do() {
   int32_t len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HLen(key_, &len);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(len);
@@ -407,6 +432,7 @@ void HLenCmd::Do() {
 
 void HLenCmd::ReadCache() {
   uint64_t len = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HLen(key_, &len);
   if (s.ok()) {
     res_.AppendInteger(len);
@@ -424,6 +450,8 @@ void HLenCmd::DoThroughDB() {
 
 void HLenCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -442,6 +470,7 @@ void HMgetCmd::DoInitial() {
 
 void HMgetCmd::Do() {
   std::vector<storage::ValueStatus> vss;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HMGet(key_, fields_, &vss);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendArrayLenUint64(vss.size());
@@ -462,6 +491,7 @@ void HMgetCmd::Do() {
 
 void HMgetCmd::ReadCache() {
   std::vector<storage::ValueStatus> vss;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HMGet(key_, fields_, &vss);
   if (s.ok()) {
     res_.AppendArrayLen(vss.size());
@@ -487,6 +517,8 @@ void HMgetCmd::DoThroughDB() {
 
 void HMgetCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -510,6 +542,7 @@ void HMsetCmd::DoInitial() {
 }
 
 void HMsetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HMSet(key_, fvs_);
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
@@ -527,7 +560,8 @@ void HMsetCmd::DoThroughDB() {
 
 void HMsetCmd::DoUpdateCache() {
   if (s_.ok()) {
-    db_->cache()->HMSetxx(key_, fvs_);
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->HMSetIfKeyExist(key_, fvs_);
   }
 }
 
@@ -543,6 +577,7 @@ void HSetnxCmd::DoInitial() {
 
 void HSetnxCmd::Do() {
   int32_t ret = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HSetnx(key_, field_, value_, &ret);
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(ret));
@@ -560,6 +595,7 @@ void HSetnxCmd::DoThroughDB() {
 
 void HSetnxCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
     db_->cache()->HSetIfKeyExistAndFieldNotExist(key_, field_, value_);
   }
 }
@@ -575,6 +611,7 @@ void HStrlenCmd::DoInitial() {
 
 void HStrlenCmd::Do() {
   int32_t len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HStrlen(key_, field_, &len);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(len);
@@ -587,6 +624,7 @@ void HStrlenCmd::Do() {
 
 void HStrlenCmd::ReadCache() {
   uint64_t len = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HStrlen(key_, field_, &len);
   if (s.ok()) {
     res_.AppendInteger(len);
@@ -605,6 +643,8 @@ void HStrlenCmd::DoThroughDB() {
 
 void HStrlenCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -619,6 +659,7 @@ void HValsCmd::DoInitial() {
 
 void HValsCmd::Do() {
   std::vector<std::string> values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   s_ = db_->storage()->HVals(key_, &values);
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendArrayLenUint64(values.size());
@@ -635,6 +676,7 @@ void HValsCmd::Do() {
 
 void HValsCmd::ReadCache() {
   std::vector<std::string> values;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->HVals(key_, &values);
   if (s.ok()) {
     res_.AppendArrayLen(values.size());
@@ -656,6 +698,8 @@ void HValsCmd::DoThroughDB() {
 
 void HValsCmd::DoUpdateCache() {
   if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    // record time cost in push key to queue
     db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_HASH, key_, db_);
   }
 }
@@ -702,6 +746,7 @@ void HScanCmd::DoInitial() {
 void HScanCmd::Do() {
   int64_t next_cursor = 0;
   std::vector<storage::FieldValue> field_values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   auto s = db_->storage()->HScan(key_, cursor_, pattern_, count_, &field_values, &next_cursor);
 
   if (s.ok() || s.IsNotFound()) {
@@ -762,6 +807,7 @@ void HScanxCmd::DoInitial() {
 void HScanxCmd::Do() {
   std::string next_field;
   std::vector<storage::FieldValue> field_values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s = db_->storage()->HScanx(key_, start_field_, pattern_, count_, &field_values, &next_field);
 
   if (s.ok() || s.IsNotFound()) {
@@ -817,6 +863,7 @@ void PKHScanRangeCmd::DoInitial() {
 void PKHScanRangeCmd::Do() {
   std::string next_field;
   std::vector<storage::FieldValue> field_values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s =
       db_->storage()->PKHScanRange(key_, field_start_, field_end_, pattern_, static_cast<int32_t>(limit_), &field_values, &next_field);
 
@@ -872,6 +919,7 @@ void PKHRScanRangeCmd::DoInitial() {
 void PKHRScanRangeCmd::Do() {
   std::string next_field;
   std::vector<storage::FieldValue> field_values;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   rocksdb::Status s =
       db_->storage()->PKHRScanRange(key_, field_start_, field_end_, pattern_, static_cast<int32_t>(limit_), &field_values, &next_field);
 

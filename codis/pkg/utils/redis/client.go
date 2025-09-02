@@ -341,7 +341,7 @@ func (c *Client) SetMaster(master string, force bool) error {
 		}
 
 		if force {
-			if _, err := c.Do("SLAVEOF", host, port, "-f"); err != nil {
+			if _, err := c.Do("SLAVEOF", host, port, "force"); err != nil {
 				return err
 			}
 		} else {

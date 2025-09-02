@@ -152,6 +152,8 @@ ExternalProject_Add(gtest
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   BUILD_ALWAYS
@@ -192,6 +194,8 @@ ExternalProject_Add(gflags
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DGFLAGS_NAMESPACE=gflags
@@ -266,6 +270,8 @@ ExternalProject_Add(glog
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DWITH_GFLAGS=ON
@@ -307,6 +313,8 @@ ExternalProject_Add(snappy
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DSNAPPY_BUILD_TESTS=OFF
@@ -345,6 +353,8 @@ ExternalProject_Add(zstd
   SOURCE_SUBDIR
   build/cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_TESTING=OFF
@@ -367,9 +377,9 @@ set(ZSTD_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(fmt
   DEPENDS
   URL
-  https://github.com/fmtlib/fmt/archive/refs/tags/7.1.0.tar.gz
+  https://github.com/fmtlib/fmt/archive/refs/tags/10.2.1.tar.gz 
   URL_HASH
-  MD5=32af902636d373641f4ef9032fc65b3a
+  MD5=dc09168c94f90ea890257995f2c497a5
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
@@ -381,6 +391,8 @@ ExternalProject_Add(fmt
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   BUILD_ALWAYS
@@ -422,6 +434,8 @@ ExternalProject_Add(lz4
   SOURCE_SUBDIR
   build/cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_TESTING=OFF
@@ -444,9 +458,9 @@ set(LZ4_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(zlib
   DEPENDS
   URL
-  https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz
+  https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz 
   URL_HASH
-  MD5=9b8aa094c4e5765dabf4da391f00d15c
+  MD5=9855b6d802d7fe5b7bd5b196a2271655
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
@@ -458,6 +472,8 @@ ExternalProject_Add(zlib
   LOG_INSTALL
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DZLIB_USE_STATIC_LIBS=ON
@@ -489,6 +505,8 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     LOG_INSTALL
     1
     CMAKE_ARGS
+    # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+    -DCMAKE_POLICY_VERSION_MINIMUM=3.5
     -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
     -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
     -DGPERFTOOLS_BUILD_STATIC=ON
@@ -558,6 +576,8 @@ ExternalProject_Add(protobuf
   SOURCE_SUBDIR
   cmake
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DBUILD_SHARED_LIBS=FALSE
@@ -607,6 +627,8 @@ ExternalProject_Add(rocksdb
   BUILD_ALWAYS
   1
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
@@ -648,6 +670,8 @@ ExternalProject_Add(rediscache
   SOURCE_SUBDIR
   ""
   CMAKE_ARGS
+  # Force CMake to run with the policy behavior of version 3.5 to avoid cases where a higher version of CMake does not compile
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_INSTALL_INCLUDEDIR=${INSTALL_INCLUDEDIR}
   -DCMAKE_INSTALL_LIBDIR=${INSTALL_LIBDIR}
@@ -738,8 +762,8 @@ endif()
 aux_source_directory(src DIR_SRCS)
 
 # # generate version
-string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S" UTC)
-set(PIKA_BUILD_DATE "${TS}" CACHE STRING "the time we first built pika")
+string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")
+set(PIKA_BUILD_DATE "${TS}")
 
 find_package(Git)
 

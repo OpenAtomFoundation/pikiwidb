@@ -2,14 +2,16 @@
 
 export GO111MODULE=on
 
-build-all: codis-dashboard codis-proxy codis-admin codis-ha codis-fe
+build-all: generate-version codis-dashboard codis-proxy codis-admin codis-ha codis-fe
 
 PRJ_ROOT=${CURDIR}
 
+generate-version:
+	$(info generate version)
+	@mkdir -p ./bin && ./version
 
 codis-deps:
-	@mkdir -p ./bin && go version
-
+	@go version
 codis-dashboard: codis-deps
 	$(info build codis-dashboard)
 	@cd ${PRJ_ROOT}/cmd/dashboard && go mod tidy && go build -buildvcs=false -o ${PRJ_ROOT}/bin/codis-dashboard .

@@ -1298,8 +1298,8 @@ var _ = Describe("List Commands", func() {
 			Expect(lpush.Val()).To(Equal(int64(4)))
 
 			getRes, err := client.Get(ctx, "list1").Result()
-			Expect(err).To(HaveOccurred())  // An error is expected since listkey is a list, not a string
-			Expect(getRes).To(Equal("")) 
+			Expect(err).To(HaveOccurred()) // An error is expected since listkey is a list, not a string
+			Expect(getRes).To(Equal(""))
 
 			lrang := client.LRange(ctx, "list1", 0, -1)
 			Expect(lrang.Err()).NotTo(HaveOccurred())
@@ -1313,6 +1313,38 @@ var _ = Describe("List Commands", func() {
 			Expect(lrang.Err()).NotTo(HaveOccurred())
 			Expect(lrang.Val()).To(Equal([]string{"4", "3", "2", "1", "5"}))
 
+		})
+
+		It("should LPUSH and LRANGE", func() {
+			
+			rPush := client.LPush(ctx, "mylist", "a", "b", "c", "d", "e")
+			Expect(rPush.Err()).NotTo(HaveOccurred())
+			Expect(rPush.Val()).To(Equal(int64(5)))
+
+			lRange := client.LRange(ctx, "mylist", 0, -1)
+			Expect(lRange.Err()).NotTo(HaveOccurred())
+			Expect(lRange.Val()).To(Equal([]string{"e", "d", "c", "b", "a"}))
+		})
+
+		It("should RPOPLPUSH and update list order", func() {
+
+			client.LPush(ctx, "mylist", "a", "b", "c", "d", "e")
+
+			rPopPush := client.RPopLPush(ctx, "mylist", "mylist")
+			Expect(rPopPush.Err()).NotTo(HaveOccurred())
+			Expect(rPopPush.Val()).To(Equal("a"))
+
+			lRange := client.LRange(ctx, "mylist", 0, -1)
+			Expect(lRange.Err()).NotTo(HaveOccurred())
+			Expect(lRange.Val()).To(Equal([]string{"a", "e", "d", "c", "b"}))
+
+			rPopPush = client.RPopLPush(ctx, "mylist", "mylist")
+			Expect(rPopPush.Err()).NotTo(HaveOccurred())
+			Expect(rPopPush.Val()).To(Equal("b"))
+
+			lRange = client.LRange(ctx, "mylist", 0, -1)
+			Expect(lRange.Err()).NotTo(HaveOccurred())
+			Expect(lRange.Val()).To(Equal([]string{"b", "a", "e", "d", "c"}))
 		})
 	})
 })

@@ -46,11 +46,11 @@ static std::string ConstructPinginPubSubResp(const PikaCmdArgsType& argv) {
 }
 
 static double MethodofCommandStatistics(const uint64_t time_consuming, const uint64_t frequency) {
-  return (static_cast<double>(time_consuming) / 1000.0) / static_cast<double>(frequency);
+  return static_cast<double>(time_consuming) / static_cast<double>(frequency);
 }
 
 static double MethodofTotalTimeCalculation(const uint64_t time_consuming) {
-  return static_cast<double>(time_consuming) / 1000.0;
+  return static_cast<double>(time_consuming);
 }
 
 enum AuthResult {
@@ -152,6 +152,7 @@ void SlaveofCmd::Do() {
   if (is_none_) {
     res_.SetRes(CmdRes::kOk);
     g_pika_conf->SetSlaveof(std::string());
+    g_pika_conf->ConfigRewriteSlaveOf();
     return;
   }
 
@@ -1590,6 +1591,19 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->port());
   }
 
+  if (pstd::stringmatch(pattern.data(), "log-retention-time", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-retention-time");
+    EncodeNumber(&config_body, g_pika_conf->log_retention_time());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "log-net-activities", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "log-net-activities");
+    auto output_str = g_pika_conf->log_net_activities()  ? "yes" : "no";
+    EncodeString(&config_body, output_str);
+  }
+
   if (pstd::stringmatch(pattern.data(), "thread-num", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "thread-num");
@@ -1807,6 +1821,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     elements += 2;
     EncodeString(&config_body, "max-background-compactions");
     EncodeNumber(&config_body, g_pika_conf->max_background_compactions());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "max-subcompactions", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "max-subcompactions");
+    EncodeNumber(&config_body, g_pika_conf->max_subcompactions());
   }
 
   if (pstd::stringmatch(pattern.data(), "max-background-jobs", 1) != 0) {
@@ -2112,6 +2132,18 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeNumber(&config_body, g_pika_conf->blob_file_size());
   }
 
+  if (pstd::stringmatch(pattern.data(), "cache-value-item-max-size", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "cache-value-item-max-size");
+    EncodeNumber(&config_body, g_pika_conf->CacheValueItemMaxSize());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "max-key-size-in-cache", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "max-key-size-in-cache");
+    EncodeNumber(&config_body, g_pika_conf->MaxKeySizeInCache());
+  }
+
   if (pstd::stringmatch(pattern.data(), "blob-garbage-collection-age-cutoff", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "blob-garbage-collection-age-cutoff");
@@ -2154,12 +2186,6 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, g_pika_conf->enable_blob_garbage_collection() ? "yes" : "no");
   }
 
-  if (pstd::stringmatch(pattern.data(), "loglevel", 1) != 0) {
-    elements += 2;
-    EncodeString(&config_body, "loglevel");
-    EncodeString(&config_body, g_pika_conf->log_level());
-  }
-
   if (pstd::stringmatch(pattern.data(), "min-blob-size", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "min-blob-size");
@@ -2182,6 +2208,18 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     elements += 2;
     EncodeString(&config_body, "throttle-bytes-per-second");
     EncodeNumber(&config_body, g_pika_conf->throttle_bytes_per_second());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "rocksdb-perf-level", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "rocksdb-perf-level");
+    EncodeNumber(&config_body, g_pika_conf->RocksDBPerfLevel());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "rocksdb-perf-percent", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "rocksdb-perf-percent");
+    EncodeNumber(&config_body, g_pika_conf->RocksDBPerfPercent());
   }
 
   if (pstd::stringmatch(pattern.data(), "max-rsync-parallel-num", 1) != 0) {
@@ -2345,6 +2383,13 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetTimeout(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-retention-time") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument " + value + " for CONFIG SET 'log-retention-time'\r\n");
+      return;
+    }
+    g_pika_conf->SetLogRetentionTime(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "requirepass") {
     g_pika_conf->SetRequirePass(value);
     g_pika_server->Acl()->UpdateDefaultUserPassword(value);
@@ -2471,6 +2516,15 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetSlowlogMaxLen(static_cast<int>(ival));
     g_pika_server->SlowlogTrim();
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "log-net-activities") {
+    if (value != "yes" && value != "no") {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value +
+                           "\' for CONFIG SET 'log-net-activities', only yes or no is valid\r\n");
+      return;
+    }
+    g_pika_conf->SetLogNetActivities(value);
+    g_pika_server->SetLogNetActivities(value == "yes");
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-statistic-keys") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival < 0) {
@@ -2677,6 +2731,19 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetMaxBackgroudCompactions(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "max-subcompactions") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw( "-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-subcompactions'\r\n");
+      return;
+    }
+    std::unordered_map<std::string, std::string> options_map{{"max_subcompactions", value}};
+    storage::Status s = g_pika_server->RewriteStorageOptions(storage::OptionType::kDB, options_map);
+    if (!s.ok()) {
+      res_.AppendStringRaw("-ERR Set max_subcompactions wrong: " + s.ToString() + "\r\n");
+      return;
+    }
+    g_pika_conf->SetMaxSubcompactions(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "rocksdb-periodic-second") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0) {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-periodic-second'\r\n");
@@ -2820,6 +2887,58 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetArenaBlockSize(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "rocksdb-perf-level") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-level'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateRocksDBPerfLevel(int(ival));
+    LOG(INFO) << "update rocksdb-perf-level to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-level', should between 1 and 5\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "rocksdb-perf-percent") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-percent'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateRocksDBPerfPercent(int(ival));
+    LOG(INFO) << "update rocksdb-perf-percent to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'rocksdb-perf-percent', should between 0 and 100\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "cache-value-item-max-size") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'cache-value-item-max-size'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateCacheValueItemMaxSize(int(ival));
+    LOG(INFO) << "update cache-value-item-max-size to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'cache-value-item-max-size', should between 1 and 2048\r\n");
+      return;
+    }
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "max-key-size-in-cache") {
+    if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-key-size-in-cache'\r\n");
+      return;
+    }
+    bool success = g_pika_conf->UpdateMaxKeySizeInCache(size_t(ival));
+    LOG(INFO) << "update max-key-size-in-cache to " << ival
+              << (success ? " success" : " failed");
+    if (!success) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'max-key-size-in-cache', should between 1 and 2097152 \r\n");
+      return;
+    }
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "throttle-bytes-per-second") {
     if ((pstd::string2int(value.data(), value.size(), &ival) == 0) || ival <= 0) {
@@ -3312,7 +3431,9 @@ void QuitCmd::DoInitial() {
 
 void QuitCmd::Do() {
   res_.SetRes(CmdRes::kOk);
-  LOG(INFO) << "QutCmd will close connection " << GetConn()->String();
+  if (g_pika_conf->log_net_activities()) {
+    LOG(INFO) << "QuitCmd will close connection " << GetConn()->String();
+  }
   GetConn()->SetClose(true);
 }
 
@@ -3387,8 +3508,12 @@ void HelloCmd::Do() {
   }
 
   std::string raw;
+  char version[32];
+  snprintf(version, sizeof(version), "%d.%d.%d", 5, 0, 0);
+
   std::vector<storage::FieldValue> fvs{
       {"server", "redis"},
+      {"version", version}
   };
   // just for redis resp2 protocol
   fvs.push_back({"proto", "2"});

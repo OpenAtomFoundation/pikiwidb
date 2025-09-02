@@ -99,9 +99,9 @@ Status Redis::Append(const Slice& key, const Slice& value, int32_t* ret, int64_t
     }
   } else if (s.IsNotFound()) {
     *ret = static_cast<int32_t>(value.size());
+    out_new_value = value.ToString();
     StringsValue strings_value(value);
-    *expired_timestamp_millsec = 0;
-    return db_->Put(default_write_options_, base_key.Encode(), strings_value.Encode());
+    return db_->Put(default_write_options_, base_key.Encode(), strings_value.Encode()); 
   }
   return s;
 }
@@ -1066,12 +1066,12 @@ Status Redis::Strlen(const Slice& key, int32_t* len) {
   return s;
 }
 
-int32_t GetBitPos(const unsigned char* s, unsigned int bytes, int bit) {
+int64_t GetBitPos(const unsigned char* s, unsigned int bytes, int bit) {
   uint64_t word = 0;
   uint64_t skip_val = 0;
   auto value = const_cast<unsigned char*>(s);
   auto l = reinterpret_cast<uint64_t*>(value);
-  int pos = 0;
+  int64_t pos = 0;
   if (bit == 0) {
     skip_val = std::numeric_limits<uint64_t>::max();
   } else {
@@ -1149,7 +1149,7 @@ Status Redis::BitPos(const Slice& key, int32_t bit, int64_t* ret) {
         pos = -1;
       }
       if (pos != -1) {
-        pos = pos + 8 * start_offset;
+        pos += 8 * start_offset;
       }
       *ret = pos;
     }
@@ -1671,7 +1671,14 @@ rocksdb::Status Redis::GetType(const storage::Slice& key, enum DataType& type) {
   BaseMetaKey base_meta_key(key);
   rocksdb::Status s = db_->Get(default_read_options_, handles_[kMetaCF], base_meta_key.Encode(), &meta_value);
   if (s.ok()) {
-    type = static_cast<enum DataType>(static_cast<uint8_t>(meta_value[0]));
+    // Check if key has expired
+    if (ExpectedStale(meta_value)) {
+      type = DataType::kNones;  // If key has expired, return "none" type
+    } else {
+      type = static_cast<enum DataType>(static_cast<uint8_t>(meta_value[0]));
+    }
+  } else {
+    type = DataType::kNones;  // If key doesn't exist, return "none" type
   }
   return Status::OK();
 }

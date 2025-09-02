@@ -148,7 +148,9 @@ void DispatchThread::HandleNewConn(const int connfd, const std::string& ip_port)
   // Slow workers may consume many fds.
   // We simply loop to find next legal worker.
   NetItem ti(connfd, ip_port);
-  LOG(INFO) << "accept new conn " << ti.String();
+  if (log_net_activities_.load(std::memory_order::memory_order_relaxed)) {
+    LOG(INFO) << "accept new conn " << ti.String();
+  }
   int next_thread = last_thread_;
   bool find = false;
   for (int cnt = 0; cnt < work_num_; cnt++) {
@@ -156,7 +158,9 @@ void DispatchThread::HandleNewConn(const int connfd, const std::string& ip_port)
     find = worker_thread->MoveConnIn(ti, false);
     if (find) {
       last_thread_ = (next_thread + 1) % work_num_;
-      LOG(INFO) << "find worker(" << next_thread << "), refresh the last_thread_ to " << last_thread_;
+      if (log_net_activities_.load(std::memory_order::memory_order_relaxed)) {
+        LOG(INFO) << "find worker(" << next_thread << "), refresh the last_thread_ to " << last_thread_;
+      }
       break;
     }
     next_thread = (next_thread + 1) % work_num_;
@@ -189,7 +193,7 @@ void DispatchThread::CleanWaitNodeOfUnBlockedBlrConn(std::shared_ptr<net::RedisC
   // removed all the waiting info of this conn/ doing cleaning work
   auto pair = blocked_conn_to_keys_.find(conn_unblocked->fd());
   if (pair == blocked_conn_to_keys_.end()) {
-    LOG(WARNING) << "blocking info of blpop/brpop went wrong, blpop/brpop can't working correctly";
+    LOG(ERROR) << "blocking info of blpop/brpop went wrong, blpop/brpop can't working correctly";
     return;
   }
   auto& blpop_keys_list = pair->second;
