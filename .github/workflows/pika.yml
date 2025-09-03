@@ -153,6 +153,7 @@ jobs:
 
       - name: Install Deps
         run: |
+           brew list --versions cmake && brew uninstall --ignore-dependencies --force cmake || true
            brew install gcc@10 automake cmake make binutils
 
       - name: Configure CMake
