@@ -952,35 +952,36 @@ bool Cmd::DoReadCommandInCache() {
 
 
 void Cmd::DoBinlog() {
-  if (res().ok() && is_write() && g_pika_conf->write_binlog()) {
-    std::shared_ptr<net::NetConn> conn_ptr = GetConn();
-    std::shared_ptr<std::string> resp_ptr = GetResp();
-    // Consider that dummy cmd appended by system, both conn and resp are null.
-    if ((!conn_ptr || !resp_ptr) && (name_ != kCmdDummy)) {
-      if (!conn_ptr) {
-        LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " conn empty.";
-      }
-      if (!resp_ptr) {
-        LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " resp empty.";
-      }
-      res().SetRes(CmdRes::kErrOther);
-      return;
-    }
+//   if (res().ok() && is_write() && g_pika_conf->write_binlog()) {
+//     std::shared_ptr<net::NetConn> conn_ptr = GetConn();
+//     std::shared_ptr<std::string> resp_ptr = GetResp();
+//     // Consider that dummy cmd appended by system, both conn and resp are null.
+//     if ((!conn_ptr || !resp_ptr) && (name_ != kCmdDummy)) {
+//       if (!conn_ptr) {
+//         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " conn empty.";
+//       }
+//       if (!resp_ptr) {
+//         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " resp empty.";
+//       }
+//       res().SetRes(CmdRes::kErrOther);
+//       return;
+//     }
 
-    Status s = sync_db_->ConsensusProposeLog(shared_from_this());
-    if (!s.ok()) {
-       if(g_pika_server->IsConsistency()&&s.IsTimeout()){
-         res().SetRes(CmdRes::kConsistencyTimeout, "Timeout waiting for consistency");
-         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Slave node consistency timeout"
-                        << s.ToString();
-       }else{
-        LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
-                        << s.ToString();
-        res().SetRes(CmdRes::kErrOther, s.ToString());
-       }
-      return;
-    }
-  }
+//     Status s = sync_db_->ConsensusProposeLog(shared_from_this());
+//     if (!s.ok()) {
+//        if(g_pika_server->IsConsistency()&&s.IsTimeout()){
+//          res().SetRes(CmdRes::kConsistencyTimeout, "Timeout waiting for consistency");
+//          LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Slave node consistency timeout"
+//                         << s.ToString();
+//        }else{
+//         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
+//                         << s.ToString();
+//         res().SetRes(CmdRes::kErrOther, s.ToString());
+//        }
+//       return;
+//     }
+//   }
+    return;
 }
 
 #define PIKA_STAGE_DURATION_OUTPUT(duration)      \

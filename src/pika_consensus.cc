@@ -824,7 +824,6 @@ bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
 //// pacificA private:
 
 Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset) {
-  std::lock_guard l(order_mu_);
   std::string content = cmd_ptr->ToRedisProtocol();
   std::string binlog = std::string();
   LogOffset offset = LogOffset();
@@ -843,12 +842,16 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
   // If successful, append the log entry to the logs
   // TODO: 这里logs_的appendlog操作和上边的stable_logger_->Logger()->Put不是原子的，可能导致offset大的先被追加到logs_中，
   // 多线程写入的时候窗口会对不上，最终主从断开连接。需要加逻辑保证原子性
-  LOG(INFO) << "PersistAppendBinlog: About to append to logs_, current size=" << logs_->Size() 
-            << ", offset=" << cur_offset.ToString() << ", cmd=" << cmd_ptr->name();
-  logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
-  LOG(INFO) << "PersistAppendBinlog: Successfully appended to logs_, new size=" << logs_->Size();
-
-  SetPreparedId(cur_offset);
+  //LOG(INFO) << "PersistAppendBinlog: About to append to logs_, current size=" << logs_->Size() 
+  //          << ", offset=" << cur_offset.ToString() << ", cmd=" << cmd_ptr->name();
+  // logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
+  //LOG(INFO) << "PersistAppendBinlog: Successfully appended to logs_, new size=" << logs_->Size();
+  {
+    std::lock_guard l(order_mu_);
+    // Append to logs_ under order lock to maintain ordering
+    logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
+    SetPreparedId(cur_offset);
+  }
 
   return stable_logger_->Logger()->IsOpened();
 }
@@ -868,7 +871,7 @@ Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, 
     return s;
   }
 
-  g_pika_server->SignalAuxiliary();
+  // g_pika_server->SignalAuxiliary();
   return Status::OK();
 }
 Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
@@ -922,6 +925,23 @@ Status ConsensusCoordinator::UpdateCommittedID() {
       }
     }
   }
+  // if (!has_active_slaves) {
+  //   LogOffset master_prepared_id = GetPreparedId();
+  //   if (master_prepared_id.IsValid() && master_prepared_id >= GetCommittedId()) {
+  //     SetCommittedId(master_prepared_id);
+  //     LOG(INFO) << "PacificA update CommittedID (no active slaves): " << GetCommittedId().ToString()
+  //               << ", Total slaves: " << total_slaves 
+  //               << ", kSlaveBinlogSync: " << binlog_sync_slaves
+  //               << ", Other states: " << other_state_slaves;
+  //   } else {
+  //     LOG(INFO) << "PacificA update CommittedID: No active slaves, keeping current CommittedID: " << GetCommittedId().ToString()
+  //               << ", Total slaves: " << total_slaves 
+  //               << ", kSlaveBinlogSync: " << binlog_sync_slaves
+  //               << ", Other states: " << other_state_slaves;
+  //   }
+  //   // g_pika_rm->NotifyCommittedID(GetCommittedId());
+  //   return Status::OK();
+  // }
   if (slave_prepared_id < GetCommittedId()) {
     LOG(WARNING) << "Error: slave_prepared_id (" << slave_prepared_id.ToString() << ") < master_committedId ("
                  << GetCommittedId().ToString() << ")";
@@ -953,7 +973,9 @@ Status ConsensusCoordinator::ProcessCoordination() {
 // Execute the operation of writing to DB
 Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
   auto opt = cmd_ptr->argv()[0];
+  LOG(INFO) << "[ApplyBinlog] Received command: " << opt << " for db: " << db_name_;
   if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
+    LOG(INFO) << "[ApplyBinlog] Scheduling async task for " << opt;
     InternalApplyFollower(cmd_ptr);
   } else {
     int32_t wait_ms = 250;
@@ -990,86 +1012,28 @@ void ConsensusCoordinator::BatchInternalApplyFollower(const std::vector<std::sha
 
 Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name) {
   std::vector<WriteTask> tasks;
-  const int MAX_BATCH_SIZE = 100; // Maximum number of logs to send in a single batch
-
-  // Get current committed_id to ensure it's sent to the slave
-  LogOffset current_committed_id = GetCommittedId();
-  LOG(INFO) << "SendBinlog: [Thread " << std::this_thread::get_id() << "] Current committed_id: " << current_committed_id.ToString()
-            << ", sending to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port()
-            << ", logs_ addr: " << logs_.get() << ", db_name: " << db_name_;
 
   // Check if there are new log entries that need to be sent to the slave
-  LOG(INFO) << "SendBinlog: logs_->LastOffset()=" << logs_->LastOffset().ToString() 
-            << ", slave_ptr->acked_offset=" << slave_ptr->acked_offset.ToString()
-            << ", logs_->Size()=" << logs_->Size();
-            
-  if (logs_->Size() > 0 && logs_->LastOffset() >= slave_ptr->acked_offset) {
+  if (logs_->LastOffset() >= slave_ptr->acked_offset) {
     // Find the index of the log entry corresponding to the slave's acknowledged offset
     int index = logs_->FindOffset(slave_ptr->acked_offset);
-    int entries_to_send = logs_->Size() - index;
-    LOG(INFO) << "SendBinlog: Found " << entries_to_send << " new log entries to send, "
-              << "starting from index " << index << " of " << logs_->Size();
-    
     if (index < logs_->Size()) {
-      // Send log entries in optimized batches
-      RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), db_name, slave_ptr->SessionId());
-      
-      // For large batches, use specialized batch handling
-      if (entries_to_send > MAX_BATCH_SIZE) {
-        LOG(INFO) << "SendBinlog: Using optimized batch sending for " << entries_to_send << " entries";
-        
-        // Process in chunks of MAX_BATCH_SIZE
-        for (int batch_start = index; batch_start < logs_->Size(); batch_start += MAX_BATCH_SIZE) {
-          int batch_end = std::min(batch_start + MAX_BATCH_SIZE, logs_->Size());
-          std::vector<WriteTask> batch_tasks;
-          
-          for (int i = batch_start; i < batch_end; ++i) {
-            Log::LogItem item = logs_->At(i);
-            WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), item.offset, current_committed_id);
-            batch_tasks.push_back(task);
-          }
-          
-          g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, batch_tasks);
-          LOG(INFO) << "SendBinlog: Sent batch " << (batch_start - index) / MAX_BATCH_SIZE + 1 
-                    << " with " << (batch_end - batch_start) << " entries";
-        }
-      } else {
-        // Send all entries in a single batch
-        for (int i = index; i < logs_->Size(); ++i) {
-          Log::LogItem item = logs_->At(i);
-          WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), item.offset, current_committed_id);
-          tasks.push_back(task);
-        }
+      for (int i = index; i < logs_->Size(); ++i) {
+        const Log::LogItem& item = logs_->At(i);
+
+        slave_ptr->SetLastSendTime(pstd::NowMicros());
+
+        RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), slave_ptr->DBName(), slave_ptr->SessionId());
+        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), slave_ptr->sent_offset, GetCommittedId());
+        tasks.emplace_back(std::move(task));
+
+        slave_ptr->sent_offset = item.offset;
       }
-    } else {
-      LOG(INFO) << "SendBinlog: No new log entries to send, index " << index << " is out of range (logs size: " << logs_->Size() << ")";
-    }
-  } else {
-    if (logs_->Size() == 0) {
-      LOG(INFO) << "SendBinlog: No logs available yet (logs_->Size()=0), will send empty binlog to maintain connection";
-    } else {
-      LOG(INFO) << "SendBinlog: Slave is already up to date, last offset: " << logs_->LastOffset().ToString()
-                << ", slave acked offset: " << slave_ptr->acked_offset.ToString();
     }
   }
 
-  // Only send empty binlog if there are no actual log entries to send
-  // This prevents the deadlock where master waits for slave ACK and slave waits for master data
-  if (tasks.empty() && logs_->Size() == 0) {
-    // LOG(INFO) << "SendBinlog: Sending empty binlog with current committed_id: " << current_committed_id.ToString();
-    RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), db_name, slave_ptr->SessionId());
-    // Create an empty WriteTask that includes the current committed_id
-    WriteTask empty_task(rm_node, BinlogChip(LogOffset(), ""), LogOffset(), current_committed_id);
-    tasks.push_back(empty_task);
-  }
-
-  // Send the tasks to the slave
   if (!tasks.empty()) {
-    LOG(INFO) << "SendBinlog: Sending " << tasks.size() << " tasks to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port();
-    extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
     g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
-  } else {
-    LOG(INFO) << "SendBinlog: No tasks to send to slave " << slave_ptr->Ip() << ":" << slave_ptr->Port();
   }
   return Status::OK();
 }

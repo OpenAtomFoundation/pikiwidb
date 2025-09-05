@@ -24,6 +24,7 @@ class SetCmd : public Cmd {
     res.push_back(key_);
     return res;
   }
+  ~SetCmd() {}
   void Do() override;
   void DoUpdateCache() override;
   void DoThroughDB() override;

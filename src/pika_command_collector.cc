@@ -30,7 +30,7 @@ PikaCommandCollector::~PikaCommandCollector() {
             << " commands, " << total_batches_.load() << " batches";
 }
 
-bool PikaCommandCollector::AddCommand(const std::shared_ptr<Cmd>& cmd_ptr, CommandCallback callback) {
+bool PikaCommandCollector::AddCommand(std::shared_ptr<Cmd> cmd_ptr, CommandCallback callback) {
   if (!cmd_ptr || !cmd_ptr->is_write()) {
     LOG(WARNING) << "Attempt to add non-write command to CommandCollector";
     return false;

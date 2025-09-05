@@ -15,6 +15,20 @@
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 /* SET key value [NX] [XX] [EX <seconds>] [PX <milliseconds>] */
+// SetCmd::~SetCmd() {
+//   auto tmp_conn = GetConn();
+//   if (!tmp_conn) {
+//     return;
+//   }
+
+//   auto pc = dynamic_cast<PikaClientConn*>(tmp_conn.get());
+//   std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
+//   *resp_ptr = std::move(res().message());
+//   pc->resp_num--;
+//   pc->resp_array.push_back(resp_ptr);
+//   pc->TryWriteResp();
+//   LOG(INFO) << "SetCmd::~SetCmd() is completed";
+// }
 void SetCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameSet);

@@ -229,14 +229,16 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
       if (command_collector) {
         // Create callback to handle command completion
         auto callback = [this, c_ptr](const LogOffset& offset, pstd::Status status) {
-          if (status.ok()) {
-            // Command was successfully processed through the pipeline
-            LOG(INFO) << "Command " << c_ptr->name() << " completed via CommandCollector";
-          } else {
-            // Set error response
-            c_ptr->res().SetRes(CmdRes::kErrOther, "Command processing failed: " + status.ToString());
-            LOG(ERROR) << "Command " << c_ptr->name() << " failed in CommandCollector: " << status.ToString();
-          }
+            LOG(INFO) << "Command completed";
+            auto pc = dynamic_cast<PikaClientConn*>(c_ptr->GetConn().get());
+            if (pc) {
+                auto resp_ptr = c_ptr->GetResp();
+                if (resp_ptr) {
+                    *resp_ptr = std::move(c_ptr->res().message());
+                }
+                pc->resp_num--;
+                pc->TryWriteResp();
+            }
         };
         
         // Add command to collector for batch processing
@@ -591,8 +593,13 @@ void PikaClientConn::ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<s
   }
 
   std::shared_ptr<Cmd> cmd_ptr = DoCmd(argv, opt, resp_ptr, cache_miss_in_rtc);
-  *resp_ptr = std::move(cmd_ptr->res().message());
-  resp_num--;
+  // *resp_ptr = std::move(cmd_ptr->res().message());
+  // resp_num--;
+  if (opt == kCmdNameSet) {
+  } else {
+    *resp_ptr = std::move(cmd_ptr->res().message());
+    resp_num--;
+  }
 }
 
 std::queue<std::shared_ptr<Cmd>> PikaClientConn::GetTxnCmdQue() { return txn_cmd_que_; }

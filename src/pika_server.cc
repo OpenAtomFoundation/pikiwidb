@@ -1105,9 +1105,17 @@ std::unordered_map<std::string, QpsStatistic> PikaServer::ServerAllDBStat() { re
 
 int PikaServer::SendToPeer() { return g_pika_rm->ConsumeWriteQueue(); }
 
-void PikaServer::SignalAuxiliary() { pika_auxiliary_thread_->cv_.notify_one(); }
+void PikaServer::SignalAuxiliary() { 
+  // LOG(INFO) << "[Signal] SignalAuxiliary called, notifying auxiliary thread";
+  pika_auxiliary_thread_->cv_.notify_one(); 
+}
 
-Status PikaServer::TriggerSendBinlogSync() { return g_pika_rm->WakeUpBinlogSync(); }
+Status PikaServer::TriggerSendBinlogSync() { 
+  // LOG(INFO) << "[Trigger] TriggerSendBinlogSync called, calling WakeUpBinlogSync";
+  Status s = g_pika_rm->WakeUpBinlogSync();
+  // LOG(INFO) << "[Trigger] WakeUpBinlogSync result: " << s.ToString();
+  return s; 
+}
 
 int PikaServer::PubSubNumPat() { return pika_pubsub_thread_->PubSubNumPat(); }
 

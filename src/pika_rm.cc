@@ -249,8 +249,8 @@ Status SyncMasterDB::WakeUpSlaveBinlogSync() {
           }
           if (!s.ok()) {
             to_del.push_back(slave_ptr);
-            LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
-                             << slave_ptr->ToStringStatus() << " - " << s.ToString();
+            // LOG(WARNING) << "WakeUpSlaveBinlogSync failed, marking for deletion: "
+            //                  << slave_ptr->ToStringStatus() << " - " << s.ToString();
         }
       }
   }
@@ -580,8 +580,8 @@ Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
     // }
 
     // return Status::Timeout("No consistency achieved within 10 seconds");
-    LOG(INFO) << "ConsensusProposeLog: Successfully appended cmd " << cmd_ptr->name() 
-              << " with offset " << offset.ToString() << ", delegating to RocksDBThreadLoop";
+    //LOG(INFO) << "ConsensusProposeLog: Successfully appended cmd " << cmd_ptr->name() 
+    //          << " with offset " << offset.ToString() << ", delegating to RocksDBThreadLoop";
 
     return Status::OK();
 }
@@ -798,9 +798,12 @@ void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std:
                                            const std::vector<WriteTask>& tasks) {
   std::lock_guard l(write_queue_mu_);
   std::string index = ip + ":" + std::to_string(port);
+  LOG(INFO) << "[Queue] Entering ProduceWriteQueue for " << ip << ":" << port << ", db: " << db_name << ", current queue size: " << write_queues_.size() << ", tasks to add: " << tasks.size();
   for (auto& task : tasks) {
     write_queues_[index][db_name].push(task);
   }
+  LOG(INFO) << "[Queue] Added " << tasks.size() << " tasks to queue for " << ip << ":" << port << ", db: " << db_name << ", new queue size: " << write_queues_[index][db_name].size();
+  LOG(INFO) << "[Queue] Exiting ProduceWriteQueue";
 }
 
 int PikaReplicaManager::ConsumeWriteQueue() {
@@ -850,9 +853,11 @@ int PikaReplicaManager::ConsumeWriteQueue() {
     for (auto& to_send : iter.second) {
       Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
       if (!s.ok()) {
-        LOG(WARNING) << "send binlog to " << ip << ":" << port << " failed, " << s.ToString();
+        LOG(WARNING) << "SendSlaveBinlogChips to " << iter.first << " failed, " << s.ToString();
         to_delete.push_back(iter.first);
         continue;
+      } else {
+        LOG(INFO) << "[Queue] SendSlaveBinlogChips to " << iter.first << " success.";
       }
     }
   }
@@ -863,6 +868,9 @@ int PikaReplicaManager::ConsumeWriteQueue() {
       write_queues_.erase(del_queue);
     }
   }
+  // LOG(INFO) << "[Consume] Entering ConsumeWriteQueue, total queues: " << write_queues_.size();
+  // LOG(INFO) << "[Consume] Consumed " << counter << " tasks";
+  // LOG(INFO) << "[Consume] Exiting ConsumeWriteQueue";
   return counter;
 }
 
@@ -1448,43 +1456,23 @@ void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr
       const auto& cmd_ptr = all_commands[cmd_idx];
       LogOffset cmd_offset;
       
-      if (sync_db->GetISConsistency()) {
-        // For consistency mode, use ConsensusProposeLog directly  
-        pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
-        if (!s.ok()) {
-          LOG(ERROR) << "Failed to append command " << cmd_ptr->name() << ": " << s.ToString();
-          // Call callbacks with error for remaining commands
-          for (size_t error_idx = cmd_idx; error_idx < all_commands.size(); ++error_idx) {
-            auto& batch_info = command_to_batch_map[error_idx];
-            auto batch = batch_info.first;
-            size_t batch_cmd_idx = batch_info.second;
-            if (batch_cmd_idx < batch->callbacks.size() && batch->callbacks[batch_cmd_idx]) {
-              batch->callbacks[batch_cmd_idx](LogOffset(), s);
-            }
+      pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
+      if (!s.ok()) {
+        LOG(ERROR) << "Failed to " << (sync_db->GetISConsistency() ? "append" : "propose") 
+                   << " command " << cmd_ptr->name() << ": " << s.ToString();
+        // Call callbacks with error for remaining commands
+        for (size_t error_idx = cmd_idx; error_idx < all_commands.size(); ++error_idx) {
+          auto& batch_info = command_to_batch_map[error_idx];
+          auto batch = batch_info.first;
+          size_t batch_cmd_idx = batch_info.second;
+          if (batch_cmd_idx < batch->callbacks.size() && batch->callbacks[batch_cmd_idx]) {
+            batch->callbacks[batch_cmd_idx](LogOffset(), s);
           }
-          return;
         }
-        // Get the prepared ID as the offset
-        cmd_offset = sync_db->GetPreparedId();
-      } else {
-        // For non-consistency mode, use ConsensusProposeLog as well
-        pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
-        if (!s.ok()) {
-          LOG(ERROR) << "Failed to propose command " << cmd_ptr->name() << ": " << s.ToString();
-          // Call callbacks with error for remaining commands
-          for (size_t error_idx = cmd_idx; error_idx < all_commands.size(); ++error_idx) {
-            auto& batch_info = command_to_batch_map[error_idx];
-            auto batch = batch_info.first;
-            size_t batch_cmd_idx = batch_info.second;
-            if (batch_cmd_idx < batch->callbacks.size() && batch->callbacks[batch_cmd_idx]) {
-              batch->callbacks[batch_cmd_idx](LogOffset(), s);
-            }
-          }
-          return;
-        }
-        // Get the prepared ID as the offset
-        cmd_offset = sync_db->GetPreparedId();
+        return;
       }
+      // Get the prepared ID as the offset
+      cmd_offset = sync_db->GetPreparedId();
       
       all_offsets[cmd_idx] = cmd_offset;
       
@@ -1628,21 +1616,31 @@ size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committe
   while (!groups_to_process.empty()) {
     auto batch_group = groups_to_process.front();
     groups_to_process.pop();
-    LOG(INFO) << "Processing committed BatchGroup with " << batch_group->BatchCount() 
-              << " batches for RocksDB Put operations and client callbacks";
+    //LOG(INFO) << "Processing committed BatchGroup with " << batch_group->BatchCount() 
+    //          << " batches for RocksDB Put operations and client callbacks";
     
     // Process all batches in this group
     for (const auto& batch : batch_group->batches) {
       // Execute RocksDB Put operations for each command in the batch
       for (size_t i = 0; i < batch->commands.size(); ++i) {
         const auto& cmd_ptr = batch->commands[i];
+        LOG(INFO) << "[RocksDB] RocksDBThreadLoop" << "Processing BatchGroup with end_offset: " << batch_group->end_offset.ToString();
         try {
           // Execute the command (this will perform the RocksDB Put operation)
           cmd_ptr->Execute();          
+          // auto tmp_conn = cmd_ptr->GetConn();
+          // auto pc = dynamic_cast<PikaClientConn*>(tmp_conn.get());
+          // std::shared_ptr<std::string> resp_ptr = std::make_shared<std::string>();
+          // *resp_ptr = std::move(cmd_ptr->res().message());
+          // pc->resp_num--;
+          // pc->resp_array.push_back(resp_ptr);
+          // pc->TryWriteResp();
           if (cmd_ptr->res().ok()) {
             LOG(INFO) << "Successfully executed RocksDB Put for command: " << cmd_ptr->name();
             // Execute callback with BatchGroup's end_offset (all commands in the group get the same offset)
             if (i < batch->callbacks.size() && batch->callbacks[i]) {
+              LOG(INFO) << "[Callback] RocksDBThreadLoop" 
+                        << ", Executing callback for end_offset: " << batch_group->end_offset.ToString();
               batch->callbacks[i](batch_group->end_offset, pstd::Status::OK());
             }
           } else {
@@ -1662,6 +1660,7 @@ size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committe
       }
     }
   }
+  
   return groups_count;
 }
 

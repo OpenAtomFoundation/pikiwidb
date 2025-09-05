@@ -113,7 +113,7 @@ class PikaClientConn : public net::RedisConn {
   std::vector<std::shared_ptr<std::string>> resp_array;
 
   std::shared_ptr<TimeStat> time_stat_;
-
+  void TryWriteResp();
  private:
   net::ServerThread* const server_thread_;
   std::string current_db_;
@@ -134,7 +134,7 @@ class PikaClientConn : public net::RedisConn {
   void ProcessMonitor(const PikaCmdArgsType& argv);
 
   void ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc);
-  void TryWriteResp();
+  // void TryWriteResp();
 };
 
 struct ClientInfo {

@@ -62,7 +62,7 @@ class PikaCommandCollector {
     * @param callback callback function after processing is completed
     * @return whether the addition was successful
   */
-  bool AddCommand(const std::shared_ptr<Cmd>& cmd_ptr, CommandCallback callback);
+  bool AddCommand(std::shared_ptr<Cmd> cmd_ptr, CommandCallback callback);
 
   /**
     * @brief Set the batch max wait time

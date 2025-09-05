@@ -38,7 +38,8 @@ echo "Replication setup successful."
 
 echo "Running benchmark..."
 
-redis-benchmark -p 9301 -t set -r 100000 -n 100000 -c 10000 --threads 4
+# redis-cli -p 9301 set key "12313"
+redis-benchmark -p 9301 -t set -n 100000 -c 10 --threads 1
 echo "Benchmark finished." 
 
 echo -e "\n==== 主节点 INFO 日志 ===="
