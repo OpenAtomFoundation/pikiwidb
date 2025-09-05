@@ -241,6 +241,7 @@ jobs:
         run: |
           brew list --versions cmake && brew uninstall --ignore-dependencies --force cmake || true
           brew install gcc@10 automake cmake make binutils
+          brew install --overwrite python@3.13 autoconf protobuf llvm wget git
 
       - name: Configure CMake
         run: |
