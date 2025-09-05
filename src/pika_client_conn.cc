@@ -282,17 +282,10 @@ bool PikaClientConn::IsInterceptedByRTC(std::string& opt) {
       kCmdNameHGet, kCmdNameHMget, kCmdNameHExists, kCmdNameHVals, kCmdNameHStrlen
   };
 
-  static const std::unordered_set<std::string> intercepted_list_cmds = {
-      kCmdNameLLen
-  };
-
   if (intercepted_string_cmds.count(opt) && g_pika_conf->GetCacheString()) {
     return true;
   }
   if (intercepted_hash_cmds.count(opt) && g_pika_conf->GetCacheHash()) {
-    return true;
-  }
-  if (intercepted_list_cmds.count(opt) && g_pika_conf->GetCacheList()) {
     return true;
   }
 
