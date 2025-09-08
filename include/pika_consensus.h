@@ -169,6 +169,7 @@ class ConsensusCoordinator {
 
   pstd::Status InternalAppendLog(const std::shared_ptr<Cmd>& cmd_ptr);
   pstd::Status InternalAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status AppendBinlogByContent(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& content);
   void InternalApply(const MemLog::LogItem& log);
   void InternalApplyFollower(const std::shared_ptr<Cmd>& cmd_ptr);
 
@@ -181,7 +182,6 @@ class ConsensusCoordinator {
                                           LogOffset* found_offset);
   pstd::Status FindLogicOffset(const BinlogOffset& start_offset, uint64_t target_index, LogOffset* found_offset);
   pstd::Status GetLogsBefore(const BinlogOffset& start_offset, std::vector<LogOffset>* hints);
-
  private:
   // keep members in this class works in order
   pstd::Mutex order_mu_;

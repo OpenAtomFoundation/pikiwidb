@@ -136,7 +136,7 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     if (binlog_res.binlog().empty()) {
       continue;
     }
-    if (!PikaBinlogTransverter::BinlogItemWithoutContentDecode(TypeFirst, binlog_res.binlog(), &worker->binlog_item_)) {
+    if (!PikaBinlogTransverter::BinlogDecode(TypeFirst, binlog_res.binlog(), &worker->binlog_item_)) {
       LOG(WARNING) << "Binlog item decode failed";
       slave_db->SetReplState(ReplState::kTryConnect);
       return;

@@ -337,6 +337,19 @@ Status ConsensusCoordinator::InternalAppendLog(const std::shared_ptr<Cmd>& cmd_p
   return InternalAppendBinlog(cmd_ptr);
 }
 
+Status ConsensusCoordinator::AppendBinlogByContent(const std::shared_ptr<Cmd>& cmd_ptr, const std::string& content) {
+  Status s = stable_logger_->Logger()->Put(content);
+  if (!s.ok()) {
+    std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
+    std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
+    if (db) {
+      db->SetBinlogIoError();
+    }
+    return s;
+  }
+  return stable_logger_->Logger()->IsOpened();
+}
+
 // precheck if prev_offset match && drop this log if this log exist
 Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
   LogOffset last_index = mem_logger_->last_offset();
@@ -347,9 +360,10 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
   }
 
   auto opt = cmd_ptr->argv()[0];
+  std::string content = attribute.content();
   if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
     // apply binlog in sync way
-    Status s = InternalAppendLog(cmd_ptr);
+    Status s = AppendBinlogByContent(cmd_ptr, content);
     // apply db in async way
     InternalApplyFollower(cmd_ptr);
   } else {
@@ -362,7 +376,7 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
       wait_ms = wait_ms < 3000 ? wait_ms : 3000;
     }
     // apply flushdb-binlog in sync way
-    Status s = InternalAppendLog(cmd_ptr);
+    Status s = AppendBinlogByContent(cmd_ptr, content);
     // applyDB in sync way
     PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
   }
