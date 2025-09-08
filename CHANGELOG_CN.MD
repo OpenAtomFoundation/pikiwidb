@@ -1,19 +1,100 @@
+# V3.5.6
+
+## Improvement
+
+- 统计命令处理不同阶段的耗时，包括 Redis 缓存的读取/更新、写入 binlog、存储处理时间[#3036](https://github.com/OpenAtomFoundation/pikiwidb/pull/3036)@[wangshao1](https://github.com/wangshao1)
+
+- 精简定位日志，增加耗时统计，修改监控信息暴露[#3044](https://github.com/OpenAtomFoundation/pikiwidb/pull/3044)@[wangshao1](https://github.com/wangshao1)
+
+- 将 Auth 命令加入管理命令线程池，避免因为主线程池卡住导致建立连接不成功的问题[#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- 当 client 关闭 close 链接之后，服务端在处理请求时跳过执行这条连接上收到的请求，避免出现请求堵塞问题[#3111](https://github.com/OpenAtomFoundation/pikiwidb/pull/3111)@[wangshao1](https://github.com/wangshao1)
+
+## Bugfix
+
+- 将 clearcache 改为读命令[#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复部分接口因为数据不一致导致的问题[#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修改配置文件中对 redis-cache 限制阈值错误的问题[#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 Rediscache 异步加载的问题[#3037](https://github.com/OpenAtomFoundation/pikiwidb/pull/3037)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 Pika-slave 节点恢复后，codis-dashboard 没有更新元信息的问题[#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- 修复 info replication master ip:port 解析失败的问题[#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- 修复 Append 命令在缓存和数据库中表现不一致的问题[#3039](https://github.com/OpenAtomFoundation/pikiwidb/pull/3039)@[Mixficsol](https://github.com/Mixficsol)
+
+- String 类型的 Key 可以在配置文件中的 max-key-size-in-cache 参数配置 RedisCache 中最大的 Key 的大小[#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- Set, List, Zset 类型可以在配置文件中的 cache-value-item-max-size 参数配置 RedisCache 中最大元素个数[#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 codis 主从切换不正确的问题[#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- 更新 Codis、Pika 和 Pika_exporter，修正版本时间记录方式，Pika 的构建时间改为使用 Make 编译时间并调整为 UTC 时间标准[#3049](https://github.com/OpenAtomFoundation/pikiwidb/pull/3049)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 rediscache 最大存储范围不准确的问题[#3064](https://github.com/OpenAtomFoundation/pikiwidb/pull/3064)@[Mixficsol](https://github.com/Mixficsol)
+
+- 在配置文件中添加了正确加载 admin-cmd-list 的功能[#3076](https://github.com/OpenAtomFoundation/pikiwidb/pull/3076)@[Mixficsol](https://github.com/Mixficsol)
+
+- 在 pipeline模式下将 auth 命令和后续在 Pipeline 中的命令划分到命令线程池[#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 ZRemrangebylex和zremrangebyscore等命令传参错误的问题[#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- 修复 rediscache部分读接口没有加锁，当rediscache在做 rehash 时会做数据挪动，可能导致数据竞争的问题[#3088](https://github.com/OpenAtomFoundation/pikiwidb/pull/3088)@[wangshao1](https://github.com/wangshao1)
+
+- 修复 blob-cache 传参不正确的问题[#3105](https://github.com/OpenAtomFoundation/pikiwidb/pull/3105)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- 修复 telnet 连接 pika 后偶发性coredump 的问题[#3099](https://github.com/OpenAtomFoundation/pikiwidb/pull/3099)@[Mixficsol](https://github.com/Mixficsol)
+
+- 修复 getrange 和 setrange 多次执行偶发性导致 pika 崩溃的问题[#3106](https://github.com/OpenAtomFoundation/pikiwidb/pull/3106)@[YuCai18](https://github.com/YuCai18)
+
+- 修复 Pika 在处理长时间耗时请求时，因超时关闭连接导致积累大量 close_wait 状态连接的问题，防止达到连接数上限后停止接收新连接[#3089](https://github.com/OpenAtomFoundation/pikiwidb/pull/3089)@[wangshao1](https://github.com/wangshao1)
+
+- 修复 pika 中 zadd 命令在单行多次添加同一 member 时与 Redis 返回值不一致的问题[#3108](https://github.com/OpenAtomFoundation/pikiwidb/pull/3108)@[YuCai18](https://github.com/YuCai18)
+
+- 修复 codis-proxy 打印 log 错误的问题[#3107](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[wangshao1](https://github.com/wangshao1)
+
+- 修复 requirepass 是非空的但可通过任意密码连接的问题[#3113](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[YuCai18](https://github.com/YuCai18)
+
+- 删除无关的日志打印，避免占用磁盘资源[#3119](https://github.com/OpenAtomFoundation/pikiwidb/pull/3119)@[YuCai18](https://github.com/YuCai18)
+
+- 修复 php 客户端不指定 spop 第二个参数时与 redis 返回值不一致的问题[#3129](https://github.com/OpenAtomFoundation/pikiwidb/pull/3129)@[wangshao1](https://github.com/wangshao1)
+
+- 优化了 Pika 的慢请求日志，增加了对 pipeline 请求过多导致的排队耗时统计[#3142](https://github.com/OpenAtomFoundation/pikiwidb/pull/3142)@[wangshao1](https://github.com/wangshao1)
+
+- 去掉 OBD-compact 配置，避免影响3.5分支自行编译的版本[#3125](https://github.com/OpenAtomFoundation/pikiwidb/pull/3125)@[chejinge](https://github.com/chejinge)
+
+
 # V4.0.2
 
 ## New features
 
 - Pika 从实例执行完 slaveof no one 与主节点解除主从关系后，将 slaveof 信息持久化到配置文件中[#2973](https://github.com/OpenAtomFoundation/pika/pull/2973)@[cheniujh](https://github.com/cheniujh)
+
 - Pika-Operater 主从模式支持数据备份和恢复的功能[#2968](https://github.com/OpenAtomFoundation/pika/pull/2968)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - 在配置文件中添加 log-net-activities 参数，支持动态关闭或者建立连接部分日志的打印，可以 config get/set动态调整[#2964](https://github.com/OpenAtomFoundation/pika/pull/2964)@[cheniujh](https://github.com/cheniujh)
+
 - 将 Pika info 指标中提供的 repl_connect_status 加入到了 pika_exporter，方便运维同学对 Pika 的主从状态判断[#2961](https://github.com/OpenAtomFoundation/pika/pull/2961)@[cheniujh](https://github.com/cheniujh)
-- 升级 kubeblocks 至 0.9 版本，对 Pika-operater 做升级和优化，简化代码，支持实例的缩容[#2860](https://github.com/OpenAtomFoundation/pika/pull/2860)@[XiaoLiang2333](https://github.com/XiaoLiang2333）
+
+- 升级 kubeblocks 至 0.9 版本，对 Pika-operater 做升级和优化，简化代码，支持实例的缩容[#2860](https://github.com/OpenAtomFoundation/pika/pull/2860)@[XiaoLiang2333](https://github.com/XiaoLiang2333)
+
 - Pika-Operater 支持拉起主从模式，拉起方式详见 readme 文档[#2903](https://github.com/OpenAtomFoundation/pika/pull/2903)@[XiaoLiang2333](https://github.com/XiaoLiang2333）
-- Pika-Exporter 支持新增 keyspace_hits、keyspace_misses 指标，运维同学可以根据指标判断当前业务 key 的命中率[#2579](https://github.com/OpenAtomFoundation/pika/pull/2579)@[chenbt](https://github.com/chenbt）
+
+- Pika-Exporter 支持新增 keyspace_hits、keyspace_misses 指标，运维同学可以根据指标判断当前业务 key 的命中率[#2579](https://github.com/OpenAtomFoundation/pika/pull/2579)@[chenbt](https://github.com/chenbt)
+
 - RedisCache 中不存储大 key, 避免占用内存过多或者存储大 key 将业务多次访问的热 key 淘汰掉，影响性能[#2557](https://github.com/OpenAtomFoundation/pika/pull/2557)@[QlQlqiqi](https://github.com/QlQlqiqi)
+
 - 解决了 Pika 数据库和缓存一致性的问题 [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034) [#3037](https://github.com/OpenAtomFoundation/pikiwidb/pull/3037) @[Mixficsol](https://github.com/Mixficsol)
+
 - 增加了 Pika 在各个时间段的耗时统计，RocksDB 执行时间，锁获取的时间，写 Binlog 的时间，读取更新 Redis-Cache 的时间 [#3036](https://github.com/OpenAtomFoundation/pikiwidb/pull/3036) @[wangshao1](https://github.com/wangshao1)
+
 - 修复了 Pika，Pika_exporter, Codis 组件的版本信息查看 [#3054](https://github.com/OpenAtomFoundation/pikiwidb/pull/3054) [#3057 ](https://github.com/OpenAtomFoundation/pikiwidb/pull/3057)@[Mixficsol](https://github.com/Mixficsol)
+
 - 增加了 Auth 命令进管理命令线程池 [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048) @[Mixficsol](https://github.com/Mixficsol)
+
 - 支持 Zset, List, Set 类型命令在 RedisCache 中最大元素个数和所有类型 Key 的大小更新到 Redis-Cache 的阈值可通过配置文件进行配置，并支持通过 Config 命令进行动态修改 [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043) [#3047](https://github.com/OpenAtomFoundation/pikiwidb/pull/3047) @[Mixficsol](https://github.com/Mixficsol)
 
 ## Improvement
@@ -33,14 +114,23 @@
 ## Bugfix
 
 - 修复 rpoplpush 命令未更新缓存，导致数据库、缓存数据不一致的问题[#2976](https://github.com/OpenAtomFoundation/pika/pull/2976)@[cheniujh](https://github.com/cheniujh)
+
 - 修复 Pika-Exporter 上下版本不兼容，导致 Exporter 日志打印过多浪费磁盘资源的问题[#2971](https://github.com/OpenAtomFoundation/pika/pull/2971)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - 将 slowlog 的日志级别调整成为 INFO，解决 Slowlog 同时打印三份，会导致磁盘占用过多的问题[#2948](https://github.com/OpenAtomFoundation/pika/pull/2948)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - 修复 CI 稳定性不通过的问题[#2937](https://github.com/OpenAtomFoundation/pika/pull/2937)@[chejinge](https://github.com/chejinge)
+
 - 修复 Pika 实例无法单独设置管理员密码的问题[#2920](https://github.com/OpenAtomFoundation/pika/issues/2920)@[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - 修复 epoll 循环中 std::shared_ptr in_conn 对象的引用计数器的析构位置，确保 Pika 不会出现连接不及时关闭的现象[#2904](https://github.com/OpenAtomFoundation/pika/pull/2904)@[cheniujh](https://github.com/cheniujh)
+
 - 修复 Zpopmin 命令执行删除操作时未更新缓存，导致数据库缓存不一致的问题[#2892](https://github.com/OpenAtomFoundation/pika/issues/2892)@[chejinge](https://github.com/chejinge)
+
 - 修复 Dashboard 解析 Pika 地址错误的问题 [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)  @[wangshao1](https://github.com/wangshao1)
+
 - 修复了从节点下线之后 Dashboard 频繁给 Proxy 发送元信息变更请求，增加了从节点主客观下线逻辑 [#3049](https://github.com/OpenAtomFoundation/pikiwidb/pull/3049) @[Mixficsol](https://github.com/Mixficsol)
+
 - 修复 Slave Pika 节点重启无读流量的问题 [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038) @[wangshao1](https://github.com/wangshao1)
 
 

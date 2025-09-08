@@ -1,19 +1,101 @@
+# V3.5.6
+
+## Improvement
+
+- Added timing statistics for command processing at different stages, including Redis cache read/update, binlog writing, and storage processing time [#3036](https://github.com/OpenAtomFoundation/pikiwidb/pull/3036)@[wangshao1](https://github.com/wangshao1)
+
+- Simplified log positioning and added time consumption statistics, updated monitoring information exposure [#3044](https://github.com/OpenAtomFoundation/pikiwidb/pull/3044)@[wangshao1](https://github.com/wangshao1)
+
+- Added Auth commands to the management command thread pool to avoid connection failure when the main thread pool is blocked [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- After a client closes the connection, the server skips requests received on this connection during processing to avoid request blocking [#3111](https://github.com/OpenAtomFoundation/pikiwidb/pull/3111)@[wangshao1](https://github.com/wangshao1)
+
+
+## Bugfixes
+
+- Changed clearcache to a read command [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed issues caused by inconsistent data in some interfaces [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed errors in the configuration file for the Redis-cache threshold limits [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed RedisCache async loading issues [#3037](https://github.com/OpenAtomFoundation/pikiwidb/pull/3037)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed the issue of codis-dashboard not updating metadata after Pika-slave node recovery [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed parsing failure of info replication master ip:port [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed inconsistencies in Append command behavior in cache and database [#3039](https://github.com/OpenAtomFoundation/pikiwidb/pull/3039)@[Mixficsol](https://github.com/Mixficsol)
+
+- Configured max-key-size-in-cache parameter for String type keys to set the maximum key size in RedisCache in the config file [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- Configured cache-value-item-max-size parameter for Set, List, and Zset types to set the maximum number of elements in RedisCache in the config file [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed incorrect Codis master-slave switch issue [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- Updated Codis, Pika, and Pika_exporter versions and corrected version time record method, Pika build time now uses the Make compile time and adjusted to UTC time standard [#3049](https://github.com/OpenAtomFoundation/pikiwidb/pull/3049)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed inaccurate RedisCache maximum storage range [#3064](https://github.com/OpenAtomFoundation/pikiwidb/pull/3064)@[Mixficsol](https://github.com/Mixficsol)
+
+- Added correct admin-cmd-list loading function in the configuration file [#3076](https://github.com/OpenAtomFoundation/pikiwidb/pull/3076)@[Mixficsol](https://github.com/Mixficsol)
+
+- In pipeline mode, moved auth commands and subsequent commands in the Pipeline to command thread pool [#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed ZRemrangebylex and zremrangebyscore argument errors [#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- Fixed RedisCache read interfaces without locks, which could cause data race during rehash [#3088](https://github.com/OpenAtomFoundation/pikiwidb/pull/3088)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed incorrect blob-cache argument [#3105](https://github.com/OpenAtomFoundation/pikiwidb/pull/3105)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- Fixed occasional core dump when connecting to Pika via telnet [#3099](https://github.com/OpenAtomFoundation/pikiwidb/pull/3099)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed occasional crashes when executing getrange and setrange multiple times [#3106](https://github.com/OpenAtomFoundation/pikiwidb/pull/3106)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed issue of accumulating close_wait state connections after closing connections in Pika when processing long-duration requests, preventing new connections from being accepted once the connection limit is reached [#3089](https://github.com/OpenAtomFoundation/pikiwidb/pull/3089)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed Zadd command returning inconsistent values when adding the same member multiple times in a single line [#3108](https://github.com/OpenAtomFoundation/pikiwidb/pull/3108)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed error in codis-proxy logging [#3107](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed issue where requirepass was non-empty but connections could still be made with any password [#3113](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[YuCai18](https://github.com/YuCai18)
+
+- Removed irrelevant log printing to save disk resources [#3119](https://github.com/OpenAtomFoundation/pikiwidb/pull/3119)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed PHP client issue where spop command without the second parameter returned inconsistent values with Redis [#3129](https://github.com/OpenAtomFoundation/pikiwidb/pull/3129)@[wangshao1](https://github.com/wangshao1)
+
+- Optimized Pika slow request logs, added statistics for queuing delays caused by too many pipeline requests [#3142](https://github.com/OpenAtomFoundation/pikiwidb/pull/3142)@[wangshao1](https://github.com/wangshao1)
+
+- Removed OBD-compact configuration to avoid affecting the 3.5 branch self-compiling versions [#3125](https://github.com/OpenAtomFoundation/pikiwidb/pull/3125)@[chejinge](https://github.com/chejinge)
+
+
 # V4.0.2
 
 ## New features
 
 - After the Pika slave instance executes slaveof no one to remove the replication relationship with the master node, the slaveof information is persisted into the configuration file. [#2973](https://github.com/OpenAtomFoundation/pika/pull/2973) @[cheniujh](https://github.com/cheniujh)
+
 - Added support for backup and recovery in master-slave mode for Pika-Operator. [#2968](https://github.com/OpenAtomFoundation/pika/pull/2968) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - Added the `log-net-activities` parameter in the configuration file to dynamically enable or disable the logging of certain connection-related activities. This can be adjusted with `config get/set`. [#2964](https://github.com/OpenAtomFoundation/pika/pull/2964) @[cheniujh](https://github.com/cheniujh)
+
 - Added the `repl_connect_status` metric to Pika info and integrated it into `pika_exporter` to facilitate monitoring of the replication status. [#2961](https://github.com/OpenAtomFoundation/pika/pull/2961) @[cheniujh](https://github.com/cheniujh)
+
 - Upgraded `kubeblocks` to version 0.9, improving and optimizing Pika-Operator to simplify code and support instance scale-down. [#2860](https://github.com/OpenAtomFoundation/pika/pull/2860) @[XiaoLiang2333](https://github.com/XiaoLiang2333)
+
 - Pika-Operator now supports starting in master-slave mode. See the README document for more details. [#2903](https://github.com/OpenAtomFoundation/pika/pull/2903) @[XiaoLiang2333](https://github.com/XiaoLiang2333)
+
 - Added `keyspace_hits` and `keyspace_misses` metrics to `pika_exporter`, enabling users to monitor key hit rates. [#2579](https://github.com/OpenAtomFoundation/pika/pull/2579) @[chenbt](https://github.com/chenbt)
+
 - RedisCache now avoids storing large keys to prevent excessive memory usage or the eviction of frequently accessed hot keys, which could impact performance. [#2557](https://github.com/OpenAtomFoundation/pika/pull/2557) @[QlQlqiqi](https://github.com/QlQlqiqi)
+
 - Solved the problem of consistency between Pika database and cache [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034) [#3037](https://github.com/OpenAtomFoundation/pikiwidb/pull/3037) @[Mixficsol](https://github.com/Mixficsol)
+
 - The statistics on Pika time in each period, RocksDB execution time, lock acquisition time, Binlog write time, and Redis-Cache read time are increased [#3036](https://github.com/OpenAtomFoundation/pikiwidb/pull/3036) @[wangshao1](https://github.com/wangshao1)
+
 - Fixed version information viewing for Pika, Pika_exporter, Codis components [#3054](https://github.com/OpenAtomFoundation/pikiwidb/pull/3054) [#3057 ](https://github.com/OpenAtomFoundation/pikiwidb/pull/3057)@[Mixficsol](https://github.com/Mixficsol)
+
 - Added the Auth command to manage the command thread pool [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048) @[Mixficsol](https://github.com/Mixficsol)
+
 - The maximum number of elements in RedisCache and the size of all Key types can be updated to the threshold of Redis-Cache by using the configuration file and dynamically modified by using the Config command [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043) [#3047](https://github.com/OpenAtomFoundation/pikiwidb/pull/3047) @[Mixficsol](https://github.com/Mixficsol)
 
 ## Improvement
@@ -33,14 +115,23 @@
 ## Bugfix
 
 - Fixed the `rpoplpush` command cache update issue, which caused inconsistency between the database and cache. [#2976](https://github.com/OpenAtomFoundation/pika/pull/2976) @[cheniujh](https://github.com/cheniujh)
+
 - Fixed compatibility issues between different versions of Pika-Exporter, which caused excessive logging and wasted disk resources. [#2971](https://github.com/OpenAtomFoundation/pika/pull/2971) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - Adjusted the log level of `slowlog` to INFO to address the issue of triple logging, which consumed excessive disk space. [#2948](https://github.com/OpenAtomFoundation/pika/pull/2948) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - Improved CI stability by resolving specific failure issues. [#2937](https://github.com/OpenAtomFoundation/pika/pull/2937) @[chejinge](https://github.com/chejinge)
+
 - Fixed an issue where Pika instances could not set administrator passwords independently. [#2920](https://github.com/OpenAtomFoundation/pika/issues/2920) @[buzhimingyonghu](https://github.com/buzhimingyonghu)
+
 - Resolved a reference counter destructor issue in the epoll loop for `std::shared_ptr in_conn` objects, ensuring Pika connections are closed in a timely manner. [#2904](https://github.com/OpenAtomFoundation/pika/pull/2904) @[cheniujh](https://github.com/cheniujh)
+
 - Fixed a cache inconsistency issue caused by the `zpopmin` command during deletion operations. [#2892](https://github.com/OpenAtomFoundation/pika/issues/2892) @[chejinge](https://github.com/chejinge)
+
 - Fix Dashboard parsing Pika address error [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)  @[wangshao1](https://github.com/wangshao1)
+
 - Fixed that Dashboard frequently sends meta information change requests to the Proxy after the secondary node is offline, and added the subjective and objective offline logic of the secondary node [#3049](https://github.com/OpenAtomFoundation/pikiwidb/pull/3049) @[Mixficsol](https://github.com/Mixficsol)
+
 - Fixed the Slave Pika node restart without read traffic [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038) @[wangshao1](https://github.com/wangshao1)
 
 
