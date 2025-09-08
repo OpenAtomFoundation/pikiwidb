@@ -1,3 +1,73 @@
+# V3.5.6
+
+## Improvement
+
+- Added timing statistics for command processing at different stages, including Redis cache read/update, binlog writing, and storage processing time [#3036](https://github.com/OpenAtomFoundation/pikiwidb/pull/3036)@[wangshao1](https://github.com/wangshao1)
+
+- Simplified log positioning and added time consumption statistics, updated monitoring information exposure [#3044](https://github.com/OpenAtomFoundation/pikiwidb/pull/3044)@[wangshao1](https://github.com/wangshao1)
+
+- Added Auth commands to the management command thread pool to avoid connection failure when the main thread pool is blocked [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- After a client closes the connection, the server skips requests received on this connection during processing to avoid request blocking [#3111](https://github.com/OpenAtomFoundation/pikiwidb/pull/3111)@[wangshao1](https://github.com/wangshao1)
+
+
+## Bugfixes
+
+- Changed clearcache to a read command [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed issues caused by inconsistent data in some interfaces [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed errors in the configuration file for the Redis-cache threshold limits [#3034](https://github.com/OpenAtomFoundation/pikiwidb/pull/3034)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed RedisCache async loading issues [#3037](https://github.com/OpenAtomFoundation/pikiwidb/pull/3037)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed the issue of codis-dashboard not updating metadata after Pika-slave node recovery [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed parsing failure of info replication master ip:port [#3038](https://github.com/OpenAtomFoundation/pikiwidb/pull/3038)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed inconsistencies in Append command behavior in cache and database [#3039](https://github.com/OpenAtomFoundation/pikiwidb/pull/3039)@[Mixficsol](https://github.com/Mixficsol)
+
+- Configured max-key-size-in-cache parameter for String type keys to set the maximum key size in RedisCache in the config file [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- Configured cache-value-item-max-size parameter for Set, List, and Zset types to set the maximum number of elements in RedisCache in the config file [#3043](https://github.com/OpenAtomFoundation/pikiwidb/pull/3043)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed incorrect Codis master-slave switch issue [#3048](https://github.com/OpenAtomFoundation/pikiwidb/pull/3048)@[Mixficsol](https://github.com/Mixficsol)
+
+- Updated Codis, Pika, and Pika_exporter versions and corrected version time record method, Pika build time now uses the Make compile time and adjusted to UTC time standard [#3049](https://github.com/OpenAtomFoundation/pikiwidb/pull/3049)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed inaccurate RedisCache maximum storage range [#3064](https://github.com/OpenAtomFoundation/pikiwidb/pull/3064)@[Mixficsol](https://github.com/Mixficsol)
+
+- Added correct admin-cmd-list loading function in the configuration file [#3076](https://github.com/OpenAtomFoundation/pikiwidb/pull/3076)@[Mixficsol](https://github.com/Mixficsol)
+
+- In pipeline mode, moved auth commands and subsequent commands in the Pipeline to command thread pool [#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed ZRemrangebylex and zremrangebyscore argument errors [#3098](https://github.com/OpenAtomFoundation/pikiwidb/pull/3098)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- Fixed RedisCache read interfaces without locks, which could cause data race during rehash [#3088](https://github.com/OpenAtomFoundation/pikiwidb/pull/3088)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed incorrect blob-cache argument [#3105](https://github.com/OpenAtomFoundation/pikiwidb/pull/3105)@[chenbt-hz](https://github.com/chenbt-hz)
+
+- Fixed occasional core dump when connecting to Pika via telnet [#3099](https://github.com/OpenAtomFoundation/pikiwidb/pull/3099)@[Mixficsol](https://github.com/Mixficsol)
+
+- Fixed occasional crashes when executing getrange and setrange multiple times [#3106](https://github.com/OpenAtomFoundation/pikiwidb/pull/3106)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed issue of accumulating close_wait state connections after closing connections in Pika when processing long-duration requests, preventing new connections from being accepted once the connection limit is reached [#3089](https://github.com/OpenAtomFoundation/pikiwidb/pull/3089)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed Zadd command returning inconsistent values when adding the same member multiple times in a single line [#3108](https://github.com/OpenAtomFoundation/pikiwidb/pull/3108)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed error in codis-proxy logging [#3107](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[wangshao1](https://github.com/wangshao1)
+
+- Fixed issue where requirepass was non-empty but connections could still be made with any password [#3113](https://github.com/OpenAtomFoundation/pikiwidb/pull/3107)@[YuCai18](https://github.com/YuCai18)
+
+- Removed irrelevant log printing to save disk resources [#3119](https://github.com/OpenAtomFoundation/pikiwidb/pull/3119)@[YuCai18](https://github.com/YuCai18)
+
+- Fixed PHP client issue where spop command without the second parameter returned inconsistent values with Redis [#3129](https://github.com/OpenAtomFoundation/pikiwidb/pull/3129)@[wangshao1](https://github.com/wangshao1)
+
+- Optimized Pika slow request logs, added statistics for queuing delays caused by too many pipeline requests [#3142](https://github.com/OpenAtomFoundation/pikiwidb/pull/3142)@[wangshao1](https://github.com/wangshao1)
+
+- Removed OBD-compact configuration to avoid affecting the 3.5 branch self-compiling versions [#3125](https://github.com/OpenAtomFoundation/pikiwidb/pull/3125)@[chejinge](https://github.com/chejinge)
+
+
 # V4.0.2
 
 ## New features
