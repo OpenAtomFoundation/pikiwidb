@@ -36,13 +36,13 @@ jobs:
           ./ci/release-build.sh checksum ${{ github.event.repository.name }} ${{ matrix.name }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: build/${{ matrix.name }}
 
       - name: Upload checksum of artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}.sha256sum
           path: build/${{ matrix.name }}.sha256sum
@@ -74,13 +74,13 @@ jobs:
         run: ./ci/release-build.sh checksum ${{ github.event.repository.name }} ${{ env.name }}
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.name }}
           path: build/${{ env.name }}
 
       - name: Upload checksum of artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: ${{ env.name }}.sha256sum
           path: build/${{ env.name }}.sha256sum
@@ -91,7 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
 
       - name: Publish release
         uses: softprops/action-gh-release@v1
