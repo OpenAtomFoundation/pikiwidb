@@ -24,6 +24,8 @@
 #include "include/pika_monotonic_time.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "include/redis_sender.h"
+#include "include/migrator_thread.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -101,6 +103,15 @@ PikaServer::PikaServer()
     }
   }
 
+  // Create redis sender
+  for (int i = 0; i < g_pika_conf->redis_sender_num(); ++i) {
+    redis_senders_.emplace_back(std::make_unique<RedisSender>(int(i),
+                                                              g_pika_conf->target_redis_host(),
+                                                              g_pika_conf->target_redis_port(),
+                                                              g_pika_conf->target_redis_user(),
+                                                              g_pika_conf->target_redis_pwd()));
+  }
+
   acl_ = std::make_unique<::Acl>();
   SetSlowCmdThreadPoolFlag(g_pika_conf->slow_cmd_pool());
   bgsave_thread_.set_thread_name("PikaServer::bgsave_thread_");
@@ -129,6 +140,11 @@ PikaServer::~PikaServer() {
   bgsave_thread_.StopThread();
   key_scan_thread_.StopThread();
   pika_migrate_thread_->StopThread();
+
+  for (size_t i = 0; i < redis_senders_.size(); ++i) {
+    redis_senders_[i]->Stop();
+  }
+  redis_senders_.clear();
 
   dbs_.clear();
 
@@ -208,6 +224,15 @@ void PikaServer::Start() {
     dbs_.clear();
     LOG(FATAL) << "Start Auxiliary Thread Error: " << ret
                << (ret == net::kCreateThreadError ? ": create thread error " : ": other error");
+  }
+
+  for (size_t i = 0; i < redis_senders_.size(); ++i) {
+    ret = redis_senders_[i]->StartThread();
+    if (ret != net::kSuccess) {
+      dbs_.clear();
+      LOG(FATAL) << "Start RedisSender Error: " << ret
+                 << (ret == net::kCreateThreadError ? ": create thread error " : ": other error");
+    }
   }
 
   time(&start_time_s_);
@@ -1541,6 +1566,78 @@ Status PikaServer::GetCmdRouting(std::vector<net::RedisCmdArgsType>& redis_cmds,
   UNUSED(dst);
   *all_local = true;
   return Status::OK();
+}
+
+int PikaServer::SendRedisCommand(const std::string& command, const std::string& key) {
+  // Send command
+  size_t idx = std::hash<std::string>()(key) % redis_senders_.size();
+  redis_senders_[idx]->SendRedisCommand(command);
+  return 0;
+}
+
+void PikaServer::RetransmitData(const std::string& path) {
+  std::shared_ptr<storage::Storage> storage_ = std::make_shared<storage::Storage>();
+  rocksdb::Status s = storage_->Open(g_pika_server->storage_options(), path);
+
+  if (!s.ok()) {
+    LOG(FATAL) << "open received database error: " << s.ToString();
+    return;
+  }
+
+  // Init SenderThread
+  int thread_num = g_pika_conf->redis_sender_num();
+  std::string target_host = g_pika_conf->target_redis_host();
+  int target_port = g_pika_conf->target_redis_port();
+  std::string target_pwd = g_pika_conf->target_redis_pwd();
+  std::string target_user = g_pika_conf->target_redis_user();
+
+  LOG(INFO) << "open received database success, start retransmit data to redis("
+    << target_host << ":" << target_port << ")";
+
+
+  std::vector<std::shared_ptr<RedisSender>> redis_senders_;
+  std::vector<std::shared_ptr<MigratorThread>> migrators;
+
+  for (int i = 0; i < thread_num; i++) {
+    redis_senders_.emplace_back(std::make_shared<RedisSender>(i, target_host, target_port, target_user, target_pwd));
+  }
+  migrators.emplace_back(std::make_shared<MigratorThread>(storage_, &redis_senders_, storage::kStrings, thread_num));
+  migrators.emplace_back(std::make_shared<MigratorThread>(storage_, &redis_senders_, storage::kLists, thread_num));
+  migrators.emplace_back(std::make_shared<MigratorThread>(storage_, &redis_senders_, storage::kHashes, thread_num));
+  migrators.emplace_back(std::make_shared<MigratorThread>(storage_, &redis_senders_, storage::kSets, thread_num));
+  migrators.emplace_back(std::make_shared<MigratorThread>(storage_, &redis_senders_, storage::kZSets, thread_num));
+
+  for (size_t i = 0; i < redis_senders_.size(); i++) {
+    redis_senders_[i]->StartThread();
+  }
+  for (size_t i = 0; i < migrators.size(); i++) {
+    migrators[i]->StartThread();
+  }
+
+  for (size_t i = 0; i < migrators.size(); i++) {
+    migrators[i]->JoinThread();
+  }
+  for (size_t i = 0; i < redis_senders_.size(); i++) {
+    redis_senders_[i]->Stop();
+  }
+  for (size_t i = 0; i < redis_senders_.size(); i++) {
+    redis_senders_[i]->JoinThread();
+  }
+
+  int64_t replies = 0, records = 0;
+  for (size_t i = 0; i < migrators.size(); i++) {
+    records += migrators[i]->num();
+  }
+  migrators.clear();
+  for (size_t i = 0; i < redis_senders_.size(); i++) {
+    replies += redis_senders_[i]->elements();
+  }
+  redis_senders_.clear();
+
+  LOG(INFO) << "=============== Retransmit Finish =====================";
+  LOG(INFO) << "Total records : " << records << " have been Scaned";
+  LOG(INFO) << "Total replies : " << replies << " received from redis server";
+  LOG(INFO) << "=======================================================";
 }
 
 void PikaServer::ServerStatus(std::string* info) {

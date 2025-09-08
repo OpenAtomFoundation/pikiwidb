@@ -154,6 +154,7 @@ void PikaReplClientConn::HandleMetaSyncResponse(void* arg) {
   LOG(INFO) << "Finish to handle meta sync response";
 }
 
+static bool alerady_full_sync = false;
 void PikaReplClientConn::HandleDBSyncResponse(void* arg) {
   std::unique_ptr<ReplClientTaskArg> task_arg(static_cast<ReplClientTaskArg*>(arg));
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -176,6 +177,12 @@ void PikaReplClientConn::HandleDBSyncResponse(void* arg) {
     std::string reply = response->has_reply() ? response->reply() : "";
     LOG(WARNING) << "DBSync Failed: " << reply;
     return;
+  }
+
+  if (!alerady_full_sync) {
+    alerady_full_sync = true;
+  } else {
+    LOG(FATAL) << "DBSyncResponse should only be called once";
   }
 
   slave_db->SetMasterSessionId(session_id);

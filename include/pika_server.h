@@ -46,6 +46,7 @@
 #include "include/pika_statistic.h"
 #include "include/pika_transaction.h"
 #include "include/rsync_server.h"
+#include "include/redis_sender.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 
@@ -308,6 +309,12 @@ class PikaServer : public pstd::noncopyable {
   int ClientPubSubChannelPatternSize(const std::shared_ptr<net::NetConn>& conn);
 
   pstd::Status GetCmdRouting(std::vector<net::RedisCmdArgsType>& redis_cmds, std::vector<Node>* dst, bool* all_local);
+
+  /*
+   * migrate used
+   */
+  int SendRedisCommand(const std::string& command, const std::string& key);
+  void RetransmitData(const std::string& path);
 
   // info debug use
   void ServerStatus(std::string* info);
@@ -616,6 +623,11 @@ class PikaServer : public pstd::noncopyable {
    * Communication used
    */
   std::unique_ptr<PikaAuxiliaryThread> pika_auxiliary_thread_;
+
+  /*
+   * migrate to redis used
+   */
+  std::vector<std::unique_ptr<RedisSender>> redis_senders_;
 
   /*
    * Async slotsMgrt use

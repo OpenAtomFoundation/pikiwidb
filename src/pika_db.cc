@@ -473,6 +473,9 @@ bool DB::TryUpdateMasterOffset() {
             << ",  master_ip: " << master_ip << ", master_port: " << master_port << ", filenum: " << filenum
             << ", offset: " << offset << ", term: " << term << ", index: " << index;
 
+            // Retransmit Data to target redis
+  g_pika_server->RetransmitData(dbsync_path_);
+
   pstd::DeleteFile(info_path);
   if (!ChangeDb(dbsync_path_)) {
     LOG(WARNING) << "DB: " << db_name_ << ", Failed to change db";

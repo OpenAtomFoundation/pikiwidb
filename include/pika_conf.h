@@ -887,7 +887,12 @@ class PikaConf : public pstd::BaseConf {
   int ConfigRewrite();
   int ConfigRewriteSlaveOf();
   int ConfigRewriteReplicationID();
-
+  std::string target_redis_host() { return target_redis_host_; }
+  int target_redis_port() { return target_redis_port_; }
+  std::string target_redis_pwd() { return target_redis_pwd_; }
+  std::string target_redis_user() { return target_redis_user_; }
+  int sync_batch_num() { return sync_batch_num_; }
+  int redis_sender_num() { return redis_sender_num_; }
  private:
   int port_ = 0;
   int slave_priority_ = 100;
@@ -1065,6 +1070,14 @@ class PikaConf : public pstd::BaseConf {
 
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;
+
+  // migrate configure items
+  std::string target_redis_host_;
+  int target_redis_port_;
+  std::string target_redis_pwd_;
+  std::string target_redis_user_;
+  int sync_batch_num_;
+  int redis_sender_num_;
 };
 
 #endif
