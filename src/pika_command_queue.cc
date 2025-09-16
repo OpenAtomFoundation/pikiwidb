@@ -36,8 +36,8 @@ bool CommandQueue::EnqueueBatch(std::shared_ptr<CommandBatch> batch) {
     
     cmd_queue_.push(batch);
     
-    LOG(INFO) << "Enqueued command batch with " << batch->Size() 
-              << " commands, queue size: " << cmd_queue_.size();
+    //LOG(INFO) << "Enqueued command batch with " << batch->Size() 
+              //<< " commands, queue size: " << cmd_queue_.size();
     
     queue_cv_.notify_one();
     return true;
@@ -57,8 +57,8 @@ std::shared_ptr<CommandBatch> CommandQueue::DequeueBatch() {
     auto batch = cmd_queue_.front();
     cmd_queue_.pop();
     
-    LOG(INFO) << "Dequeued command batch with " << batch->Size() 
-              << " commands, remaining queue size: " << cmd_queue_.size();
+   //LOG(INFO) << "Dequeued command batch with " << batch->Size() 
+              //<< " commands, remaining queue size: " << cmd_queue_.size();
     
     return batch;
 }
@@ -82,8 +82,8 @@ std::vector<std::shared_ptr<CommandBatch>> CommandQueue::DequeueAllBatches() {
         for (const auto& batch : batches) {
             total_commands += batch->Size();
         }
-        LOG(INFO) << "Dequeued all batches: " << batches.size() 
-                  << " batches with " << total_commands << " total commands";
+       // LOG(INFO) << "Dequeued all batches: " << batches.size() 
+                //  << " batches with " << total_commands << " total commands";
     }
     
     return batches;

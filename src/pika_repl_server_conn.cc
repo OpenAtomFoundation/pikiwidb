@@ -355,6 +355,7 @@ void PikaReplServerConn::HandleDBSyncRequest(void* arg) {
   conn->NotifyWrite();
 }
 
+// 主节点处理从节点的 Binlog 回应
 void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
   std::unique_ptr<ReplServerTaskArg> task_arg(static_cast<ReplServerTaskArg*>(arg));
   const std::shared_ptr<InnerMessage::InnerRequest> req = task_arg->req;
@@ -401,6 +402,7 @@ void PikaReplServerConn::HandleBinlogSyncRequest(void* arg) {
   }
 
   if (is_first_send) {
+    LOG(INFO) << "first send";
     if (range_start.b_offset != range_end.b_offset) {
       LOG(WARNING) << "first binlogsync request pb argument invalid";
       conn->NotifyClose();

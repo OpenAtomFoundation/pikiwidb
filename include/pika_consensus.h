@@ -288,7 +288,7 @@ class ConsensusCoordinator {
       context_->UpdateAppliedIndex(committed_id_);
     }
     notification_counter_.fetch_add(1);
-    LOG(INFO) << "SetCommittedId: Updated to " << offset.ToString();
+    //LOG(INFO) << "Master SetCommittedId: Updated to " << offset.ToString();
   }
 
  private:
@@ -296,7 +296,7 @@ class ConsensusCoordinator {
 
  private:
   std::shared_mutex is_consistency_rwlock_;
-  bool is_consistency_ = false;
+  bool is_consistency_ = true;
   std::shared_mutex committed_id_rwlock_;
   LogOffset committed_id_ = LogOffset();
   std::atomic<uint64_t> notification_counter_{0};

@@ -50,7 +50,7 @@ bool PikaCommandCollector::AddCommand(std::shared_ptr<Cmd> cmd_ptr, CommandCallb
   total_processed_.fetch_add(1);
   total_batches_.fetch_add(1);
   
-  LOG(INFO) << "Added single command " << cmd_ptr->name() << " to CommandQueue";
+  //LOG(INFO) << "Added single command " << cmd_ptr->name() << " to CommandQueue";
   return true;
 }
 

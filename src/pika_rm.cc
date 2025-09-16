@@ -195,6 +195,7 @@ Status SyncMasterDB::ReadBinlogFileToWq(const std::shared_ptr<SlaveNode>& slave_
   return Status::OK();
 }
 
+// Master节点更查看 Slave 节点偏移量
 Status SyncMasterDB::ConsensusUpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end) {
   Status s = coordinator_.UpdateSlave(ip, port, start, end);
   if (!s.ok()) {
@@ -238,13 +239,16 @@ Status SyncMasterDB::WakeUpSlaveBinlogSync() {
     for (auto& slave_iter : slaves) {
         std::shared_ptr<SlaveNode> slave_ptr = slave_iter.second;
         std::lock_guard l(slave_ptr->slave_mu);
+        // slave 节点这次要发送的 sent_offset 一定要等于上次回包的 acked_offset，否则就不用发送了
         if (slave_ptr->sent_offset == slave_ptr->acked_offset) {
           Status s;
           if (coordinator_.GetISConsistency()) {
             if(slave_ptr->slave_state == SlaveState::kSlaveBinlogSync||slave_ptr->slave_state == SlaveState::KCandidate){
+              // 强一致性给 slave 发送 binlog
               s = coordinator_.SendBinlog(slave_ptr, db_info_.db_name_);
             }
           } else {
+            // 非强一致性
             s = ReadBinlogFileToWq(slave_ptr);
           }
           if (!s.ok()) {
@@ -253,6 +257,8 @@ Status SyncMasterDB::WakeUpSlaveBinlogSync() {
             //                  << slave_ptr->ToStringStatus() << " - " << s.ToString();
         }
       }
+
+      
   }
 
     for (const auto& to_del_slave : to_del) {
@@ -329,6 +335,7 @@ bool SyncMasterDB::BinlogCloudPurge(uint32_t index) {
   return true;
 }
 
+//WXR
 Status SyncMasterDB::CheckSyncTimeout(uint64_t now) {
   std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = GetAllSlaveNodes();
 
@@ -432,7 +439,11 @@ Status SyncMasterDB::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, con
 Status SyncMasterDB::ProcessCoordination(){
   return coordinator_.ProcessCoordination();
 }
+
+// Master 节点更新自己的 CommittedID
 Status SyncMasterDB::UpdateCommittedID(){
+  // Master 更新自己的 CommittedID
+  //LOG(INFO) << "UpdateCommittedID";
   Status s = coordinator_.UpdateCommittedID();
   if (s.ok()) {
     // Notify RocksDB thread of new CommittedID
@@ -440,6 +451,7 @@ Status SyncMasterDB::UpdateCommittedID(){
     if (committed_id.IsValid()) {
       extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
       if (g_pika_rm) {
+        // 唤醒 RocksDB 线程执行
         g_pika_rm->NotifyCommittedID(committed_id);
       }
     }
@@ -448,12 +460,15 @@ Status SyncMasterDB::UpdateCommittedID(){
   }
   return s;
 }
+
 Status SyncMasterDB::Truncate(const LogOffset& offset){
   return coordinator_.Truncate(offset);
 }
 Status SyncMasterDB::CommitAppLog(const LogOffset& master_committed_id){
   return coordinator_.CommitAppLog(master_committed_id);
 }
+
+
 Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, const LogOffset& offset) {
    std::shared_ptr<SlaveNode> slave_ptr = GetSlaveNode(ip, port);
   if (!slave_ptr) {
@@ -477,14 +492,15 @@ Status SyncMasterDB::AppendCandidateBinlog(const std::string& ip, int port, cons
     if (!s.ok()) {
       return Status::Corruption("Init binlog file reader failed" + s.ToString());  // 如果初始化失败，返回错误状态
     }
+    // 删除写队列中的数据
     g_pika_rm->DropItemInOneWriteQueue(ip, port, slave_ptr->DBName());
     slave_ptr->b_state = kReadFromFile;
   }
 
-  Status s = coordinator_.SendBinlog(slave_ptr, slave_ptr->DBName());
+  /*Status s = coordinator_.SendBinlog(slave_ptr, slave_ptr->DBName());
   if (!s.ok()) {
     return s;
-  }
+  }*/
 
   return Status::OK();
 }
@@ -798,12 +814,12 @@ void PikaReplicaManager::ProduceWriteQueue(const std::string& ip, int port, std:
                                            const std::vector<WriteTask>& tasks) {
   std::lock_guard l(write_queue_mu_);
   std::string index = ip + ":" + std::to_string(port);
-  LOG(INFO) << "[Queue] Entering ProduceWriteQueue for " << ip << ":" << port << ", db: " << db_name << ", current queue size: " << write_queues_.size() << ", tasks to add: " << tasks.size();
+  //LOG(INFO) << "[Queue] Entering ProduceWriteQueue for " << ip << ":" << port << ", db: " << db_name << ", current queue size: " << write_queues_.size() << ", tasks to add: " << tasks.size();
   for (auto& task : tasks) {
     write_queues_[index][db_name].push(task);
   }
-  LOG(INFO) << "[Queue] Added " << tasks.size() << " tasks to queue for " << ip << ":" << port << ", db: " << db_name << ", new queue size: " << write_queues_[index][db_name].size();
-  LOG(INFO) << "[Queue] Exiting ProduceWriteQueue";
+  //LOG(INFO) << "[Queue] Added " << tasks.size() << " tasks to queue for " << ip << ":" << port << ", db: " << db_name << ", new queue size: " << write_queues_[index][db_name].size();
+  //LOG(INFO) << "[Queue] Exiting ProduceWriteQueue";
 }
 
 int PikaReplicaManager::ConsumeWriteQueue() {
@@ -850,6 +866,8 @@ int PikaReplicaManager::ConsumeWriteQueue() {
       LOG(WARNING) << "Parse ip_port error " << iter.first;
       continue;
     }
+    //LOG(INFO) << "message size: " << iter.second.size();
+    //LOG(INFO) << "SendSlaveBinlogChips to " << iter.first << " start.
     for (auto& to_send : iter.second) {
       Status s = pika_repl_server_->SendSlaveBinlogChips(ip, port, to_send);
       if (!s.ok()) {
@@ -857,7 +875,7 @@ int PikaReplicaManager::ConsumeWriteQueue() {
         to_delete.push_back(iter.first);
         continue;
       } else {
-        LOG(INFO) << "[Queue] SendSlaveBinlogChips to " << iter.first << " success.";
+        //LOG(INFO) << "[Queue] SendSlaveBinlogChips to " << iter.first << " success.";
       }
     }
   }
@@ -916,6 +934,7 @@ void PikaReplicaManager::ReplServerUpdateClientConnMap(const std::string& ip_por
   pika_repl_server_->UpdateClientConnMap(ip_port, fd);
 }
 
+//更新 Binlog 状态
 Status PikaReplicaManager::UpdateSyncBinlogStatus(const RmNode& slave, const LogOffset& offset_start,
                                                   const LogOffset& offset_end) {
   std::shared_lock l(dbs_rw_);
@@ -928,15 +947,16 @@ Status PikaReplicaManager::UpdateSyncBinlogStatus(const RmNode& slave, const Log
     return s;
   }
   if(db->GetISConsistency()){
+    // Master 节点更新 CommittedID
     s = db->UpdateCommittedID();
     if (!s.ok()) {
       return s;
     }
   }
-  s = db->SyncBinlogToWq(slave.Ip(), slave.Port());
+  /*s = db->SyncBinlogToWq(slave.Ip(), slave.Port());
   if (!s.ok()) {
     return s;
-  }
+  }*/
   return Status::OK();
 }
 
@@ -1386,7 +1406,7 @@ void PikaReplicaManager::CommandQueueLoop() {
           // Process all batches
           ProcessCommandBatches(batches);
           processed_any_batch = true;
-          LOG(INFO) << "Processed " << batches.size() << " batches, checking for more...";
+          //LOG(INFO) << "Processed " << batches.size() << " batches, checking for more...";
         } else {
           processed_any_batch = false;
         }
@@ -1397,7 +1417,7 @@ void PikaReplicaManager::CommandQueueLoop() {
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
-  LOG(INFO) << "Command queue loop ended";
+  //LOG(INFO) << "Command queue loop ended";
 }
 
 void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr<CommandBatch>>& batches) {
@@ -1408,7 +1428,7 @@ void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr
   for (const auto& batch : batches) {
     total_commands += batch->Size();
   }
-  LOG(INFO) << "Processing " << batches.size() << " batches with " << total_commands << " total commands";
+  //LOG(INFO) << "Processing " << batches.size() << " batches with " << total_commands << " total commands";
   
   // Merge all commands from all batches for unified batch processing
   std::vector<std::shared_ptr<Cmd>> all_commands;
@@ -1452,10 +1472,11 @@ void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr
     all_offsets.resize(all_commands.size());
     
     // Process each command using the original single-command logic
+    //LOG(INFO) << "all_command.size: " << all_commands.size();
     for (size_t cmd_idx = 0; cmd_idx < all_commands.size(); ++cmd_idx) {
       const auto& cmd_ptr = all_commands[cmd_idx];
       LogOffset cmd_offset;
-      
+      // Master 节点写日志
       pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
       if (!s.ok()) {
         LOG(ERROR) << "Failed to " << (sync_db->GetISConsistency() ? "append" : "propose") 
@@ -1472,8 +1493,9 @@ void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr
         return;
       }
       // Get the prepared ID as the offset
+      // 获取 PreparedID 
       cmd_offset = sync_db->GetPreparedId();
-      
+      // 将 PrepardID 填充到 all_offsets 中
       all_offsets[cmd_idx] = cmd_offset;
       
       // Update individual batch offsets
@@ -1488,18 +1510,21 @@ void PikaReplicaManager::ProcessCommandBatches(const std::vector<std::shared_ptr
       batch->binlog_offsets[batch_cmd_idx] = cmd_offset;
     }
     
-    LOG(INFO) << "Successfully processed " << all_commands.size() << " commands individually";
+    //LOG(INFO) << "Successfully processed " << all_commands.size() << " commands individually";
     
     // Create BatchGroup with the last offset as end_offset
     LogOffset end_offset = all_offsets.back();
+    //LOG(INFO) << "end_offset: " << end_offset.ToString();
     auto batch_group = std::make_shared<BatchGroup>(batches, end_offset);
     
     // Enqueue the BatchGroup
     {
       std::lock_guard<std::mutex> lock(pending_batch_groups_mutex_);
       pending_batch_groups_.push(batch_group);
+      //rocksdb_thread_cv_.notify_one();
     }
-    LOG(INFO) << "Created BatchGroup with " << batches.size() << " batches and end_offset: " << end_offset.ToString();
+    //LOG(INFO) << "Created BatchGroup with " << batches.size() << " batches and end_offset: " << end_offset.ToString();
+    //./LOG(INFO) << "Pending BatchGroup with " << pending_batch_groups_.size() << " batches";
   } catch (const std::exception& e) {
     LOG(ERROR) << "Exception in ProcessCommandBatches: " << e.what();
     // Call callbacks with error for all batches
@@ -1544,7 +1569,7 @@ void PikaReplicaManager::StopRocksDBThread() {
 }
 
 void PikaReplicaManager::RocksDBThreadLoop() {
-  LOG(INFO) << "RocksDB_back_thread started";
+  //LOG(INFO) << "RocksDB_back_thread started";
   while (rocksdb_thread_running_.load()) {
     try {
       std::unique_lock<std::mutex> lock(rocksdb_thread_mutex_);
@@ -1552,7 +1577,7 @@ void PikaReplicaManager::RocksDBThreadLoop() {
       rocksdb_thread_cv_.wait(lock, [this] {
         bool has_pending;
         {
-          std::lock_guard<std::mutex> pending_lock(pending_batch_groups_mutex_);
+          //std::lock_guard<std::mutex> pending_lock(pending_batch_groups_mutex_);
           has_pending = !pending_batch_groups_.empty();
         }
         return !rocksdb_thread_running_.load() || has_pending;
@@ -1565,51 +1590,61 @@ void PikaReplicaManager::RocksDBThreadLoop() {
       // Get current committed ID
       LogOffset committed_id;
       {
-        std::lock_guard<std::mutex> id_lock(last_committed_id_mutex_);
+        std::unique_lock<std::shared_mutex> lock(last_committed_id_mutex_);
         committed_id = last_committed_id_;
+        //LOG(INFO) << "committed_id: " << committed_id.ToString();
       }
-      
+      //LOG(INFO) << "RocksDBThreadLoop"; 
       // Process committed BatchGroups
-      if (committed_id.IsValid()) {
+      //if (committed_id.IsValid()) {
         size_t groups_processed = ProcessCommittedBatchGroups(committed_id);
-        if (groups_processed > 0) {
-          LOG(INFO) << "Processed " << groups_processed << " committed BatchGroups";
-        }
-      }
+        //if (groups_processed > 0) {
+          //LOG(INFO) << "Processed " << groups_processed << " committed BatchGroups";
+        //}
+      //}
     } catch (const std::exception& e) {
       LOG(ERROR) << "Error in RocksDB thread loop: " << e.what();
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
   }
-  LOG(INFO) << "RocksDB_back_thread ended";
+  //LOG(INFO) << "RocksDB_back_thread ended";
 }
 
 size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committed_id) {
   std::queue<std::shared_ptr<BatchGroup>> groups_to_process;
   // Get pending BatchGroups and separate committed from uncommitted
   {
+    //LOG(INFO) << "Start Process";
     std::lock_guard<std::mutex> lock(pending_batch_groups_mutex_);
+    //LOG(INFO) << pending_batch_groups_.size() << " pending batch groups";
     while (!pending_batch_groups_.empty()) {
       auto batch_group = pending_batch_groups_.front();
       // Check if this BatchGroup is committed by comparing its end_offset with committed_id
-      bool is_committed = (batch_group->end_offset <= committed_id);
+      bool is_committed;
+      {
+        std::shared_lock<std::shared_mutex> lock(last_committed_id_mutex_);
+        is_committed = (batch_group->end_offset <= last_committed_id_);
+            //LOG(INFO) << "committed_id: " << last_committed_id_.ToString() 
+                     // << " And BatchGroup with end_offset " << batch_group->end_offset.ToString() 
+                  //<< " is committed";
+      }
       if (is_committed) {
         groups_to_process.push(batch_group);
         pending_batch_groups_.pop();
-        LOG(INFO) << "BatchGroup with end_offset " << batch_group->end_offset.ToString() 
-                  << " is committed (committed_id: " << committed_id.ToString() << ")";
       } else {
+        //rocksdb_thread_cv_.notify_one();
         // First uncommitted BatchGroup found, stop processing
         static LogOffset last_uncommitted_offset;
         if (last_uncommitted_offset != batch_group->end_offset) {
-          LOG(INFO) << "BatchGroup with end_offset " << batch_group->end_offset.ToString() 
-                    << " is not yet committed (committed_id: " << committed_id.ToString() << ")";
+          //LOG(INFO) << "BatchGroup with end_offset " << batch_group->end_offset.ToString() 
+                    //<< " is not yet committed (committed_id: " << committed_id.ToString() << ")";
           last_uncommitted_offset = batch_group->end_offset;
         }
         break;
       }
     }
   }
+  //LOG(INFO) << "RocksDB Start Process Committed BatchGroups";
   // Store the number of groups to process for return value
   size_t groups_count = groups_to_process.size();
   // Process committed BatchGroups
@@ -1624,7 +1659,7 @@ size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committe
       // Execute RocksDB Put operations for each command in the batch
       for (size_t i = 0; i < batch->commands.size(); ++i) {
         const auto& cmd_ptr = batch->commands[i];
-        LOG(INFO) << "[RocksDB] RocksDBThreadLoop" << "Processing BatchGroup with end_offset: " << batch_group->end_offset.ToString();
+        //LOG(INFO) << "[RocksDB] RocksDBThreadLoop" << "Processing BatchGroup with end_offset: " << batch_group->end_offset.ToString();
         try {
           // Execute the command (this will perform the RocksDB Put operation)
           cmd_ptr->Execute();          
@@ -1636,13 +1671,13 @@ size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committe
           // pc->resp_array.push_back(resp_ptr);
           // pc->TryWriteResp();
           if (cmd_ptr->res().ok()) {
-            LOG(INFO) << "Successfully executed RocksDB Put for command: " << cmd_ptr->name();
+            //LOG(INFO) << "Successfully executed RocksDB Put for command: " << cmd_ptr->name();
             // Execute callback with BatchGroup's end_offset (all commands in the group get the same offset)
-            if (i < batch->callbacks.size() && batch->callbacks[i]) {
-              LOG(INFO) << "[Callback] RocksDBThreadLoop" 
-                        << ", Executing callback for end_offset: " << batch_group->end_offset.ToString();
+            //if (i < batch->callbacks.size() && batch->callbacks[i]) {
+              //LOG(INFO) << "[Callback] RocksDBThreadLoop" 
+                       // << ", Executing callback for end_offset: " << batch_group->end_offset.ToString();
               batch->callbacks[i](batch_group->end_offset, pstd::Status::OK());
-            }
+            //}
           } else {
             LOG(WARNING) << "Command " << cmd_ptr->name() << " execution failed: " << cmd_ptr->res().message();
             // Execute callback with command error, still use BatchGroup's end_offset
@@ -1664,15 +1699,18 @@ size_t PikaReplicaManager::ProcessCommittedBatchGroups(const LogOffset& committe
   return groups_count;
 }
 
+// 唤醒 RocksDB 线程
 void PikaReplicaManager::NotifyCommittedID(const LogOffset& committed_id) {
   {
-    std::lock_guard<std::mutex> lock(last_committed_id_mutex_);
+    std::unique_lock<std::shared_mutex> lock(last_committed_id_mutex_);
     last_committed_id_ = committed_id;
+    //LOG(INFO) << "last_committed_id: " << last_committed_id_.ToString();
   }
   // Notify RocksDB thread
   {
+    //LOG(INFO) << "NotifyCommittedID";
     std::lock_guard<std::mutex> lock(rocksdb_thread_mutex_);
     rocksdb_thread_cv_.notify_one();
   }
-  LOG(INFO) << "Notified RocksDB thread of new CommittedID: " << committed_id.ToString();
+  //LOG(INFO) << "Notified RocksDB thread of new CommittedID: " << committed_id.ToString();
 }

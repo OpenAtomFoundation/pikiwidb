@@ -143,14 +143,19 @@ Status SyncProgress::Update(const std::string& ip, int port, const LogOffset& st
   LogOffset acked_offset;
   {
     // update slave_ptr
+    LOG(INFO) << "UPdate";
     std::lock_guard l(slave_ptr->slave_mu);
     Status s = slave_ptr->Update(start, end, &acked_offset);
+    slave_ptr->acked_offset = acked_offset;
+
     if (!s.ok()) {
       return s;
     }
     // update match_index_
-    // shared slave_ptr->slave_mu
+    // shared slave_ptr->slave_mu=
     match_index_[ip + std::to_string(port)] = acked_offset;
+          LOG(INFO) << "slave ip: " << ip << ", port :" << port << ",slave acked_offset "
+                << slave_ptr->acked_offset.ToString();
   }
 
   return Status::OK();
@@ -375,6 +380,7 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
 Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const LogOffset& start,
                                          const LogOffset& end) {
   if (is_consistency_) {
+    //LOG(INFO) << "is_consistency";
     std::shared_ptr<SlaveNode> slave_ptr = sync_pros_.GetSlaveNode(ip, port);
     if (!slave_ptr) {
       return Status::NotFound("ip " + ip + " port " + std::to_string(port));
@@ -383,8 +389,8 @@ Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const 
       std::lock_guard l(slave_ptr->slave_mu);
       slave_ptr->acked_offset = end;
       sync_pros_.AddMatchIndex(ip, port, slave_ptr->acked_offset);
-      LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
-                << slave_ptr->acked_offset.ToString();
+      //LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
+                //<< slave_ptr->acked_offset.ToString();
       if (slave_ptr->slave_state != kSlaveBinlogSync && slave_ptr->acked_offset >= slave_ptr->target_offset) {
         slave_ptr->slave_state = kSlaveBinlogSync;
         LOG(INFO) << "PacificA change slave_state kSlaveBinlogSync acked_offset: " << slave_ptr->acked_offset.ToString()
@@ -392,6 +398,7 @@ Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const 
       }
     }
   } else {
+    LOG(INFO) << "no_consistency";
     LogOffset committed_index;
     Status s = sync_pros_.Update(ip, port, start, end, &committed_index);
     if (!s.ok()) {
@@ -823,12 +830,13 @@ bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
 
 //// pacificA private:
 
+// 持久化 Binlog
 Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset) {
   std::string content = cmd_ptr->ToRedisProtocol();
   std::string binlog = std::string();
   LogOffset offset = LogOffset();
   Status s = stable_logger_->Logger()->Put(content, &offset, binlog);
-  LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
+  //LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
   cur_offset = offset;
   if (!s.ok()) {
     std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
@@ -856,7 +864,9 @@ Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd
   return stable_logger_->Logger()->IsOpened();
 }
 
+// 主节点持久化日志
 Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_logoffset) {
+  //LOG(INFO) << "AppendEntries";
   std::vector<std::string> keys = cmd_ptr->current_key();
   // slotkey shouldn't add binlog
   if (cmd_ptr->name() == kCmdNameSAdd && !keys.empty() &&
@@ -874,11 +884,14 @@ Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, 
   // g_pika_server->SignalAuxiliary();
   return Status::OK();
 }
+
+// 从节点持久化 LOG
 Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
+  //LOG(INFO) << "AppendSlaveEntries";
   LogOffset last_index = logs_->LastOffset();
   if (attribute.logic_id() < last_index.l_offset.index) {
-    LOG(WARNING) << DBInfo(db_name_).ToString() << "Drop log from leader logic_id " << attribute.logic_id()
-                 << " cur last index " << last_index.l_offset.index;
+    //LOG(WARNING) << DBInfo(db_name_).ToString() << "Drop log from leader logic_id " << attribute.logic_id()
+                 //<< " cur last index " << last_index.l_offset.index;
     return Status::OK();
   }
   LogOffset offset = LogOffset();
@@ -892,18 +905,21 @@ Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_
 /**
  * @brief Commit logs up to the given offset and update the committed ID.
  */
+
+//从节点更新自己 CommittedID
 Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) {
   int index = logs_->FindOffset(logs_->FirstOffset());
   int log_size = logs_->Size();  // Cache log size
+  //LOG(INFO) << "CommitAppLog, logs size: " << log_size;
   for (int i = index; i < log_size; ++i) {
     Log::LogItem log = logs_->At(i);
     if (master_committed_id >= log.offset) {
-      LOG(INFO) << "PacificA master_committed_id: " << master_committed_id.ToString()
-                << ", ApplyLog: " << log.offset.ToString();
+      //LOG(INFO) << "PacificA master_committed_id: " << master_committed_id.ToString()
+                //<< ", ApplyLog: " << log.offset.ToString();
       ApplyBinlog(log.cmd_ptr);
     }
   }
-
+  // 日志截断
   logs_->TruncateFrom(master_committed_id);  // Truncate logs
   SetCommittedId(master_committed_id);       // Update committed ID
   return Status::OK();
@@ -912,17 +928,20 @@ Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) 
 /**
  * @brief Update the committed ID based on the Prepared ID of the slave
  */
+// 更新 CommittedID
 Status ConsensusCoordinator::UpdateCommittedID() {
   std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = sync_pros_.GetAllSlaveNodes();
   LogOffset slave_prepared_id = LogOffset();
 
   for (const auto& slave : slaves) {
     if (slave.second->slave_state == kSlaveBinlogSync) {
-      if (slave_prepared_id == LogOffset()) {
+      slave_prepared_id = slave.second->acked_offset;
+      //LOG(INFO) << "slave_prepared_id: " << slave_prepared_id.ToString();
+      /*if (slave_prepared_id == LogOffset()) {
         slave_prepared_id = slave.second->acked_offset;
       } else if (slave.second->acked_offset < slave_prepared_id) {
         slave_prepared_id = slave.second->acked_offset;
-      }
+      }*/
     }
   }
   // if (!has_active_slaves) {
@@ -947,10 +966,13 @@ Status ConsensusCoordinator::UpdateCommittedID() {
                  << GetCommittedId().ToString() << ")";
     return Status::Error("slave_prepared_id < master_committedId");
   }
+  // Master 节点更新 Committed ID
   SetCommittedId(slave_prepared_id);
-  LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
+  //LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
   return Status::OK();
 }
+
+// 从节点应用日志
 Status ConsensusCoordinator::ProcessCoordination() {
   LogOffset offset = LogOffset();
   Status s = stable_logger_->Logger()->GetProducerStatus(&(offset.b_offset.filenum), &(offset.b_offset.offset),
@@ -963,6 +985,7 @@ Status ConsensusCoordinator::ProcessCoordination() {
   }
   SetPreparedId(offset);
   if (g_pika_server->role() & PIKA_ROLE_MASTER && g_pika_server->last_role() & PIKA_ROLE_SLAVE) {
+    LOG(INFO) << "CommitAppLOG";
     Status s = CommitAppLog(GetPreparedId());
     if (!s.ok()) {
       return s;
@@ -973,15 +996,16 @@ Status ConsensusCoordinator::ProcessCoordination() {
 // Execute the operation of writing to DB
 Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
   auto opt = cmd_ptr->argv()[0];
-  LOG(INFO) << "[ApplyBinlog] Received command: " << opt << " for db: " << db_name_;
+  //LOG(INFO) << "[ApplyBinlog] Received command: " << opt << " for db: " << db_name_;
   if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
-    LOG(INFO) << "[ApplyBinlog] Scheduling async task for " << opt;
+    //LOG(INFO) << "[ApplyBinlog] Scheduling async task for " << opt;
     InternalApplyFollower(cmd_ptr);
   } else {
     int32_t wait_ms = 250;
     while (g_pika_rm->GetUnfinishedAsyncWriteDBTaskCount(db_name_) > 0) {
       // TODO: 暂时去掉了sleep的逻辑，考虑使用条件变量唤醒
       //std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+      // WXR
       wait_ms *= 2;
       wait_ms = wait_ms < 3000 ? wait_ms : 3000;
     }
@@ -1033,6 +1057,7 @@ Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, st
   }
 
   if (!tasks.empty()) {
+    //LOG(INFO) << "task.size: " << tasks.size();
     g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
   }
   return Status::OK();

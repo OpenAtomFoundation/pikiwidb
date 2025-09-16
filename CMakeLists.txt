@@ -457,9 +457,9 @@ set(LZ4_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(zlib
   DEPENDS
   URL
-  https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz
+  https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz 
   URL_HASH
-  MD5=9b8aa094c4e5765dabf4da391f00d15c
+  MD5=9855b6d802d7fe5b7bd5b196a2271655
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND

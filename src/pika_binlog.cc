@@ -298,7 +298,9 @@ Status Binlog::EmitPhysicalRecord(RecordType t, const char* ptr, size_t n, int* 
   if (s.ok()) {
     s = queue_->Append(pstd::Slice(ptr, n));
     if (s.ok()) {
-      s = queue_->Flush();
+      //LOG(INFO) << "EmitPhysicalRecord Flush";
+      //s = queue_->Sync();
+      //s = queue_->Flush();
     }
   }
   block_offset_ += static_cast<int32_t>(kHeaderSize + n);

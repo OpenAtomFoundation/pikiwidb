@@ -6,6 +6,7 @@
 #include "net/include/bg_thread.h"
 #include <cstdlib>
 #include <mutex>
+#include <glog/logging.h>
 
 namespace net {
 
@@ -79,7 +80,7 @@ void* BGThread::ThreadMain() {
   while (!should_stop()) {
     std::unique_lock lock(mu_);
 
-    rsignal_.wait(lock, [this]() { return !queue_.empty() || !timer_queue_.empty() || should_stop(); });
+    rsignal_.wait(lock, [this]() { return !queue_.empty() || should_stop();  });
 
     if (should_stop()) {
       break;

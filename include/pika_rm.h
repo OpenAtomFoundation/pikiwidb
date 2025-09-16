@@ -33,8 +33,9 @@
 #define kBinlogSendBatchNum 100
 
 // unit seconds
-#define kSendKeepAliveTimeout (2 * 1000000)
-#define kRecvKeepAliveTimeout (20 * 1000000)
+// WXR
+#define kSendKeepAliveTimeout (100 * 1000000)
+#define kRecvKeepAliveTimeout (200 * 1000000)
 
 
 class SyncDB {
@@ -302,7 +303,7 @@ class PikaReplicaManager {
   
   // Last committed ID for RocksDB thread processing
   LogOffset last_committed_id_;
-  std::mutex last_committed_id_mutex_;
+  std::shared_mutex last_committed_id_mutex_;
   
   // Background thread processing methods
   void StartCommandQueueThread();

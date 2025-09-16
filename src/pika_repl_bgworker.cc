@@ -46,6 +46,7 @@ void PikaReplBgWorker::ParseBinlogOffset(const InnerMessage::BinlogOffset& pb_of
 }
 
 void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
+  //LOG(INFO) << "Handel BGWorkerWriteBinlog 1"; 
   auto task_arg = static_cast<ReplClientWriteBinlogTaskArg*>(arg);
   const std::shared_ptr<InnerMessage::InnerResponse> res = task_arg->res;
   std::shared_ptr<net::PbConn> conn = task_arg->conn;
@@ -133,14 +134,6 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
       slave_db->SetReplState(ReplState::kTryConnect);
       return;
     }
-    if(db->GetISConsistency()){
-      const InnerMessage::BinlogOffset& committed_id = binlog_res.committed_id();
-      LogOffset master_committed_id(BinlogOffset(committed_id.filenum(),committed_id.offset()),LogicOffset(committed_id.term(),committed_id.index()));
-      Status s= db->CommitAppLog(master_committed_id);
-      if(!s.ok()){
-        return;
-      }
-    }
     // empty binlog treated as keepalive packet
     if (binlog_res.binlog().empty()) {
       continue;
@@ -165,6 +158,15 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
        LOG(WARNING) << "DB " << worker->db_name_ << " Not Found";
        return;
      }
+    if(db->GetISConsistency()){
+      const InnerMessage::BinlogOffset& committed_id = binlog_res.committed_id();
+      LogOffset master_committed_id(BinlogOffset(committed_id.filenum(),committed_id.offset()),LogicOffset(committed_id.term(),committed_id.index()));
+      Status s= db->CommitAppLog(master_committed_id);
+      if(!s.ok()){
+        return;
+      }
+    }
+
   }
 
   if (only_keepalive) {
@@ -178,11 +180,12 @@ void PikaReplBgWorker::HandleBGWorkerWriteBinlog(void* arg) {
     ack_end = productor_status;
     ack_end.l_offset.term = pb_end.l_offset.term;
   }
-
+  db->GetCoordinator()->StableLogger()->Logger()->GetQueue()->Flush();
   g_pika_rm->SendBinlogSyncAckRequest(db_name, ack_start, ack_end);
 }
 
 int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::RedisCmdArgsType& argv) {
+  //LOG(INFO) << "Start Handel WriteBinlog 2";
   std::string opt = argv[0];
   auto worker = static_cast<PikaReplBgWorker*>(parser->data);
   // Monitor related
@@ -218,6 +221,7 @@ int PikaReplBgWorker::HandleWriteBinlog(net::RedisParser* parser, const net::Red
     return -1;
   }
   if(db->GetISConsistency()){
+    // 如果是一致性就调用这个函数
     db->AppendSlaveEntries(c_ptr, worker->binlog_item_);
   }else{
     db->ConsensusProcessLeaderLog(c_ptr, worker->binlog_item_);

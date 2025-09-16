@@ -425,7 +425,25 @@ class PosixMmapFile : public WritableFile {
     return s;
   }
 
-  Status Flush() override { return Status::OK(); }
+Status Flush() override {
+  LOG(INFO) << "Flush";
+  if (fd_ < 0) {
+    return IOError(filename_, EINVAL);
+  }
+
+  // 刷写内核缓冲区到磁盘
+  #if defined(__APPLE__)
+   LOG(INFO) << "fsync";
+    if (fsync(fd_) != 0) {
+  #else
+    LOG(INFO) << "fdatasync";
+    if (fdatasync(fd_) != 0) {
+  #endif
+    LOG(INFO) << "fdatasync error";
+    return IOError(filename_, errno);
+    }
+  return Status::OK();
+}
 
   Status Sync() override {
     Status s;

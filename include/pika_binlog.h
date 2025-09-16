@@ -57,6 +57,7 @@ class Binlog : public pstd::noncopyable {
   pstd::Status Put(const std::string& item, LogOffset *cur_logoffset,std::string& binlog);
   pstd::Status IsOpened();
   pstd::Status GetProducerStatus(uint32_t* filenum, uint64_t* pro_offset, uint32_t* term = nullptr, uint64_t* logic_id = nullptr);
+  pstd::WritableFile* GetQueue() { return queue_.get(); }
   /*
    * Set Producer pro_num and pro_offset with lock
    */

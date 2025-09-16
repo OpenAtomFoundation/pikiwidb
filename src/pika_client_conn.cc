@@ -224,12 +224,13 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   if (c_ptr->is_write() && g_pika_conf->command_batch_enabled()) {
     // Get the appropriate SyncMasterDB for command batching
     auto sync_db = g_pika_rm->GetSyncMasterDBByName(DBInfo(c_ptr->db_name()));
+    // 查看 DB 是不是 Master DB
     if (sync_db) {
       auto command_collector = sync_db->GetCommandCollector();
       if (command_collector) {
         // Create callback to handle command completion
         auto callback = [this, c_ptr](const LogOffset& offset, pstd::Status status) {
-            LOG(INFO) << "Command completed";
+            //LOG(INFO) << "Command completed";
             auto pc = dynamic_cast<PikaClientConn*>(c_ptr->GetConn().get());
             if (pc) {
                 auto resp_ptr = c_ptr->GetResp();

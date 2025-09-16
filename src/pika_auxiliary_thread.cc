@@ -35,11 +35,13 @@ void* PikaAuxiliaryThread::ThreadMain() {
     g_pika_server->CheckLeaderProtectedMode();
 
     // TODO(whoiami) timeout
+    // 将增量数据写入 Write_queue_
     s = g_pika_server->TriggerSendBinlogSync();
     if (!s.ok()) {
       LOG(WARNING) << s.ToString();
     }
     // send to peer
+    // 将 Write_queue 中的数据发送给从节点
     int res = g_pika_server->SendToPeer();
     if (res == 0) {
       // sleep 100 ms
