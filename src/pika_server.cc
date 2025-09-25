@@ -1478,17 +1478,19 @@ void PikaServer::InitStorageOptions() {
 
   storage_options_.table_options.pin_l0_filter_and_index_blocks_in_cache =
       g_pika_conf->pin_l0_filter_and_index_blocks_in_cache();
-
     if (storage_options_.block_cache_size == 0) {
+        // 禁用 block_cache
         storage_options_.table_options.no_block_cache = true;
         storage_options_.table_options.block_cache.reset();
     } else if (storage_options_.share_block_cache) {
-        // 共享模式：直接复用已创建好的全局 cache（PikaServer 成员）
+        if (!g_pika_conf->share_block_cache()) {
+            assert(false && "shared_block_cache_ must be initialized before InitStorageOptions()");
+        }
+
         storage_options_.table_options.no_block_cache = false;
-        assert(share_block_cache_ && "shared_block_cache_ must be initialized before InitStorageOptions()");
-        storage_options_.table_options.block_cache = shared_block_cache_;
+
+        storage_options_.table_options.block_cache = 0;
     } else {
-        // 非共享模式：为当前 CF/实例单独创建
         storage_options_.table_options.no_block_cache = false;
         storage_options_.table_options.block_cache =
                 rocksdb::NewLRUCache(storage_options_.block_cache_size,
