@@ -10,6 +10,11 @@
 #include "include/pika_db.h"
 #include "include/acl.h"
 #include "include/pika_command.h"
+#include "ingest/include/sst_downloader.h"
+#include "pika_server.h"            
+#include "ingest/include/ingest_s3_service.h" 
+
+extern PikaServer *g_pika_server;
 
 /*
  * kv
@@ -75,6 +80,35 @@ class GetCmd : public Cmd {
   void DoInitial() override;
   rocksdb::Status s_;
 };
+
+class ManifestIngestCmd : public Cmd {
+ public:
+  ManifestIngestCmd(const std::string& name, int arity, uint32_t flag)
+    : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::STRING)) {}
+  ~ManifestIngestCmd() { sst_files_path_.clear();}
+
+  std::vector<std::string> current_key() const override {
+    return std::vector<std::string>{key_};
+  }
+
+  void Do() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys&) override {}
+  void Merge() override {}
+  bool IsTooLargeKey(const size_t& max_sz) override {
+    return key_.size() > max_sz;
+  }
+
+  Cmd* Clone() override { return new ManifestIngestCmd(*this); }
+
+ private:
+  std::string key_;
+  std::string ingest_conf_path_;
+  std::vector<std::string> sst_files_path_;
+  rocksdb::Status s_;
+  void DoInitial() override;
+};
+
 
 class DelCmd : public Cmd {
  public:

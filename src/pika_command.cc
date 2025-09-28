@@ -246,6 +246,11 @@ void InitCmdTable(CmdTable* cmd_table) {
   std::unique_ptr<Cmd> getptr =
       std::make_unique<GetCmd>(kCmdNameGet, 2, kCmdFlagsRead | kCmdFlagsKv  | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameGet, std::move(getptr)));
+  ////ManifestIngestCmd
+  std::unique_ptr<Cmd> manifestingestptr = std::make_unique<ManifestIngestCmd>(
+      kCmdNameManifestIngest, 2,
+      kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsReadCache | kCmdFlagsFast);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameManifestIngest, std::move(manifestingestptr)));
   ////DelCmd
   std::unique_ptr<Cmd> delptr =
       std::make_unique<DelCmd>(kCmdNameDel, -2, kCmdFlagsWrite | kCmdFlagsOperateKey  | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache | kCmdFlagsFast);

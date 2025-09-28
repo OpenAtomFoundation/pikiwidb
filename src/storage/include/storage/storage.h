@@ -175,6 +175,8 @@ class Storage {
   Status StoreCursorStartKey(const DataType& dtype, int64_t cursor, const std::string& next_key);
 
   // Strings Commands
+  Status SstExtendIngest(const std::vector<std::string>& local_sst_paths, const std::string &config_path);
+  Status DoSstExtendIngest(std::vector<std::string>& local_sst_paths, const std::string &config_path);
 
   // Set key to hold the string value. if key
   // already holds a value, it is overwritten

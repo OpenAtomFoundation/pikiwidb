@@ -153,6 +153,9 @@ int PikaConf::Load() {
   }
   local_meta_->SetPath(db_path_);
 
+  GetConfStr("s3-conf-path", &s3_conf_path_);
+  GetConfStr("ingest-conf-path", &ingest_conf_path_);
+
   GetConfInt("thread-num", &thread_num_);
   if (thread_num_ <= 0) {
     thread_num_ = 12;

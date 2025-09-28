@@ -1035,5 +1035,25 @@ var _ = Describe("String Commands", func() {
 		//	Expect(dryRun.Err().Error()).To(Equal("ERR Error loading the extension. Please check the server logs."))
 		//})
 
+		
+		It("should ManifestIngest", func() {
+			// 调用 manifestingest，传入准备好的 manifest 文件
+			res := client.Do(ctx, "manifestingest", "manifest_1759125977953253000_part0.proto")
+			Expect(res.Err()).NotTo(HaveOccurred())
+			val, err := res.Text()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(val).To(ContainSubstring("Manifest Ingested Successfully"))
+
+			// 校验几个 key-value 确实 ingest 进来了
+			get := client.Get(ctx, "key_100108891541")
+			Expect(get.Err()).NotTo(HaveOccurred())
+			Expect(get.Val()).To(Equal("value_881631228310213113"))
+
+			get = client.Get(ctx, "key_100117871061")
+			Expect(get.Err()).NotTo(HaveOccurred())
+			Expect(get.Val()).To(Equal("value_649311313014912415"))
+		})
+
+
 	})
 })
