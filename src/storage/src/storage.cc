@@ -141,6 +141,13 @@ Status Storage::StoreCursorStartKey(const DataType& dtype, int64_t cursor, const
 }
 
 // Strings Commands
+  Status Storage::SstExtendIngest(const std::vector<std::string>& local_sst_paths, const std::string &config_path){
+    return strings_db_->SstExtendIngest(local_sst_paths, config_path); 
+  }
+  Status Storage::DoSstExtendIngest(std::vector<std::string>& local_sst_paths, const std::string &config_path){
+    return strings_db_->DoSstExtendIngest(local_sst_paths, config_path); 
+  }
+
 Status Storage::Set(const Slice& key, const Slice& value) { return strings_db_->Set(key, value); }
 
 Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {

@@ -14,7 +14,7 @@
 #include "include/pika_server.h"
 #include "src/pstd/include/scope_record_lock.h"
 
-extern std::unique_ptr<PikaServer> g_pika_server;
+extern PikaServer* g_pika_server;
 extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
 
 void MultiCmd::Do() {

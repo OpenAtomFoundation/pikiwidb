@@ -1,0 +1,12 @@
+{
+    "endpoint": "http://127.0.0.1:9000",
+    "region": "ap-northeast-3",
+    "bucket": "pika-sst",
+    "access_key": "minioadmin",
+    "secret_key": "minioadmin",
+    "key": "manifest/latest.manifest",
+    "manifest_batch": 200,
+    "connect_timeout_ms": 3000,
+    "rw_timeout_ms": 2000,
+    "max_retries": 5
+}

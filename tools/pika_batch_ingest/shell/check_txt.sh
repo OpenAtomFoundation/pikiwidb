@@ -1,0 +1,1 @@
+python3 check_keys_in_txt.py /home/ospp/work/pikiwidb/tools/pika_batch_ingest/data/mock/test-1M/data_0.json /home/ospp/work/pikiwidb/tools/pika_batch_ingest/data/mock/test-1M/dump_0.txt --show-extra

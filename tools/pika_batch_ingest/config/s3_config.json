@@ -1,0 +1,16 @@
+{
+  "endpoint": "http://127.0.0.1:9000",
+  "region": "ap-northeast-3",
+  "bucket": "pika-sst",
+  "access_key": "minioadmin",
+  "secret_key": "minioadmin",
+  "is_minio": true,
+  "dict": "sst/test-100G-50M",
+  "files_per_manifest": 200,
+  "manifest_dir": "manifest",
+  "latest_manifest_path": "last.manifest",
+  "watch_interval_sec": 5,
+  "upload_concurrency": 3,
+  "hash_verify_on_unchanged": true,
+  "tracker_state_path": "tracker_state.json"
+}

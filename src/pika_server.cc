@@ -129,7 +129,7 @@ PikaServer::~PikaServer() {
   bgsave_thread_.StopThread();
   key_scan_thread_.StopThread();
   pika_migrate_thread_->StopThread();
-
+  StopS3();
   dbs_.clear();
 
   LOG(INFO) << "PikaServer " << pthread_self() << " exit!!!";
@@ -1901,3 +1901,18 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
   cache_cfg.lfu_decay_time = g_pika_conf->cache_lfu_decay_time();
 }
 void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }
+
+pstd::Status PikaServer::InitS3(const std::string& s3_conf_path) {
+  if (!s3_) s3_ = std::make_unique<S3Service>();
+  std::string err;
+  if (!s3_->Start(s3_conf_path, &err)) {
+    return pstd::Status::IOError("S3Service start failed: " + err);
+  }
+  LOG(INFO) << "S3 Started...";
+  return pstd::Status::OK();
+}
+
+void PikaServer::StopS3() {
+  if (s3_) s3_->Stop();
+}
+
