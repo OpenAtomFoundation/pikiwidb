@@ -25,6 +25,7 @@
 #include "pstd/include/pstd_string.h"
 #include "storage/backupable.h"
 #include "storage/storage.h"
+#include "ingest/include/ingest_s3_service.h"
 
 #include "acl.h"
 #include "include/pika_auxiliary_thread.h"
@@ -48,6 +49,10 @@
 #include "include/rsync_server.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
+
+// Forward declarations
+class PikaMigrateThread;
+
 
 enum TaskType {
   kCompactAll,
@@ -516,6 +521,17 @@ class PikaServer : public pstd::noncopyable {
       exec_stat_map.insert(std::make_pair(cmd_name, 0));
     }
   }
+
+  /**
+   * s3
+   */
+  // 在 server 启动阶段调用（由 pika.cc 控制时序）
+  pstd::Status InitS3(const std::string& s3_conf_path);
+  void StopS3();
+
+  // 给命令层取用
+  S3Service* s3() { return s3_.get(); }
+
  private:
   /*
    * TimingTask use
@@ -659,6 +675,11 @@ class PikaServer : public pstd::noncopyable {
    * fast and slow thread pools
    */
   bool slow_cmd_thread_pool_flag_;
+
+   /**
+   * S3
+   */
+  std::unique_ptr<S3Service> s3_;
 };
 
 #endif

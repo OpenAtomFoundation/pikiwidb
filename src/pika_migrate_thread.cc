@@ -18,7 +18,7 @@
 const int32_t MAX_MEMBERS_NUM = 512;
 const std::string INVALID_STR = "NL";
 
-extern std::unique_ptr<PikaServer> g_pika_server;
+extern PikaServer* g_pika_server;
 extern std::unique_ptr<PikaConf> g_pika_conf;
 extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
 extern std::unique_ptr<PikaCmdTableManager> g_pika_cmd_table_manager;

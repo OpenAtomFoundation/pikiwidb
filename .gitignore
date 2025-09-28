@@ -74,3 +74,26 @@ deps
 !codis/cmd/fe/assets/**
 
 tests/tmp
+
+git.sh
+tools/pika_batch_ingest/vscode/
+tools/pika_batch_ingest/build/
+tools/pika_batch_ingest/data/
+tools/pika_batch_ingest/mock/
+tools/pika_batch_ingest/third/
+tools/pika_batch_ingest/src/s3put/include/proto/manifest.pb.h
+tools/pika_batch_ingest/src/s3put/include/proto/manifest.pb.cc
+tools/pika_batch_ingest/vendor/lib/
+conf/pika_slave.conf
+conf/pika_master.conf
+conf/pika_master.conftests/integration/pika
+tests/integration/pika
+src/redis-server
+tools/pika_batch_ingest/third/redis
+tools/pika_batch_ingest/third/ThreadPool
+
+pika.py
+sample_mock.py
+tools/pika_batch_ingest/d100
+tools/pika_batch_ingest/test.sh
+tools/pika_batch_ingest/info_rocksdb.txt
