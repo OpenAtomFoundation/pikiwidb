@@ -8,6 +8,8 @@
 
 #include "include/pika_command.h"
 #include "pstd/include/pstd_string.h"
+#include "ingest/include/ingest_s3_service.h"
+#include "ingest/include/sst_downloader.h"
 
 #include "include/pika_cache.h"
 #include "include/pika_conf.h"
@@ -197,6 +199,60 @@ void GetCmd::DoUpdateCache() {
     db_->cache()->WriteKVToCache(CachePrefixKeyK, value_, sec_);
   }
 }
+
+
+void ManifestIngestCmd::DoInitial() {
+  LOG(INFO) << "[ManifestIngestCmd] Starting DoInitial";
+
+  if (!CheckArg(argv_.size())) {
+    res_.SetRes(CmdRes::kWrongNum, kCmdNameManifestIngest);
+    LOG(WARNING) << "[ManifestIngestCmd] Wrong number of arguments";
+    return;
+  }
+
+  key_ = argv_[1];
+  ingest_conf_path_ = g_pika_conf->ingest_conf_path();
+
+  // 下载所有 SST
+  SstDownloader* downloader = g_pika_server->s3()->Downloader();
+  rocksdb::Status s_  = downloader->DownloadAllFiles(key_, sst_files_path_);
+
+  if (!s_.ok()) {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    LOG(ERROR) << "[ManifestIngestCmd] Download failed: " << s_.ToString();
+    return;
+  }
+
+  LOG(INFO) << "[ManifestIngestCmd] DoInitial completed successfully, files=" << sst_files_path_.size();
+}
+
+void ManifestIngestCmd::Do() {
+  LOG(INFO) << "[ManifestIngestCmd] Starting Do (SST Ingest)";
+
+  s_ = db_->storage()->SstExtendIngest(
+      sst_files_path_,
+      ingest_conf_path_);
+
+  if (s_.ok()) {
+    res_.SetRes(CmdRes::kOk);
+    res_.AppendContent("Manifest Ingested Successfully");
+    LOG(INFO) << "[ManifestIngestCmd] SST Ingest successful for " << sst_files_path_.size() << " files";
+  } else if (s_.IsNotFound()) {
+    res_.AppendStringLen(-1);
+    LOG(WARNING) << "[ManifestIngestCmd] SST Ingest not found";
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    LOG(ERROR) << "[ManifestIngestCmd] SST Ingest failed: " << s_.ToString();
+  }
+
+  LOG(INFO) << "[ManifestIngestCmd] Do (SST Ingest) completed, key=" << key_;
+}
+
+void ManifestIngestCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
 
 void DelCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {

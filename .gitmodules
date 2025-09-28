@@ -1,0 +1,6 @@
+[submodule "tools/pika_batch_ingest/third/ThreadPool"]
+	path = tools/pika_batch_ingest/third/ThreadPool
+	url = https://github.com/progschj/ThreadPool.git
+[submodule "tools/pika_batch_ingest/third/redis"]
+	path = tools/pika_batch_ingest/third/redis
+	url = https://github.com/redis/redis.git

@@ -218,6 +218,13 @@ int main(int argc, char* argv[]) {
     LOG(FATAL) << status.ToString();
   }
 
+  // === InitS3 ===
+  std::string s3_conf = g_pika_conf->s3_conf_path();
+  auto s3_st = g_pika_server->InitS3(s3_conf);
+  if (!s3_st.ok()) {
+    LOG(FATAL) << s3_st.ToString();
+  }
+
   if (g_pika_conf->daemonize()) {
     close_std();
   }

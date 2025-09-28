@@ -124,6 +124,7 @@ const std::string kCmdNameScanx = "scanx";
 const std::string kCmdNamePKSetexAt = "pksetexat";
 const std::string kCmdNamePKScanRange = "pkscanrange";
 const std::string kCmdNamePKRScanRange = "pkrscanrange";
+const std::string kCmdNameManifestIngest = "manifestingest";
 
 // Hash
 const std::string kCmdNameHDel = "hdel";

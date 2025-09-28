@@ -10,6 +10,8 @@ project(pika)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 enable_testing()
 
+set(PROJECT_ROOT_DIR ${CMAKE_CURRENT_SOURCE_DIR})
+
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # using Clang
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "5.0")
@@ -52,12 +54,14 @@ elseif(${BUILD_TYPE} STREQUAL RELWITHDEBINFO)
 else()
   set(LIB_BUILD_TYPE RELEASE)
   set(CMAKE_CXX_FLAGS_RELEASE "-O2 -g -DNDEBUG")
-
 endif()
 
 if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
    set(CMAKE_CXX_FLAGS "-pthread")
    add_definitions(-DOS_MACOSX)
+elseif (CMAKE_SYSTEM_NAME MATCHES "FreeBSD")
+    set(CMAKE_CXX_FLAGS "-pthread")
+    add_definitions(-DOS_FREEBSD)
 elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
    if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
      set(CMAKE_EXE_LINKER_FLAGS "-stdlib=libc++ -fuse-ld=lld -lc++ -lc++abi ${CMAKE_EXE_LINKER_FLAGS}")
@@ -68,7 +72,7 @@ elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
    endif()
    add_definitions(-DOS_LINUX)
 else()
-   message(FATAL_ERROR "only support linux or macOs")
+   message(FATAL_ERROR "only support linux or macOs or FreeBSD")
 endif()
 
 if(HOST_ARCH MATCHES "x86_64" OR HOST_ARCH MATCHES "i386")
@@ -174,7 +178,6 @@ set(GTEST_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 set(GTEST_MAIN_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 set(GMOCK_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 
-
 ExternalProject_Add(gflags
   URL
   https://github.com/gflags/gflags/archive/refs/tags/v2.2.2.tar.gz
@@ -231,7 +234,7 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     LOG_INSTALL
     1
     CONFIGURE_COMMAND
-    <SOURCE_DIR>/configure --prefix=${STAGED_INSTALL_PREFIX} --enable-minidebuginfo=no --enable-zlibdebuginfo=no --enable-shared=no
+    <SOURCE_DIR>/configure --prefix=${STAGED_INSTALL_PREFIX} --enable-minidebuginfo=no --enable-zlibdebuginfo=no --enable-shared=no --with-pic
     BUILD_IN_SOURCE
     1
     BUILD_COMMAND
@@ -457,9 +460,9 @@ set(LZ4_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(zlib
   DEPENDS
   URL
-  https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz
+  https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz 
   URL_HASH
-  MD5=9b8aa094c4e5765dabf4da391f00d15c
+  MD5=9855b6d802d7fe5b7bd5b196a2271655
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
@@ -509,8 +512,9 @@ if(CMAKE_SYSTEM_NAME MATCHES "Linux")
     -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
     -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
     -DGPERFTOOLS_BUILD_STATIC=ON
-    -DEFAULT_BUILD_MINIMAL=ON
+    -DDEFAULT_BUILD_MINIMAL=ON
     -Dgperftools_build_benchmark=OFF
+    -DCMAKE_PREFIX_PATH=${INSTALL_LIBDIR}
     BUILD_COMMAND
     make -j${CPU_CORE}
   )
@@ -652,6 +656,211 @@ ExternalProject_Add(rocksdb
   make -j${CPU_CORE}
 )
 
+# OpenSSL 3.1.4 
+ExternalProject_Add(openssl
+  GIT_REPOSITORY https://github.com/openssl/openssl.git
+  GIT_TAG        openssl-3.1.4
+  PREFIX         ${EP_BASE_SUFFIX}/openssl
+  UPDATE_COMMAND ""
+  CONFIGURE_COMMAND <SOURCE_DIR>/config
+                    --prefix=<INSTALL_DIR>
+                    no-shared no-tests
+  BUILD_COMMAND   make -j${CPU_CORE}
+  INSTALL_COMMAND make install_sw
+  INSTALL_DIR     ${STAGED_INSTALL_PREFIX}
+  LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+)
+
+set(OPENSSL_LIBDIR "lib64")
+
+set(_ossl_inc "${STAGED_INSTALL_PREFIX}/include")
+set(_ossl_ssl "${STAGED_INSTALL_PREFIX}/${OPENSSL_LIBDIR}/libssl.a")
+set(_ossl_crypto "${STAGED_INSTALL_PREFIX}/${OPENSSL_LIBDIR}/libcrypto.a")
+
+add_library(OpenSSL::SSL STATIC IMPORTED GLOBAL)
+add_library(OpenSSL::Crypto STATIC IMPORTED GLOBAL)
+set(_ossl_inc "${STAGED_INSTALL_PREFIX}/include")
+set(_ossl_ssl "${STAGED_INSTALL_PREFIX}/${OPENSSL_LIBDIR}/libssl.a")
+set(_ossl_crypto "${STAGED_INSTALL_PREFIX}/${OPENSSL_LIBDIR}/libcrypto.a")
+set_target_properties(OpenSSL::SSL PROPERTIES
+  IMPORTED_LOCATION "${_ossl_ssl}"
+  INTERFACE_INCLUDE_DIRECTORIES "${_ossl_inc}"
+)
+set_target_properties(OpenSSL::Crypto PROPERTIES
+  IMPORTED_LOCATION "${_ossl_crypto}"
+  INTERFACE_INCLUDE_DIRECTORIES "${_ossl_inc}"
+)
+add_dependencies(OpenSSL::SSL   openssl)
+add_dependencies(OpenSSL::Crypto openssl)
+
+# curl 8.16.0 
+ExternalProject_Add(curl
+  GIT_REPOSITORY https://github.com/curl/curl.git
+  GIT_TAG        curl-8_16_0
+  PREFIX         ${EP_BASE_SUFFIX}/curl
+  UPDATE_COMMAND ""
+  CMAKE_ARGS
+    -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
+    -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
+    -DBUILD_SHARED_LIBS=OFF
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+    -DCMAKE_USE_OPENSSL=ON
+    -DOPENSSL_INCLUDE_DIR=${_ossl_inc}
+    -DOPENSSL_SSL_LIBRARY=${_ossl_ssl}
+    -DOPENSSL_CRYPTO_LIBRARY=${_ossl_crypto}
+    -DUSE_LIBIDN2=OFF
+    -DCURL_USE_LIBPSL=OFF
+    -DUSE_BROTLI=OFF
+    -DUSE_ZSTD=OFF
+    -DUSE_NGHTTP2=OFF
+    -DCURL_DISABLE_COOKIES=ON
+  BUILD_COMMAND   make -j${CPU_CORE}
+  INSTALL_COMMAND make install
+  LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+)
+add_dependencies(curl openssl)
+
+
+add_library(CURL::libcurl STATIC IMPORTED GLOBAL)
+set(_curl_inc "${STAGED_INSTALL_PREFIX}/include")
+if(EXISTS "${STAGED_INSTALL_PREFIX}/lib/libcurl.a")
+  set(_curl_lib "${STAGED_INSTALL_PREFIX}/lib/libcurl.a")
+else()
+  set(_curl_lib "${STAGED_INSTALL_PREFIX}/lib64/libcurl.a")
+endif()
+set_target_properties(CURL::libcurl PROPERTIES
+  IMPORTED_LOCATION "${_curl_lib}"
+  INTERFACE_INCLUDE_DIRECTORIES "${_curl_inc}"
+  INTERFACE_LINK_LIBRARIES "OpenSSL::SSL;OpenSSL::Crypto;dl;pthread"
+)
+add_dependencies(CURL::libcurl curl)
+
+# aws-crt-cpp 
+ExternalProject_Add(aws_crt
+  GIT_REPOSITORY https://github.com/awslabs/aws-crt-cpp.git
+  GIT_TAG        main
+  PREFIX         ${EP_BASE_SUFFIX}/aws-crt
+  UPDATE_COMMAND ${CMAKE_COMMAND} -E chdir <SOURCE_DIR> git submodule update --init --recursive
+  CMAKE_CACHE_ARGS
+    -DCMAKE_BUILD_TYPE:STRING=${LIB_BUILD_TYPE}
+    -DCMAKE_INSTALL_PREFIX:PATH=${STAGED_INSTALL_PREFIX}
+    -DBUILD_DEPS:BOOL=ON
+    -DBUILD_SHARED_LIBS:BOOL=OFF
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+    -DCMAKE_PREFIX_PATH:PATH=${STAGED_INSTALL_PREFIX}
+    -DUSE_OPENSSL:BOOL=ON
+    -DS2N_LIBCRYPTO:STRING=openssl
+    -DOPENSSL_USE_STATIC_LIBS:BOOL=ON
+    -DOPENSSL_ROOT_DIR:PATH=${STAGED_INSTALL_PREFIX}
+    -DOPENSSL_INCLUDE_DIR:PATH=${_ossl_inc}
+    -DOPENSSL_SSL_LIBRARY:FILEPATH=${_ossl_ssl}
+    -DOPENSSL_CRYPTO_LIBRARY:FILEPATH=${_ossl_crypto}
+
+  BUILD_COMMAND   make -j${CPU_CORE}
+  INSTALL_COMMAND make install
+  LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+)
+add_dependencies(aws_crt openssl)
+
+
+# aws-sdk-cpp(s3;core;transfer)
+ExternalProject_Add(aws_sdk
+  GIT_REPOSITORY https://github.com/aws/aws-sdk-cpp.git
+  GIT_TAG        main
+  PREFIX         ${EP_BASE_SUFFIX}/aws-sdk
+  UPDATE_COMMAND ""
+  CMAKE_CACHE_ARGS
+    -DCMAKE_BUILD_TYPE:STRING=${LIB_BUILD_TYPE}
+    -DCMAKE_INSTALL_PREFIX:PATH=${STAGED_INSTALL_PREFIX}
+    -DCMAKE_PREFIX_PATH:PATH=${STAGED_INSTALL_PREFIX}
+    -DBUILD_ONLY:STRING=s3\;core\;transfer  
+    -DBUILD_SHARED_LIBS:BOOL=OFF
+    -DBUILD_TESTING:BOOL=OFF
+    -DENABLE_TESTING:BOOL=OFF
+    -DAUTORUN_UNIT_TESTS:BOOL=OFF
+    -DLEGACY_BUILD:BOOL=ON
+    -DCURL_INCLUDE_DIR:PATH=${_curl_inc}
+    -DCURL_LIBRARY:FILEPATH=${_curl_lib}
+    -DOPENSSL_INCLUDE_DIR:PATH=${_ossl_inc}
+    -DOPENSSL_SSL_LIBRARY:FILEPATH=${_ossl_ssl}
+    -DOPENSSL_CRYPTO_LIBRARY:FILEPATH=${_ossl_crypto}
+    -DCMAKE_EXE_LINKER_FLAGS:STRING=-Wl,--start-group\ ${_curl_lib}\ ${_ossl_ssl}\ ${_ossl_crypto}\ -Wl,--end-group\ -ldl\ -lpthread
+    -DCMAKE_SHARED_LINKER_FLAGS:STRING=-Wl,--start-group\ ${_ossl_ssl}\ ${_ossl_crypto}\ -Wl,--end-group\ -ldl\ -lpthread
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+
+  BUILD_COMMAND   make -j${CPU_CORE}
+  INSTALL_COMMAND make install
+  LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+)
+add_dependencies(aws_sdk aws_crt curl openssl)
+set(AWS_CRT_CPP_DIR "${STAGED_INSTALL_PREFIX}")
+set(AWS_SDK_CPP_DIR "${STAGED_INSTALL_PREFIX}")
+
+add_custom_target(aws_all
+  DEPENDS openssl curl aws_crt aws_sdk
+)
+
+function(_crt_import one)
+  add_library(${one} STATIC IMPORTED GLOBAL)
+  set(_lib "${STAGED_INSTALL_PREFIX}/lib/lib${one}.a")
+  set_target_properties(${one} PROPERTIES
+    IMPORTED_LOCATION "${_lib}"
+    INTERFACE_INCLUDE_DIRECTORIES "${STAGED_INSTALL_PREFIX}/include"
+  )
+  add_dependencies(${one} aws_crt)
+endfunction()
+
+_crt_import(aws-c-s3)
+_crt_import(aws-c-mqtt)
+_crt_import(aws-crt-cpp)
+_crt_import(aws-c-auth)
+_crt_import(aws-c-http)
+_crt_import(aws-c-io)
+_crt_import(aws-c-compression)
+_crt_import(aws-c-cal)
+_crt_import(aws-c-sdkutils)
+_crt_import(aws-c-event-stream)
+_crt_import(aws-c-common)
+_crt_import(aws-checksums)
+_crt_import(s2n)
+
+function(_aws_import one)
+  add_library(${one} STATIC IMPORTED GLOBAL)
+  set(_aws_lib "${STAGED_INSTALL_PREFIX}/lib/lib${one}.a")
+  set_target_properties(${one} PROPERTIES
+    IMPORTED_LOCATION "${_aws_lib}"
+    INTERFACE_INCLUDE_DIRECTORIES "${STAGED_INSTALL_PREFIX}/include"
+  )
+  add_dependencies(${one} aws_sdk) 
+endfunction()
+
+_aws_import(aws-cpp-sdk-core)
+_aws_import(aws-cpp-sdk-s3)
+_aws_import(aws-cpp-sdk-transfer)
+
+
+# nlohmann_json v3.11.2 
+ExternalProject_Add(nlohmann_json
+  URL https://github.com/nlohmann/json/archive/refs/tags/v3.11.2.tar.gz
+  PREFIX         ${EP_BASE_SUFFIX}/nlohmann_json
+  UPDATE_COMMAND ""  
+  CMAKE_CACHE_ARGS
+    -DCMAKE_BUILD_TYPE:STRING=${LIB_BUILD_TYPE}
+    -DCMAKE_INSTALL_PREFIX:PATH=${STAGED_INSTALL_PREFIX}
+    -DJSON_BuildTests:BOOL=OFF
+    -DJSON_Install:BOOL=ON
+    -DBUILD_SHARED_LIBS:BOOL=OFF
+    -DCMAKE_POSITION_INDEPENDENT_CODE:BOOL=ON
+  LOG_DOWNLOAD 1 LOG_CONFIGURE 1 LOG_BUILD 1 LOG_INSTALL 1
+)
+
+add_library(nlohmann_json::nlohmann_json INTERFACE IMPORTED GLOBAL)
+set_target_properties(nlohmann_json::nlohmann_json PROPERTIES
+  INTERFACE_INCLUDE_DIRECTORIES "${STAGED_INSTALL_PREFIX}/include"
+)
+
+add_dependencies(nlohmann_json::nlohmann_json nlohmann_json)
+
 ExternalProject_Add(rediscache
   URL
   https://github.com/pikiwidb/rediscache/archive/refs/tags/v1.0.7.tar.gz
@@ -754,6 +963,7 @@ add_subdirectory(src/pstd)
 add_subdirectory(src/net)
 add_subdirectory(src/storage)
 add_subdirectory(src/cache)
+add_subdirectory(src/ingest)
 if (USE_PIKA_TOOLS)
   add_subdirectory(tools)
 endif()
@@ -807,7 +1017,10 @@ add_executable(${PROJECT_NAME}
 
 target_link_directories(${PROJECT_NAME}
   PUBLIC ${INSTALL_LIBDIR_64}
-  PUBLIC ${INSTALL_LIBDIR})
+  PUBLIC ${INSTALL_LIBDIR}
+  PUBLIC ${STAGED_INSTALL_PREFIX}/lib
+  PUBLIC ${STAGED_INSTALL_PREFIX}/lib64
+  )
 
 add_dependencies(${PROJECT_NAME}
   gflags
@@ -827,20 +1040,27 @@ add_dependencies(${PROJECT_NAME}
   net
   rediscache
   storage
+  ingest
   cache
+  aws_all
 )
 
 target_include_directories(${PROJECT_NAME}
   PUBLIC ${CMAKE_CURRENT_BINARY_DIR}
   PUBLIC ${PROJECT_SOURCE_DIR}
   ${INSTALL_INCLUDEDIR}
+  PUBLIC ${STAGED_INSTALL_PREFIX}/include    
 )
+
+target_link_options(${PROJECT_NAME} PRIVATE
+  -Wl,--start-group)
 
 target_link_libraries(${PROJECT_NAME}
   cache
   storage
   net
   pstd
+  ingest
   ${GLOG_LIBRARY}
   librocksdb.a
   ${LIB_PROTOBUF}
@@ -851,8 +1071,33 @@ target_link_libraries(${PROJECT_NAME}
   liblz4.a
   libz.a
   librediscache.a
+  nlohmann_json::nlohmann_json
   ${LIBUNWIND_LIBRARY}
-  ${JEMALLOC_LIBRARY})
+  ${JEMALLOC_LIBRARY}
+  aws-cpp-sdk-transfer
+  aws-cpp-sdk-s3
+  aws-cpp-sdk-core
+  aws-crt-cpp
+  aws-c-s3
+  aws-c-mqtt  
+  aws-c-auth
+  aws-c-http
+  aws-c-io
+  aws-c-compression
+  aws-c-cal
+  aws-c-sdkutils
+  aws-c-event-stream
+  aws-c-common
+  aws-checksums
+  s2n
+
+  CURL::libcurl
+  OpenSSL::SSL
+  OpenSSL::Crypto
+  z
+  pthread
+  dl
+  )
 
 option(USE_SSL "Enable SSL support" OFF)
 add_custom_target(
