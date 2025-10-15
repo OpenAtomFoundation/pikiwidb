@@ -1,0 +1,11 @@
+[submodule "tools/pika_migrate/third/blackwidow"]
+        url = https://github.com/Qihoo360/blackwidow.git
+[submodule "tools/pika_migrate/third/slash"]
+        url = https://github.com/Qihoo360/slash.git
+[submodule "tools/pika_migrate/third/pink"]
+        url = https://github.com/Qihoo360/pink.git
+[submodule "tools/pika_migrate/third/glog"]
+        url = https://github.com/Qihoo360/glog.git
+[submodule "tools/pika_migrate/third/rocksdb"]
+        url = https://github.com/facebook/rocksdb.git
+
