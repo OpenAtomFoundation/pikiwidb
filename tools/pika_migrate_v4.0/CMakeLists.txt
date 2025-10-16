@@ -6,7 +6,7 @@ if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24.0")
 endif()
 
 set(CMAKE_CXX_STANDARD 17)
-project(pika)
+project(pika-migrate)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 enable_testing()
 
