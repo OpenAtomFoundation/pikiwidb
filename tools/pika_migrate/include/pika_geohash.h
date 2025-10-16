@@ -32,9 +32,8 @@
 #ifndef PIKA_GEOHASH_H_
 #define PIKA_GEOHASH_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <stdint.h>
+#include <cstddef>
+#include <cstdint>
 
 #if defined(__cplusplus)
 extern "C" {
@@ -42,75 +41,59 @@ extern "C" {
 
 #define HASHISZERO(r) (!(r).bits && !(r).step)
 #define RANGEISZERO(r) (!(r).max && !(r).min)
-#define RANGEPISZERO(r) (r == NULL || RANGEISZERO(*r))
+#define RANGEPISZERO(r) ((r) == nullptr || RANGEISZERO(*(r)))
 
-#define GEO_STEP_MAX 26 /* 26*2 = 52 bits. */
+#define GEO_STEP_MAX 26 /* 26 * 2 = 52 bits. */
 
 /* Limits from EPSG:900913 / EPSG:3785 / OSGEO:41001 */
-#define GEO_LAT_MIN -85.05112878
-#define GEO_LAT_MAX 85.05112878
-#define GEO_LONG_MIN -180
-#define GEO_LONG_MAX 180
+constexpr double GEO_LAT_MIN{-85.05112878};
+constexpr double GEO_LAT_MAX{85.05112878};
+constexpr int64_t GEO_LONG_MIN{-180};
+constexpr int64_t GEO_LONG_MAX{180};
 
-typedef enum {
-    GEOHASH_NORTH = 0,
-    GEOHASH_EAST,
-    GEOHASH_WEST,
-    GEOHASH_SOUTH,
-    GEOHASH_SOUTH_WEST,
-    GEOHASH_SOUTH_EAST,
-    GEOHASH_NORT_WEST,
-    GEOHASH_NORT_EAST
-} GeoDirection;
+struct GeoHashBits {
+  uint64_t bits;
+  uint8_t step;
+};
 
-typedef struct {
-    uint64_t bits;
-    uint8_t step;
-} GeoHashBits;
+struct GeoHashRange {
+  double min;
+  double max;
+};
 
-typedef struct {
-    double min;
-    double max;
-} GeoHashRange;
+struct GeoHashArea {
+  GeoHashBits hash;
+  GeoHashRange longitude;
+  GeoHashRange latitude;
+};
 
-typedef struct {
-    GeoHashBits hash;
-    GeoHashRange longitude;
-    GeoHashRange latitude;
-} GeoHashArea;
-
-typedef struct {
-    GeoHashBits north;
-    GeoHashBits east;
-    GeoHashBits west;
-    GeoHashBits south;
-    GeoHashBits north_east;
-    GeoHashBits south_east;
-    GeoHashBits north_west;
-    GeoHashBits south_west;
-} GeoHashNeighbors;
+struct GeoHashNeighbors {
+  GeoHashBits north;
+  GeoHashBits east;
+  GeoHashBits west;
+  GeoHashBits south;
+  GeoHashBits north_east;
+  GeoHashBits south_east;
+  GeoHashBits north_west;
+  GeoHashBits south_west;
+};
 
 /*
  * 0:success
  * -1:failed
  */
-void geohashGetCoordRange(GeoHashRange *long_range, GeoHashRange *lat_range);
-int geohashEncode(const GeoHashRange *long_range, const GeoHashRange *lat_range,
-                  double longitude, double latitude, uint8_t step,
-                  GeoHashBits *hash);
-int geohashEncodeType(double longitude, double latitude,
-                      uint8_t step, GeoHashBits *hash);
-int geohashEncodeWGS84(double longitude, double latitude, uint8_t step,
-                       GeoHashBits *hash);
-int geohashDecode(const GeoHashRange long_range, const GeoHashRange lat_range,
-                  const GeoHashBits hash, GeoHashArea *area);
-int geohashDecodeType(const GeoHashBits hash, GeoHashArea *area);
-int geohashDecodeWGS84(const GeoHashBits hash, GeoHashArea *area);
-int geohashDecodeAreaToLongLat(const GeoHashArea *area, double *xy);
-int geohashDecodeToLongLatType(const GeoHashBits hash, double *xy);
-int geohashDecodeToLongLatWGS84(const GeoHashBits hash, double *xy);
-int geohashDecodeToLongLatMercator(const GeoHashBits hash, double *xy);
-void geohashNeighbors(const GeoHashBits *hash, GeoHashNeighbors *neighbors);
+void geohashGetCoordRange(GeoHashRange* long_range, GeoHashRange* lat_range);
+int geohashEncode(const GeoHashRange* long_range, const GeoHashRange* lat_range, double longitude, double latitude,
+                  uint8_t step, GeoHashBits* hash);
+int geohashEncodeType(double longitude, double latitude, uint8_t step, GeoHashBits* hash);
+int geohashEncodeWGS84(double longitude, double latitude, uint8_t step, GeoHashBits* hash);
+int geohashDecode(GeoHashRange long_range, GeoHashRange lat_range, GeoHashBits hash,
+                  GeoHashArea* area);
+int geohashDecodeType(GeoHashBits hash, GeoHashArea* area);
+int geohashDecodeAreaToLongLat(const GeoHashArea* area, double* xy);
+int geohashDecodeToLongLatType(GeoHashBits hash, double* xy);
+int geohashDecodeToLongLatWGS84(GeoHashBits hash, double* xy);
+void geohashNeighbors(const GeoHashBits* hash, GeoHashNeighbors* neighbors);
 
 #if defined(__cplusplus)
 }

@@ -6,69 +6,78 @@
 #ifndef PIKA_ZSET_H_
 #define PIKA_ZSET_H_
 
-#include "blackwidow/blackwidow.h"
-
+#include "storage/storage.h"
+#include "include/acl.h"
 #include "include/pika_command.h"
-#include "include/pika_partition.h"
+#include "pika_kv.h"
 
 /*
  * zset
  */
 class ZAddCmd : public Cmd {
  public:
-  ZAddCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZAddCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZAddCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZAddCmd(*this); }
+
  private:
   std::string key_;
-  std::vector<blackwidow::ScoreMember> score_members;
-  virtual void DoInitial() override;
+  std::vector<storage::ScoreMember> score_members;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZCardCmd : public Cmd {
  public:
-  ZCardCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZCardCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZCardCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZCardCmd(*this); }
+
  private:
   std::string key_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
 };
 
 class ZScanCmd : public Cmd {
  public:
-  ZScanCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), pattern_("*"), count_(10) {}
-  virtual std::vector<std::string> current_key() const {
+  ZScanCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)), pattern_("*") {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZScanCmd(*this);
-  }
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new ZScanCmd(*this); }
+
  private:
-  std::string key_, pattern_;
-  int64_t cursor_, count_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  std::string key_, pattern_ = "*";
+  int64_t cursor_ = 0, count_ = 10;
+  void DoInitial() override;
+  void Clear() override {
     pattern_ = "*";
     count_ = 10;
   }
@@ -76,82 +85,104 @@ class ZScanCmd : public Cmd {
 
 class ZIncrbyCmd : public Cmd {
  public:
-  ZIncrbyCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZIncrbyCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZIncrbyCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZIncrbyCmd(*this); }
+  double Score() { return score_; }
+
  private:
   std::string key_, member_;
-  double by_;
-  virtual void DoInitial() override;
+  double by_ = .0f;
+  double score_ = .0f;
+  void DoInitial() override;
 };
 
 class ZsetRangeParentCmd : public Cmd {
  public:
-  ZsetRangeParentCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), is_ws_(false) {}
+  ZsetRangeParentCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+
  protected:
   std::string key_;
-  int64_t start_, stop_;
-  bool is_ws_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
-    is_ws_ = false;
-  }
+  int64_t start_ = 0;
+  int64_t stop_ = -1;
+  bool is_ws_ = false;
+  void DoInitial() override;
+  void Clear() override { is_ws_ = false; }
 };
 
 class ZRangeCmd : public ZsetRangeParentCmd {
  public:
-  ZRangeCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRangeParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRangeCmd(const std::string& name, int arity, uint32_t flag) : ZsetRangeParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRangeCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRangeCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZRevrangeCmd : public ZsetRangeParentCmd {
  public:
-  ZRevrangeCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRangeParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRevrangeCmd(const std::string& name, int arity, uint32_t flag) : ZsetRangeParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRevrangeCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRevrangeCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZsetRangebyscoreParentCmd : public Cmd {
  public:
-  ZsetRangebyscoreParentCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true), with_scores_(false), offset_(0), count_(-1) {}
+  ZsetRangebyscoreParentCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+
+  double MinScore() { return min_score_; }
+  double MaxScore() { return max_score_; }
+  bool LeftClose() { return left_close_; }
+  bool RightClose() { return right_close_; }
+  int64_t Offset() { return offset_; }
+  int64_t Count() { return count_; }
+
  protected:
   std::string key_;
-  double min_score_, max_score_;
-  bool left_close_, right_close_, with_scores_;
-  int64_t offset_, count_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  std::string min_, max_;
+  double min_score_ = 0, max_score_ = 0;
+  bool left_close_ = true, right_close_ = true, with_scores_ = false;
+  int64_t offset_ = 0, count_ = -1;
+  void DoInitial() override;
+  void Clear() override {
     left_close_ = right_close_ = true;
     with_scores_ = false;
     offset_ = 0;
@@ -161,57 +192,76 @@ class ZsetRangebyscoreParentCmd : public Cmd {
 
 class ZRangebyscoreCmd : public ZsetRangebyscoreParentCmd {
  public:
-  ZRangebyscoreCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRangebyscoreParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRangebyscoreCmd(const std::string& name, int arity, uint32_t flag) : ZsetRangebyscoreParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRangebyscoreCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRangebyscoreCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZRevrangebyscoreCmd : public ZsetRangebyscoreParentCmd {
  public:
-  ZRevrangebyscoreCmd(const std::string& name, int arity, uint16_t flag)
+  ZRevrangebyscoreCmd(const std::string& name, int arity, uint32_t flag)
       : ZsetRangebyscoreParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRevrangebyscoreCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRevrangebyscoreCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZCountCmd : public Cmd {
  public:
-  ZCountCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true) {}
-  virtual std::vector<std::string> current_key() const {
+  ZCountCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZCountCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZCountCmd(*this); }
+  double MinScore() { return min_score_; }
+  double MaxScore() { return max_score_; }
+  bool LeftClose() { return left_close_; }
+  bool RightClose() { return right_close_; }
+
  private:
   std::string key_;
-  double min_score_, max_score_;
-  bool left_close_, right_close_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  std::string min_ , max_;
+  double min_score_ = 0, max_score_ = 0;
+  bool left_close_ = true, right_close_ = true;
+  rocksdb::Status s_;
+  void DoInitial() override;
+  void Clear() override {
     left_close_ = true;
     right_close_ = true;
   }
@@ -219,135 +269,180 @@ class ZCountCmd : public Cmd {
 
 class ZRemCmd : public Cmd {
  public:
-  ZRemCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRemCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRemCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRemCmd(*this); }
+
  private:
   std::string key_;
   std::vector<std::string> members_;
-  virtual void DoInitial() override;
+  int32_t deleted_ = 0;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZsetUIstoreParentCmd : public Cmd {
  public:
-  ZsetUIstoreParentCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), aggregate_(blackwidow::SUM) {}
+  ZsetUIstoreParentCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {
+    zadd_cmd_ = std::make_unique<ZAddCmd>(kCmdNameZAdd, -4, kCmdFlagsWrite |  kCmdFlagsZset);
+  }
+  ZsetUIstoreParentCmd(const ZsetUIstoreParentCmd& other)
+      : Cmd(other),
+        dest_key_(other.dest_key_),
+        num_keys_(other.num_keys_),
+        aggregate_(other.aggregate_),
+        keys_(other.keys_),
+        weights_(other.weights_) {
+    zadd_cmd_ = std::make_unique<ZAddCmd>(kCmdNameZAdd, -4, kCmdFlagsWrite |  kCmdFlagsZset);
+  }
+
+  std::vector<std::string> current_key() const override { return {dest_key_}; }
+
  protected:
   std::string dest_key_;
-  int64_t num_keys_;
-  blackwidow::AGGREGATE aggregate_;
+  int64_t num_keys_ = 0;
+  storage::AGGREGATE aggregate_{storage::SUM};
   std::vector<std::string> keys_;
   std::vector<double> weights_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
-    aggregate_ = blackwidow::SUM;
-  }
+  void DoInitial() override;
+  void Clear() override { aggregate_ = storage::SUM; }
+  // used for write binlog
+  std::shared_ptr<Cmd> zadd_cmd_;
 };
 
 class ZUnionstoreCmd : public ZsetUIstoreParentCmd {
  public:
-  ZUnionstoreCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetUIstoreParentCmd(name, arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZUnionstoreCmd(*this);
-  }
+  ZUnionstoreCmd(const std::string& name, int arity, uint32_t flag) : ZsetUIstoreParentCmd(name, arity, flag) {}
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZUnionstoreCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  void DoInitial() override;
+  // used for write binlog
+  std::map<std::string, double> value_to_dest_;
+  rocksdb::Status s_;
+  void DoBinlog() override;
 };
 
 class ZInterstoreCmd : public ZsetUIstoreParentCmd {
  public:
-  ZInterstoreCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetUIstoreParentCmd(name, arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZInterstoreCmd(*this);
-  }
+  ZInterstoreCmd(const std::string& name, int arity, uint32_t flag) : ZsetUIstoreParentCmd(name, arity, flag) {}
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZInterstoreCmd(*this); }
+  void DoBinlog() override;
+
  private:
-  virtual void DoInitial() override;
+  void DoInitial() override;
+  rocksdb::Status s_;
+  // used for write binlog
+  std::vector<storage::ScoreMember> value_to_dest_;
 };
 
 class ZsetRankParentCmd : public Cmd {
  public:
-  ZsetRankParentCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
+  ZsetRankParentCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+
  protected:
   std::string key_, member_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
 };
 
 class ZRankCmd : public ZsetRankParentCmd {
  public:
-  ZRankCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRankParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRankCmd(const std::string& name, int arity, uint32_t flag) : ZsetRankParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRankCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRankCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZRevrankCmd : public ZsetRankParentCmd {
  public:
-  ZRevrankCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRankParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRevrankCmd(const std::string& name, int arity, uint32_t flag) : ZsetRankParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRevrankCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRevrankCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZScoreCmd : public ZsetRankParentCmd {
  public:
-  ZScoreCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRankParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZScoreCmd(const std::string& name, int arity, uint32_t flag) : ZsetRankParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZScoreCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZScoreCmd(*this); }
+
  private:
   std::string key_, member_;
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
-
 
 class ZsetRangebylexParentCmd : public Cmd {
  public:
-  ZsetRangebylexParentCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true), offset_(0), count_(-1) {}
+  ZsetRangebylexParentCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+
  protected:
   std::string key_, min_member_, max_member_;
-  bool left_close_, right_close_;
-  int64_t offset_, count_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  std::string min_, max_;
+  bool left_close_ = true, right_close_ = true;
+  int64_t offset_ = 0, count_ = -1;
+  void DoInitial() override;
+  void Clear() override {
     left_close_ = right_close_ = true;
     offset_ = 0;
     count_ = -1;
@@ -356,161 +451,188 @@ class ZsetRangebylexParentCmd : public Cmd {
 
 class ZRangebylexCmd : public ZsetRangebylexParentCmd {
  public:
-  ZRangebylexCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRangebylexParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRangebylexCmd(const std::string& name, int arity, uint32_t flag) : ZsetRangebylexParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRangebylexCmd(*this);
-  }
- private: 
-  virtual void DoInitial() override;
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRangebylexCmd(*this); }
+
+ private:
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZRevrangebylexCmd : public ZsetRangebylexParentCmd {
  public:
-  ZRevrangebylexCmd(const std::string& name, int arity, uint16_t flag)
-      : ZsetRangebylexParentCmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRevrangebylexCmd(const std::string& name, int arity, uint32_t flag) : ZsetRangebylexParentCmd(name, arity, flag) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRevrangebylexCmd(*this);
-  }
- private: 
-  virtual void DoInitial() override;
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRevrangebylexCmd(*this); }
+
+ private:
+  void DoInitial() override;
+  rocksdb::Status s_;
 };
 
 class ZLexcountCmd : public Cmd {
  public:
-  ZLexcountCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true) {}
-  virtual std::vector<std::string> current_key() const {
+  ZLexcountCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZLexcountCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZLexcountCmd(*this); }
+
  private:
   std::string key_, min_member_, max_member_;
-  bool left_close_, right_close_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
-    left_close_ = right_close_ = true;
-  }
+  std::string min_, max_;
+  bool left_close_ = true, right_close_ = true;
+  rocksdb::Status s_;
+  void DoInitial() override;
+  void Clear() override { left_close_ = right_close_ = true; }
 };
 
 class ZRemrangebyrankCmd : public Cmd {
  public:
-  ZRemrangebyrankCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRemrangebyrankCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRemrangebyrankCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRemrangebyrankCmd(*this); }
+
  private:
-  std::string key_;
-  int64_t start_rank_, stop_rank_;
-  virtual void DoInitial() override;
+  std::string key_, min_, max_;
+  int64_t start_rank_ = 0, stop_rank_ = -1;
+  int32_t ele_deleted_;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class ZRemrangebyscoreCmd : public Cmd {
  public:
-  ZRemrangebyscoreCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRemrangebyscoreCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRemrangebyscoreCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRemrangebyscoreCmd(*this); }
+
  private:
-  std::string key_;
-  double min_score_, max_score_;
-  bool left_close_, right_close_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
-    left_close_ =  right_close_ = true;
-  }
+  std::string key_, min_, max_;
+  double min_score_ = 0, max_score_ = 0;
+  bool left_close_ = true, right_close_ = true;
+  rocksdb::Status s_;
+  void DoInitial() override;
+  void Clear() override { left_close_ = right_close_ = true; }
 };
 
 class ZRemrangebylexCmd : public Cmd {
  public:
-  ZRemrangebylexCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), left_close_(true), right_close_(true) {}
-  virtual std::vector<std::string> current_key() const {
+  ZRemrangebylexCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZRemrangebylexCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new ZRemrangebylexCmd(*this); }
+
  private:
-  std::string key_;
+  std::string key_, min_, max_;
   std::string min_member_, max_member_;
-  bool left_close_, right_close_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
-    left_close_ =  right_close_ = true;
-  }
+  bool left_close_ = true, right_close_ = true;
+  rocksdb::Status s_;
+  void DoInitial() override;
+  void Clear() override { left_close_ = right_close_ = true; }
 };
 
 class ZPopmaxCmd : public Cmd {
  public:
-  ZPopmaxCmd(const std::string& name, int arity, uint16_t flag)
-       : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const { 
+  ZPopmaxCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.emplace_back(key_);
-    return res; 
+    return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZPopmaxCmd(*this);
-  }
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  void DoThroughDB() override;
+  void DoUpdateCache() override;
+  Cmd* Clone() override { return new ZPopmaxCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  void DoInitial() override;
   std::string key_;
-  int64_t count_;
+  int64_t count_ = 0;
 };
 
 class ZPopminCmd : public Cmd {
  public:
-  ZPopminCmd(const std::string& name, int arity, uint16_t flag)
-       : Cmd(name, arity, flag) {}
-  virtual std::vector<std::string> current_key() const { 
+  ZPopminCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SORTEDSET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
-    return res; 
+    return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new ZPopminCmd(*this);
-  }
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  void DoThroughDB() override;
+  void DoUpdateCache() override;
+  Cmd* Clone() override { return new ZPopminCmd(*this); }
+
  private:
-  virtual void DoInitial() override;
+  void DoInitial() override;
   std::string key_;
-  int64_t count_;
+  int64_t count_ = 0;
 };
 
 #endif

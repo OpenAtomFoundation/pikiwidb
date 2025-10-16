@@ -5,84 +5,106 @@
 
 #include "include/pika_cmd_table_manager.h"
 
-#include <unistd.h>
 #include <sys/syscall.h>
+#include <unistd.h>
 
+#include "include/acl.h"
 #include "include/pika_conf.h"
-#include "slash/include/slash_mutex.h"
+#include "pstd/include/pstd_mutex.h"
 
-
-#define gettid() syscall(__NR_gettid)
-
-extern PikaConf* g_pika_conf;
+extern std::unique_ptr<PikaConf> g_pika_conf;
 
 PikaCmdTableManager::PikaCmdTableManager() {
-  pthread_rwlock_init(&map_protector_, NULL);
-  cmds_ = new CmdTable();
+  cmds_ = std::make_unique<CmdTable>();
   cmds_->reserve(300);
-  InitCmdTable(cmds_);
 }
 
-PikaCmdTableManager::~PikaCmdTableManager() {
-  pthread_rwlock_destroy(&map_protector_);
-  for (const auto&item : thread_distribution_map_) {
-    delete item.second;
+void PikaCmdTableManager::InitCmdTable(void) {
+  ::InitCmdTable(cmds_.get());
+  for (const auto& cmd : *cmds_) {
+    if (cmd.second->flag() & kCmdFlagsWrite) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::WRITE));
+    }
+    if (cmd.second->flag() & kCmdFlagsRead &&
+        !(cmd.second->AclCategory() & static_cast<uint32_t>(AclCategory::SCRIPTING))) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::READ));
+    }
+    if (cmd.second->flag() & kCmdFlagsAdmin) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::ADMIN) |
+                                 static_cast<uint32_t>(AclCategory::DANGEROUS));
+    }
+    if (cmd.second->flag() & kCmdFlagsPubSub) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::PUBSUB));
+    }
+    if (cmd.second->flag() & kCmdFlagsFast) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::FAST));
+    }
+    if (cmd.second->flag() & kCmdFlagsSlow) {
+      cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::SLOW));
+    }
   }
-  DestoryCmdTable(cmds_);
-  delete cmds_;
+
+  CommandStatistics statistics;
+  for (auto& iter : *cmds_) {
+    cmdstat_map_.emplace(iter.first, statistics);
+    iter.second->SetCmdId(cmdId_++);
+  }
+}
+
+void PikaCmdTableManager::RenameCommand(const std::string before, const std::string after) {
+  auto it = cmds_->find(before);
+  if (it != cmds_->end()) {
+    if (after.length() > 0) {
+      cmds_->insert(std::pair<std::string, std::unique_ptr<Cmd>>(after, std::move(it->second)));
+    } else {
+      LOG(ERROR) << "The value of rename-command is null";
+    }
+    cmds_->erase(it);
+  }
+}
+
+std::unordered_map<std::string, CommandStatistics>* PikaCmdTableManager::GetCommandStatMap() {
+  return &cmdstat_map_;
 }
 
 std::shared_ptr<Cmd> PikaCmdTableManager::GetCmd(const std::string& opt) {
-  std::string internal_opt = opt;
-  if (!g_pika_conf->classic_mode()) {
-    TryChangeToAlias(&internal_opt);
-  }
+  const std::string& internal_opt = opt;
   return NewCommand(internal_opt);
 }
 
 std::shared_ptr<Cmd> PikaCmdTableManager::NewCommand(const std::string& opt) {
-  Cmd* cmd = GetCmdFromTable(opt, *cmds_);
+  Cmd* cmd = GetCmdFromDB(opt, *cmds_);
   if (cmd) {
     return std::shared_ptr<Cmd>(cmd->Clone());
   }
   return nullptr;
 }
 
-void PikaCmdTableManager::TryChangeToAlias(std::string *internal_opt) {
-  if (!strcasecmp(internal_opt->c_str(), kCmdNameSlaveof.c_str())) {
-    *internal_opt = kCmdNamePkClusterSlotsSlaveof;
-  }
-}
+CmdTable* PikaCmdTableManager::GetCmdTable() { return cmds_.get(); }
 
-bool PikaCmdTableManager::CheckCurrentThreadDistributionMapExist(const pid_t& tid) {
-  slash::RWLock l(&map_protector_, false);
-  if (thread_distribution_map_.find(tid) == thread_distribution_map_.end()) {
-    return false;
-  }
-  return true;
+uint32_t PikaCmdTableManager::GetMaxCmdId() { return cmdId_; }
+
+bool PikaCmdTableManager::CheckCurrentThreadDistributionMapExist(const std::thread::id& tid) {
+  std::shared_lock l(map_protector_);
+  return thread_distribution_map_.find(tid) != thread_distribution_map_.end();
 }
 
 void PikaCmdTableManager::InsertCurrentThreadDistributionMap() {
-  pid_t tid = gettid();
-  PikaDataDistribution* distribution = nullptr;
-  if (g_pika_conf->classic_mode()) {
-    distribution = new HashModulo();
-  } else {
-    distribution = new Crc32();
-  }
+  auto tid = std::this_thread::get_id();
+  std::unique_ptr<PikaDataDistribution> distribution = std::make_unique<HashModulo>();
   distribution->Init();
-  slash::RWLock l(&map_protector_, true);
-  thread_distribution_map_.insert(std::make_pair(tid, distribution));
+  std::lock_guard l(map_protector_);
+  thread_distribution_map_.emplace(tid, std::move(distribution));
 }
 
-uint32_t PikaCmdTableManager::DistributeKey(const std::string& key, uint32_t partition_num) {
-  pid_t tid = gettid();
-  PikaDataDistribution* data_dist = nullptr;
-  if (!CheckCurrentThreadDistributionMapExist(tid)) {
-    InsertCurrentThreadDistributionMap();
-  }
+bool PikaCmdTableManager::CmdExist(const std::string& cmd) const { return cmds_->find(cmd) != cmds_->end(); }
 
-  slash::RWLock l(&map_protector_, false);
-  data_dist = thread_distribution_map_[tid];
-  return data_dist->Distribute(key, partition_num);
+std::vector<std::string> PikaCmdTableManager::GetAclCategoryCmdNames(uint32_t flag) {
+  std::vector<std::string> result;
+  for (const auto& item : (*cmds_)) {
+    if (item.second->AclCategory() & flag) {
+      result.emplace_back(item.first);
+    }
+  }
+  return result;
 }
