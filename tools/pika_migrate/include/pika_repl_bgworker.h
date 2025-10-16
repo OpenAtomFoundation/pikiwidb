@@ -8,36 +8,46 @@
 
 #include <memory>
 #include <string>
+#include <functional>
+#include "net/include/bg_thread.h"
+#include "net/include/pb_conn.h"
+#include "net/include/thread_pool.h"
 
-#include "pink/include/pb_conn.h"
-#include "pink/include/bg_thread.h"
-#include "pink/include/thread_pool.h"
+#include "pika_inner_message.pb.h"
 
-#include "src/pika_inner_message.pb.h"
-
-#include "include/pika_command.h"
 #include "include/pika_binlog_transverter.h"
+#include "include/pika_define.h"
+#include "include/pika_command.h"
 
 class PikaReplBgWorker {
  public:
   explicit PikaReplBgWorker(int queue_size);
-  ~PikaReplBgWorker();
   int StartThread();
   int StopThread();
-  void Schedule(pink::TaskFunc func, void* arg);
-  void QueueClear();
+  int TaskQueueSize() {
+    int pri_size = 0;
+    int qu_size = 0;
+    bg_thread_.QueueSize(&pri_size, &qu_size);
+    return pri_size + qu_size;
+  }
+  void Schedule(net::TaskFunc func, void* arg);
+  void Schedule(net::TaskFunc func, void* arg, std::function<void()>& call_back);
   static void HandleBGWorkerWriteBinlog(void* arg);
   static void HandleBGWorkerWriteDB(void* arg);
-
+  static void WriteDBInSyncWay(const std::shared_ptr<Cmd>& c_ptr);
+  void SetThreadName(const std::string& thread_name) {
+    bg_thread_.set_thread_name(thread_name);
+  }
   BinlogItem binlog_item_;
-  pink::RedisParser redis_parser_;
+  net::RedisParser redis_parser_;
   std::string ip_port_;
-  std::string table_name_;
-  uint32_t partition_id_;
+  std::string db_name_;
 
  private:
-  pink::BGThread bg_thread_;
-  static int HandleWriteBinlog(pink::RedisParser* parser, const pink::RedisCmdArgsType& argv);
+  net::BGThread bg_thread_;
+  static int HandleWriteBinlog(net::RedisParser* parser, const net::RedisCmdArgsType& argv);
+  static void ParseBinlogOffset(const InnerMessage::BinlogOffset& pb_offset, LogOffset* offset);
+  static void ParseAndSendPikaCommand(const std::shared_ptr<Cmd>& c_ptr);
 };
 
 #endif  // PIKA_REPL_BGWROKER_H_

@@ -11,22 +11,17 @@
 
 #include <glog/logging.h>
 
-#include "slash/include/xdebug.h"
-
 static time_t kCheckDiff = 1;
 
-RedisSender::RedisSender(int id, std::string ip, int64_t port, std::string password):
+RedisSender::RedisSender(int id, std::string ip, int64_t port, std::string user, std::string password):
   id_(id),
   cli_(NULL),
-  rsignal_(&commands_mutex_),
-  wsignal_(&commands_mutex_),
   ip_(ip),
   port_(port),
+  user_(user),
   password_(password),
   should_exit_(false),
-  cnt_(0),
   elements_(0) {
-
   last_write_time_ = ::time(NULL);
 }
 
@@ -37,29 +32,28 @@ RedisSender::~RedisSender() {
 void RedisSender::ConnectRedis() {
   while (cli_ == NULL) {
     // Connect to redis
-    cli_ = pink::NewRedisCli();
+    cli_ = std::shared_ptr<net::NetCli>(net::NewRedisCli());
     cli_->set_connect_timeout(1000);
     cli_->set_recv_timeout(10000);
     cli_->set_send_timeout(10000);
-    slash::Status s = cli_->Connect(ip_, port_);
+    pstd::Status s = cli_->Connect(ip_, port_);
     if (!s.ok()) {
       LOG(WARNING) << "Can not connect to " << ip_ << ":" << port_ << ", status: " << s.ToString();
-      delete cli_;
       cli_ = NULL;
       sleep(3);
       continue;
     } else {
       // Connect success
-
+      // LOG(INFO) << "RedisSender thread " << id_ << "Connect to redis(" << ip_ << ":" << port_ << ") success";
       // Authentication
       if (!password_.empty()) {
-        pink::RedisCmdArgsType argv, resp;
+        net::RedisCmdArgsType argv, resp;
         std::string cmd;
 
         argv.push_back("AUTH");
         argv.push_back(password_);
-        pink::SerializeRedisCommand(argv, &cmd);
-        slash::Status s = cli_->Send(&cmd);
+        net::SerializeRedisCommand(argv, &cmd);
+        pstd::Status s = cli_->Send(&cmd);
 
         if (s.ok()) {
           s = cli_->Recv(&resp);
@@ -67,7 +61,6 @@ void RedisSender::ConnectRedis() {
           } else {
             LOG(FATAL) << "Connect to redis(" << ip_ << ":" << port_ << ") Invalid password";
             cli_->Close();
-            delete cli_;
             cli_ = NULL;
             should_exit_ = true;
             return;
@@ -75,18 +68,17 @@ void RedisSender::ConnectRedis() {
         } else {
           LOG(WARNING) << "send auth failed: " << s.ToString();
           cli_->Close();
-          delete cli_;
           cli_ = NULL;
           continue;
         }
       } else {
         // If forget to input password
-        pink::RedisCmdArgsType argv, resp;
+        net::RedisCmdArgsType argv, resp;
         std::string cmd;
 
         argv.push_back("PING");
-        pink::SerializeRedisCommand(argv, &cmd);
-        slash::Status s = cli_->Send(&cmd);
+        net::SerializeRedisCommand(argv, &cmd);
+        pstd::Status s = cli_->Send(&cmd);
 
         if (s.ok()) {
           s = cli_->Recv(&resp);
@@ -94,7 +86,6 @@ void RedisSender::ConnectRedis() {
             if (resp[0] == "NOAUTH Authentication required.") {
               LOG(FATAL) << "Ping redis(" << ip_ << ":" << port_ << ") NOAUTH Authentication required";
               cli_->Close();
-              delete cli_;
               cli_ = NULL;
               should_exit_ = true;
               return;
@@ -102,7 +93,6 @@ void RedisSender::ConnectRedis() {
           } else {
             LOG(WARNING) << s.ToString();
             cli_->Close();
-            delete cli_;
             cli_ = NULL;
           }
         }
@@ -114,26 +104,18 @@ void RedisSender::ConnectRedis() {
 void RedisSender::Stop() {
   set_should_stop();
   should_exit_ = true;
-  commands_mutex_.Lock();
-  rsignal_.Signal();
-  commands_mutex_.Unlock();
+  rsignal_.notify_all();
+  wsignal_.notify_all();
 }
 
 void RedisSender::SendRedisCommand(const std::string &command) {
-  commands_mutex_.Lock();
-  if (commands_queue_.size() < 100000) {
+  std::unique_lock lock(signal_mutex_);
+  wsignal_.wait(lock, [this]() { return commandQueueSize() < 100000; });
+  if (!should_exit_) {
+    std::lock_guard l(command_queue_mutex_);
     commands_queue_.push(command);
-    rsignal_.Signal();
-    commands_mutex_.Unlock();
-    return;
+    rsignal_.notify_one();
   }
-
-  while (commands_queue_.size() > 100000) {
-    wsignal_.Wait();
-  }
-  commands_queue_.push(command);
-  rsignal_.Signal();
-  commands_mutex_.Unlock();
 }
 
 int RedisSender::SendCommand(std::string &command) {
@@ -141,6 +123,7 @@ int RedisSender::SendCommand(std::string &command) {
   if (kCheckDiff < now - last_write_time_) {
     int ret = cli_->CheckAliveness();
     if (ret < 0) {
+      cli_ = nullptr;
       ConnectRedis();
     }
     last_write_time_ = now;
@@ -149,19 +132,18 @@ int RedisSender::SendCommand(std::string &command) {
   // Send command
   int idx = 0;
   do {
-    slash::Status s = cli_->Send(&command);
+    pstd::Status s = cli_->Send(&command);
+
     if (s.ok()) {
+      cli_->Recv(nullptr);
       return 0;
     }
 
-    LOG(WARNING) << "RedisSender " << id_ << "fails to send redis command " << command << ", times: " << idx + 1 << ", error: " << s.ToString();
-
     cli_->Close();
-    delete cli_;
     cli_ = NULL;
     ConnectRedis();
   } while(++idx < 3);
-
+  LOG(FATAL) << "RedisSender " << id_ << " fails to send redis command " << command << ", times: " << idx << ", error: " << "send command failed";
   return -1;
 }
 
@@ -173,50 +155,34 @@ void *RedisSender::ThreadMain() {
   ConnectRedis();
 
   while (!should_exit_) {
-    commands_mutex_.Lock();
-    while (commands_queue_.size() == 0 && !should_exit_) {
-      rsignal_.TimedWait(100);
-      // rsignal_.Wait();
+    std::unique_lock lock(signal_mutex_);
+    while (commandQueueSize() == 0 && !should_exit_) {
+      rsignal_.wait_for(lock, std::chrono::milliseconds(100));
     }
-    // if (commands_queue_.size() == 0 && should_exit_) {
+
     if (should_exit_) {
-      commands_mutex_.Unlock();
       break;
     }
 
-    if (commands_queue_.size() == 0) {
-      commands_mutex_.Unlock();
+    if (commandQueueSize() == 0) {
       continue;
     }
-    commands_mutex_.Unlock();
 
     // get redis command
     std::string command;
-    commands_mutex_.Lock();
-    command = commands_queue_.front();
-    // printf("%d, command %s\n", id_, command.c_str());
-    elements_++;
-    commands_queue_.pop();
-    wsignal_.Signal();
-    commands_mutex_.Unlock();
-    ret = SendCommand(command);
-    if (ret == 0) {
-      cnt_++;
+    {
+      std::lock_guard l(command_queue_mutex_);
+      command = commands_queue_.front();
+      elements_++;
+      commands_queue_.pop();
     }
 
-    if (cnt_ >= 200) {
-      for(; cnt_ > 0; cnt_--) {
-        cli_->Recv(NULL);
-      }
-    }
-  }
-  for(; cnt_ > 0; cnt_--) {
-    cli_->Recv(NULL);
+    wsignal_.notify_one();
+    ret = SendCommand(command);
+
   }
 
   LOG(INFO) << "RedisSender thread " << id_ << " complete";
-  delete cli_;
   cli_ = NULL;
   return NULL;
 }
-

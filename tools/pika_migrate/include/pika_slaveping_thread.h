@@ -8,17 +8,16 @@
 
 #include <glog/logging.h>
 
-#include "slash/include/slash_status.h"
-#include "pink/include/pink_cli.h"
-#include "pink/include/pink_thread.h"
+#include "net/include/net_cli.h"
+#include "net/include/net_thread.h"
+#include "pstd/include/pstd_status.h"
 
-using slash::Status;
+using pstd::Status;
 
-class PikaSlavepingThread : public pink::Thread {
+class PikaSlavepingThread : public net::Thread {
  public:
-  PikaSlavepingThread(int64_t sid)
-      : sid_(sid), is_first_send_(true) {
-    cli_ = pink::NewPbCli();
+  PikaSlavepingThread(int64_t sid) : sid_(sid), is_first_send_(true) {
+    cli_ = net::NewPbCli();
     cli_->set_connect_timeout(1500);
     set_thread_name("SlavePingThread");
   };
@@ -32,12 +31,10 @@ class PikaSlavepingThread : public pink::Thread {
   Status RecvProc();
 
  private:
-  int64_t sid_;
-  bool is_first_send_;
-
-  int sockfd_;
-  pink::PinkCli *cli_;
-
+  int64_t sid_ = 0;
+  bool is_first_send_ = true;
+  int sockfd_ = -1;
+  net::NetCli* cli_ = nullptr;
   virtual void* ThreadMain();
 };
 

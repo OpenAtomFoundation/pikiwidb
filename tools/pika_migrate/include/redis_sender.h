@@ -6,14 +6,16 @@
 #include <chrono>
 #include <iostream>
 #include <queue>
+#include <mutex>
+#include <condition_variable>
 
-#include "pink/include/bg_thread.h"
-#include "pink/include/pink_cli.h"
-#include "pink/include/redis_cli.h"
+#include "net/include/net_thread.h"
+#include "net/include/net_cli.h"
+#include "net/include/redis_cli.h"
 
-class RedisSender : public pink::Thread {
+class RedisSender : public net::Thread {
  public:
-  RedisSender(int id, std::string ip, int64_t port, std::string password);
+  RedisSender(int id, std::string ip, int64_t port, std::string user, std::string password);
   virtual ~RedisSender();
   void Stop(void);
   int64_t elements() {
@@ -25,23 +27,26 @@ class RedisSender : public pink::Thread {
  private:
   int SendCommand(std::string &command);
   void ConnectRedis();
-
+  size_t commandQueueSize() {
+    std::lock_guard l(command_queue_mutex_);
+    return commands_queue_.size();
+  }
+  virtual void *ThreadMain();
  private:
   int id_;
-  pink::PinkCli *cli_;
-  slash::CondVar rsignal_;
-  slash::CondVar wsignal_;
-  slash::Mutex commands_mutex_;
+  int port_;
+  std::shared_ptr<net::NetCli> cli_;
+  std::condition_variable rsignal_;
+  std::condition_variable wsignal_;
+  std::mutex signal_mutex_;
+  std::mutex command_queue_mutex_;
   std::queue<std::string> commands_queue_;
   std::string ip_;
-  int port_;
+  std::string user_;
   std::string password_;
   bool should_exit_;
-  int32_t cnt_;
   int64_t elements_;
   std::atomic<time_t> last_write_time_;
-
-  virtual void *ThreadMain();
 };
 
 #endif

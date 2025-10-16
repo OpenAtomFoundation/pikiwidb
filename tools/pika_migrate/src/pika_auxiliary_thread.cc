@@ -5,12 +5,14 @@
 
 #include "include/pika_auxiliary_thread.h"
 
-#include "include/pika_server.h"
 #include "include/pika_define.h"
 #include "include/pika_rm.h"
+#include "include/pika_server.h"
 
 extern PikaServer* g_pika_server;
-extern PikaReplicaManager* g_pika_rm;
+extern std::unique_ptr<PikaReplicaManager> g_pika_rm;
+
+using namespace std::chrono_literals;
 
 PikaAuxiliaryThread::~PikaAuxiliaryThread() {
   StopThread();
@@ -19,20 +21,18 @@ PikaAuxiliaryThread::~PikaAuxiliaryThread() {
 
 void* PikaAuxiliaryThread::ThreadMain() {
   while (!should_stop()) {
-    if (g_pika_conf->classic_mode()) {
-      if (g_pika_server->ShouldMetaSync()) {
-        g_pika_rm->SendMetaSyncRequest();
-      } else if (g_pika_server->MetaSyncDone()) {
-        g_pika_rm->RunSyncSlavePartitionStateMachine();
-      }
-    } else {
-      g_pika_rm->RunSyncSlavePartitionStateMachine();
+    if (g_pika_server->ShouldMetaSync()) {
+      g_pika_rm->SendMetaSyncRequest();
+    } else if (g_pika_server->MetaSyncDone()) {
+      g_pika_rm->RunSyncSlaveDBStateMachine();
     }
 
-    Status s = g_pika_rm->CheckSyncTimeout(slash::NowMicros());
+    pstd::Status s = g_pika_rm->CheckSyncTimeout(pstd::NowMicros());
     if (!s.ok()) {
       LOG(WARNING) << s.ToString();
     }
+
+    g_pika_server->CheckLeaderProtectedMode();
 
     // TODO(whoiami) timeout
     s = g_pika_server->TriggerSendBinlogSync();
@@ -41,15 +41,13 @@ void* PikaAuxiliaryThread::ThreadMain() {
     }
     // send to peer
     int res = g_pika_server->SendToPeer();
-    if (!res) {
+    if (res == 0) {
       // sleep 100 ms
-      mu_.Lock();
-      cv_.TimedWait(100);
-      mu_.Unlock();
+      std::unique_lock lock(mu_);
+      cv_.wait_for(lock, 100ms);
     } else {
-      //LOG_EVERY_N(INFO, 1000) << "Consume binlog number " << res;
+      // LOG_EVERY_N(INFO, 1000) << "Consume binlog number " << res;
     }
   }
-  return NULL;
+  return nullptr;
 }
-

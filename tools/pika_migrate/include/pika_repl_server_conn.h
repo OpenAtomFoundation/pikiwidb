@@ -8,23 +8,35 @@
 
 #include <string>
 
-#include "pink/include/pb_conn.h"
-#include "pink/include/pink_thread.h"
+#include "net/include/net_thread.h"
+#include "net/include/pb_conn.h"
 
-#include "src/pika_inner_message.pb.h"
+#include "include/pika_define.h"
+#include "pika_inner_message.pb.h"
 
-class PikaReplServerConn: public pink::PbConn {
+class SyncMasterDB;
+
+class PikaReplServerConn : public net::PbConn {
  public:
-  PikaReplServerConn(int fd, std::string ip_port, pink::Thread* thread, void* worker_specific_data, pink::PinkEpoll* epoll);
-  virtual ~PikaReplServerConn();
+  PikaReplServerConn(int fd, const std::string& ip_port, net::Thread* thread, void* worker_specific_data,
+                     net::NetMultiplexer* mpx);
+  ~PikaReplServerConn() override;
 
   static void HandleMetaSyncRequest(void* arg);
   static void HandleTrySyncRequest(void* arg);
+
+  static bool TrySyncOffsetCheck(const std::shared_ptr<SyncMasterDB>& db,
+                                 const InnerMessage::InnerRequest::TrySync& try_sync_request,
+                                 InnerMessage::InnerResponse::TrySync* try_sync_response);
+  static bool TrySyncUpdateSlaveNode(const std::shared_ptr<SyncMasterDB>& db,
+                                     const InnerMessage::InnerRequest::TrySync& try_sync_request,
+                                     const std::shared_ptr<net::PbConn>& conn,
+                                     InnerMessage::InnerResponse::TrySync* try_sync_response);
   static void HandleDBSyncRequest(void* arg);
   static void HandleBinlogSyncRequest(void* arg);
   static void HandleRemoveSlaveNodeRequest(void* arg);
 
-  int DealMessage();
+  int DealMessage() override;
 };
 
 #endif  // INCLUDE_PIKA_REPL_SERVER_CONN_H_
