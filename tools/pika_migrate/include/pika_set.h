@@ -6,258 +6,363 @@
 #ifndef PIKA_SET_H_
 #define PIKA_SET_H_
 
+#include "include/acl.h"
 #include "include/pika_command.h"
-#include "include/pika_partition.h"
+#include "pika_kv.h"
 
 /*
  * set
  */
 class SAddCmd : public Cmd {
  public:
-  SAddCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  SAddCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SAddCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SAddCmd(*this); }
+
  private:
   std::string key_;
   std::vector<std::string> members_;
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
+};
+
+class SRemCmd : public Cmd {
+ public:
+  SRemCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
+    std::vector<std::string> res;
+    res.push_back(key_);
+    return res;
+  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SRemCmd(*this); }
+
+ private:
+  void DoInitial() override;
+
+ private:
+  std::string key_;
+  std::vector<std::string> members_;
+  rocksdb::Status s_;
+  int32_t deleted_ = 0;
 };
 
 class SPopCmd : public Cmd {
  public:
-  SPopCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  SPopCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {
+    srem_cmd_ = std::make_shared<SRemCmd>(kCmdNameSRem, -3, kCmdFlagsWrite | kCmdFlagsSet);
+  }
+  SPopCmd(const SPopCmd& other)
+      : Cmd(other), key_(other.key_), members_(other.members_), count_(other.count_), s_(other.s_) {
+    srem_cmd_ = std::make_shared<SRemCmd>(kCmdNameSRem, -3, kCmdFlagsWrite | kCmdFlagsSet);
+  }
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SPopCmd(*this);
-  }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SPopCmd(*this); }
+  void DoBinlog() override;
+
+ private:
+  void DoInitial() override;
+
  private:
   std::string key_;
-  virtual void DoInitial() override;
+  std::vector<std::string> members_;
+  // used for write binlog
+  std::shared_ptr<SRemCmd> srem_cmd_;
+  int64_t count_ = 1;
+  rocksdb::Status s_;
 };
 
 class SCardCmd : public Cmd {
  public:
-  SCardCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  SCardCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SCardCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SCardCmd(*this); }
+
  private:
   std::string key_;
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class SMembersCmd : public Cmd {
  public:
-  SMembersCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  SMembersCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SMembersCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SMembersCmd(*this); }
+
  private:
   std::string key_;
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class SScanCmd : public Cmd {
  public:
-  SScanCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), pattern_("*"), count_(10) {}
-  virtual std::vector<std::string> current_key() const {
+  SScanCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)), pattern_("*") {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SScanCmd(*this);
-  }
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new SScanCmd(*this); }
+
  private:
-  std::string key_, pattern_;
-  int64_t cursor_, count_;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  std::string key_, pattern_ = "*";
+  int64_t cursor_ = 0;
+  int64_t count_ = 10;
+  void DoInitial() override;
+  void Clear() override {
     pattern_ = "*";
     count_ = 10;
   }
 };
 
-class SRemCmd : public Cmd {
- public:
-  SRemCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
-    std::vector<std::string> res;
-    res.push_back(key_);
-    return res;
-  }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SRemCmd(*this);
-  }
- private:
-  std::string key_;
-  std::vector<std::string> members_;
-  virtual void DoInitial() override;
-};
-
 class SUnionCmd : public Cmd {
  public:
-  SUnionCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SUnionCmd(*this);
-  }
+  SUnionCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new SUnionCmd(*this); }
+
  private:
   std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
 };
 
-class SUnionstoreCmd : public Cmd {
+class SetOperationCmd : public Cmd {
  public:
-  SUnionstoreCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SUnionstoreCmd(*this);
+  SetOperationCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {
+    sadd_cmd_ = std::make_shared<SAddCmd>(kCmdNameSAdd, -3, kCmdFlagsWrite |  kCmdFlagsSet);
+    del_cmd_ = std::make_unique<DelCmd>(kCmdNameDel, -2, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache);
   }
- private:
+  SetOperationCmd(const SetOperationCmd& other)
+      : Cmd(other), dest_key_(other.dest_key_), value_to_dest_(other.value_to_dest_) {
+    sadd_cmd_ = std::make_shared<SAddCmd>(kCmdNameSAdd, -3, kCmdFlagsWrite |  kCmdFlagsSet);
+    del_cmd_ = std::make_unique<DelCmd>(kCmdNameDel, -2, kCmdFlagsWrite | kCmdFlagsKv | kCmdFlagsDoThroughDB | kCmdFlagsUpdateCache);
+  }
+
+  std::vector<std::string> current_key() const override { return {dest_key_}; }
+  void DoBinlog() override;
+
+ protected:
   std::string dest_key_;
   std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  // used for write binlog
+  std::shared_ptr<Cmd> sadd_cmd_;
+  std::shared_ptr<Cmd> del_cmd_;
+  std::vector<std::string> value_to_dest_;
+};
+
+class SUnionstoreCmd : public SetOperationCmd {
+ public:
+  SUnionstoreCmd(const std::string& name, int arity, uint32_t flag) : SetOperationCmd(name, arity, flag) {}
+  // current_key() is override in base class : SetOperationCmd
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SUnionstoreCmd(*this); }
+
+ private:
+  void DoInitial() override;
+  rocksdb::Status s_;
 };
 
 class SInterCmd : public Cmd {
  public:
-  SInterCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SInterCmd(*this);
-  }
+  SInterCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new SInterCmd(*this); }
+
  private:
   std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
 };
 
-class SInterstoreCmd : public Cmd {
+class SInterstoreCmd : public SetOperationCmd {
  public:
-  SInterstoreCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SInterstoreCmd(*this);
-  }
+  SInterstoreCmd(const std::string& name, int arity, uint32_t flag) : SetOperationCmd(name, arity, flag) {}
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SInterstoreCmd(*this); }
+
  private:
-  std::string dest_key_;
-  std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
+  rocksdb::Status s_;
 };
 
 class SIsmemberCmd : public Cmd {
  public:
-  SIsmemberCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual std::vector<std::string> current_key() const {
+  SIsmemberCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SIsmemberCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SIsmemberCmd(*this); }
+
  private:
-  std::string key_, member_;
-  virtual void DoInitial() override;
+   std::string key_;
+   std::string member_;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class SDiffCmd : public Cmd {
  public:
-  SDiffCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SDiffCmd(*this);
-  }
+  SDiffCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  void Do() override;
+  void Split(const HintKeys& hint_keys) override {};
+  void Merge() override {};
+  Cmd* Clone() override { return new SDiffCmd(*this); }
+
  private:
   std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
 };
 
-class SDiffstoreCmd : public Cmd {
+class SDiffstoreCmd : public SetOperationCmd {
  public:
-  SDiffstoreCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SDiffstoreCmd(*this);
-  }
+  SDiffstoreCmd(const std::string& name, int arity, uint32_t flag) : SetOperationCmd(name, arity, flag) {}
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SDiffstoreCmd(*this); }
+
  private:
-  std::string dest_key_;
-  std::vector<std::string> keys_;
-  virtual void DoInitial() override;
+  rocksdb::Status s_;
+  void DoInitial() override;
 };
 
 class SMoveCmd : public Cmd {
  public:
-  SMoveCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name,  arity, flag) {}
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SMoveCmd(*this);
+  SMoveCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {
+    srem_cmd_ = std::make_shared<SRemCmd>(kCmdNameSRem, -3, kCmdFlagsWrite |  kCmdFlagsSet);
+    sadd_cmd_ = std::make_shared<SAddCmd>(kCmdNameSAdd, -3, kCmdFlagsWrite |  kCmdFlagsSet);
   }
+  SMoveCmd(const SMoveCmd& other)
+      : Cmd(other),
+        src_key_(other.src_key_),
+        dest_key_(other.dest_key_),
+        member_(other.member_),
+        move_success_(other.move_success_) {
+    srem_cmd_ = std::make_shared<SRemCmd>(kCmdNameSRem, -3, kCmdFlagsWrite |  kCmdFlagsSet);
+    sadd_cmd_ = std::make_shared<SAddCmd>(kCmdNameSAdd, -3, kCmdFlagsWrite |  kCmdFlagsSet);
+  }
+  std::vector<std::string> current_key() const override { return {src_key_, dest_key_}; }
+  void Do() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SMoveCmd(*this); }
+  void DoBinlog() override;
+
  private:
   std::string src_key_, dest_key_, member_;
-  virtual void DoInitial() override;
+  void DoInitial() override;
+  // used for write binlog
+  std::shared_ptr<SRemCmd> srem_cmd_;
+  std::shared_ptr<SAddCmd> sadd_cmd_;
+  int32_t move_success_{0};
 };
 
 class SRandmemberCmd : public Cmd {
  public:
-  SRandmemberCmd(const std::string& name, int arity, uint16_t flag)
-      : Cmd(name, arity, flag), count_(1) {}
-  virtual std::vector<std::string> current_key() const {
+  SRandmemberCmd(const std::string& name, int arity, uint32_t flag)
+      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::SET)) {}
+  std::vector<std::string> current_key() const override {
     std::vector<std::string> res;
     res.push_back(key_);
     return res;
   }
-  virtual void Do(std::shared_ptr<Partition> partition = nullptr);
-  virtual Cmd* Clone() override {
-    return new SRandmemberCmd(*this);
-  }
+  void Do() override;
+  void ReadCache() override;
+  void DoUpdateCache() override;
+  void DoThroughDB() override;
+  void Split(const HintKeys& hint_keys) override{};
+  void Merge() override{};
+  Cmd* Clone() override { return new SRandmemberCmd(*this); }
+
  private:
   std::string key_;
-  int64_t count_;
-  bool reply_arr;
-  virtual void DoInitial() override;
-  virtual void Clear() {
+  int64_t count_ = 1;
+  bool reply_arr = false;
+  rocksdb::Status s_;
+  void DoInitial() override;
+  void Clear() override {
     count_ = 1;
     reply_arr = false;
   }
