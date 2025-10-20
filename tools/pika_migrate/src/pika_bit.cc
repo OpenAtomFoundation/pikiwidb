@@ -5,8 +5,14 @@
 
 #include "include/pika_bit.h"
 
-#include "slash/include/slash_string.h"
+#include "pstd/include/pstd_string.h"
+#include "include/pika_db.h"
 
+
+#include "include/pika_define.h"
+#include "include/pika_slot_command.h"
+#include "include/pika_cache.h"
+#include "pstd/include/pstd_string.h"
 #include "include/pika_define.h"
 
 void BitSetCmd::DoInitial() {
@@ -15,11 +21,11 @@ void BitSetCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &bit_offset_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &bit_offset_) == 0) {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  if (!slash::string2l(argv_[3].data(), argv_[3].size(), &on_)) {
+  if (pstd::string2int(argv_[3].data(), argv_[3].size(), &on_) == 0) {
     res_.SetRes(CmdRes::kInvalidBitInt);
     return;
   }
@@ -27,28 +33,41 @@ void BitSetCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  // value no bigger than 2^32
-  if ( (bit_offset_ >> kMaxBitOpInputBit) > 0) {
+  // value no bigger than 2^18
+  if ((bit_offset_ >> kMaxBitOpInputBit) > 0) {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  if (on_ & ~1) {
+  if ((on_ & ~1) != 0) {
     res_.SetRes(CmdRes::kInvalidBitInt);
     return;
   }
-  return;
 }
 
-void BitSetCmd::Do(std::shared_ptr<Partition> partition) {
+void BitSetCmd::Do() {
   std::string value;
   int32_t bit_val = 0;
-  rocksdb::Status s = partition->db()->SetBit(key_, bit_offset_, on_, &bit_val);
-  if (s.ok()){
-    res_.AppendInteger((int)bit_val);
+  s_ = db_->storage()->SetBit(key_, bit_offset_, static_cast<int32_t>(on_), &bit_val);
+  if (s_.ok()) {
+    res_.AppendInteger(static_cast<int>(bit_val));
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
+
+void BitSetCmd::DoThroughDB() {
+  Do();
+}
+
+void BitSetCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->SetBitIfKeyExist(key_, bit_offset_, on_);
+  }
+}
+
 
 void BitGetCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -56,7 +75,7 @@ void BitGetCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &bit_offset_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &bit_offset_) == 0) {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
@@ -64,16 +83,40 @@ void BitGetCmd::DoInitial() {
     res_.SetRes(CmdRes::kInvalidBitOffsetInt);
     return;
   }
-  return;
 }
 
-void BitGetCmd::Do(std::shared_ptr<Partition> partition) {
+void BitGetCmd::Do() {
   int32_t bit_val = 0;
-  rocksdb::Status s = partition->db()->GetBit(key_, bit_offset_, &bit_val);
+  s_ = db_->storage()->GetBit(key_, bit_offset_, &bit_val);
+  if (s_.ok()) {
+    res_.AppendInteger(static_cast<int>(bit_val));
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void BitGetCmd::ReadCache() {
+  int64_t bit_val = 0;
+  auto s = db_->cache()->GetBit(key_, bit_offset_, &bit_val);
   if (s.ok()) {
-    res_.AppendInteger((int)bit_val);
+    res_.AppendInteger(bit_val);
+  } else if (s.IsNotFound()) {
+    res_.SetRes(CmdRes::kCacheMiss);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+void BitGetCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void BitGetCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_KV, key_, db_);
   }
 }
 
@@ -85,11 +128,11 @@ void BitCountCmd::DoInitial() {
   key_ = argv_[1];
   if (argv_.size() == 4) {
     count_all_ = false;
-    if (!slash::string2l(argv_[2].data(), argv_[2].size(), &start_offset_)) {
+    if (pstd::string2int(argv_[2].data(), argv_[2].size(), &start_offset_) == 0) {
       res_.SetRes(CmdRes::kInvalidInt);
       return;
     }
-    if (!slash::string2l(argv_[3].data(), argv_[3].size(), &end_offset_)) {
+    if (pstd::string2int(argv_[3].data(), argv_[3].size(), &end_offset_) == 0) {
       res_.SetRes(CmdRes::kInvalidInt);
       return;
     }
@@ -98,22 +141,52 @@ void BitCountCmd::DoInitial() {
   } else {
     res_.SetRes(CmdRes::kSyntaxErr, kCmdNameBitCount);
   }
-  return;
 }
 
-void BitCountCmd::Do(std::shared_ptr<Partition> partition) {
+void BitCountCmd::Do() {
   int32_t count = 0;
-  rocksdb::Status s;
   if (count_all_) {
-    s = partition->db()->BitCount(key_, start_offset_, end_offset_, &count, false);
+    s_ = db_->storage()->BitCount(key_, start_offset_, end_offset_, &count, false);
   } else {
-    s = partition->db()->BitCount(key_, start_offset_, end_offset_, &count, true);
+    s_ = db_->storage()->BitCount(key_, start_offset_, end_offset_, &count, true);
   }
 
-  if (s.ok() || s.IsNotFound()) {
+  if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(count);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void BitCountCmd::ReadCache() {
+  int64_t count = 0;
+  int64_t start = static_cast<long>(start_offset_);
+  int64_t end = static_cast<long>(end_offset_);
+  bool flag = true;
+  if (count_all_) {
+    flag = false;
+  }
+  rocksdb::Status s = db_->cache()->BitCount(key_, start, end, &count, flag);
+
+  if (s.ok()) {
+    res_.AppendInteger(count);
+  } else if (s.IsNotFound()) {
+    res_.SetRes(CmdRes::kCacheMiss);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+void BitCountCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void BitCountCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_KV, key_, db_);
   }
 }
 
@@ -123,11 +196,11 @@ void BitPosCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &bit_val_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &bit_val_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  if (bit_val_ & ~1) {
+  if ((bit_val_ & ~1) != 0) {
     res_.SetRes(CmdRes::kInvalidBitPosArgument);
     return;
   }
@@ -137,40 +210,75 @@ void BitPosCmd::DoInitial() {
   } else if (argv_.size() == 4) {
     pos_all_ = false;
     endoffset_set_ = false;
-    if (!slash::string2l(argv_[3].data(), argv_[3].size(), &start_offset_)) {
-      res_.SetRes(CmdRes::kInvalidInt);
-      return;
-    } 
-  } else if (argv_.size() == 5) {
-    pos_all_ = false;
-    endoffset_set_ = true;
-    if (!slash::string2l(argv_[3].data(), argv_[3].size(), &start_offset_)) {
-      res_.SetRes(CmdRes::kInvalidInt);
-      return;
-    } 
-    if (!slash::string2l(argv_[4].data(), argv_[4].size(), &end_offset_)) {
+    if (pstd::string2int(argv_[3].data(), argv_[3].size(), &start_offset_) == 0) {
       res_.SetRes(CmdRes::kInvalidInt);
       return;
     }
-  } else
+  } else if (argv_.size() == 5) {
+    pos_all_ = false;
+    endoffset_set_ = true;
+    if (pstd::string2int(argv_[3].data(), argv_[3].size(), &start_offset_) == 0) {
+      res_.SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+    if (pstd::string2int(argv_[4].data(), argv_[4].size(), &end_offset_) == 0) {
+      res_.SetRes(CmdRes::kInvalidInt);
+      return;
+    }
+  } else {
     res_.SetRes(CmdRes::kSyntaxErr, kCmdNameBitPos);
-  return;
+  }
 }
 
-void BitPosCmd::Do(std::shared_ptr<Partition> partition) {
+void BitPosCmd::Do() {
   int64_t pos = 0;
   rocksdb::Status s;
   if (pos_all_) {
-    s = partition->db()->BitPos(key_, bit_val_, &pos);
+    s_ = db_->storage()->BitPos(key_, static_cast<int32_t>(bit_val_), &pos);
   } else if (!pos_all_ && !endoffset_set_) {
-    s = partition->db()->BitPos(key_, bit_val_, start_offset_, &pos);
+    s_ = db_->storage()->BitPos(key_, static_cast<int32_t>(bit_val_), start_offset_, &pos);
   } else if (!pos_all_ && endoffset_set_) {
-    s = partition->db()->BitPos(key_, bit_val_, start_offset_, end_offset_, &pos);
+    s_ = db_->storage()->BitPos(key_, static_cast<int32_t>(bit_val_), start_offset_, end_offset_, &pos);
+  }
+  if (s_.ok()) {
+    res_.AppendInteger(pos);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void BitPosCmd::ReadCache() {
+  int64_t pos = 0;
+  rocksdb::Status s;
+  int64_t bit = static_cast<long>(bit_val_);
+  int64_t start = static_cast<long>(start_offset_);
+  int64_t end = static_cast<long>(end_offset_);\
+  if (pos_all_) {
+    s = db_->cache()->BitPos(key_, bit, &pos);
+  } else if (!pos_all_ && !endoffset_set_) {
+    s = db_->cache()->BitPos(key_, bit, start, &pos);
+  } else if (!pos_all_ && endoffset_set_) {
+    s = db_->cache()->BitPos(key_, bit, start, end, &pos);
   }
   if (s.ok()) {
     res_.AppendInteger(pos);
+  } else if (s.IsNotFound()) {
+    res_.SetRes(CmdRes::kCacheMiss);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+void BitPosCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void BitPosCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->PushKeyToAsyncLoadQueue(PIKA_KEY_TYPE_KV, key_, db_);
   }
 }
 
@@ -180,42 +288,68 @@ void BitOpCmd::DoInitial() {
     return;
   }
   std::string op_str = argv_[1];
-  if (!strcasecmp(op_str.data(), "not")) {
-    op_ = blackwidow::kBitOpNot;
-  } else if (!strcasecmp(op_str.data(), "and")) {
-    op_ = blackwidow::kBitOpAnd;
-  } else if (!strcasecmp(op_str.data(), "or")) {
-    op_ = blackwidow::kBitOpOr;
-  } else if (!strcasecmp(op_str.data(), "xor")) {
-    op_ = blackwidow::kBitOpXor;
+  if (strcasecmp(op_str.data(), "not") == 0) {
+    op_ = storage::kBitOpNot;
+  } else if (strcasecmp(op_str.data(), "and") == 0) {
+    op_ = storage::kBitOpAnd;
+  } else if (strcasecmp(op_str.data(), "or") == 0) {
+    op_ = storage::kBitOpOr;
+  } else if (strcasecmp(op_str.data(), "xor") == 0) {
+    op_ = storage::kBitOpXor;
   } else {
     res_.SetRes(CmdRes::kSyntaxErr, kCmdNameBitOp);
     return;
   }
-  if (op_ == blackwidow::kBitOpNot && argv_.size() != 4) {
-      res_.SetRes(CmdRes::kWrongBitOpNotNum, kCmdNameBitOp);
-      return;
-  } else if (op_ != blackwidow::kBitOpNot && argv_.size() < 4) {
-      res_.SetRes(CmdRes::kWrongNum, kCmdNameBitOp);
-      return;
+  if (op_ == storage::kBitOpNot && argv_.size() != 4) {
+    res_.SetRes(CmdRes::kWrongBitOpNotNum, kCmdNameBitOp);
+    return;
+  } else if (op_ != storage::kBitOpNot && argv_.size() < 4) {
+    res_.SetRes(CmdRes::kWrongNum, kCmdNameBitOp);
+    return;
   } else if (argv_.size() >= kMaxBitOpInputKey) {
-      res_.SetRes(CmdRes::kWrongNum, kCmdNameBitOp);
-      return;
+    res_.SetRes(CmdRes::kWrongNum, kCmdNameBitOp);
+    return;
   }
 
-  dest_key_ = argv_[2].data();
-  for(unsigned int i = 3; i <= argv_.size() - 1; i++) {
-      src_keys_.push_back(argv_[i].data());
+  dest_key_ = argv_[2];
+  for (size_t i = 3; i <= argv_.size() - 1; i++) {
+    src_keys_.emplace_back(argv_[i].data());
   }
-  return;
 }
 
-void BitOpCmd::Do(std::shared_ptr<Partition> partition) {
-  int64_t result_length;
-  rocksdb::Status s = partition->db()->BitOp(op_, dest_key_, src_keys_, &result_length);
-  if (s.ok()) {
+void BitOpCmd::Do() {
+  int64_t result_length = 0;
+  s_ = db_->storage()->BitOp(op_, dest_key_, src_keys_, value_to_dest_, &result_length);
+  if (s_.ok()) {
     res_.AppendInteger(result_length);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
+}
+
+void BitOpCmd::DoThroughDB() {
+  Do();
+}
+
+void BitOpCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    std::vector<std::string> v;
+    v.emplace_back(dest_key_);
+    db_->cache()->Del(v);
+  }
+}
+
+void BitOpCmd::DoBinlog() {
+  PikaCmdArgsType set_args;
+  //used "set" instead of "SET" to distinguish the binlog of SetCmd
+  set_args.emplace_back("set");
+  set_args.emplace_back(dest_key_);
+  set_args.emplace_back(value_to_dest_);
+  set_cmd_->Initial(set_args, db_name_);
+  set_cmd_->SetConn(GetConn());
+  set_cmd_->SetResp(resp_.lock());
+  //value of this binlog might be strange if you print it out(eg. set bitkey_out1 «ѦFO<t·), but it's ok.
+  set_cmd_->DoBinlog();
 }

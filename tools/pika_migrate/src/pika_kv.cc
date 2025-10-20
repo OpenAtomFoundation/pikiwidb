@@ -4,14 +4,15 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 
 #include "include/pika_kv.h"
+#include <memory>
 
-#include "slash/include/slash_string.h"
-
+#include "include/pika_command.h"
+#include "include/pika_slot_command.h"
+#include "include/pika_cache.h"
 #include "include/pika_conf.h"
-#include "include/pika_binlog_transverter.h"
+#include "pstd/include/pstd_string.h"
 
-extern PikaConf *g_pika_conf;
-
+extern std::unique_ptr<PikaConf> g_pika_conf;
 /* SET key value [NX] [XX] [EX <seconds>] [PX <milliseconds>] */
 void SetCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -21,15 +22,15 @@ void SetCmd::DoInitial() {
   key_ = argv_[1];
   value_ = argv_[2];
   condition_ = SetCmd::kNONE;
-  sec_ = 0;
+  ttl_millsec = 0;
   size_t index = 3;
   while (index != argv_.size()) {
     std::string opt = argv_[index];
-    if (!strcasecmp(opt.data(), "xx")) {
+    if (strcasecmp(opt.data(), "xx") == 0) {
       condition_ = SetCmd::kXX;
-    } else if (!strcasecmp(opt.data(), "nx")) {
+    } else if (strcasecmp(opt.data(), "nx") == 0) {
       condition_ = SetCmd::kNX;
-    } else if (!strcasecmp(opt.data(), "vx")) {
+    } else if (strcasecmp(opt.data(), "vx") == 0) {
       condition_ = SetCmd::kVX;
       index++;
       if (index == argv_.size()) {
@@ -38,75 +39,87 @@ void SetCmd::DoInitial() {
       } else {
         target_ = argv_[index];
       }
-    } else if (!strcasecmp(opt.data(), "ex") || !strcasecmp(opt.data(), "px")) {
+    } else if ((strcasecmp(opt.data(), "ex") == 0) || (strcasecmp(opt.data(), "px") == 0)) {
       condition_ = (condition_ == SetCmd::kNONE) ? SetCmd::kEXORPX : condition_;
       index++;
       if (index == argv_.size()) {
         res_.SetRes(CmdRes::kSyntaxErr);
         return;
       }
-      if (!slash::string2l(argv_[index].data(), argv_[index].size(), &sec_)) {
+      if (pstd::string2int(argv_[index].data(), argv_[index].size(), &ttl_millsec) == 0) {
         res_.SetRes(CmdRes::kInvalidInt);
-        return;
-      } else if (sec_ <= 0) {
-        res_.SetRes(CmdRes::kErrOther, "invalid expire time in set");
         return;
       }
 
-      if (!strcasecmp(opt.data(), "px")) {
-        sec_ /= 1000;
+      if (strcasecmp(opt.data(), "ex") == 0) {
+        ttl_millsec *= 1000;
       }
+      has_ttl_ = true;
     } else {
       res_.SetRes(CmdRes::kSyntaxErr);
       return;
     }
     index++;
   }
-  return;
 }
 
-void SetCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s;
+void SetCmd::Do() {
   int32_t res = 1;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   switch (condition_) {
     case SetCmd::kXX:
-      s = partition->db()->Setxx(key_, value_, &res, sec_);
+      s_ = db_->storage()->Setxx(key_, value_, &res, ttl_millsec);
       break;
     case SetCmd::kNX:
-      s = partition->db()->Setnx(key_, value_, &res, sec_);
+      s_ = db_->storage()->Setnx(key_, value_, &res, ttl_millsec);
       break;
     case SetCmd::kVX:
-      s = partition->db()->Setvx(key_, target_, value_, &success_, sec_);
+      s_ = db_->storage()->Setvx(key_, target_, value_, &success_, ttl_millsec);
       break;
     case SetCmd::kEXORPX:
-      s = partition->db()->Setex(key_, value_, sec_);
+      s_ = db_->storage()->Setex(key_, value_, ttl_millsec);
       break;
     default:
-      s = partition->db()->Set(key_, value_);
+      s_ = db_->storage()->Set(key_, value_);
       break;
   }
 
-  if (s.ok() || s.IsNotFound()) {
+  if (s_.ok() || s_.IsNotFound()) {
     if (condition_ == SetCmd::kVX) {
       res_.AppendInteger(success_);
     } else {
       if (res == 1) {
         res_.SetRes(CmdRes::kOk);
+        AddSlotKey("k", key_, db_);
       } else {
-        res_.AppendArrayLen(-1);;
+        res_.AppendStringLen(-1);
       }
     }
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
-std::string SetCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+void SetCmd::DoThroughDB() {
+  Do();
+}
+
+void SetCmd::DoUpdateCache() {
+  if (SetCmd::kNX == condition_ || IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
+  if (s_.ok()) {
+    if (has_ttl_) {
+      db_->cache()->Setxx(key_, value_, ttl_millsec > 0 ? ttl_millsec / 1000 : ttl_millsec);
+    } else {
+      db_->cache()->SetxxWithoutTTL(key_, value_);
+    }
+  }
+}
+
+std::string SetCmd::ToRedisProtocol() {
   if (condition_ == SetCmd::kEXORPX) {
     std::string content;
     content.reserve(RAW_ARGS_LEN);
@@ -114,31 +127,26 @@ std::string SetCmd::ToBinlog(
 
     // to pksetexat cmd
     std::string pksetexat_cmd("pksetexat");
-    RedisAppendLen(content, pksetexat_cmd.size(), "$");
+    RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
     RedisAppendContent(content, pksetexat_cmd);
     // key
-    RedisAppendLen(content, key_.size(), "$");
+    RedisAppendLenUint64(content, key_.size(), "$");
     RedisAppendContent(content, key_);
     // time_stamp
     char buf[100];
-    int32_t time_stamp = time(nullptr) + sec_;
-    slash::ll2string(buf, 100, time_stamp);
+
+    // TODO 精度损失
+    auto time_stamp = time(nullptr) + ttl_millsec / 1000;
+    pstd::ll2string(buf, 100, time_stamp);
     std::string at(buf);
-    RedisAppendLen(content, at.size(), "$");
+    RedisAppendLenUint64(content, at.size(), "$");
     RedisAppendContent(content, at);
     // value
-    RedisAppendLen(content, value_.size(), "$");
+    RedisAppendLenUint64(content, value_.size(), "$");
     RedisAppendContent(content, value_);
-    return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                               exec_time,
-                                               std::stoi(server_id),
-                                               logic_id,
-                                               filenum,
-                                               offset,
-                                               content,
-                                               {});
+    return content;
   } else {
-    return Cmd::ToBinlog(exec_time, server_id, logic_id, filenum, offset);
+    return Cmd::ToRedisProtocol();
   }
 }
 
@@ -148,41 +156,100 @@ void GetCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void GetCmd::Do(std::shared_ptr<Partition> partition) {
-  std::string value;
-  rocksdb::Status s = partition->db()->Get(key_, &value);
-  if (s.ok()) {
-    res_.AppendStringLen(value.size());
-    res_.AppendContent(value);
-  } else if (s.IsNotFound()) {
+void GetCmd::Do() {
+  s_ = db_->storage()->GetWithTTL(key_, &value_, &ttl_millsec_);
+  if (s_.ok()) {
+    res_.AppendStringLenUint64(value_.size());
+    res_.AppendContent(value_);
+  } else if (s_.IsNotFound()) {
     res_.AppendStringLen(-1);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void GetCmd::ReadCache() {
+  auto s = db_->cache()->Get(key_, &value_);
+  if (s.ok()) {
+    res_.AppendStringLen(value_.size());
+    res_.AppendContent(value_);
+  } else {
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+void GetCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void GetCmd::DoUpdateCache() {
+  if (IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
+    return;
+  }
+  if (s_.ok()) {
+    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec_ > 0 ? ttl_millsec_ / 1000 : ttl_millsec_);
   }
 }
 
 void DelCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
-    res_.SetRes(CmdRes::kWrongNum, kCmdNameDel);
+    res_.SetRes(CmdRes::kWrongNum, name());
     return;
   }
-  std::vector<std::string>::iterator iter = argv_.begin();
+  auto iter = argv_.begin();
   keys_.assign(++iter, argv_.end());
-  return;
 }
 
-void DelCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, blackwidow::Status> type_status;
-  int64_t count = partition->db()->Del(keys_, &type_status);
+void DelCmd::Do() {
+  int64_t count = db_->storage()->Del(keys_);
   if (count >= 0) {
     res_.AppendInteger(count);
+    s_ = rocksdb::Status::OK();
+    std::vector<std::string>::const_iterator it;
+    for (it = keys_.begin(); it != keys_.end(); it++) {
+      RemSlotKey(*it, db_);
+    }
+  } else {
+    res_.SetRes(CmdRes::kErrOther, "delete error");
+    s_ = rocksdb::Status::Corruption("delete error");
+  }
+}
+
+void DelCmd::DoThroughDB() {
+  Do();
+}
+
+void DelCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Del(keys_);
+  }
+}
+
+void DelCmd::Split(const HintKeys& hint_keys) {
+  std::map<storage::DataType, storage::Status> type_status;
+  int64_t count = db_->storage()->Del(hint_keys.keys);
+  if (count >= 0) {
+    split_res_ += count;
   } else {
     res_.SetRes(CmdRes::kErrOther, "delete error");
   }
-  return;
+}
+
+void DelCmd::Merge() { res_.AppendInteger(split_res_); }
+
+void DelCmd::DoBinlog() {
+  std::string opt = argv_.at(0);
+  for(auto& key: keys_) {
+    argv_.clear();
+    argv_.emplace_back(opt);
+    argv_.emplace_back(key);
+    Cmd::DoBinlog();
+  }
 }
 
 void IncrCmd::DoInitial() {
@@ -191,21 +258,58 @@ void IncrCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void IncrCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Incrby(key_, 1, &new_value_);
-  if (s.ok()) {
-   res_.AppendContent(":" + std::to_string(new_value_));
-  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
+void IncrCmd::Do() {
+  s_ = db_->storage()->Incrby(key_, 1, &new_value_, &expired_timestamp_millsec_);
+  if (s_.ok()) {
+    res_.AppendContent(":" + std::to_string(new_value_));
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a integer") {
     res_.SetRes(CmdRes::kInvalidInt);
-  } else if (s.IsInvalidArgument()) {
+  } else if (s_.IsInvalidArgument() && s_.ToString().substr(0, std::char_traits<char>::length(ErrTypeMessage)) == ErrTypeMessage) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kOverFlow);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void IncrCmd::DoThroughDB() {
+  Do();
+}
+
+void IncrCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Incrxx(key_);
+  }
+}
+
+std::string IncrCmd::ToRedisProtocol() {
+  std::string content;
+  content.reserve(RAW_ARGS_LEN);
+  RedisAppendLen(content, 4, "*");
+
+  // to pksetexat cmd
+  std::string pksetexat_cmd("pksetexat");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
+  RedisAppendContent(content, pksetexat_cmd);
+  // key
+  RedisAppendLenUint64(content, key_.size(), "$");
+  RedisAppendContent(content, key_);
+  // time_stamp
+  char buf[100];
+  auto time_stamp = expired_timestamp_millsec_ > 0 ? expired_timestamp_millsec_ / 1000 : expired_timestamp_millsec_;
+  pstd::ll2string(buf, sizeof(buf), time_stamp);
+  std::string at(buf);
+  RedisAppendLenUint64(content, at.size(), "$");
+  RedisAppendContent(content, at);
+  // value
+  std::string new_value_str = std::to_string(new_value_);
+  RedisAppendLenUint64(content, new_value_str.size(), "$");
+  RedisAppendContent(content, new_value_str);
+  return content;
 }
 
 void IncrbyCmd::DoInitial() {
@@ -214,25 +318,62 @@ void IncrbyCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &by_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &by_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt, kCmdNameIncrby);
     return;
   }
-  return;
 }
 
-void IncrbyCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Incrby(key_, by_, &new_value_);
-  if (s.ok()) {
+void IncrbyCmd::Do() {
+  s_ = db_->storage()->Incrby(key_, by_, &new_value_, &expired_timestamp_millsec_);
+  if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
-  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a integer") {
     res_.SetRes(CmdRes::kInvalidInt);
-  } else if (s.IsInvalidArgument()) {
+  } else if (s_.IsInvalidArgument() && s_.ToString().substr(0, std::char_traits<char>::length(ErrTypeMessage)) == ErrTypeMessage) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kOverFlow);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void IncrbyCmd::DoThroughDB() {
+  Do();
+}
+
+void IncrbyCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->IncrByxx(key_, by_);
+  }
+}
+
+std::string IncrbyCmd::ToRedisProtocol() {
+  std::string content;
+  content.reserve(RAW_ARGS_LEN);
+  RedisAppendLen(content, 4, "*");
+
+  // to pksetexat cmd
+  std::string pksetexat_cmd("pksetexat");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
+  RedisAppendContent(content, pksetexat_cmd);
+  // key
+  RedisAppendLenUint64(content, key_.size(), "$");
+  RedisAppendContent(content, key_);
+  // time_stamp
+  char buf[100];
+  auto time_stamp = expired_timestamp_millsec_ > 0 ? expired_timestamp_millsec_ / 1000 : expired_timestamp_millsec_;
+  pstd::ll2string(buf, sizeof(buf), time_stamp);
+  std::string at(buf);
+  RedisAppendLenUint64(content, at.size(), "$");
+  RedisAppendContent(content, at);
+  // value
+  std::string new_value_str = std::to_string(new_value_);
+  RedisAppendLenUint64(content, new_value_str.size(), "$");
+  RedisAppendContent(content, new_value_str);
+  return content;
 }
 
 void IncrbyfloatCmd::DoInitial() {
@@ -242,27 +383,67 @@ void IncrbyfloatCmd::DoInitial() {
   }
   key_ = argv_[1];
   value_ = argv_[2];
-  if (!slash::string2d(argv_[2].data(), argv_[2].size(), &by_)) {
+  if (pstd::string2d(argv_[2].data(), argv_[2].size(), &by_) == 0) {
     res_.SetRes(CmdRes::kInvalidFloat);
     return;
   }
-  return;
 }
 
-void IncrbyfloatCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Incrbyfloat(key_, value_, &new_value_);
-  if (s.ok()) {
-    res_.AppendStringLen(new_value_.size());
+void IncrbyfloatCmd::Do() {
+  s_ = db_->storage()->Incrbyfloat(key_, value_, &new_value_, &expired_timestamp_millsec_);
+  if (s_.ok()) {
+    res_.AppendStringLenUint64(new_value_.size());
     res_.AppendContent(new_value_);
-  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a vaild float"){
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a vaild float") {
     res_.SetRes(CmdRes::kInvalidFloat);
-  } else if (s.IsInvalidArgument()) {
-    res_.SetRes(CmdRes::kOverFlow);
+  } else if (s_.IsInvalidArgument() && s_.ToString().substr(0, std::char_traits<char>::length(ErrTypeMessage)) == ErrTypeMessage) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::KIncrByOverFlow);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
 }
+
+void IncrbyfloatCmd::DoThroughDB() {
+  Do();
+}
+
+void IncrbyfloatCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    long double long_double_by;
+    if (storage::StrToLongDouble(value_.data(), value_.size(), &long_double_by) != -1) {
+      db_->cache()->Incrbyfloatxx(key_, long_double_by);
+    }
+  }
+}
+
+std::string IncrbyfloatCmd::ToRedisProtocol() {
+  std::string content;
+  content.reserve(RAW_ARGS_LEN);
+  RedisAppendLen(content, 4, "*");
+
+  // to pksetexat cmd
+  std::string pksetexat_cmd("pksetexat");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
+  RedisAppendContent(content, pksetexat_cmd);
+  // key
+  RedisAppendLenUint64(content, key_.size(), "$");
+  RedisAppendContent(content, key_);
+  // time_stamp
+  char buf[100];
+  auto time_stamp = expired_timestamp_millsec_ > 0 ? expired_timestamp_millsec_ / 1000 : expired_timestamp_millsec_;
+  pstd::ll2string(buf, sizeof(buf), time_stamp);
+  std::string at(buf);
+  RedisAppendLenUint64(content, at.size(), "$");
+  RedisAppendContent(content, at);
+  // value
+  RedisAppendLenUint64(content, new_value_.size(), "$");
+  RedisAppendContent(content, new_value_);
+  return content;
+}
+
 
 void DecrCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -270,21 +451,32 @@ void DecrCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void DecrCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Decrby(key_, 1, &new_value_);
-  if (s.ok()) {
-   res_.AppendContent(":" + std::to_string(new_value_));
-  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
+void DecrCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_= db_->storage()->Decrby(key_, 1, &new_value_);
+  if (s_.ok()) {
+    res_.AppendContent(":" + std::to_string(new_value_));
+  } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a integer") {
     res_.SetRes(CmdRes::kInvalidInt);
-  } else if (s.IsInvalidArgument()) {
+  } else if (s_.IsInvalidArgument() && s_.ToString().substr(0, std::char_traits<char>::length(ErrTypeMessage)) == ErrTypeMessage) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kOverFlow);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void DecrCmd::DoThroughDB() {
+  Do();
+}
+
+void DecrCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Decrxx(key_);
+  }
 }
 
 void DecrbyCmd::DoInitial() {
@@ -293,25 +485,37 @@ void DecrbyCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &by_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &by_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void DecrbyCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Decrby(key_, by_, &new_value_);
-  if (s.ok()) {
+void DecrbyCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->Decrby(key_, by_, &new_value_);
+  if (s_.ok()) {
+    AddSlotKey("k", key_, db_);
     res_.AppendContent(":" + std::to_string(new_value_));
-  } else if (s.IsCorruption() && s.ToString() == "Corruption: Value is not a integer") {
+  } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a integer") {
     res_.SetRes(CmdRes::kInvalidInt);
-  } else if (s.IsInvalidArgument()) {
+  } else if (s_.IsInvalidArgument() && s_.ToString().substr(0, std::char_traits<char>::length(ErrTypeMessage)) == ErrTypeMessage) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else if (s_.IsInvalidArgument()) {
     res_.SetRes(CmdRes::kOverFlow);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void DecrbyCmd::DoThroughDB() {
+  Do();
+}
+
+void DecrbyCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->DecrByxx(key_, by_);
+  }
 }
 
 void GetsetCmd::DoInitial() {
@@ -321,23 +525,35 @@ void GetsetCmd::DoInitial() {
   }
   key_ = argv_[1];
   new_value_ = argv_[2];
-  return;
 }
 
-void GetsetCmd::Do(std::shared_ptr<Partition> partition) {
+void GetsetCmd::Do() {
   std::string old_value;
-  rocksdb::Status s = partition->db()->GetSet(key_, new_value_, &old_value);
-  if (s.ok()) {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->GetSet(key_, new_value_, &old_value);
+  if (s_.ok()) {
     if (old_value.empty()) {
       res_.AppendContent("$-1");
     } else {
-      res_.AppendStringLen(old_value.size());
+      res_.AppendStringLenUint64(old_value.size());
       res_.AppendContent(old_value);
     }
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void GetsetCmd::DoThroughDB() {
+  Do();
+}
+
+void GetsetCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->SetxxWithoutTTL(key_, new_value_);
+  }
 }
 
 void AppendCmd::DoInitial() {
@@ -347,18 +563,54 @@ void AppendCmd::DoInitial() {
   }
   key_ = argv_[1];
   value_ = argv_[2];
-  return;
 }
 
-void AppendCmd::Do(std::shared_ptr<Partition> partition) {
+void AppendCmd::Do() {
   int32_t new_len = 0;
-  rocksdb::Status s = partition->db()->Append(key_, value_, &new_len);
-  if (s.ok() || s.IsNotFound()) {
+  s_ = db_->storage()->Append(key_, value_, &new_len, &expired_timestamp_millsec_, new_value_);
+  if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(new_len);
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void AppendCmd::DoThroughDB() {
+  Do();
+}
+
+void AppendCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Appendxx(key_, value_);
+  }
+}
+
+std::string AppendCmd::ToRedisProtocol() {
+  std::string content;
+  content.reserve(RAW_ARGS_LEN);
+  RedisAppendLen(content, 4, "*");
+
+  // to pksetexat cmd
+  std::string pksetexat_cmd("pksetexat");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
+  RedisAppendContent(content, pksetexat_cmd);
+  // key
+  RedisAppendLenUint64(content, key_.size(), "$");
+  RedisAppendContent(content, key_);
+  // time_stamp
+  char buf[100];
+  auto time_stamp = expired_timestamp_millsec_ > 0 ? expired_timestamp_millsec_ / 1000 : expired_timestamp_millsec_;
+  pstd::ll2string(buf, sizeof(buf), time_stamp);
+  std::string at(buf);
+  RedisAppendLenUint64(content, at.size(), "$");
+  RedisAppendContent(content, at);
+  // value
+  RedisAppendLenUint64(content, new_value_.size(), "$");
+  RedisAppendContent(content, new_value_);
+  return content;
 }
 
 void MgetCmd::DoInitial() {
@@ -368,27 +620,138 @@ void MgetCmd::DoInitial() {
   }
   keys_ = argv_;
   keys_.erase(keys_.begin());
-  return;
+  split_res_.resize(keys_.size());
+  cache_miss_keys_.clear();
 }
 
-void MgetCmd::Do(std::shared_ptr<Partition> partition) {
-  std::vector<blackwidow::ValueStatus> vss;
-  rocksdb::Status s = partition->db()->MGet(keys_, &vss);
+void MgetCmd::AssembleResponseFromCache() {
+  res_.AppendArrayLenUint64(keys_.size());
+  for (const auto& key : keys_) {
+    auto it = cache_hit_values_.find(key);
+    if (it != cache_hit_values_.end()) {
+      res_.AppendStringLen(it->second.size());
+      res_.AppendContent(it->second);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, "Internal error during cache assembly");
+      return;
+    }
+  }
+}
+
+void MgetCmd::Do() {
+  // Without using the cache and querying only the DB, we need to use keys_.
+  // This line will only be assigned when querying the DB directly.
+  if (cache_miss_keys_.size() == 0) {
+    cache_miss_keys_ = keys_;
+  }
+  db_value_status_array_.clear();
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->MGetWithTTL(cache_miss_keys_, &db_value_status_array_);
+  if (!s_.ok()) {
+    if (s_.IsInvalidArgument()) {
+      res_.SetRes(CmdRes::kMultiKey);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, s_.ToString());
+    }
+    return;
+  }
+
+  MergeCachedAndDbResults();
+}
+
+void MgetCmd::Split(const HintKeys& hint_keys) {
+  std::vector<storage::ValueStatus> vss;
+  const std::vector<std::string>& keys = hint_keys.keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  rocksdb::Status s = db_->storage()->MGet(keys, &vss);
   if (s.ok()) {
-    res_.AppendArrayLen(vss.size());
-    for (const auto& vs : vss) {
-      if (vs.status.ok()) {
-        res_.AppendStringLen(vs.value.size());
-        res_.AppendContent(vs.value);
-      } else {
-        res_.AppendContent("$-1");
-      }
+    if (hint_keys.hints.size() != vss.size()) {
+      res_.SetRes(CmdRes::kErrOther, "internal Mget return size invalid");
+    }
+    const std::vector<int>& hints = hint_keys.hints;
+    for (size_t i = 0; i < vss.size(); ++i) {
+      split_res_[hints[i]] = vss[i];
     }
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
-  return;
 }
+
+void MgetCmd::Merge() {
+  res_.AppendArrayLenUint64(split_res_.size());
+  for (const auto& vs : split_res_) {
+    if (vs.status.ok()) {
+      res_.AppendStringLenUint64(vs.value.size());
+      res_.AppendContent(vs.value);
+    } else {
+      res_.AppendContent("$-1");
+    }
+  }
+}
+
+void MgetCmd::DoThroughDB() {
+  res_.clear();
+  Do();
+}
+
+void MgetCmd::ReadCache() {
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  for (const auto key : keys_) {
+    std::string value;
+    auto s = db_->cache()->Get(const_cast<std::string&>(key), &value);
+    if (s.ok()) {
+      cache_hit_values_[key] = value;
+    } else {
+      cache_miss_keys_.push_back(key);
+    }
+  }
+  if (cache_miss_keys_.empty()) {
+    AssembleResponseFromCache();
+  } else {
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+void MgetCmd::DoUpdateCache() {
+  size_t db_index = 0;
+  STAGE_TIMER_GUARD(cache_duration_ms, true);
+  for (const auto key : cache_miss_keys_) {
+    if (db_index < db_value_status_array_.size() && db_value_status_array_[db_index].status.ok()) {
+      int64_t ttl_millsec = db_value_status_array_[db_index].ttl_millsec;
+      db_->cache()->WriteKVToCache(const_cast<std::string&>(key), db_value_status_array_[db_index].value, ttl_millsec > 0 ? ttl_millsec / 1000 : ttl_millsec);
+    }
+    db_index++;
+  }
+}
+
+void MgetCmd::MergeCachedAndDbResults() {
+  res_.AppendArrayLenUint64(keys_.size());
+
+  std::unordered_map<std::string, std::string> db_results_map;
+  for (size_t i = 0; i < cache_miss_keys_.size(); ++i) {
+    if (db_value_status_array_[i].status.ok()) {
+      db_results_map[cache_miss_keys_[i]] = db_value_status_array_[i].value;
+    }
+  }
+
+  for (const auto& key : keys_) {
+    auto cache_it = cache_hit_values_.find(key);
+
+    if (cache_it != cache_hit_values_.end()) {
+      res_.AppendStringLen(cache_it->second.size());
+      res_.AppendContent(cache_it->second);
+    } else {
+      auto db_it = db_results_map.find(key);
+      if (db_it != db_results_map.end()) {
+        res_.AppendStringLen(db_it->second.size());
+        res_.AppendContent(db_it->second);
+      } else {
+        res_.AppendContent("$-1");
+      }
+    }
+  }
+}
+
 
 void KeysCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -398,48 +761,49 @@ void KeysCmd::DoInitial() {
   pattern_ = argv_[1];
   if (argv_.size() == 3) {
     std::string opt = argv_[2];
-    if (!strcasecmp(opt.data(), "string")) {
-      type_ = blackwidow::DataType::kStrings;
-    } else if (!strcasecmp(opt.data(), "zset")) {
-      type_ = blackwidow::DataType::kZSets;
-    } else if (!strcasecmp(opt.data(), "set")) {
-      type_ = blackwidow::DataType::kSets;
-    } else if (!strcasecmp(opt.data(), "list")) {
-      type_ = blackwidow::DataType::kLists;
-    } else if (!strcasecmp(opt.data(), "hash")) {
-      type_ = blackwidow::DataType::kHashes;
+    if (strcasecmp(opt.data(), "string") == 0) {
+      type_ = storage::DataType::kStrings;
+    } else if (strcasecmp(opt.data(), "zset") == 0) {
+      type_ = storage::DataType::kZSets;
+    } else if (strcasecmp(opt.data(), "set") == 0) {
+      type_ = storage::DataType::kSets;
+    } else if (strcasecmp(opt.data(), "list") == 0) {
+      type_ = storage::DataType::kLists;
+    } else if (strcasecmp(opt.data(), "hash") == 0) {
+      type_ = storage::DataType::kHashes;
+    } else if (strcasecmp(opt.data(), "stream") == 0) {
+      type_ = storage::DataType::kStreams;
     } else {
       res_.SetRes(CmdRes::kSyntaxErr);
     }
   } else if (argv_.size() > 3) {
     res_.SetRes(CmdRes::kSyntaxErr);
   }
-  return;
 }
 
-void KeysCmd::Do(std::shared_ptr<Partition> partition) {
+void KeysCmd::Do() {
   int64_t total_key = 0;
   int64_t cursor = 0;
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   do {
     keys.clear();
-    cursor = partition->db()->Scan(type_, cursor, pattern_, PIKA_SCAN_STEP_LENGTH, &keys);
+    cursor = db_->storage()->Scan(type_, cursor, pattern_, PIKA_SCAN_STEP_LENGTH, &keys);
     for (const auto& key : keys) {
-      RedisAppendLen(raw, key.size(), "$");
+      RedisAppendLenUint64(raw, key.size(), "$");
       RedisAppendContent(raw, key);
     }
     if (raw.size() >= raw_limit) {
       res_.SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
       return;
     }
-    total_key += keys.size();
+    total_key += static_cast<int64_t>(keys.size());
   } while (cursor != 0);
 
   res_.AppendArrayLen(total_key);
   res_.AppendStringRaw(raw);
-  return;
 }
 
 void SetnxCmd::DoInitial() {
@@ -449,51 +813,38 @@ void SetnxCmd::DoInitial() {
   }
   key_ = argv_[1];
   value_ = argv_[2];
-  return;
 }
 
-void SetnxCmd::Do(std::shared_ptr<Partition> partition) {
+void SetnxCmd::Do() {
   success_ = 0;
-  rocksdb::Status s = partition->db()->Setnx(key_, value_, &success_);
-  if (s.ok()) {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->Setnx(key_, value_, &success_);
+  if (s_.ok()) {
     res_.AppendInteger(success_);
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
 }
 
-std::string SetnxCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+std::string SetnxCmd::ToRedisProtocol() {
   std::string content;
-  if (success_) {
-    content.reserve(RAW_ARGS_LEN);
-    RedisAppendLen(content, 3, "*");
+  content.reserve(RAW_ARGS_LEN);
+  RedisAppendLen(content, 3, "*");
 
-    // to set cmd
-    std::string set_cmd("set");
-    RedisAppendLen(content, set_cmd.size(), "$");
-    RedisAppendContent(content, set_cmd);
-    // key
-    RedisAppendLen(content, key_.size(), "$");
-    RedisAppendContent(content, key_);
-    // value
-    RedisAppendLen(content, value_.size(), "$");
-    RedisAppendContent(content, value_);
-
-    return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                               exec_time,
-                                               std::stoi(server_id),
-                                               logic_id,
-                                               filenum,
-                                               offset,
-                                               content,
-                                               {});
-  }
+  // don't check variable 'success_', because if 'success_' was false, an empty binlog will be saved into file.
+  // to setnx cmd
+  std::string set_cmd("setnx");
+  RedisAppendLenUint64(content, set_cmd.size(), "$");
+  RedisAppendContent(content, set_cmd);
+  // key
+  RedisAppendLenUint64(content, key_.size(), "$");
+  RedisAppendContent(content, key_);
+  // value
+  RedisAppendLenUint64(content, value_.size(), "$");
+  RedisAppendContent(content, value_);
   return content;
 }
 
@@ -503,59 +854,58 @@ void SetexCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &sec_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &ttl_sec_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
   value_ = argv_[3];
-  return;
 }
 
-void SetexCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Setex(key_, value_, sec_);
-  if (s.ok()) {
+void SetexCmd::Do() {
+  s_ = db_->storage()->Setex(key_, value_, ttl_sec_ * 1000);
+  if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
-std::string SetexCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+void SetexCmd::DoThroughDB() {
+  Do();
+}
 
+void SetexCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Setxx(key_, value_, ttl_sec_);
+  }
+}
+
+std::string SetexCmd::ToRedisProtocol() {
   std::string content;
   content.reserve(RAW_ARGS_LEN);
   RedisAppendLen(content, 4, "*");
 
   // to pksetexat cmd
   std::string pksetexat_cmd("pksetexat");
-  RedisAppendLen(content, pksetexat_cmd.size(), "$");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
   RedisAppendContent(content, pksetexat_cmd);
   // key
-  RedisAppendLen(content, key_.size(), "$");
+  RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
   char buf[100];
-  int32_t time_stamp = time(nullptr) + sec_;
-  slash::ll2string(buf, 100, time_stamp);
+  int64_t time_stamp  = static_cast<int64_t>(::time(nullptr)) + ttl_sec_;
+  pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
-  RedisAppendLen(content, at.size(), "$");
+  RedisAppendLenUint64(content, at.size(), "$");
   RedisAppendContent(content, at);
   // value
-  RedisAppendLen(content, value_.size(), "$");
+  RedisAppendLenUint64(content, value_.size(), "$");
   RedisAppendContent(content, value_);
-  return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                             exec_time,
-                                             std::stoi(server_id),
-                                             logic_id,
-                                             filenum,
-                                             offset,
-                                             content,
-                                             {});
+  return content;
 }
 
 void PsetexCmd::DoInitial() {
@@ -564,59 +914,58 @@ void PsetexCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &usec_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &ttl_millsec) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
   value_ = argv_[3];
-  return;
 }
 
-void PsetexCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Setex(key_, value_, usec_ / 1000);
-  if (s.ok()) {
+void PsetexCmd::Do() {
+  s_ = db_->storage()->Setex(key_, value_, ttl_millsec);
+  if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
-std::string PsetexCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+void PsetexCmd::DoThroughDB() {
+  Do();
+}
 
+void PsetexCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Setxx(key_, value_, ttl_millsec / 1000);
+  }
+}
+
+std::string PsetexCmd::ToRedisProtocol() {
   std::string content;
   content.reserve(RAW_ARGS_LEN);
   RedisAppendLen(content, 4, "*");
 
   // to pksetexat cmd
   std::string pksetexat_cmd("pksetexat");
-  RedisAppendLen(content, pksetexat_cmd.size(), "$");
+  RedisAppendLenUint64(content, pksetexat_cmd.size(), "$");
   RedisAppendContent(content, pksetexat_cmd);
   // key
-  RedisAppendLen(content, key_.size(), "$");
+  RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // time_stamp
+  int64_t expire_at_ms = pstd::NowMillis() + ttl_millsec;
+  int64_t time_stamp = expire_at_ms / 1000;
   char buf[100];
-  int32_t time_stamp = time(nullptr) + usec_ / 1000;
-  slash::ll2string(buf, 100, time_stamp);
+  pstd::ll2string(buf, 100, time_stamp);
   std::string at(buf);
-  RedisAppendLen(content, at.size(), "$");
+  RedisAppendLenUint64(content, at.size(), "$");
   RedisAppendContent(content, at);
   // value
-  RedisAppendLen(content, value_.size(), "$");
+  RedisAppendLenUint64(content, value_.size(), "$");
   RedisAppendContent(content, value_);
-  return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                             exec_time,
-                                             std::stoi(server_id),
-                                             logic_id,
-                                             filenum,
-                                             offset,
-                                             content,
-                                             {});
+  return content;
 }
 
 void DelvxCmd::DoInitial() {
@@ -626,13 +975,15 @@ void DelvxCmd::DoInitial() {
   }
   key_ = argv_[1];
   value_ = argv_[2];
-  return;
 }
 
-void DelvxCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->Delvx(key_, value_, &success_);
+void DelvxCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  rocksdb::Status s = db_->storage()->Delvx(key_, value_, &success_);
   if (s.ok() || s.IsNotFound()) {
     res_.AppendInteger(success_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -652,15 +1003,75 @@ void MsetCmd::DoInitial() {
   for (size_t index = 1; index != argc; index += 2) {
     kvs_.push_back({argv_[index], argv_[index + 1]});
   }
-  return;
 }
 
-void MsetCmd::Do(std::shared_ptr<Partition> partition) {
-  blackwidow::Status s = partition->db()->MSet(kvs_);
+void MsetCmd::Do() {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->MSet(kvs_);
+  if (s_.ok()) {
+    res_.SetRes(CmdRes::kOk);
+    std::vector<storage::KeyValue>::const_iterator it;
+    for (it = kvs_.begin(); it != kvs_.end(); it++) {
+      AddSlotKey("k", it->key, db_);
+    }
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void MsetCmd::DoThroughDB() {
+  Do();
+}
+
+void MsetCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    for (auto key : kvs_) {
+      db_->cache()->SetxxWithoutTTL(key.key, key.value);
+    }
+  }
+}
+
+void MsetCmd::Split(const HintKeys& hint_keys) {
+  std::vector<storage::KeyValue> kvs;
+  const std::vector<std::string>& keys = hint_keys.keys;
+  const std::vector<int>& hints = hint_keys.hints;
+  if (keys.size() != hints.size()) {
+    res_.SetRes(CmdRes::kErrOther, "SplitError hint_keys size not match");
+  }
+  for (size_t i = 0; i < keys.size(); i++) {
+    if (kvs_[hints[i]].key == keys[i]) {
+      kvs.push_back(kvs_[hints[i]]);
+    } else {
+      res_.SetRes(CmdRes::kErrOther, "SplitError hint key: " + keys[i]);
+      return;
+    }
+  }
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  storage::Status s = db_->storage()->MSet(kvs);
   if (s.ok()) {
     res_.SetRes(CmdRes::kOk);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
+    return;
+  }
+}
+
+void MsetCmd::Merge() {}
+
+void MsetCmd::DoBinlog() {
+  PikaCmdArgsType set_argv;
+  set_argv.resize(3);
+  //used "set" instead of "SET" to distinguish the binlog of Set
+  set_argv[0] = "set";
+  set_cmd_->SetConn(GetConn());
+  set_cmd_->SetResp(resp_.lock());
+  for(auto& kv: kvs_) {
+    set_argv[1] = kv.key;
+    set_argv[2] = kv.value;
+    set_cmd_->Initial(set_argv, db_name_);
+    set_cmd_->DoBinlog();
   }
 }
 
@@ -678,16 +1089,41 @@ void MsetnxCmd::DoInitial() {
   for (size_t index = 1; index != argc; index += 2) {
     kvs_.push_back({argv_[index], argv_[index + 1]});
   }
-  return;
 }
 
-void MsetnxCmd::Do(std::shared_ptr<Partition> partition) {
+void MsetnxCmd::Do() {
   success_ = 0;
-  rocksdb::Status s = partition->db()->MSetnx(kvs_, &success_);
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_);
   if (s.ok()) {
     res_.AppendInteger(success_);
+    std::vector<storage::KeyValue>::const_iterator it;
+    for (it = kvs_.begin(); it != kvs_.end(); it++) {
+      AddSlotKey("k", it->key, db_);
+    }
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
+  }
+}
+
+void MsetnxCmd::DoBinlog() {
+  if (!success_) {
+    //some keys already exist, set operations aborted, no need of binlog
+    return;
+  }
+  PikaCmdArgsType set_argv;
+  set_argv.resize(3);
+  //used "set" instead of "SET" to distinguish the binlog of SetCmd
+  set_argv[0] = "set";
+  set_cmd_->SetConn(GetConn());
+  set_cmd_->SetResp(resp_.lock());
+  for (auto& kv: kvs_) {
+    set_argv[1] = kv.key;
+    set_argv[2] = kv.value;
+    set_cmd_->Initial(set_argv, db_name_);
+    set_cmd_->DoBinlog();
   }
 }
 
@@ -697,25 +1133,61 @@ void GetrangeCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &start_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &start_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  if (!slash::string2l(argv_[3].data(), argv_[3].size(), &end_)) {
+  if (pstd::string2int(argv_[3].data(), argv_[3].size(), &end_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void GetrangeCmd::Do(std::shared_ptr<Partition> partition) {
+void GetrangeCmd::Do() {
   std::string substr;
-  rocksdb::Status s = partition->db()->Getrange(key_, start_, end_, &substr);
-  if (s.ok() || s.IsNotFound()) {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_= db_->storage()->Getrange(key_, start_, end_, &substr);
+  
+  if (s_.ok() || s_.IsNotFound()) {
+    res_.AppendStringLenUint64(substr.size());
+    res_.AppendContent(substr);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void GetrangeCmd::ReadCache() {
+  std::string substr;
+  auto s = db_->cache()->GetRange(key_, start_, end_, &substr);
+  if (s.ok()) {
     res_.AppendStringLen(substr.size());
     res_.AppendContent(substr);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+void GetrangeCmd::DoThroughDB() {
+  res_.clear();
+  std::string substr;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->GetrangeWithValue(key_, start_, end_, &substr, &value_, &sec_);
+  if (s_.ok()) {
+    res_.AppendStringLen(substr.size());
+    res_.AppendContent(substr);
+  } else if (s_.IsNotFound()) {
+    res_.AppendStringLen(substr.size());
+    res_.AppendContent(substr);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void GetrangeCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->WriteKVToCache(key_, value_, sec_);
   }
 }
 
@@ -724,24 +1196,50 @@ void SetrangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameSetrange);
     return;
   }
-  key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &offset_)) {
+  key_ = argv_[1];  
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &offset_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
+  
   value_ = argv_[3];
-  return;
+  
+  // Read the proto-max-bulk-len parameter settings in the pika configuration file pika_conf
+  const int64_t PROTO_MAX_BULK_LEN = g_pika_conf->proto_max_bulk_len();
+  //Handle the overflow issue of offset_
+  if (offset_ < 0) {
+    res_.SetRes(CmdRes::kInvalidInt, "offset is out of range");
+    return;
+  }
+  if (offset_ > PROTO_MAX_BULK_LEN - static_cast<int64_t>(value_.size())) {
+    res_.SetRes(CmdRes::kErrOther, "string exceeds maximum allowed size (proto-max-bulk-len)");
+    return;
+  }
 }
 
-void SetrangeCmd::Do(std::shared_ptr<Partition> partition) {
-  int32_t new_len;
-  rocksdb::Status s = partition->db()->Setrange(key_, offset_, value_, &new_len);
-  if (s.ok()) {
+void SetrangeCmd::Do() {
+  int32_t new_len = 0;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len);
+  if (s_.ok()) {
     res_.AppendInteger(new_len);
+    AddSlotKey("k", key_, db_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void SetrangeCmd::DoThroughDB() {
+  Do();
+}
+
+void SetrangeCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    STAGE_TIMER_GUARD(cache_duration_ms, true);
+    db_->cache()->SetRangeIfKeyExist(key_, offset_, value_);
+  }
 }
 
 void StrlenCmd::DoInitial() {
@@ -750,18 +1248,45 @@ void StrlenCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void StrlenCmd::Do(std::shared_ptr<Partition> partition) {
+void StrlenCmd::Do() {
   int32_t len = 0;
-  rocksdb::Status s = partition->db()->Strlen(key_, &len);
-  if (s.ok() || s.IsNotFound()) {
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->Strlen(key_, &len);
+  if (s_.ok() || s_.IsNotFound()) {
+    res_.AppendInteger(len);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void StrlenCmd::ReadCache() {
+  int32_t len = 0;
+  auto s= db_->cache()->Strlen(key_, &len);
+  if (s.ok()) {
     res_.AppendInteger(len);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kCacheMiss);
   }
-  return;
+}
+
+void StrlenCmd::DoThroughDB() {
+  res_.clear();
+  s_ = db_->storage()->GetWithTTL(key_, &value_, &ttl_millsec);
+  if (s_.ok() || s_.IsNotFound()) {
+    res_.AppendInteger(value_.size());
+  } else {
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
+  }
+}
+
+void StrlenCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->WriteKVToCache(key_, value_, ttl_millsec > 0 ? ttl_millsec : ttl_millsec / 1000);
+  }
 }
 
 void ExistsCmd::DoInitial() {
@@ -771,18 +1296,44 @@ void ExistsCmd::DoInitial() {
   }
   keys_ = argv_;
   keys_.erase(keys_.begin());
-  return;
 }
 
-void ExistsCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int64_t res = partition->db()->Exists(keys_, &type_status);
+void ExistsCmd::Do() {
+  int64_t res = db_->storage()->Exists(keys_);
   if (res != -1) {
     res_.AppendInteger(res);
   } else {
     res_.SetRes(CmdRes::kErrOther, "exists internal error");
   }
-  return;
+}
+
+void ExistsCmd::Split(const HintKeys& hint_keys) {
+  int64_t res = db_->storage()->Exists(hint_keys.keys);
+  if (res != -1) {
+    split_res_ += res;
+  } else {
+    res_.SetRes(CmdRes::kErrOther, "exists internal error");
+  }
+}
+
+void ExistsCmd::Merge() { res_.AppendInteger(split_res_); }
+
+void ExistsCmd::ReadCache() {
+  if (keys_.size() > 1) {
+    res_.SetRes(CmdRes::kCacheMiss);
+    return;
+  }
+  bool exist = db_->cache()->Exists(keys_[0]);
+  if (exist) {
+    res_.AppendInteger(1);
+  } else {
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+void ExistsCmd::DoThroughDB() {
+  res_.clear();
+  Do();
 }
 
 void ExpireCmd::DoInitial() {
@@ -791,57 +1342,53 @@ void ExpireCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &sec_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &ttl_sec_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void ExpireCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int64_t res = partition->db()->Expire(key_, sec_, &type_status);
+void ExpireCmd::Do() {
+  int32_t res = db_->storage()->Expire(key_, ttl_sec_ * 1000);
   if (res != -1) {
     res_.AppendInteger(res);
+    s_ = rocksdb::Status::OK();
   } else {
     res_.SetRes(CmdRes::kErrOther, "expire internal error");
+    s_ = rocksdb::Status::Corruption("expire internal error");
   }
-  return;
 }
 
-std::string ExpireCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+std::string ExpireCmd::ToRedisProtocol() {
   std::string content;
   content.reserve(RAW_ARGS_LEN);
   RedisAppendLen(content, 3, "*");
 
   // to expireat cmd
   std::string expireat_cmd("expireat");
-  RedisAppendLen(content, expireat_cmd.size(), "$");
+  RedisAppendLenUint64(content, expireat_cmd.size(), "$");
   RedisAppendContent(content, expireat_cmd);
   // key
-  RedisAppendLen(content, key_.size(), "$");
+  RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // sec
   char buf[100];
-  int64_t expireat = time(nullptr) + sec_;
-  slash::ll2string(buf, 100, expireat);
+  int64_t expireat = time(nullptr) + ttl_sec_;
+  pstd::ll2string(buf, 100, expireat);
   std::string at(buf);
-  RedisAppendLen(content, at.size(), "$");
+  RedisAppendLenUint64(content, at.size(), "$");
   RedisAppendContent(content, at);
+  return content;
+}
 
-  return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                             exec_time,
-                                             std::stoi(server_id),
-                                             logic_id,
-                                             filenum,
-                                             offset,
-                                             content,
-                                             {});
+void ExpireCmd::DoThroughDB() {
+  Do();
+}
+
+void ExpireCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Expire(key_, ttl_sec_);
+  }
 }
 
 void PexpireCmd::DoInitial() {
@@ -850,57 +1397,53 @@ void PexpireCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &msec_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &ttl_millsec) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void PexpireCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int64_t res = partition->db()->Expire(key_, msec_/1000, &type_status);
+void PexpireCmd::Do() {
+  int64_t res = db_->storage()->Expire(key_, ttl_millsec);
   if (res != -1) {
     res_.AppendInteger(res);
+    s_ = rocksdb::Status::OK();
   } else {
     res_.SetRes(CmdRes::kErrOther, "expire internal error");
+    s_ = rocksdb::Status::Corruption("expire internal error");
   }
-  return;
 }
 
-std::string PexpireCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
+std::string PexpireCmd::ToRedisProtocol() {
   std::string content;
   content.reserve(RAW_ARGS_LEN);
-  RedisAppendLen(content, argv_.size(), "*");
+  RedisAppendLenUint64(content, argv_.size(), "*");
 
-  // to expireat cmd
-  std::string expireat_cmd("expireat");
-  RedisAppendLen(content, expireat_cmd.size(), "$");
+  // to pexpireat cmd
+  std::string expireat_cmd("pexpireat");
+  RedisAppendLenUint64(content, expireat_cmd.size(), "$");
   RedisAppendContent(content, expireat_cmd);
   // key
-  RedisAppendLen(content, key_.size(), "$");
+  RedisAppendLenUint64(content, key_.size(), "$");
   RedisAppendContent(content, key_);
   // sec
   char buf[100];
-  int64_t expireat = time(nullptr) + msec_ / 1000;
-  slash::ll2string(buf, 100, expireat);
+  int64_t expireat = pstd::NowMillis() + ttl_millsec;
+  pstd::ll2string(buf, 100, expireat);
   std::string at(buf);
-  RedisAppendLen(content, at.size(), "$");
+  RedisAppendLenUint64(content, at.size(), "$");
   RedisAppendContent(content, at);
+  return content;
+}
 
-  return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                             exec_time,
-                                             std::stoi(server_id),
-                                             logic_id,
-                                             filenum,
-                                             offset,
-                                             content,
-                                             {});
+void PexpireCmd::DoThroughDB() {
+  Do();
+}
+
+void PexpireCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Expire(key_, ttl_millsec);
+  }
 }
 
 void ExpireatCmd::DoInitial() {
@@ -909,20 +1452,30 @@ void ExpireatCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &time_stamp_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &time_stamp_sec_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void ExpireatCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int32_t res = partition->db()->Expireat(key_, time_stamp_, &type_status);
+void ExpireatCmd::Do() {
+  int32_t res = db_->storage()->Expireat(key_, time_stamp_sec_ * 1000);
   if (res != -1) {
     res_.AppendInteger(res);
+    s_ = rocksdb::Status::OK();
   } else {
     res_.SetRes(CmdRes::kErrOther, "expireat internal error");
+    s_ = rocksdb::Status::Corruption("expireat internal error");
+  }
+}
+
+void ExpireatCmd::DoThroughDB() {
+  Do();
+}
+
+void ExpireatCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Expireat(key_, time_stamp_sec_);
   }
 }
 
@@ -932,57 +1485,31 @@ void PexpireatCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &time_stamp_ms_)) {
+  if (pstd::string2int(argv_[2].data(), argv_[2].size(), &time_stamp_millsec_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-std::string PexpireatCmd::ToBinlog(
-      uint32_t exec_time,
-      const std::string& server_id,
-      uint64_t logic_id,
-      uint32_t filenum,
-      uint64_t offset) {
-  std::string content;
-  content.reserve(RAW_ARGS_LEN);
-  RedisAppendLen(content, argv_.size(), "*");
-
-  // to expireat cmd
-  std::string expireat_cmd("expireat");
-  RedisAppendLen(content, expireat_cmd.size(), "$");
-  RedisAppendContent(content, expireat_cmd);
-  // key
-  RedisAppendLen(content, key_.size(), "$");
-  RedisAppendContent(content, key_);
-  // sec
-  char buf[100];
-  int64_t expireat = time_stamp_ms_ / 1000;
-  slash::ll2string(buf, 100, expireat);
-  std::string at(buf);
-  RedisAppendLen(content, at.size(), "$");
-  RedisAppendContent(content, at);
-
-  return PikaBinlogTransverter::BinlogEncode(BinlogType::TypeFirst,
-                                             exec_time,
-                                             std::stoi(server_id),
-                                             logic_id,
-                                             filenum,
-                                             offset,
-                                             content,
-                                             {});
-}
-
-void PexpireatCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int32_t res = partition->db()->Expireat(key_, time_stamp_ms_/1000, &type_status);
+void PexpireatCmd::Do() {
+  int32_t res = db_->storage()->Expireat(key_, static_cast<int32_t>(time_stamp_millsec_));
   if (res != -1) {
     res_.AppendInteger(res);
+    s_ = rocksdb::Status::OK();
   } else {
     res_.SetRes(CmdRes::kErrOther, "pexpireat internal error");
+    s_ = rocksdb::Status::Corruption("pexpireat internal error");
   }
-  return;
+}
+
+void PexpireatCmd::DoThroughDB() {
+  Do();
+}
+
+void PexpireatCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Expireat(key_, time_stamp_millsec_ / 1000);
+  }
 }
 
 void TtlCmd::DoInitial() {
@@ -991,35 +1518,31 @@ void TtlCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void TtlCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  type_timestamp = partition->db()->TTL(key_, &type_status);
-  for (const auto& item : type_timestamp) {
-     // mean operation exception errors happen in database
-     if (item.second == -3) {
-       res_.SetRes(CmdRes::kErrOther, "ttl internal error");
-       return;
-     }
-  }
-  if (type_timestamp[blackwidow::kStrings] != -2) {
-    res_.AppendInteger(type_timestamp[blackwidow::kStrings]);
-  } else if (type_timestamp[blackwidow::kHashes] != -2) {
-    res_.AppendInteger(type_timestamp[blackwidow::kHashes]);
-  } else if (type_timestamp[blackwidow::kLists] != -2) {
-    res_.AppendInteger(type_timestamp[blackwidow::kLists]);
-  } else if (type_timestamp[blackwidow::kZSets] != -2) {
-    res_.AppendInteger(type_timestamp[blackwidow::kZSets]);
-  } else if (type_timestamp[blackwidow::kSets] != -2) {
-    res_.AppendInteger(type_timestamp[blackwidow::kSets]);
+void TtlCmd::Do() {
+  int64_t ttl_sec_ = db_->storage()->TTL(key_);
+  if (ttl_sec_ == -3) {
+    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
   } else {
-    // mean this key not exist
-    res_.AppendInteger(-2);
+    res_.AppendInteger(ttl_sec_);
   }
-  return;
+}
+
+void TtlCmd::ReadCache() {
+  int64_t timestamp = db_->cache()->TTL(key_);
+  if (timestamp == -3) {
+    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
+  } else if (timestamp != -2) {
+    res_.AppendInteger(timestamp);
+  } else {
+    res_.SetRes(CmdRes::kCacheMiss);
+  }
+}
+
+void TtlCmd::DoThroughDB() {
+  res_.clear();
+  Do();
 }
 
 void PttlCmd::DoInitial() {
@@ -1028,55 +1551,25 @@ void PttlCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void PttlCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  type_timestamp = partition->db()->TTL(key_, &type_status);
-  for (const auto& item : type_timestamp) {
-     // mean operation exception errors happen in database
-     if (item.second == -3) {
-       res_.SetRes(CmdRes::kErrOther, "ttl internal error");
-       return;
-     }
-  }
-  if (type_timestamp[blackwidow::kStrings] != -2) {
-    if (type_timestamp[blackwidow::kStrings] == -1) {
-      res_.AppendInteger(-1);
-    } else {
-      res_.AppendInteger(type_timestamp[blackwidow::kStrings] * 1000);
-    }
-  } else if (type_timestamp[blackwidow::kHashes] != -2) {
-    if (type_timestamp[blackwidow::kHashes] == -1) {
-      res_.AppendInteger(-1);
-    } else {
-      res_.AppendInteger(type_timestamp[blackwidow::kHashes] * 1000);
-    }
-  } else if (type_timestamp[blackwidow::kLists] != -2) {
-    if (type_timestamp[blackwidow::kLists] == -1) {
-      res_.AppendInteger(-1);
-    } else {
-      res_.AppendInteger(type_timestamp[blackwidow::kLists] * 1000);
-    }
-  } else if (type_timestamp[blackwidow::kSets] != -2) {
-    if (type_timestamp[blackwidow::kSets] == -1) {
-      res_.AppendInteger(-1);
-    } else {
-      res_.AppendInteger(type_timestamp[blackwidow::kSets] * 1000);
-    }
-  } else if (type_timestamp[blackwidow::kZSets] != -2) {
-    if (type_timestamp[blackwidow::kZSets] == -1) {
-      res_.AppendInteger(-1);
-    } else {
-      res_.AppendInteger(type_timestamp[blackwidow::kZSets] * 1000);
-    }
+void PttlCmd::Do() {
+  int64_t ttl_millsec = db_->storage()->PTTL(key_);
+  if (ttl_millsec == -3) {
+    res_.SetRes(CmdRes::kErrOther, "ttl internal error");
   } else {
-    // mean this key not exist
-    res_.AppendInteger(-2);
+    res_.AppendInteger(ttl_millsec);
   }
-  return;
+}
+
+void PttlCmd::ReadCache() {
+  // redis cache don't support pttl cache, so read directly from db
+  DoThroughDB();
+}
+
+void PttlCmd::DoThroughDB() {
+  res_.clear();
+  Do();
 }
 
 void PersistCmd::DoInitial() {
@@ -1085,18 +1578,27 @@ void PersistCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void PersistCmd::Do(std::shared_ptr<Partition> partition) {
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
-  int32_t res = partition->db()->Persist(key_, &type_status);
+void PersistCmd::Do() {
+  int32_t res = db_->storage()->Persist(key_);
   if (res != -1) {
     res_.AppendInteger(res);
+    s_ = rocksdb::Status::OK();
   } else {
     res_.SetRes(CmdRes::kErrOther, "persist internal error");
+    s_ = rocksdb::Status::Corruption("persist internal error");
   }
-  return;
+}
+
+void PersistCmd::DoThroughDB() {
+  Do();
+}
+
+void PersistCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    db_->cache()->Persist(key_);
+  }
 }
 
 void TypeCmd::DoInitial() {
@@ -1105,18 +1607,36 @@ void TypeCmd::DoInitial() {
     return;
   }
   key_ = argv_[1];
-  return;
 }
 
-void TypeCmd::Do(std::shared_ptr<Partition> partition) {
-  std::string res;
-  rocksdb::Status s = partition->db()->Type(key_, &res);
+void TypeCmd::Do() {
+  enum storage::DataType type = storage::DataType::kNones;
+  std::string key_type;
+  rocksdb::Status s = db_->storage()->GetType(key_, type);
   if (s.ok()) {
-    res_.AppendContent("+" + res);
+    res_.AppendContent("+" + std::string(DataTypeToString(type)));
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
-  return;
+}
+
+void TypeCmd::ReadCache() {
+  enum storage::DataType type = storage::DataType::kNones;
+  std::string key_type;
+  // TODO Cache GetType function
+  rocksdb::Status s = db_->storage()->GetType(key_, type);
+  if (s.ok()) {
+    res_.AppendContent("+" + std::string(DataTypeToString(type)));
+  } else {
+    res_.SetRes(CmdRes::kCacheMiss, s.ToString());
+  }
+}
+
+void TypeCmd::DoThroughDB() {
+  res_.clear();
+  Do();
 }
 
 void ScanCmd::DoInitial() {
@@ -1124,24 +1644,40 @@ void ScanCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameScan);
     return;
   }
-  if (!slash::string2l(argv_[1].data(), argv_[1].size(), &cursor_)) {
+  if (pstd::string2int(argv_[1].data(), argv_[1].size(), &cursor_) == 0) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  size_t index = 2, argc = argv_.size();
+  size_t index = 2;
+  size_t argc = argv_.size();
 
   while (index < argc) {
     std::string opt = argv_[index];
-    if (!strcasecmp(opt.data(), "match")
-      || !strcasecmp(opt.data(), "count")) {
+    if ((strcasecmp(opt.data(), "match") == 0) || (strcasecmp(opt.data(), "count") == 0) ||
+        (strcasecmp(opt.data(), "type") == 0)) {
       index++;
       if (index >= argc) {
         res_.SetRes(CmdRes::kSyntaxErr);
         return;
       }
-      if (!strcasecmp(opt.data(), "match")) {
+      if (strcasecmp(opt.data(), "match") == 0) {
         pattern_ = argv_[index];
-      } else if (!slash::string2l(argv_[index].data(), argv_[index].size(), &count_) || count_ <= 0) {
+      } else if (strcasecmp(opt.data(), "type") == 0) {
+        std::string str_type = argv_[index];
+        if (strcasecmp(str_type.data(), "string") == 0) {
+          type_ = storage::DataType::kStrings;
+        } else if (strcasecmp(str_type.data(), "zset") == 0) {
+          type_ = storage::DataType::kZSets;
+        } else if (strcasecmp(str_type.data(), "set") == 0) {
+          type_ = storage::DataType::kSets;
+        } else if (strcasecmp(str_type.data(), "list") == 0) {
+          type_ = storage::DataType::kLists;
+        } else if (strcasecmp(str_type.data(), "hash") == 0) {
+          type_ = storage::DataType::kHashes;
+        } else {
+          res_.SetRes(CmdRes::kSyntaxErr);
+        }
+      } else if ((pstd::string2int(argv_[index].data(), argv_[index].size(), &count_) == 0) || count_ <= 0) {
         res_.SetRes(CmdRes::kInvalidInt);
         return;
       }
@@ -1151,10 +1687,9 @@ void ScanCmd::DoInitial() {
     }
     index++;
   }
-  return;
 }
 
-void ScanCmd::Do(std::shared_ptr<Partition> partition) {
+void ScanCmd::Do() {
   int64_t total_key = 0;
   int64_t batch_count = 0;
   int64_t left = count_;
@@ -1162,34 +1697,33 @@ void ScanCmd::Do(std::shared_ptr<Partition> partition) {
   size_t raw_limit = g_pika_conf->max_client_response_size();
   std::string raw;
   std::vector<std::string> keys;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
   // To avoid memory overflow, we call the Scan method in batches
   do {
     keys.clear();
     batch_count = left < PIKA_SCAN_STEP_LENGTH ? left : PIKA_SCAN_STEP_LENGTH;
     left = left > PIKA_SCAN_STEP_LENGTH ? left - PIKA_SCAN_STEP_LENGTH : 0;
-    cursor_ret = partition->db()->Scan(blackwidow::DataType::kAll, cursor_ret,
-            pattern_, batch_count, &keys);
+    cursor_ret = db_->storage()->Scan(type_, cursor_ret, pattern_, batch_count, &keys);
     for (const auto& key : keys) {
-      RedisAppendLen(raw, key.size(), "$");
+      RedisAppendLenUint64(raw, key.size(), "$");
       RedisAppendContent(raw, key);
     }
     if (raw.size() >= raw_limit) {
       res_.SetRes(CmdRes::kErrOther, "Response exceeds the max-client-response-size limit");
       return;
     }
-    total_key += keys.size();
-  } while (cursor_ret != 0 && left);
+    total_key += static_cast<int64_t>(keys.size());
+  } while (cursor_ret != 0 && (left != 0));
 
   res_.AppendArrayLen(2);
 
   char buf[32];
-  int len = slash::ll2string(buf, sizeof(buf), cursor_ret);
+  int len = pstd::ll2string(buf, sizeof(buf), cursor_ret);
   res_.AppendStringLen(len);
   res_.AppendContent(buf);
 
   res_.AppendArrayLen(total_key);
   res_.AppendStringRaw(raw);
-  return;
 }
 
 void ScanxCmd::DoInitial() {
@@ -1197,35 +1731,35 @@ void ScanxCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameScanx);
     return;
   }
-  if (!strcasecmp(argv_[1].data(), "string")) {
-    type_ = blackwidow::kStrings;
-  } else if (!strcasecmp(argv_[1].data(), "hash")) {
-    type_ = blackwidow::kHashes;
-  } else if (!strcasecmp(argv_[1].data(), "set")) {
-    type_ = blackwidow::kSets;
-  } else if (!strcasecmp(argv_[1].data(), "zset")) {
-    type_ = blackwidow::kZSets;
-  } else if (!strcasecmp(argv_[1].data(), "list")) {
-    type_ = blackwidow::kLists;
+  if (strcasecmp(argv_[1].data(), "string") == 0) {
+    type_ = storage::DataType::kStrings;
+  } else if (strcasecmp(argv_[1].data(), "hash") == 0) {
+    type_ = storage::DataType::kHashes;
+  } else if (strcasecmp(argv_[1].data(), "set") == 0) {
+    type_ = storage::DataType::kSets;
+  } else if (strcasecmp(argv_[1].data(), "zset") == 0) {
+    type_ = storage::DataType::kZSets;
+  } else if (strcasecmp(argv_[1].data(), "list") == 0) {
+    type_ = storage::DataType::kLists;
   } else {
     res_.SetRes(CmdRes::kInvalidDbType);
     return;
   }
 
   start_key_ = argv_[2];
-  size_t index = 3, argc = argv_.size();
+  size_t index = 3;
+  size_t argc = argv_.size();
   while (index < argc) {
     std::string opt = argv_[index];
-    if (!strcasecmp(opt.data(), "match")
-      || !strcasecmp(opt.data(), "count")) {
+    if ((strcasecmp(opt.data(), "match") == 0) || (strcasecmp(opt.data(), "count") == 0)) {
       index++;
       if (index >= argc) {
         res_.SetRes(CmdRes::kSyntaxErr);
         return;
       }
-      if (!strcasecmp(opt.data(), "match")) {
+      if (strcasecmp(opt.data(), "match") == 0) {
         pattern_ = argv_[index];
-      } else if (!slash::string2l(argv_[index].data(), argv_[index].size(), &count_) || count_ <= 0) {
+      } else if ((pstd::string2int(argv_[index].data(), argv_[index].size(), &count_) == 0) || count_ <= 0) {
         res_.SetRes(CmdRes::kInvalidInt);
         return;
       }
@@ -1235,28 +1769,27 @@ void ScanxCmd::DoInitial() {
     }
     index++;
   }
-  return;
 }
 
-void ScanxCmd::Do(std::shared_ptr<Partition> partition) {
+void ScanxCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
-  rocksdb::Status s = partition->db()->Scanx(type_, start_key_, pattern_, count_, &keys, &next_key);
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  rocksdb::Status s = db_->storage()->Scanx(type_, start_key_, pattern_, count_, &keys, &next_key);
 
   if (s.ok()) {
     res_.AppendArrayLen(2);
-    res_.AppendStringLen(next_key.size());
+    res_.AppendStringLenUint64(next_key.size());
     res_.AppendContent(next_key);
 
-    res_.AppendArrayLen(keys.size());
+    res_.AppendArrayLenUint64(keys.size());
     std::vector<std::string>::iterator iter;
-    for (const auto& key : keys){
+    for (const auto& key : keys) {
       res_.AppendString(key);
     }
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
-  return;
 }
 
 void PKSetexAtCmd::DoInitial() {
@@ -1266,22 +1799,38 @@ void PKSetexAtCmd::DoInitial() {
   }
   key_ = argv_[1];
   value_ = argv_[3];
-  if (!slash::string2l(argv_[2].data(), argv_[2].size(), &time_stamp_)
-    || time_stamp_ >= INT32_MAX) {
+  if ((pstd::string2int(argv_[2].data(), argv_[2].size(), &time_stamp_sec_) == 0) || time_stamp_sec_ >= INT32_MAX) {
     res_.SetRes(CmdRes::kInvalidInt);
     return;
   }
-  return;
 }
 
-void PKSetexAtCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->PKSetexAt(key_, value_, time_stamp_);
-  if (s.ok()) {
+void PKSetexAtCmd::Do() {
+  // Use int64_t to avoid overflow
+  int64_t time_stamp_ms = static_cast<int64_t>(time_stamp_sec_) * 1000;
+  s_ = db_->storage()->PKSetexAt(key_, value_, time_stamp_ms);
+  if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
+}
+
+void PKSetexAtCmd::DoThroughDB() {
+  Do();
+}
+
+void PKSetexAtCmd::DoUpdateCache() {
+  if (s_.ok()) {
+    auto expire = time_stamp_sec_ - static_cast<int64_t>(std::time(nullptr));
+    if (expire <= 0) [[unlikely]] {
+      db_->cache()->Del({key_});
+      return;
+    }
+    db_->cache()->Setxx(key_, value_, expire);
+  }
 }
 
 void PKScanRangeCmd::DoInitial() {
@@ -1289,19 +1838,19 @@ void PKScanRangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNamePKScanRange);
     return;
   }
-  if (!strcasecmp(argv_[1].data(), "string_with_value")) {
-    type_ = blackwidow::kStrings;
+  if (strcasecmp(argv_[1].data(), "string_with_value") == 0) {
+    type_ = storage::DataType::kStrings;
     string_with_value = true;
-  } else if (!strcasecmp(argv_[1].data(), "string")) {
-    type_ = blackwidow::kStrings;
-  } else if (!strcasecmp(argv_[1].data(), "hash")) {
-    type_ = blackwidow::kHashes;
-  } else if (!strcasecmp(argv_[1].data(), "set")) {
-    type_ = blackwidow::kSets;
-  } else if (!strcasecmp(argv_[1].data(), "zset")) {
-    type_ = blackwidow::kZSets;
-  } else if (!strcasecmp(argv_[1].data(), "list")) {
-    type_ = blackwidow::kLists;
+  } else if (strcasecmp(argv_[1].data(), "string") == 0) {
+    type_ = storage::DataType::kStrings;
+  } else if (strcasecmp(argv_[1].data(), "hash") == 0) {
+    type_ = storage::DataType::kHashes;
+  } else if (strcasecmp(argv_[1].data(), "set") == 0) {
+    type_ = storage::DataType::kSets;
+  } else if (strcasecmp(argv_[1].data(), "zset") == 0) {
+    type_ = storage::DataType::kZSets;
+  } else if (strcasecmp(argv_[1].data(), "list") == 0) {
+    type_ = storage::DataType::kLists;
   } else {
     res_.SetRes(CmdRes::kInvalidDbType);
     return;
@@ -1309,19 +1858,24 @@ void PKScanRangeCmd::DoInitial() {
 
   key_start_ = argv_[2];
   key_end_ = argv_[3];
-  size_t index = 4, argc = argv_.size();
+  // start key and end key hash tag have to be same in non classic mode
+  if (!HashtagIsConsistent(key_start_, key_start_)) {
+    res_.SetRes(CmdRes::kInconsistentHashTag);
+    return;
+  }
+  size_t index = 4;
+  size_t argc = argv_.size();
   while (index < argc) {
     std::string opt = argv_[index];
-    if (!strcasecmp(opt.data(), "match")
-      || !strcasecmp(opt.data(), "limit")) {
+    if ((strcasecmp(opt.data(), "match") == 0) || (strcasecmp(opt.data(), "limit") == 0)) {
       index++;
       if (index >= argc) {
         res_.SetRes(CmdRes::kSyntaxErr);
         return;
       }
-      if (!strcasecmp(opt.data(), "match")) {
+      if (strcasecmp(opt.data(), "match") == 0) {
         pattern_ = argv_[index];
-      } else if (!slash::string2l(argv_[index].data(), argv_[index].size(), &limit_) || limit_ <= 0) {
+      } else if ((pstd::string2int(argv_[index].data(), argv_[index].size(), &limit_) == 0) || limit_ <= 0) {
         res_.SetRes(CmdRes::kInvalidInt);
         return;
       }
@@ -1331,22 +1885,21 @@ void PKScanRangeCmd::DoInitial() {
     }
     index++;
   }
-  return;
 }
 
-void PKScanRangeCmd::Do(std::shared_ptr<Partition> partition) {
+void PKScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
-  std::vector<blackwidow::KeyValue> kvs;
-  rocksdb::Status s = partition->db()->PKScanRange(type_, key_start_, key_end_, pattern_, limit_, &keys, &kvs, &next_key);
+  std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->PKScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_), &keys, &kvs, &next_key);
 
-  if (s.ok()) {
+  if (s_.ok()) {
     res_.AppendArrayLen(2);
-    res_.AppendStringLen(next_key.size());
+    res_.AppendStringLenUint64(next_key.size());
     res_.AppendContent(next_key);
-
-    if (type_ == blackwidow::kStrings) {
-      res_.AppendArrayLen(string_with_value ? 2 * kvs.size() : kvs.size());
+    if (type_ == storage::DataType::kStrings) {
+      res_.AppendArrayLenUint64(string_with_value ? 2 * kvs.size() : kvs.size());
       for (const auto& kv : kvs) {
         res_.AppendString(kv.key);
         if (string_with_value) {
@@ -1354,15 +1907,16 @@ void PKScanRangeCmd::Do(std::shared_ptr<Partition> partition) {
         }
       }
     } else {
-      res_.AppendArrayLen(keys.size());
-      for (const auto& key : keys){
+      res_.AppendArrayLenUint64(keys.size());
+      for (const auto& key : keys) {
         res_.AppendString(key);
       }
     }
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
 }
 
 void PKRScanRangeCmd::DoInitial() {
@@ -1370,19 +1924,19 @@ void PKRScanRangeCmd::DoInitial() {
     res_.SetRes(CmdRes::kWrongNum, kCmdNamePKRScanRange);
     return;
   }
-  if (!strcasecmp(argv_[1].data(), "string_with_value")) {
-    type_ = blackwidow::kStrings;
+  if (strcasecmp(argv_[1].data(), "string_with_value") == 0) {
+    type_ = storage::DataType::kStrings;
     string_with_value = true;
-  } else if (!strcasecmp(argv_[1].data(), "string")) {
-    type_ = blackwidow::kStrings;
-  } else if (!strcasecmp(argv_[1].data(), "hash")) {
-    type_ = blackwidow::kHashes;
-  } else if (!strcasecmp(argv_[1].data(), "set")) {
-    type_ = blackwidow::kSets;
-  } else if (!strcasecmp(argv_[1].data(), "zset")) {
-    type_ = blackwidow::kZSets;
-  } else if (!strcasecmp(argv_[1].data(), "list")) {
-    type_ = blackwidow::kLists;
+  } else if (strcasecmp(argv_[1].data(), "string") == 0) {
+    type_ = storage::DataType::kStrings;
+  } else if (strcasecmp(argv_[1].data(), "hash") == 0) {
+    type_ = storage::DataType::kHashes;
+  } else if (strcasecmp(argv_[1].data(), "set") == 0) {
+    type_ = storage::DataType::kSets;
+  } else if (strcasecmp(argv_[1].data(), "zset") == 0) {
+    type_ = storage::DataType::kZSets;
+  } else if (strcasecmp(argv_[1].data(), "list") == 0) {
+    type_ = storage::DataType::kLists;
   } else {
     res_.SetRes(CmdRes::kInvalidDbType);
     return;
@@ -1390,19 +1944,24 @@ void PKRScanRangeCmd::DoInitial() {
 
   key_start_ = argv_[2];
   key_end_ = argv_[3];
-  size_t index = 4, argc = argv_.size();
+  // start key and end key hash tag have to be same in non classic mode
+  if (!HashtagIsConsistent(key_start_, key_start_)) {
+    res_.SetRes(CmdRes::kInconsistentHashTag);
+    return;
+  }
+  size_t index = 4;
+  size_t argc = argv_.size();
   while (index < argc) {
     std::string opt = argv_[index];
-    if (!strcasecmp(opt.data(), "match")
-      || !strcasecmp(opt.data(), "limit")) {
+    if ((strcasecmp(opt.data(), "match") == 0) || (strcasecmp(opt.data(), "limit") == 0)) {
       index++;
       if (index >= argc) {
         res_.SetRes(CmdRes::kSyntaxErr);
         return;
       }
-      if (!strcasecmp(opt.data(), "match")) {
+      if (strcasecmp(opt.data(), "match") == 0) {
         pattern_ = argv_[index];
-      } else if (!slash::string2l(argv_[index].data(), argv_[index].size(), &limit_) || limit_ <= 0) {
+      } else if ((pstd::string2int(argv_[index].data(), argv_[index].size(), &limit_) == 0) || limit_ <= 0) {
         res_.SetRes(CmdRes::kInvalidInt);
         return;
       }
@@ -1412,22 +1971,23 @@ void PKRScanRangeCmd::DoInitial() {
     }
     index++;
   }
-  return;
 }
 
-void PKRScanRangeCmd::Do(std::shared_ptr<Partition> partition) {
+void PKRScanRangeCmd::Do() {
   std::string next_key;
   std::vector<std::string> keys;
-  std::vector<blackwidow::KeyValue> kvs;
-  rocksdb::Status s = partition->db()->PKRScanRange(type_, key_start_, key_end_, pattern_, limit_, &keys, &kvs, &next_key);
+  std::vector<storage::KeyValue> kvs;
+  STAGE_TIMER_GUARD(storage_duration_ms, true);
+  s_ = db_->storage()->PKRScanRange(type_, key_start_, key_end_, pattern_, static_cast<int32_t>(limit_),
+                                &keys, &kvs, &next_key);
 
-  if (s.ok()) {
+  if (s_.ok()) {
     res_.AppendArrayLen(2);
-    res_.AppendStringLen(next_key.size());
+    res_.AppendStringLenUint64(next_key.size());
     res_.AppendContent(next_key);
 
-    if (type_ == blackwidow::kStrings) {
-      res_.AppendArrayLen(string_with_value ? 2 * kvs.size() : kvs.size());
+    if (type_ == storage::DataType::kStrings) {
+      res_.AppendArrayLenUint64(string_with_value ? 2 * kvs.size() : kvs.size());
       for (const auto& kv : kvs) {
         res_.AppendString(kv.key);
         if (string_with_value) {
@@ -1435,13 +1995,14 @@ void PKRScanRangeCmd::Do(std::shared_ptr<Partition> partition) {
         }
       }
     } else {
-      res_.AppendArrayLen(keys.size());
-      for (const auto& key : keys){
+      res_.AppendArrayLenUint64(keys.size());
+      for (const auto& key : keys) {
         res_.AppendString(key);
       }
     }
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
-  return;
 }

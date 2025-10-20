@@ -6,20 +6,19 @@
 #ifndef PIKA_AUXILIARY_THREAD_H_
 #define PIKA_AUXILIARY_THREAD_H_
 
-#include "pink/include/pink_thread.h"
+#include "net/include/net_thread.h"
 
-#include "slash/include/slash_mutex.h"
+#include "pstd/include/pstd_mutex.h"
 
-class PikaAuxiliaryThread : public pink::Thread {
+class PikaAuxiliaryThread : public net::Thread {
  public:
-  PikaAuxiliaryThread() :
-      mu_(),
-      cv_(&mu_) {}
-  virtual ~PikaAuxiliaryThread();
-  slash::Mutex mu_;
-  slash::CondVar cv_;
+  PikaAuxiliaryThread() { set_thread_name("AuxiliaryThread"); }
+  ~PikaAuxiliaryThread() override;
+  pstd::Mutex mu_;
+  pstd::CondVar cv_;
+
  private:
-  virtual void* ThreadMain();
+  void* ThreadMain() override;
 };
 
 #endif
