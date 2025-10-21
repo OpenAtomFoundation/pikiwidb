@@ -97,3 +97,5 @@ sample_mock.py
 tools/pika_batch_ingest/d100
 tools/pika_batch_ingest/test.sh
 tools/pika_batch_ingest/info_rocksdb.txt
+
+conf/pika_master.conf
