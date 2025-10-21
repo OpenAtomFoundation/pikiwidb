@@ -1,0 +1,18 @@
+{
+  "key": {
+    "distribution": "normal",
+    "poolSize": -1,
+    "prefix": "key_",
+    "size": 16
+  },
+  "maxFileSizeMB": 2,
+  "maxSizeGB": 100,
+  "targetSizeMB": 10,
+  "value": {
+    "distribution": "normal",
+    "poolSize": -1,
+    "prefix": "value_",
+    "size": 24
+  },
+  "directory": "test-10M"
+}

@@ -18,7 +18,7 @@
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
 #include "storage/util.h"
-
+#include "ingest/include/ingest_conf.h"
 #include "pstd/include/pstd_defer.h"
 
 namespace storage {
@@ -735,6 +735,107 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   }
   return s;
 }
+
+
+Status RedisStrings::SstExtendIngest(const std::vector<std::string>& local_sst_paths,
+                                      const std::string& config_path) {
+  if (local_sst_paths.empty()) {
+    return Status::InvalidArgument("SST path list is empty");
+  }
+
+  static std::shared_ptr<IngestConf> cached_ingest_conf;
+  if (!cached_ingest_conf) {
+    cached_ingest_conf = std::make_shared<IngestConf>(config_path);
+    auto load_status = cached_ingest_conf->Load();
+    if (load_status != 0) {
+      return Status::IOError("Failed to load config.");
+    }
+  }
+
+  bool need_apply_restore = false;
+
+  // 激进配置
+  {
+    std::lock_guard<std::mutex> lk(ingest_mu_);
+    if (ingest_sessions_.fetch_add(1) == 0) {
+      // 第一个 Ingest 开启激进配置
+      auto* cf = db_->DefaultColumnFamily();
+      auto st = ApplyAggressiveConfig(*cached_ingest_conf);
+      if (!st.ok()) {
+        ingest_sessions_.fetch_sub(1);
+        return HandleError("[DB::SstExtendIngest] Failed to apply aggressive options", st);
+      }
+      need_apply_restore = true;
+    }
+  }
+
+  // 执行 Ingest
+  std::vector<std::string> paths = local_sst_paths;
+  auto st = DoSstExtendIngest(paths, config_path);
+  if (!st.ok()) {
+    return st;
+  }
+
+  // 恢复配置（只有最后一个才恢复）
+  {
+    std::lock_guard<std::mutex> lk(ingest_mu_);
+    if (need_apply_restore && ingest_sessions_.fetch_sub(1) == 1) {
+      auto* cf = db_->DefaultColumnFamily();
+      auto rst = ApplyRestoreConfig(*cached_ingest_conf);
+      if (!rst.ok()) {
+        return HandleError("[DB::SstExtendIngest] Failed to apply restore options", rst);
+      }
+
+      int code = cached_ingest_conf->ConfigRewrite();
+      if (code != 0) {
+        return Status::IOError("Failed to rewrite config.");
+      }
+    }
+  }
+
+  return Status::OK();
+}
+
+// 提取的配置应用函数
+Status RedisStrings::ApplyAggressiveConfig(IngestConf& ingest_conf) {
+  auto* cf = db_->DefaultColumnFamily();
+  return ingest_conf.ApplyAggressiveOptions(db_, cf);
+}
+
+Status RedisStrings::ApplyRestoreConfig(IngestConf& ingest_conf) {
+  auto* cf = db_->DefaultColumnFamily();
+  return ingest_conf.ApplyRestoreOptions(db_, cf);
+}
+
+// 错误处理函数
+Status RedisStrings::HandleError(const std::string& msg, const Status& st) {
+  LOG(ERROR) << msg << ": " << st.ToString();
+  return Status::IOError(msg + ": " + st.ToString());
+}
+
+
+Status RedisStrings::DoSstExtendIngest(std::vector<std::string>& local_sst_paths,
+                                  const std::string& config_path) {
+  // 配置 IngestExternalFileOptions
+  IngestConf ingest_conf(config_path);
+  ingest_conf.Load();
+  rocksdb::IngestExternalFileOptions opt = ingest_conf.MakeIngestOptions();
+
+  // 执行 Ingest 操作
+  auto st = db_->IngestExternalFile(local_sst_paths, opt);
+  if (!st.ok()) {
+    LOG(ERROR) << "[DB::DoSstExtendIngest] Ingest failed: " << st.ToString();
+    return Status::IOError("IngestExternalFile failed: " + st.ToString());
+  }
+
+  // 非阻塞触发后台压缩
+  auto* cf = db_->DefaultColumnFamily();
+  db_->SuggestCompactRange(cf, nullptr, nullptr);
+
+  LOG(INFO) << "[DB::DoSstExtendIngest] Ingested " << local_sst_paths.size() << " SST files.";
+  return Status::OK();
+}
+
 
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);

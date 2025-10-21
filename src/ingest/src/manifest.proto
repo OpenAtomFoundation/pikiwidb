@@ -1,0 +1,14 @@
+syntax = "proto3";
+package ManifestIngest;
+
+message Manifest {
+  string version_id = 1; // 用于生成manifest的名称
+  int64 timestamp = 2; // 生成manifest的时间戳，单位为毫秒
+  repeated SSTFile sst_files = 3; // 文件列表
+}
+
+message SSTFile {
+  string sst_path = 1; // sst路径，"sst/db1/000112.sst"
+  string hash = 2; // 文件hash值
+  int64 file_size = 3; // 文件大小
+}
