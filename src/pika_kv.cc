@@ -203,6 +203,7 @@ void GetCmd::DoUpdateCache() {
 
 void ManifestIngestCmd::DoInitial() {
   LOG(INFO) << "[ManifestIngestCmd] Starting DoInitial";
+  if(!g_pika_conf->batch_extend_ingest()) return;
 
   if (!CheckArg(argv_.size())) {
     res_.SetRes(CmdRes::kWrongNum, kCmdNameManifestIngest);
@@ -215,7 +216,7 @@ void ManifestIngestCmd::DoInitial() {
 
   // 下载所有 SST
   SstDownloader* downloader = g_pika_server->s3()->Downloader();
-  rocksdb::Status s_  = downloader->DownloadAllFiles(key_, sst_files_path_);
+  s_  = downloader->DownloadAllFiles(key_, sst_files_path_);
 
   if (!s_.ok()) {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
@@ -228,6 +229,10 @@ void ManifestIngestCmd::DoInitial() {
 
 void ManifestIngestCmd::Do() {
   LOG(INFO) << "[ManifestIngestCmd] Starting Do (SST Ingest)";
+  if(!g_pika_conf->batch_extend_ingest()){
+    LOG(WARNING) << "[ManifestIngestCmd] ManifestIngest not enabled";
+    return;
+  } 
 
   s_ = db_->storage()->SstExtendIngest(
       sst_files_path_,

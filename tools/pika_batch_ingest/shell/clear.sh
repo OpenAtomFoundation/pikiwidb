@@ -45,7 +45,7 @@ while getopts "d:" opt; do
 done
 
 # -----------------------
-# 处理 config/dics.json
+# 处理 config/dics.json：慎重删除该文件，若要删除改文件需确定远程端也同步删除，否则会导致导入数据为整个文件夹数据
 # -----------------------
 DICT_FILE="$PROJECT_ROOT/config/dics.json"
 

@@ -99,6 +99,10 @@ class PikaConf : public pstd::BaseConf {
     return ingest_conf_path_;
   }
 
+  bool batch_extend_ingest(){
+    std::shared_lock l(rwlock_);
+    return batch_extend_ingest_;
+  }
 
   std::string db_sync_path() {
     std::shared_lock l(rwlock_);
@@ -922,6 +926,7 @@ class PikaConf : public pstd::BaseConf {
   std::string db_path_;
   std::string s3_conf_path_;
   std::string ingest_conf_path_;
+  bool batch_extend_ingest_;
   std::string db_sync_path_;
   std::string compact_cron_;
   std::string compact_interval_;

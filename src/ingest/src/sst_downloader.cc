@@ -117,7 +117,7 @@ rocksdb::Status SstDownloader::DownloadAllFiles(const std::string& manifest_name
     Aws::Transfer::DownloadConfiguration dcfg;
     auto handle = xfer_mgr_->DownloadFile(
         bucket_.c_str(),
-        Aws::String(s3_key.c_str()),   // ✅ 用 s3_key
+        Aws::String(s3_key.c_str()), 
         [local_path]() {
           return Aws::New<Aws::FStream>(
               "S3DownloadStream",

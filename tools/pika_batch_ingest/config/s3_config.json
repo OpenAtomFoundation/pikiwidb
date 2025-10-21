@@ -5,7 +5,7 @@
   "access_key": "minioadmin",
   "secret_key": "minioadmin",
   "is_minio": true,
-  "dict": "sst/test-100G-50M",
+  "dict": "sst/test-10M",
   "files_per_manifest": 200,
   "manifest_dir": "manifest",
   "latest_manifest_path": "last.manifest",

@@ -155,6 +155,7 @@ int PikaConf::Load() {
 
   GetConfStr("s3-conf-path", &s3_conf_path_);
   GetConfStr("ingest-conf-path", &ingest_conf_path_);
+  GetConfBool("batch-extend-ingest", &batch_extend_ingest_);
 
   GetConfInt("thread-num", &thread_num_);
   if (thread_num_ <= 0) {
