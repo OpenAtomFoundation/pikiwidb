@@ -11,9 +11,12 @@
 
 #include "include/pika_cache.h"
 #include "include/pika_conf.h"
+#include "include/pika_raft.h"
+#include "include/pika_server.h"
 #include "include/pika_slot_command.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
+extern PikaServer* g_pika_server;
 /* SET key value [NX] [XX] [EX <seconds>] [PX <milliseconds>] */
 void SetCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -65,6 +68,17 @@ void SetCmd::DoInitial() {
 }
 
 void SetCmd::Do() {
+  // Plan A: If Raft is enabled, skip actual write on first call
+  // The write will happen when on_apply executes this command
+  // Use thread-local flag to detect if we're in on_apply context
+  if (g_pika_server->GetRaftManager() && !pika_raft::g_in_raft_apply) {
+    // Raft mode: First call from client, skip write
+    // Set OK response, actual write will happen in on_apply
+    res_.SetRes(CmdRes::kOk);
+    return;
+  }
+  
+  // Normal path: Either non-Raft mode or called from on_apply
   int32_t res = 1;
   STAGE_TIMER_GUARD(storage_duration_ms, true);
   switch (condition_) {

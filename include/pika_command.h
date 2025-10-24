@@ -67,6 +67,11 @@ const std::string kCmdNameLastSave = "lastsave";
 const std::string kCmdNameCache = "cache";
 const std::string kCmdNameClearCache = "clearcache";
 
+// Raft commands
+const std::string kCmdNameRaftCluster = "raft.cluster";
+const std::string kCmdNameRaftNode = "raft.node";
+const std::string kCmdNameRaftConfig = "raft.config";
+
 // Migrate slot
 const std::string kCmdNameSlotsMgrtSlot = "slotsmgrtslot";
 const std::string kCmdNameSlotsMgrtTagSlot = "slotsmgrttagslot";

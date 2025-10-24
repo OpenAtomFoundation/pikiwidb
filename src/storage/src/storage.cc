@@ -22,6 +22,9 @@
 #include "src/redis_strings.h"
 #include "src/redis_zsets.h"
 
+// Binlog support for Raft
+#include "binlog.pb.h"
+
 namespace storage {
 
 Status StorageOptions::ResetOptions(const OptionType& option_type,
@@ -141,7 +144,9 @@ Status Storage::StoreCursorStartKey(const DataType& dtype, int64_t cursor, const
 }
 
 // Strings Commands
-Status Storage::Set(const Slice& key, const Slice& value) { return strings_db_->Set(key, value); }
+Status Storage::Set(const Slice& key, const Slice& value) {
+  return strings_db_->Set(key, value);
+}
 
 Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
   return strings_db_->Setxx(key, value, ret, ttl);
@@ -2053,6 +2058,37 @@ void Storage::DisableWal(const bool is_wal_disable) {
   lists_db_->SetWriteWalOptions(is_wal_disable);
   sets_db_->SetWriteWalOptions(is_wal_disable);
   zsets_db_->SetWriteWalOptions(is_wal_disable);
+}
+
+// Raft binlog callback implementation
+void Storage::SetBinlogWriteCallback(BinlogWriteCallback callback) {
+  binlog_callback_ = std::move(callback);
+  LOG(INFO) << "Raft binlog write callback registered";
+}
+
+// 获取各数据类型的 RocksDB 实例
+rocksdb::DB* Storage::GetStringsDB() {
+  return strings_db_ ? strings_db_->GetDB() : nullptr;
+}
+
+rocksdb::DB* Storage::GetHashesDB() {
+  return hashes_db_ ? hashes_db_->GetDB() : nullptr;
+}
+
+rocksdb::DB* Storage::GetListsDB() {
+  return lists_db_ ? lists_db_->GetDB() : nullptr;
+}
+
+rocksdb::DB* Storage::GetSetsDB() {
+  return sets_db_ ? sets_db_->GetDB() : nullptr;
+}
+
+rocksdb::DB* Storage::GetZSetsDB() {
+  return zsets_db_ ? zsets_db_->GetDB() : nullptr;
+}
+
+rocksdb::DB* Storage::GetStreamsDB() {
+  return streams_db_ ? streams_db_->GetDB() : nullptr;
 }
 
 }  //  namespace storage

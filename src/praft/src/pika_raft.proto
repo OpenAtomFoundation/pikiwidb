@@ -1,0 +1,64 @@
+// Copyright (c) 2015-present, Qihoo, Inc.  All rights reserved.
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree. An additional grant
+// of patent rights can be found in the PATENTS file in the same directory.
+
+syntax = "proto3";
+
+package pika_raft;
+
+// Raft log entry that represents a single Pika command
+// This protobuf message can be used for future enhancements
+// to replace the current text-based serialization format
+message RaftLogEntry {
+  // Command name (e.g., "SET", "HSET", "ZADD")
+  string cmd_name = 1;
+  
+  // Command arguments
+  repeated string args = 2;
+  
+  // Database name (e.g., "db0", "db1")
+  string db_name = 3;
+  
+  // Timestamp when the command was issued
+  int64 timestamp = 4;
+  
+  // Optional: Client ID that issued the command
+  string client_id = 5;
+  
+  // Optional: Request ID for idempotency
+  string request_id = 6;
+}
+
+// Snapshot metadata for Raft snapshots
+message SnapshotMeta {
+  // The last applied log index in this snapshot
+  int64 last_applied_index = 1;
+  
+  // The term of the last applied log entry
+  int64 last_applied_term = 2;
+  
+  // Configuration of the Raft cluster at snapshot time
+  repeated string peer_addresses = 3;
+  
+  // Snapshot creation time
+  int64 snapshot_timestamp = 4;
+}
+
+// Configuration change entry
+message ConfigChangeEntry {
+  enum ChangeType {
+    UNKNOWN = 0;
+    ADD_NODE = 1;
+    REMOVE_NODE = 2;
+  }
+  
+  ChangeType change_type = 1;
+  string peer_address = 2;
+}
+
+// NOTE: Current implementation in pika_raft.cc uses a simple text-based
+// serialization format for RaftLogEntry. This protobuf definition is
+// provided for documentation and can be used in future enhancements
+// to improve serialization efficiency and type safety.
+
