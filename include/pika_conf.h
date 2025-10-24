@@ -883,6 +883,29 @@ class PikaConf : public pstd::BaseConf {
   int cache_maxmemory_policy() { return cache_maxmemory_policy_; }
   int cache_maxmemory_samples() { return cache_maxmemory_samples_; }
   int cache_lfu_decay_time() { return cache_lfu_decay_time_; }
+  
+  // Raft configuration getters
+  bool raft_enabled() {
+    std::shared_lock l(rwlock_);
+    return raft_enabled_;
+  }
+  std::string raft_group_id() {
+    std::shared_lock l(rwlock_);
+    return raft_group_id_;
+  }
+  std::string raft_peers() {
+    std::shared_lock l(rwlock_);
+    return raft_peers_;
+  }
+  int raft_election_timeout_ms() {
+    std::shared_lock l(rwlock_);
+    return raft_election_timeout_ms_;
+  }
+  int raft_snapshot_interval_s() {
+    std::shared_lock l(rwlock_);
+    return raft_snapshot_interval_s_;
+  }
+  
   int Load();
   int ConfigRewrite();
   int ConfigRewriteSlaveOf();
@@ -1065,6 +1088,13 @@ class PikaConf : public pstd::BaseConf {
 
   //Internal used metrics Persisted by pika.conf
   std::unordered_set<std::string> internal_used_unfinished_full_sync_;
+
+  // Raft configuration
+  bool raft_enabled_ = false;
+  std::string raft_group_id_;
+  std::string raft_peers_;
+  int raft_election_timeout_ms_ = 1000;
+  int raft_snapshot_interval_s_ = 3600;
 };
 
 #endif

@@ -22,8 +22,10 @@
 #include "include/pika_dispatch_thread.h"
 #include "include/pika_instant.h"
 #include "include/pika_monotonic_time.h"
+#include "praft/praft.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "binlog.pb.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -103,6 +105,17 @@ PikaServer::PikaServer()
 
   acl_ = std::make_unique<::Acl>();
   SetSlowCmdThreadPoolFlag(g_pika_conf->slow_cmd_pool());
+  
+  // Initialize Raft if enabled
+  if (g_pika_conf->raft_enabled()) {
+    raft_manager_ = std::make_unique<pika_raft::RaftManager>();
+    auto status = raft_manager_->Init();
+    if (!status.ok()) {
+      LOG(FATAL) << "Failed to initialize Raft manager: " << status.ToString();
+    }
+    LOG(INFO) << "Raft manager initialized successfully";
+  }
+  
   bgsave_thread_.set_thread_name("PikaServer::bgsave_thread_");
   purge_thread_.set_thread_name("PikaServer::purge_thread_");
   bgslots_cleanup_thread_.set_thread_name("PikaServer::bgslots_cleanup_thread_");
@@ -129,6 +142,12 @@ PikaServer::~PikaServer() {
   bgsave_thread_.StopThread();
   key_scan_thread_.StopThread();
   pika_migrate_thread_->StopThread();
+
+  // Shutdown Raft if running
+  if (raft_manager_) {
+    raft_manager_->Shutdown();
+    LOG(INFO) << "Raft manager shutdown complete";
+  }
 
   dbs_.clear();
 
@@ -208,6 +227,70 @@ void PikaServer::Start() {
     dbs_.clear();
     LOG(FATAL) << "Start Auxiliary Thread Error: " << ret
                << (ret == net::kCreateThreadError ? ": create thread error " : ": other error");
+  }
+
+  // Start Raft if enabled
+  if (raft_manager_) {
+    auto status = raft_manager_->Start();
+    if (!status.ok()) {
+      LOG(WARNING) << "Failed to start Raft manager: " << status.ToString();
+    } else {
+      LOG(INFO) << "Raft manager started successfully";
+      
+      // 为每个数据库注册 binlog 回调
+      for (const auto& db_item : dbs_) {
+        std::string db_name = db_item.first;
+        auto storage = db_item.second->storage();  // Returns std::shared_ptr<storage::Storage>
+        
+        if (!storage) {
+          LOG(WARNING) << "数据库 " << db_name << " 的 storage 为空，跳过回调注册";
+          continue;
+        }
+        
+        // 设置存储引擎引用 (使用原始指针)
+        raft_manager_->SetStorage(storage.get());
+        
+        // 注册 binlog 回调（使用 promise/future 同步）
+        storage->SetBinlogWriteCallback(
+          [this, db_name](const pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise) {
+            // 序列化 binlog
+            std::string binlog_data;
+            if (!binlog.SerializeToString(&binlog_data)) {
+              LOG(ERROR) << "Failed to serialize binlog";
+              promise.set_value(rocksdb::Status::Corruption("Binlog serialization failed"));
+              return;
+            }
+            
+            LOG(INFO) << "收到 binlog 回调，数据库: " << db_name 
+                      << ", binlog 大小: " << binlog_data.size() << " 字节"
+                      << ", entries: " << binlog.entries_size();
+            
+            // 创建异步回调闭包
+            auto* closure = new pika_raft::WriteDoneClosure(nullptr, nullptr);
+            closure->SetBinlogData(binlog_data);
+            
+            // TODO: 这里需要将 promise 传递给 closure，让 Raft apply 完成后设置结果
+            // 目前先立即返回 OK，实际应该等待 Raft 应用完成
+            
+            // 提交到 Raft
+            auto apply_status = raft_manager_->ApplyBinlog(db_name, binlog_data, closure);
+            if (!apply_status.ok()) {
+              LOG(ERROR) << "提交 binlog 到 Raft 失败: " << apply_status.ToString();
+              // 设置错误状态并调用 Run，让 closure 自己清理
+              closure->status().set_error(-1, "%s", apply_status.ToString().c_str());
+              closure->Run();
+              promise.set_value(rocksdb::Status::IOError(apply_status.ToString()));
+            } else {
+              // TODO: 应该在 Raft apply 完成后才 set_value
+              // 目前先简单地立即返回 OK
+              promise.set_value(rocksdb::Status::OK());
+            }
+          }
+        );
+        
+        LOG(INFO) << "已为数据库 " << db_name << " 注册 binlog 回调";
+      }
+    }
   }
 
   time(&start_time_s_);

@@ -7,6 +7,7 @@
 #define INCLUDE_STORAGE_STORAGE_H_
 
 #include <unistd.h>
+#include <functional>
 #include <list>
 #include <map>
 #include <queue>
@@ -22,9 +23,19 @@
 #include "rocksdb/status.h"
 #include "rocksdb/table.h"
 
+#include <future>
 #include "pstd/include/pstd_mutex.h"
 
+// Forward declarations
+namespace pikiwidb {
+class Binlog;
+}
+
 namespace storage {
+
+// Forward declaration for binlog callback
+// Callback signature: void callback(const pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)
+using BinlogWriteCallback = std::function<void(const pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>;
 
 inline constexpr double ZSET_SCORE_MAX = std::numeric_limits<double>::max();
 inline constexpr double ZSET_SCORE_MIN = std::numeric_limits<double>::lowest();
@@ -1101,6 +1112,19 @@ class Storage {
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
 
+  // Raft binlog callback interface
+  void SetBinlogWriteCallback(BinlogWriteCallback callback);
+  bool IsRaftEnabled() const { return binlog_callback_ != nullptr; }
+  BinlogWriteCallback GetBinlogCallback() const { return binlog_callback_; }
+  
+  // 获取各数据类型的 RocksDB 实例（供 Batch 使用）
+  rocksdb::DB* GetStringsDB();
+  rocksdb::DB* GetHashesDB();
+  rocksdb::DB* GetListsDB();
+  rocksdb::DB* GetSetsDB();
+  rocksdb::DB* GetZSetsDB();
+  rocksdb::DB* GetStreamsDB();
+
  private:
   std::unique_ptr<RedisStrings> strings_db_;
   std::unique_ptr<RedisHashes> hashes_db_;
@@ -1123,6 +1147,9 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
+
+  // Raft binlog callback
+  BinlogWriteCallback binlog_callback_;
 };
 
 }  //  namespace storage

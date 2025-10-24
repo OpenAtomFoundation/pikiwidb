@@ -703,6 +703,28 @@ int PikaConf::Load() {
     rsync_timeout_ms_.store(tmp_rsync_timeout_ms);
   }
 
+  // Raft configuration
+  std::string raft_enabled_str;
+  GetConfStr("raft-enabled", &raft_enabled_str);
+  raft_enabled_ = (raft_enabled_str == "yes");
+  
+  GetConfStr("raft-group-id", &raft_group_id_);
+  if (raft_group_id_.empty()) {
+    raft_group_id_ = "pika_raft_group";
+  }
+  
+  GetConfStr("raft-peers", &raft_peers_);
+  
+  GetConfInt("raft-election-timeout-ms", &raft_election_timeout_ms_);
+  if (raft_election_timeout_ms_ <= 0) {
+    raft_election_timeout_ms_ = 1000;
+  }
+  
+  GetConfInt("raft-snapshot-interval-s", &raft_snapshot_interval_s_);
+  if (raft_snapshot_interval_s_ <= 0) {
+    raft_snapshot_interval_s_ = 3600;
+  }
+
   return ret;
 }
 

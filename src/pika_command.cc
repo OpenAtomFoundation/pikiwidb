@@ -6,6 +6,8 @@
 #include <memory>
 #include <sstream>
 #include <utility>
+#include <future>
+#include <chrono>
 
 #include <glog/logging.h>
 #include "include/pika_acl.h"
@@ -15,6 +17,7 @@
 #include "include/pika_geo.h"
 #include "include/pika_hash.h"
 #include "include/pika_hyperloglog.h"
+#include "include/pika_raft.h"
 #include "include/pika_kv.h"
 #include "include/pika_list.h"
 #include "include/pika_pubsub.h"
@@ -157,6 +160,19 @@ void InitCmdTable(CmdTable* cmd_table) {
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameClearCache, std::move(clearcacheptr)));
   std::unique_ptr<Cmd> lastsaveptr = std::make_unique<LastsaveCmd>(kCmdNameLastSave, 1, kCmdFlagsAdmin | kCmdFlagsRead | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLastSave, std::move(lastsaveptr)));
+
+  // Raft Commands
+  std::unique_ptr<Cmd> raftclusterptr =
+      std::make_unique<RaftClusterCmd>(kCmdNameRaftCluster, -2, kCmdFlagsRead | kCmdFlagsAdmin | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftCluster, std::move(raftclusterptr)));
+
+  std::unique_ptr<Cmd> raftnodeptr =
+      std::make_unique<RaftNodeCmd>(kCmdNameRaftNode, -3, kCmdFlagsWrite | kCmdFlagsAdmin | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftNode, std::move(raftnodeptr)));
+
+  std::unique_ptr<Cmd> raftconfigptr =
+      std::make_unique<RaftConfigCmd>(kCmdNameRaftConfig, -2, kCmdFlagsRead | kCmdFlagsAdmin | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftConfig, std::move(raftconfigptr)));
 
 #ifdef WITH_COMMAND_DOCS
   std::unique_ptr<Cmd> commandptr =
@@ -881,14 +897,17 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
 
   uint64_t before_do_binlog_us = pstd::NowMicros();
   this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
-  DoBinlog();
-
+  
+  // Release locks BEFORE calling DoBinlog() to avoid deadlock in Raft mode
+  // In Raft mode, DoBinlog() will wait for on_apply which needs the same lock
   if (!IsSuspend()) {
     db_->DBUnlockShared();
   }
   if (is_write()) {
     record_lock.Unlock(current_key());
   }
+  
+  DoBinlog();
 
   uint64_t end_us = pstd::NowMicros();
   this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
@@ -944,6 +963,56 @@ bool Cmd::DoReadCommandInCache() {
 
 
 void Cmd::DoBinlog() {
+  // Skip binlog entirely if we're in on_apply context
+  if (pika_raft::g_in_raft_apply) {
+    return;
+  }
+  
+  // Check if Raft is enabled
+  auto raft_manager = g_pika_server->GetRaftManager();
+  if (raft_manager && is_write() && res().ok()) {
+    // Plan A: Submit command to Raft using Redis protocol
+    // Skip if we're already in on_apply context (avoid recursion)
+    std::string redis_proto = ToRedisProtocol();
+    
+    // Prepend db_name to Redis protocol for extraction in on_apply
+    std::string log_data = db_name_ + "|" + redis_proto;
+    
+    
+    // Create promise/future for synchronous waiting
+    std::promise<rocksdb::Status> promise;
+    auto future = promise.get_future();
+    
+    // Submit to Raft
+    auto status = raft_manager->SubmitCommandWithPromise(
+        db_name_, log_data, std::move(promise));
+    
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to submit command to Raft: " << status.ToString();
+      res_.SetRes(CmdRes::kErrOther, "Raft submit failed: " + status.ToString());
+      return;
+    }
+    
+    // Wait for Raft to apply (with 10 second timeout)
+    auto wait_status = future.wait_for(std::chrono::seconds(10));
+    if (wait_status == std::future_status::timeout) {
+      LOG(ERROR) << "Raft apply timeout for command: " << name_;
+      res_.SetRes(CmdRes::kErrOther, "Raft apply timeout");
+      return;
+    }
+    
+    // Get the result
+    rocksdb::Status raft_result = future.get();
+    if (!raft_result.ok()) {
+      LOG(ERROR) << "Raft apply failed: " << raft_result.ToString();
+      res_.SetRes(CmdRes::kErrOther, "Raft apply failed: " + raft_result.ToString());
+      return;
+    }
+    
+    return;
+  }
+  
+  // Traditional binlog path (non-Raft mode)
   if (res().ok() && is_write() && g_pika_conf->write_binlog()) {
     std::shared_ptr<net::NetConn> conn_ptr = GetConn();
     std::shared_ptr<std::string> resp_ptr = GetResp();
