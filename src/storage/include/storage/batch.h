@@ -49,8 +49,7 @@ protected:
 // RocksDB 直接写入的 Batch（非 Raft 模式）
 class RocksBatch : public Batch {
 public:
-  RocksBatch(Storage* storage,
-             rocksdb::DB* strings_db, 
+  RocksBatch(rocksdb::DB* strings_db, 
              rocksdb::DB* hashes_db,
              rocksdb::DB* lists_db,
              rocksdb::DB* sets_db,
@@ -64,7 +63,6 @@ public:
 private:
   rocksdb::DB* GetDB(DataType dtype);
   
-  Storage* storage_;  // 新增：保存 Storage 指针用于检查 Raft 模式
   rocksdb::DB* strings_db_;
   rocksdb::DB* hashes_db_;
   rocksdb::DB* lists_db_;
