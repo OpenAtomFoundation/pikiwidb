@@ -21,11 +21,6 @@ add_dependencies(binlog_pb protobuf)
 # Collect all source files (excluding binlog.proto which is in binlog_pb)
 aux_source_directory(./src DIR_SRCS)
 
-# Add batch_manager source files explicitly
-set(DIR_SRCS ${DIR_SRCS} 
-    ${CMAKE_CURRENT_SOURCE_DIR}/batch_manager.cc
-)
-
 # Create static library (WITHOUT binlog protobuf sources, link binlog_pb instead)
 add_library(praft STATIC ${DIR_SRCS})
 

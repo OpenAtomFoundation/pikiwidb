@@ -89,107 +89,51 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
     std::string log_str = log_data.to_string();
     
     if (!g_pika_server || !g_pika_server->GetRaftManager()) {
-      LOG(WARNING) << "PikaServer or RaftManager not available, cannot apply log";
       applied_index_.store(index, std::memory_order_relaxed);
       continue;
     }
     
-    // 🔥 检测是否为批量日志（Batch format: <count>\n<log1_len>\n<log1_data>...）
-    bool is_batch = false;
-    size_t first_newline = log_str.find('\n');
-    if (first_newline != std::string::npos && first_newline < 20) {
-      std::string count_str = log_str.substr(0, first_newline);
-      if (!count_str.empty() && std::all_of(count_str.begin(), count_str.end(), ::isdigit)) {
-        is_batch = true;
-      }
-    }
+    // Detect log format: Redis protocol (Plan A) or Protobuf binlog (Plan B)
+    // Redis protocol contains '|' separator (db_name|redis_proto)
+    // Protobuf binlog is binary format (unlikely to contain '|' at the start)
+    bool is_redis_protocol = (log_str.find('|') != std::string::npos);
     
-    if (is_batch) {
-      // 批量日志格式
-      size_t pos = first_newline + 1;
-      size_t batch_count = std::stoul(log_str.substr(0, first_newline));
+    if (is_redis_protocol) {
+      // Plan A: Redis protocol format
+      // Extract db_name from log data
+      // TODO: For now, use db0 as default. Need to encode db_name in log.
+      // Could prepend db_name to Redis protocol: "<db_name>|*3\r\n..."
+      std::string db_name = "db0";
       
-      VLOG(1) << "Applying batch of " << batch_count << " commands at index: " << index;
-      
-      // 解析并应用每个命令
-      for (size_t i = 0; i < batch_count; ++i) {
-        // 读取日志长度
-        size_t len_newline = log_str.find('\n', pos);
-        if (len_newline == std::string::npos) {
-          LOG(ERROR) << "Batch format error: missing log length at index " << i;
-          break;
-        }
-        
-        size_t log_len = std::stoul(log_str.substr(pos, len_newline - pos));
-        pos = len_newline + 1;
-        
-        if (pos + log_len > log_str.size()) {
-          LOG(ERROR) << "Batch format error: log data truncated at index " << i;
-          break;
-        }
-        
-        std::string single_log = log_str.substr(pos, log_len);
-        pos += log_len;
-        
-        // 应用单个命令（使用现有逻辑）
-        size_t pipe_pos = single_log.find('|');
-        std::string db_name = "db0";
-        std::string redis_proto = single_log;
-        
-        if (pipe_pos != std::string::npos && pipe_pos < 20) {
-          db_name = single_log.substr(0, pipe_pos);
-          redis_proto = single_log.substr(pipe_pos + 1);
-        }
-        
-        rocksdb::Status status = g_pika_server->GetRaftManager()->ApplyCommandFromRedisProtocol(
-            redis_proto, db_name);
-        
-        if (!status.ok()) {
-          LOG(WARNING) << "Failed to apply command " << i << " in batch: " << status.ToString();
-        }
+      // Parse db_name if prepended
+      size_t pipe_pos = log_str.find('|');
+      if (pipe_pos != std::string::npos && pipe_pos < 20) {  // db_name should be short
+        db_name = log_str.substr(0, pipe_pos);
+        log_str = log_str.substr(pipe_pos + 1);  // Remove db_name prefix
       }
       
-      // 批量命令的 closure 由 BatchClosure 统一处理
-      // 这里不需要单独设置 iter.done() 的状态
+      rocksdb::Status status = g_pika_server->GetRaftManager()->ApplyCommandFromRedisProtocol(
+          log_str, db_name);
+      
+      if (iter.done()) {
+        if (status.ok()) {
+          iter.done()->status().set_error(0, "OK");
+        } else {
+          iter.done()->status().set_error(-1, "%s", status.ToString().c_str());
+        }
+      }
     } else {
-      // 单个命令格式（原有逻辑）
-      bool is_redis_protocol = (log_str.find('|') != std::string::npos);
-      
-      if (is_redis_protocol) {
-        // Plan A: Redis protocol format
-        std::string db_name = "db0";
-        
-        // Parse db_name if prepended
-        size_t pipe_pos = log_str.find('|');
-        if (pipe_pos != std::string::npos && pipe_pos < 20) {
-          db_name = log_str.substr(0, pipe_pos);
-          log_str = log_str.substr(pipe_pos + 1);
-        }
-        
-        rocksdb::Status status = g_pika_server->GetRaftManager()->ApplyCommandFromRedisProtocol(
-            log_str, db_name);
-        
+      // Plan B: Protobuf binlog format (legacy)
+      pikiwidb::Binlog binlog;
+      if (!binlog.ParseFromString(log_str)) {
         if (iter.done()) {
-          if (status.ok()) {
-            iter.done()->status().set_error(0, "OK");
-          } else {
-            iter.done()->status().set_error(-1, "%s", status.ToString().c_str());
-          }
+          iter.done()->status().set_error(EINVAL, "Failed to parse binlog");
         }
-      } else {
-        // Plan B: Protobuf binlog format (legacy)
-        pikiwidb::Binlog binlog;
-        if (!binlog.ParseFromString(log_str)) {
-          LOG(ERROR) << "Failed to parse binlog at index: " << index;
-          if (iter.done()) {
-            iter.done()->status().set_error(EINVAL, "Failed to parse binlog");
-          }
-          applied_index_.store(index, std::memory_order_relaxed);
-          continue;
-        }
-        
-        g_pika_server->GetRaftManager()->ApplyBinlogEntry(log_str);
+        applied_index_.store(index, std::memory_order_relaxed);
+        continue;
       }
+      
+      g_pika_server->GetRaftManager()->ApplyBinlogEntry(log_str);
     }
     
     applied_index_.store(index, std::memory_order_relaxed);
@@ -198,8 +142,6 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
 
 void PikaStateMachine::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  
-  LOG(INFO) << "Saving Raft snapshot";
   
   // Save applied index to snapshot
   std::string snapshot_path = writer->get_path() + "/pika_snapshot";
@@ -214,19 +156,13 @@ void PikaStateMachine::on_snapshot_save(braft::SnapshotWriter* writer, braft::Cl
     out.close();
     
     if (writer->add_file("meta") != 0) {
-      LOG(ERROR) << "Failed to add meta file to snapshot";
       done->status().set_error(EIO, "Failed to add meta file");
       return;
     }
   }
-  
-  LOG(INFO) << "Snapshot saved successfully at index: " 
-            << applied_index_.load(std::memory_order_relaxed);
 }
 
 int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
-  LOG(INFO) << "Loading Raft snapshot from: " << reader->get_path();
-  
   // Load applied index from snapshot
   std::string meta_file = reader->get_path() + "/meta";
   std::ifstream in(meta_file);
@@ -236,38 +172,34 @@ int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
     in.close();
     
     applied_index_.store(index, std::memory_order_relaxed);
-    LOG(INFO) << "Snapshot loaded successfully, applied_index: " << index;
     return 0;
   }
   
-  LOG(ERROR) << "Failed to load snapshot meta file";
   return -1;
 }
 
 void PikaStateMachine::on_leader_start(int64_t term) {
   leader_term_.store(term, std::memory_order_relaxed);
-  LOG(INFO) << "Became leader at term: " << term;
 }
 
 void PikaStateMachine::on_leader_stop(const butil::Status& status) {
   leader_term_.store(-1, std::memory_order_relaxed);
-  LOG(INFO) << "Stopped being leader, status: " << status;
 }
 
 void PikaStateMachine::on_error(const ::braft::Error& e) {
-  LOG(ERROR) << "Raft error occurred: " << e;
+  // Error occurred
 }
 
 void PikaStateMachine::on_configuration_committed(const ::braft::Configuration& conf) {
-  LOG(INFO) << "Configuration committed: " << conf;
+  // Configuration committed
 }
 
 void PikaStateMachine::on_start_following(const ::braft::LeaderChangeContext& ctx) {
-  LOG(INFO) << "Start following leader: " << ctx.leader_id();
+  // Start following
 }
 
 void PikaStateMachine::on_stop_following(const ::braft::LeaderChangeContext& ctx) {
-  LOG(INFO) << "Stop following leader: " << ctx.leader_id();
+  // Stop following
 }
 
 // PikaRaftNode implementation
@@ -313,27 +245,19 @@ pstd::Status PikaRaftNode::Init(const std::vector<braft::PeerId>& peers) {
     node_options.initial_conf.add_peer(peer);
   }
   
-  // 🔥 Set file system paths with performance optimization
-  // raft_sync=false: 禁用同步写，依赖 Raft 自身的持久化机制，大幅提升性能
-  node_options.log_uri = raft_log_uri_ + "?raft_sync=false";
-  node_options.raft_meta_uri = raft_meta_uri_ + "?raft_sync=false";
+  // Set file system paths
+  node_options.log_uri = raft_log_uri_;
+  node_options.raft_meta_uri = raft_meta_uri_;
   node_options.snapshot_uri = raft_snapshot_uri_;
   
   // Set state machine
   node_options.fsm = state_machine_.get();
   
-  // 🔥 Performance optimization: 从配置读取选举超时
-  // 更快的 leader 选举，提高可用性（优化后默认 300ms，之前是 1000ms）
+  // Set election timeout
   node_options.election_timeout_ms = g_pika_conf->raft_election_timeout_ms();
   
   // Set snapshot interval
   node_options.snapshot_interval_s = g_pika_conf->raft_snapshot_interval_s();
-  
-  // Note: Advanced braft performance options like max_segment_size, replicator_pipeline,
-  // apply_queue_workers, and snapshot_throttle are not available in this version of braft.
-  // These optimizations would need to be achieved through:
-  // 1. Upgrading to a newer version of braft that supports these options
-  // 2. Configuring via log_uri/raft_meta_uri parameters (e.g., ?raft_sync=false)
   
   // Create and initialize Raft node
   node_ = std::make_unique<braft::Node>(group_id_, peer_id_);
@@ -352,20 +276,17 @@ pstd::Status PikaRaftNode::Start() {
     return pstd::Status::Corruption("Raft node not initialized");
   }
   
-  LOG(INFO) << "Starting Raft node for group: " << group_id_;
   return pstd::Status::OK();
 }
 
 void PikaRaftNode::Shutdown() {
   if (node_) {
-    LOG(INFO) << "Shutting down Raft node for group: " << group_id_;
     node_->shutdown(nullptr);
     node_->join();
     node_.reset();
   }
   
   if (server_) {
-    LOG(INFO) << "Stopping brpc server for group: " << group_id_;
     server_->Stop(0);
     server_->Join();
     server_.reset();
@@ -392,11 +313,9 @@ pstd::Status PikaRaftNode::AddPeer(const braft::PeerId& peer) {
   done.wait();
   
   if (!done.status().ok()) {
-    LOG(ERROR) << "Failed to add peer: " << peer << ", error: " << done.status();
     return pstd::Status::Corruption("Failed to add peer: " + done.status().error_str());
   }
   
-  LOG(INFO) << "Successfully added peer: " << peer;
   return pstd::Status::OK();
 }
 
@@ -410,11 +329,9 @@ pstd::Status PikaRaftNode::RemovePeer(const braft::PeerId& peer) {
   done.wait();
   
   if (!done.status().ok()) {
-    LOG(ERROR) << "Failed to remove peer: " << peer << ", error: " << done.status();
     return pstd::Status::Corruption("Failed to remove peer: " + done.status().error_str());
   }
   
-  LOG(INFO) << "Successfully removed peer: " << peer;
   return pstd::Status::OK();
 }
 
@@ -676,25 +593,13 @@ pstd::Status RaftManager::CreateRaftNode(const std::string& db_name,
   // Store node
   raft_nodes_[db_name] = node;
   
-  // 🔥 创建 BatchManager（批处理优化）
-  // 🔥 从配置文件读取批处理参数
-  BatchConfig batch_config;
-  batch_config.enable_batching = g_pika_conf->raft_enable_batching();
-  batch_config.batch_timeout_ms = g_pika_conf->raft_batch_timeout_ms();
-  batch_config.max_batch_size = g_pika_conf->raft_max_batch_size();
-  
-  auto batch_manager = std::make_unique<BatchManager>(node->GetRaftNode(), batch_config);
-  batch_manager->Start();
-  batch_managers_[db_name] = std::move(batch_manager);
-  
-  LOG(INFO) << "Created Raft node and BatchManager for DB: " << db_name;
+  LOG(INFO) << "Created Raft node for DB: " << db_name;
   return pstd::Status::OK();
 }
 
 braft::PeerId RaftManager::ParsePeerId(const std::string& peer_str) {
   braft::PeerId peer_id;
   if (peer_id.parse(peer_str) != 0) {
-    LOG(ERROR) << "Failed to parse peer address: " << peer_str;
     return braft::PeerId();
   }
   return peer_id;
@@ -713,21 +618,16 @@ void WriteDoneClosure::Run() {
   if (promise_) {
     if (status().ok()) {
       promise_->set_value(rocksdb::Status::OK());
-      LOG(INFO) << "WriteDoneClosure: Raft apply succeeded, promise set to OK";
     } else {
       promise_->set_value(rocksdb::Status::IOError(status().error_str()));
-      LOG(ERROR) << "WriteDoneClosure: Raft apply failed: " << status().error_str();
     }
     return;
   }
   
   // Legacy path for non-promise closures
   if (!status().ok()) {
-    LOG(ERROR) << "Raft apply failed: " << status().error_cstr();
     return;
   }
-  
-  LOG(INFO) << "Raft apply succeeded";
 }
 
 // ApplyBinlog implementation
@@ -766,20 +666,14 @@ pstd::Status RaftManager::ApplyBinlog(const std::string& db_name,
 // Apply binlog entry to storage (called from on_apply)
 void RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
   if (!storage_) {
-    LOG(ERROR) << "存储引擎未设置，无法应用 binlog";
     return;
   }
   
   // 解析 binlog
   pikiwidb::Binlog binlog;
   if (!binlog.ParseFromString(binlog_data)) {
-    LOG(ERROR) << "解析 binlog 失败";
     return;
   }
-  
-  LOG(INFO) << "应用 binlog: term=" << binlog.term()
-            << " index=" << binlog.log_index()
-            << " entries=" << binlog.entries_size();
   
   // 临时禁用 binlog 回调以避免循环
   auto old_callback = storage_->GetBinlogCallback();
@@ -787,7 +681,6 @@ void RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
   
   // 创建 RocksBatch 直接写入（不触发 binlog）
   auto batch = std::make_unique<storage::RocksBatch>(
-    storage_,  // 🔥 传入 storage 指针用于 WAL 检查
     storage_->GetStringsDB(),
     storage_->GetHashesDB(),
     storage_->GetListsDB(),
@@ -812,17 +705,12 @@ void RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
         break;
         
       default:
-        LOG(WARNING) << "未知的操作类型: " << entry.op_type();
+        break;
     }
   }
   
   // 提交批量写入
   auto status = batch->Commit();
-  if (!status.ok()) {
-    LOG(ERROR) << "应用 binlog batch 失败: " << status.ToString();
-  } else {
-    LOG(INFO) << "Binlog 应用完成: " << batch->Count() << " 个操作";
-  }
   
   // 恢复 binlog 回调
   storage_->SetBinlogWriteCallback(old_callback);
@@ -847,28 +735,19 @@ pstd::Status RaftManager::SubmitCommandWithPromise(
     return pstd::Status::Corruption(error_msg);
   }
   
-  // 🔥 使用 BatchManager 提交（批处理优化）
-  std::shared_lock lock(nodes_mutex_);
-  auto batch_mgr_it = batch_managers_.find(db_name);
-  if (batch_mgr_it != batch_managers_.end() && batch_mgr_it->second) {
-    // 有 BatchManager，使用批处理
-    auto promise_ptr = std::make_shared<std::promise<rocksdb::Status>>(std::move(promise));
-    batch_mgr_it->second->Submit(log_data, promise_ptr);
-    return pstd::Status::OK();
-  }
-  lock.unlock();
-  
-  // 没有 BatchManager，直接提交（向后兼容）
+  // Create closure with promise
   auto* closure = new WriteDoneClosure(nullptr, nullptr);
   closure->SetPromise(std::make_shared<std::promise<rocksdb::Status>>(
       std::move(promise)));
   
+  // Create braft::Task
   braft::Task task;
   butil::IOBuf buf;
   buf.append(log_data);
   task.data = &buf;
   task.done = closure;
   
+  // Submit to Raft
   node->GetRaftNode()->apply(task);
   
   return pstd::Status::OK();
@@ -885,91 +764,84 @@ rocksdb::Status RaftManager::ApplyCommandFromRedisProtocol(
     return rocksdb::Status::NotFound("DB not found");
   }
   
-  // 🔥 优化：使用 string_view 避免内存拷贝
-  std::string_view data_view(redis_proto_data);
-  
-  // 🔥 优化：预分配 argv 容量（大多数命令参数少于 8 个）
+  // Parse Redis protocol to extract command and args
   std::vector<std::string> argv;
-  argv.reserve(8);
   
-  // Parse Redis protocol
+  // Redis protocol format:
+  // *<argc>\r\n$<len>\r\n<data>\r\n$<len>\r\n<data>\r\n...
   size_t pos = 0;
-  if (data_view[pos] != '*') {
+  if (redis_proto_data[pos] != '*') {
     return rocksdb::Status::Corruption("Invalid Redis protocol");
   }
   pos++;
   
   // Parse argc
-  size_t newline_pos = data_view.find("\r\n", pos);
-  if (newline_pos == std::string_view::npos) {
+  size_t newline_pos = redis_proto_data.find("\r\n", pos);
+  if (newline_pos == std::string::npos) {
     return rocksdb::Status::Corruption("Invalid Redis protocol");
   }
-  int argc = std::stoi(std::string(data_view.substr(pos, newline_pos - pos)));
+  int argc = std::stoi(redis_proto_data.substr(pos, newline_pos - pos));
   pos = newline_pos + 2;
   
   // Parse each argument
   for (int i = 0; i < argc; i++) {
-    if (pos >= data_view.size() || data_view[pos] != '$') {
+    if (pos >= redis_proto_data.size() || redis_proto_data[pos] != '$') {
       return rocksdb::Status::Corruption("Invalid Redis protocol");
     }
     pos++;
     
-    newline_pos = data_view.find("\r\n", pos);
-    if (newline_pos == std::string_view::npos) {
+    // Parse argument length
+    newline_pos = redis_proto_data.find("\r\n", pos);
+    if (newline_pos == std::string::npos) {
       return rocksdb::Status::Corruption("Invalid Redis protocol");
     }
-    int arg_len = std::stoi(std::string(data_view.substr(pos, newline_pos - pos)));
+    int arg_len = std::stoi(redis_proto_data.substr(pos, newline_pos - pos));
     pos = newline_pos + 2;
     
-    if (pos + arg_len > data_view.size()) {
+    // Parse argument data
+    if (pos + arg_len > redis_proto_data.size()) {
       return rocksdb::Status::Corruption("Invalid Redis protocol");
     }
-    argv.emplace_back(data_view.substr(pos, arg_len));
-    pos += arg_len + 2;
+    argv.push_back(redis_proto_data.substr(pos, arg_len));
+    pos += arg_len + 2;  // Skip \r\n
   }
   
   if (argv.empty()) {
     return rocksdb::Status::Corruption("Empty command");
   }
   
-  // Convert command name to lowercase
+  // Convert command name to lowercase (Pika command table uses lowercase)
   std::string cmd_name = argv[0];
-  std::transform(cmd_name.begin(), cmd_name.end(), cmd_name.begin(), 
-                 [](unsigned char c) { return std::tolower(c); });
+  std::transform(cmd_name.begin(), cmd_name.end(), cmd_name.begin(), ::tolower);
   
-  // 🔥 优化：高频命令直接调用 storage API，跳过命令层开销
-  if (cmd_name == "set" && argv.size() >= 3) {
-    // SET key value [EX seconds] [PX milliseconds] [NX|XX]
-    auto s = db->storage()->Set(argv[1], argv[2]);
-    return s.ok() ? rocksdb::Status::OK() 
-                  : rocksdb::Status::IOError(s.ToString());
-  } else if (cmd_name == "del" && argv.size() >= 2) {
-    // DEL key [key ...]
-    std::vector<std::string> keys(argv.begin() + 1, argv.end());
-    std::map<storage::DataType, rocksdb::Status> type_status;
-    int64_t deleted = db->storage()->Del(keys, &type_status);
-    return rocksdb::Status::OK();
-  } else if (cmd_name == "get" && argv.size() >= 2) {
-    // GET key (read command, 不需要在 on_apply 中执行)
-    return rocksdb::Status::OK();
-  }
-  
-  // 🔥 其他命令：使用命令层（保证完整语义）
+  // Set thread-local flag to indicate we're in on_apply context
   g_in_raft_apply = true;
   
+  // Create command object
   std::shared_ptr<Cmd> cmd = g_pika_cmd_table_manager->GetCmd(cmd_name);
   if (!cmd) {
     g_in_raft_apply = false;
     return rocksdb::Status::NotSupported("Unknown command");
   }
   
+  // Initialize and execute command
   cmd->Initial(argv, db_name);
+  
+  // Execute the full command flow. DoBinlog() will be called but will skip
+  // because g_in_raft_apply is true.
   cmd->Execute();
   
+  // Clear thread-local flag
   g_in_raft_apply = false;
   
-  return cmd->res().ok() ? rocksdb::Status::OK() 
-                         : rocksdb::Status::IOError(cmd->res().message());
+  rocksdb::Status result;
+  if (cmd->res().ok()) {
+    result = rocksdb::Status::OK();
+  } else {
+    result = rocksdb::Status::IOError(cmd->res().message());
+  }
+  
+  return result;
 }
 
 }  // namespace pika_raft

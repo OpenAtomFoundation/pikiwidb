@@ -23,7 +23,6 @@ std::unique_ptr<Batch> Batch::CreateBatch(Storage* storage) {
   } else {
     // 直接写入模式：返回 RocksBatch
     return std::make_unique<RocksBatch>(
-      storage,  // 🔥 传入 storage 指针
       storage->GetStringsDB(),
       storage->GetHashesDB(),
       storage->GetListsDB(),
@@ -36,15 +35,13 @@ std::unique_ptr<Batch> Batch::CreateBatch(Storage* storage) {
 
 // ==================== RocksBatch 实现 ====================
 
-RocksBatch::RocksBatch(Storage* storage,
-                       rocksdb::DB* strings_db,
+RocksBatch::RocksBatch(rocksdb::DB* strings_db,
                        rocksdb::DB* hashes_db,
                        rocksdb::DB* lists_db,
                        rocksdb::DB* sets_db,
                        rocksdb::DB* zsets_db,
                        rocksdb::DB* streams_db)
-    : storage_(storage),
-      strings_db_(strings_db),
+    : strings_db_(strings_db),
       hashes_db_(hashes_db),
       lists_db_(lists_db),
       sets_db_(sets_db),
@@ -78,12 +75,6 @@ void RocksBatch::Delete(DataType dtype, const rocksdb::Slice& key) {
 
 rocksdb::Status RocksBatch::Commit() {
   rocksdb::WriteOptions write_options;
-  
-  // 🔥 关键修复：Raft 模式下禁用 RocksDB WAL
-  // Raft log 已经提供了持久化保证，不需要 RocksDB WAL
-  if (storage_ && storage_->IsRaftEnabled()) {
-    write_options.disableWAL = true;
-  }
   
   // 对每个数据类型提交其 WriteBatch
   for (auto& pair : batches_) {

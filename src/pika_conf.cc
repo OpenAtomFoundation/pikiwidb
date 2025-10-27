@@ -717,25 +717,12 @@ int PikaConf::Load() {
   
   GetConfInt("raft-election-timeout-ms", &raft_election_timeout_ms_);
   if (raft_election_timeout_ms_ <= 0) {
-    raft_election_timeout_ms_ = 300;  // 优化后的默认值
+    raft_election_timeout_ms_ = 1000;
   }
   
   GetConfInt("raft-snapshot-interval-s", &raft_snapshot_interval_s_);
   if (raft_snapshot_interval_s_ <= 0) {
     raft_snapshot_interval_s_ = 3600;
-  }
-  
-  // Raft 性能优化配置
-  GetConfBool("raft-enable-batching", &raft_enable_batching_);
-  
-  GetConfInt("raft-batch-timeout-ms", &raft_batch_timeout_ms_);
-  if (raft_batch_timeout_ms_ <= 0) {
-    raft_batch_timeout_ms_ = 2;  // 默认 2ms
-  }
-  
-  GetConfInt("raft-max-batch-size", &raft_max_batch_size_);
-  if (raft_max_batch_size_ <= 0) {
-    raft_max_batch_size_ = 1000;  // 默认 1000
   }
 
   return ret;

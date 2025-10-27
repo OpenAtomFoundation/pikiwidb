@@ -906,20 +906,6 @@ class PikaConf : public pstd::BaseConf {
     return raft_snapshot_interval_s_;
   }
   
-  // Raft 性能优化相关配置
-  bool raft_enable_batching() {
-    std::shared_lock l(rwlock_);
-    return raft_enable_batching_;
-  }
-  int raft_batch_timeout_ms() {
-    std::shared_lock l(rwlock_);
-    return raft_batch_timeout_ms_;
-  }
-  int raft_max_batch_size() {
-    std::shared_lock l(rwlock_);
-    return raft_max_batch_size_;
-  }
-  
   int Load();
   int ConfigRewrite();
   int ConfigRewriteSlaveOf();
@@ -1107,13 +1093,8 @@ class PikaConf : public pstd::BaseConf {
   bool raft_enabled_ = false;
   std::string raft_group_id_;
   std::string raft_peers_;
-  int raft_election_timeout_ms_ = 300;  // 优化后的默认值：300ms
+  int raft_election_timeout_ms_ = 1000;
   int raft_snapshot_interval_s_ = 3600;
-  
-  // Raft 性能优化配置
-  bool raft_enable_batching_ = true;    // 启用批处理（默认开启）
-  int raft_batch_timeout_ms_ = 2;       // 批处理超时：2ms
-  int raft_max_batch_size_ = 1000;      // 最大批量大小：1000
 };
 
 #endif

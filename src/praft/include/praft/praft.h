@@ -21,7 +21,6 @@
 #include "pstd/include/pstd_mutex.h"
 #include "pstd/include/pstd_status.h"
 #include "rocksdb/status.h"
-#include "batch_manager.h"
 
 class PikaServer;
 
@@ -237,9 +236,6 @@ class RaftManager {
   // Raft nodes for each database
   mutable std::shared_mutex nodes_mutex_;
   std::unordered_map<std::string, std::shared_ptr<PikaRaftNode>> raft_nodes_;
-  
-  // Batch managers for each database (for request batching optimization)
-  std::unordered_map<std::string, std::unique_ptr<BatchManager>> batch_managers_;
   
   // Storage reference for applying binlog
   storage::Storage* storage_ = nullptr;
