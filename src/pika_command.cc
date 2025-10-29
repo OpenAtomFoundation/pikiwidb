@@ -6,8 +6,6 @@
 #include <memory>
 #include <sstream>
 #include <utility>
-#include <future>
-#include <chrono>
 
 #include <glog/logging.h>
 #include "include/pika_acl.h"
@@ -897,9 +895,9 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
 
   uint64_t before_do_binlog_us = pstd::NowMicros();
   this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
-  
-  // Release locks BEFORE calling DoBinlog() to avoid deadlock in Raft mode
-  // In Raft mode, DoBinlog() will wait for on_apply which needs the same lock
+  DoBinlog(); 
+
+
   if (!IsSuspend()) {
     db_->DBUnlockShared();
   }
@@ -907,7 +905,6 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
     record_lock.Unlock(current_key());
   }
   
-  DoBinlog();
 
   uint64_t end_us = pstd::NowMicros();
   this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
@@ -963,52 +960,8 @@ bool Cmd::DoReadCommandInCache() {
 
 
 void Cmd::DoBinlog() {
-  // Skip binlog entirely if we're in on_apply context
-  if (pika_raft::g_in_raft_apply) {
-    return;
-  }
-  
-  // Check if Raft is enabled
-  auto raft_manager = g_pika_server->GetRaftManager();
-  if (raft_manager && is_write() && res().ok()) {
-    // Plan A: Submit command to Raft using Redis protocol
-    // Skip if we're already in on_apply context (avoid recursion)
-    std::string redis_proto = ToRedisProtocol();
-    
-    // Prepend db_name to Redis protocol for extraction in on_apply
-    std::string log_data = db_name_ + "|" + redis_proto;
-    
-    
-    // Create promise/future for synchronous waiting
-    std::promise<rocksdb::Status> promise;
-    auto future = promise.get_future();
-    
-    // Submit to Raft
-    auto status = raft_manager->SubmitCommandWithPromise(
-        db_name_, log_data, std::move(promise));
-    
-    if (!status.ok()) {
-      LOG(ERROR) << "Failed to submit command to Raft: " << status.ToString();
-      res_.SetRes(CmdRes::kErrOther, "Raft submit failed: " + status.ToString());
-      return;
-    }
-    
-    // Wait for Raft to apply (with 10 second timeout)
-    auto wait_status = future.wait_for(std::chrono::seconds(10));
-    if (wait_status == std::future_status::timeout) {
-      LOG(ERROR) << "Raft apply timeout for command: " << name_;
-      res_.SetRes(CmdRes::kErrOther, "Raft apply timeout");
-      return;
-    }
-    
-    // Get the result
-    rocksdb::Status raft_result = future.get();
-    if (!raft_result.ok()) {
-      LOG(ERROR) << "Raft apply failed: " << raft_result.ToString();
-      res_.SetRes(CmdRes::kErrOther, "Raft apply failed: " + raft_result.ToString());
-      return;
-    }
-    
+  // 如果是 Raft 模式，跳过写 binlog（改用 Protobuf binlog）
+  if (g_pika_server->GetRaftManager()) {
     return;
   }
   

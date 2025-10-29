@@ -104,10 +104,5 @@ class RaftConfigCmd : public Cmd {
   std::string db_name_;
 };
 
-// Thread-local flag to detect if we're in on_apply context
-namespace pika_raft {
-extern thread_local bool g_in_raft_apply;
-}
-
 #endif  // PIKA_RAFT_H_
 

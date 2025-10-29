@@ -31,6 +31,8 @@ class Redis {
   virtual ~Redis();
 
   rocksdb::DB* GetDB() { return db_; }
+  Storage* GetStorage() { return storage_; }
+  const rocksdb::WriteOptions& GetWriteOptions() const { return default_write_options_; }
 
   struct KeyStatistics {
     size_t window_size;

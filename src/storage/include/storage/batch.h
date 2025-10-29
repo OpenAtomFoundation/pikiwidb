@@ -11,91 +11,72 @@
 #include <map>
 #include "rocksdb/db.h"
 #include "rocksdb/status.h"
-#include "binlog.pb.h"
+
+// Forward declarations
+namespace pikiwidb {
+class Binlog;
+}
 
 namespace storage {
 
-// 前置声明
 class Storage;
-enum DataType;  // 使用 storage.h 中定义的 DataType
+class Redis;
 
-// Binlog 提交回调函数类型（使用 promise/future 同步）
-using AppendLogFunction = std::function<void(const pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>;
+using AppendLogFunction = std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>;
 
-// Batch 抽象基类
+using ColumnFamilyIndex = uint32_t;
+
 class Batch {
 public:
   virtual ~Batch() = default;
   
-  // 添加 Put 操作
-  virtual void Put(DataType dtype, const rocksdb::Slice& key, const rocksdb::Slice& value) = 0;
+  virtual void Put(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key, const rocksdb::Slice& value) = 0;
   
-  // 添加 Delete 操作
-  virtual void Delete(DataType dtype, const rocksdb::Slice& key) = 0;
+  virtual void Delete(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key) = 0;
   
-  // 提交批量操作
   virtual rocksdb::Status Commit() = 0;
   
-  // 获取操作计数
   int32_t Count() const { return count_; }
   
-  // 静态工厂方法（参考 pikiwidb_raft 的 Batch::CreateBatch）
-  static std::unique_ptr<Batch> CreateBatch(Storage* storage);
+  static std::unique_ptr<Batch> CreateBatch(Redis* redis);
 
 protected:
   int32_t count_ = 0;
 };
 
-// RocksDB 直接写入的 Batch（非 Raft 模式）
 class RocksBatch : public Batch {
 public:
-  RocksBatch(rocksdb::DB* strings_db, 
-             rocksdb::DB* hashes_db,
-             rocksdb::DB* lists_db,
-             rocksdb::DB* sets_db,
-             rocksdb::DB* zsets_db,
-             rocksdb::DB* streams_db);
+  RocksBatch(rocksdb::DB* db, 
+             const rocksdb::WriteOptions& options,
+             const std::vector<rocksdb::ColumnFamilyHandle*>& handles);
   
-  void Put(DataType dtype, const rocksdb::Slice& key, const rocksdb::Slice& value) override;
-  void Delete(DataType dtype, const rocksdb::Slice& key) override;
+  void Put(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key, const rocksdb::Slice& value) override;
+  void Delete(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key) override;
   rocksdb::Status Commit() override;
 
 private:
-  rocksdb::DB* GetDB(DataType dtype);
-  
-  rocksdb::DB* strings_db_;
-  rocksdb::DB* hashes_db_;
-  rocksdb::DB* lists_db_;
-  rocksdb::DB* sets_db_;
-  rocksdb::DB* zsets_db_;
-  rocksdb::DB* streams_db_;
-  
-  // 每个数据类型一个 WriteBatch
-  std::map<DataType, rocksdb::WriteBatch> batches_;
+  rocksdb::WriteBatch batch_;
+  rocksdb::DB* db_;
+  const rocksdb::WriteOptions& options_;
+  std::vector<rocksdb::ColumnFamilyHandle*> handles_; 
 };
 
-// Raft Binlog 生成的 Batch（Raft 模式）
 class BinlogBatch : public Batch {
 public:
   BinlogBatch(AppendLogFunction func, uint32_t db_id, uint32_t slot_idx = 0, uint32_t timeout_s = 10);
+  ~BinlogBatch() override;
   
-  void Put(DataType dtype, const rocksdb::Slice& key, const rocksdb::Slice& value) override;
-  void Delete(DataType dtype, const rocksdb::Slice& key) override;
+  void Put(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key, const rocksdb::Slice& value) override;
+  void Delete(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key) override;
   
   // 同步等待 Raft 应用完成（使用 promise/future）
   rocksdb::Status Commit() override;
 
 private:
   AppendLogFunction append_log_func_;
-  pikiwidb::Binlog binlog_;
+  std::unique_ptr<::pikiwidb::Binlog> binlog_;  
   uint32_t timeout_seconds_;
 };
-
-// Proto DataType 转 Storage DataType（声明）
-DataType ProtoToStorageDataType(pikiwidb::DataType proto_type);
-
-// Storage DataType 转 Proto DataType（声明）
-pikiwidb::DataType StorageToProtoDataType(DataType dtype);
 
 } // namespace storage
 
