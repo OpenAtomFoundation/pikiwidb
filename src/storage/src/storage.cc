@@ -128,6 +128,11 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
   if (!s.ok()) {
     LOG(FATAL) << "open stream db failed, " << s.ToString();
   }
+  
+  if (storage_options.append_log_function) {
+    append_log_function_ = storage_options.append_log_function;
+    LOG(INFO) << "Raft append_log_function registered for storage";
+  }
 
   is_opened_.store(true);
   return Status::OK();
@@ -2060,35 +2065,49 @@ void Storage::DisableWal(const bool is_wal_disable) {
   zsets_db_->SetWriteWalOptions(is_wal_disable);
 }
 
-// Raft binlog callback implementation
-void Storage::SetBinlogWriteCallback(BinlogWriteCallback callback) {
-  binlog_callback_ = std::move(callback);
-  LOG(INFO) << "Raft binlog write callback registered";
-}
-
-// 获取各数据类型的 RocksDB 实例
-rocksdb::DB* Storage::GetStringsDB() {
-  return strings_db_ ? strings_db_->GetDB() : nullptr;
-}
-
-rocksdb::DB* Storage::GetHashesDB() {
-  return hashes_db_ ? hashes_db_->GetDB() : nullptr;
-}
-
-rocksdb::DB* Storage::GetListsDB() {
-  return lists_db_ ? lists_db_->GetDB() : nullptr;
-}
-
-rocksdb::DB* Storage::GetSetsDB() {
-  return sets_db_ ? sets_db_->GetDB() : nullptr;
-}
-
-rocksdb::DB* Storage::GetZSetsDB() {
-  return zsets_db_ ? zsets_db_->GetDB() : nullptr;
-}
-
-rocksdb::DB* Storage::GetStreamsDB() {
-  return streams_db_ ? streams_db_->GetDB() : nullptr;
+rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index) {
+  rocksdb::WriteOptions write_options;
+  write_options.disableWAL = true;
+  
+  for (const auto& entry : binlog.entries()) {
+    uint32_t cf_idx = entry.cf_idx();
+    
+    
+    rocksdb::DB* db = nullptr;
+    rocksdb::Status s;
+    
+    if (cf_idx == 0) {
+      db = strings_db_->GetDB();
+      if (!db) {
+        LOG(ERROR) << "Strings DB is null";
+        return rocksdb::Status::NotFound("Strings DB not found");
+      }
+      
+      switch (entry.op_type()) {
+        case ::pikiwidb::OperateType::kPut:
+          s = db->Put(write_options, entry.key(), entry.value());
+          break;
+          
+        case ::pikiwidb::OperateType::kDelete:
+          s = db->Delete(write_options, entry.key());
+          break;
+          
+        default:
+          LOG(WARNING) << "Unknown operate type: " << static_cast<int>(entry.op_type());
+          continue;
+      }
+    } else {
+      LOG(WARNING) << "Unsupported cf_idx: " << cf_idx << ", skipping";
+      continue;
+    }
+    
+    if (!s.ok()) {
+      LOG(ERROR) << "Failed to apply binlog entry: " << s.ToString();
+      return s;
+    }
+  }
+  
+  return rocksdb::Status::OK();
 }
 
 }  //  namespace storage

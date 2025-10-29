@@ -14,66 +14,16 @@
 #include "braft/repeated_timer_task.h"
 #include "brpc/server.h"
 #include "brpc/closure_guard.h"
-#include "include/pika_command.h"
 #include "include/pika_conf.h"
 #include "include/pika_server.h"
-#include "include/pika_cmd_table_manager.h"
-#include "net/include/redis_conn.h"
 #include "binlog.pb.h"
 #include "storage/storage.h"
 #include "storage/batch.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 extern std::unique_ptr<PikaServer> g_pika_server;
-extern std::unique_ptr<PikaCmdTableManager> g_pika_cmd_table_manager;
 
-// Thread-local flag to indicate if we're in on_apply context
 namespace pika_raft {
-thread_local bool g_in_raft_apply = false;
-
-// RaftLogEntry serialization (simple format for now)
-std::string RaftLogEntry::SerializeAsString() const {
-  std::ostringstream oss;
-  oss << cmd_name << "|" << db_name << "|" << timestamp << "|";
-  for (size_t i = 0; i < args.size(); ++i) {
-    if (i > 0) oss << ",";
-    oss << args[i];
-  }
-  return oss.str();
-}
-
-bool RaftLogEntry::ParseFromString(const std::string& data) {
-  size_t pos1 = data.find('|');
-  if (pos1 == std::string::npos) return false;
-  
-  size_t pos2 = data.find('|', pos1 + 1);
-  if (pos2 == std::string::npos) return false;
-  
-  size_t pos3 = data.find('|', pos2 + 1);
-  if (pos3 == std::string::npos) return false;
-  
-  cmd_name = data.substr(0, pos1);
-  db_name = data.substr(pos1 + 1, pos2 - pos1 - 1);
-  
-  try {
-    timestamp = std::stoll(data.substr(pos2 + 1, pos3 - pos2 - 1));
-  } catch (...) {
-    return false;
-  }
-  
-  std::string args_str = data.substr(pos3 + 1);
-  if (!args_str.empty()) {
-    size_t start = 0;
-    size_t comma_pos;
-    while ((comma_pos = args_str.find(',', start)) != std::string::npos) {
-      args.push_back(args_str.substr(start, comma_pos - start));
-      start = comma_pos + 1;
-    }
-    args.push_back(args_str.substr(start));
-  }
-  
-  return true;
-}
 
 // PikaStateMachine implementation
 PikaStateMachine::PikaStateMachine() 
@@ -82,7 +32,9 @@ PikaStateMachine::PikaStateMachine()
 
 void PikaStateMachine::on_apply(braft::Iterator& iter) {
   for (; iter.valid(); iter.next()) {
-    braft::AsyncClosureGuard closure_guard(iter.done());
+    // Use brpc::ClosureGuard instead of braft::AsyncClosureGuard for manual control
+    auto done = iter.done();
+    brpc::ClosureGuard done_guard(done);
     
     int64_t index = iter.index();
     butil::IOBuf log_data = iter.data();
@@ -90,53 +42,45 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
     
     if (!g_pika_server || !g_pika_server->GetRaftManager()) {
       applied_index_.store(index, std::memory_order_relaxed);
+      // Run closure asynchronously in bthread to avoid blocking on_apply
+      if (done) {
+        braft::run_closure_in_bthread(done_guard.release());
+      }
       continue;
     }
     
-    // Detect log format: Redis protocol (Plan A) or Protobuf binlog (Plan B)
-    // Redis protocol contains '|' separator (db_name|redis_proto)
-    // Protobuf binlog is binary format (unlikely to contain '|' at the start)
-    bool is_redis_protocol = (log_str.find('|') != std::string::npos);
+    // 直接解析 Protobuf binlog
+    pikiwidb::Binlog binlog;
+    if (!binlog.ParseFromString(log_str)) {
+      if (done) {
+        done->status().set_error(EINVAL, "Failed to parse binlog");
+      }
+      applied_index_.store(index, std::memory_order_relaxed);
+      if (done) {
+        braft::run_closure_in_bthread(done_guard.release());
+      }
+      continue;
+    }
     
-    if (is_redis_protocol) {
-      // Plan A: Redis protocol format
-      // Extract db_name from log data
-      // TODO: For now, use db0 as default. Need to encode db_name in log.
-      // Could prepend db_name to Redis protocol: "<db_name>|*3\r\n..."
-      std::string db_name = "db0";
-      
-      // Parse db_name if prepended
-      size_t pipe_pos = log_str.find('|');
-      if (pipe_pos != std::string::npos && pipe_pos < 20) {  // db_name should be short
-        db_name = log_str.substr(0, pipe_pos);
-        log_str = log_str.substr(pipe_pos + 1);  // Remove db_name prefix
+    // 应用 binlog 到 storage 并获取结果
+    rocksdb::Status apply_status = g_pika_server->GetRaftManager()->ApplyBinlogEntry(log_str);
+    
+    // 根据应用结果设置 closure 状态
+    if (done) {
+      if (apply_status.ok()) {
+        done->status().set_error(0, "OK");
+      } else {
+        done->status().set_error(-1, "%s", apply_status.ToString().c_str());
+        LOG(ERROR) << "Apply binlog failed: " << apply_status.ToString();
       }
-      
-      rocksdb::Status status = g_pika_server->GetRaftManager()->ApplyCommandFromRedisProtocol(
-          log_str, db_name);
-      
-      if (iter.done()) {
-        if (status.ok()) {
-          iter.done()->status().set_error(0, "OK");
-        } else {
-          iter.done()->status().set_error(-1, "%s", status.ToString().c_str());
-        }
-      }
-    } else {
-      // Plan B: Protobuf binlog format (legacy)
-      pikiwidb::Binlog binlog;
-      if (!binlog.ParseFromString(log_str)) {
-        if (iter.done()) {
-          iter.done()->status().set_error(EINVAL, "Failed to parse binlog");
-        }
-        applied_index_.store(index, std::memory_order_relaxed);
-        continue;
-      }
-      
-      g_pika_server->GetRaftManager()->ApplyBinlogEntry(log_str);
     }
     
     applied_index_.store(index, std::memory_order_relaxed);
+    
+    // Run closure asynchronously in bthread to avoid blocking on_apply
+    if (done) {
+      braft::run_closure_in_bthread(done_guard.release());
+    }
   }
 }
 
@@ -335,33 +279,6 @@ pstd::Status PikaRaftNode::RemovePeer(const braft::PeerId& peer) {
   return pstd::Status::OK();
 }
 
-pstd::Status PikaRaftNode::Apply(const RaftLogEntry& entry) {
-  if (!node_) {
-    return pstd::Status::Corruption("Raft node not initialized");
-  }
-  
-  if (!IsLeader()) {
-    braft::PeerId leader = GetLeaderId();
-    std::string error_msg = "Not leader, current leader: " + leader.to_string();
-    return pstd::Status::Corruption(error_msg);
-  }
-  
-  // Serialize the entry
-  std::string data = entry.SerializeAsString();
-  butil::IOBuf log;
-  log.append(data);
-  
-  // Apply to Raft
-  braft::Task task;
-  task.data = &log;
-  task.done = nullptr; // Synchronous for now
-  
-  node_->apply(task);
-  
-  
-  return pstd::Status::OK();
-}
-
 void PikaRaftNode::GetStatus(std::string* status_str) {
   if (!node_) {
     *status_str = "Raft node not initialized";
@@ -377,6 +294,22 @@ void PikaRaftNode::GetStatus(std::string* status_str) {
   oss << "State: " << (IsLeader() ? "LEADER" : "FOLLOWER") << "\n";
   oss << "Leader: " << status.leader_id.to_string() << "\n";
   oss << "Term: " << status.term << "\n";
+  
+  std::vector<braft::PeerId> peers;
+  if (IsLeader()) {
+    butil::Status st = node_->list_peers(&peers);
+    if (st.ok() && !peers.empty()) {
+      oss << "Cluster Members: ";
+      for (size_t i = 0; i < peers.size(); i++) {
+        oss << peers[i].to_string();
+        if (i < peers.size() - 1) {
+          oss << ",";
+        }
+      }
+      oss << "\n";
+    }
+  }
+  
   oss << "Committed Index: " << status.committed_index << "\n";
   oss << "Known Applied Index: " << status.known_applied_index << "\n";
   oss << "Pending Index: " << status.pending_index << "\n";
@@ -413,6 +346,46 @@ pstd::Status RaftManager::Init() {
   LOG(INFO) << "Initializing Raft manager with group_id: " << group_id_
             << ", election_timeout: " << election_timeout_ms_ << "ms"
             << ", snapshot_interval: " << snapshot_interval_s_ << "s";
+  
+  // Auto-initialize cluster from config if raft-peers is set
+  std::string raft_peers = g_pika_conf->raft_peers();
+  if (!raft_peers.empty()) {
+    LOG(INFO) << "Auto-initializing Raft cluster from config, peers: " << raft_peers;
+    
+    // Parse peers
+    std::vector<std::string> peer_list;
+    std::stringstream ss(raft_peers);
+    std::string peer;
+    while (std::getline(ss, peer, ',')) {
+      // Trim whitespace
+      peer.erase(0, peer.find_first_not_of(" \t"));
+      peer.erase(peer.find_last_not_of(" \t") + 1);
+      if (!peer.empty()) {
+        peer_list.push_back(peer);
+      }
+    }
+    
+    if (!peer_list.empty()) {
+      // Check if cluster already initialized (avoid duplicate initialization after restart)
+      auto existing_node = GetRaftNode("db0");
+      if (existing_node) {
+        LOG(INFO) << "Raft cluster already initialized, skipping auto-initialization";
+      } else {
+        // Initialize cluster for default db
+        pstd::Status status = InitCluster("db0", peer_list);
+        if (!status.ok()) {
+          LOG(WARNING) << "Failed to auto-initialize Raft cluster: " << status.ToString();
+          LOG(WARNING) << "You may need to manually run RAFT.CLUSTER INIT command";
+        } else {
+          LOG(INFO) << "Raft cluster auto-initialized successfully with " 
+                    << peer_list.size() << " peers";
+        }
+      }
+    }
+  } else {
+    LOG(INFO) << "No raft-peers configured, cluster initialization skipped";
+    LOG(INFO) << "Use RAFT.CLUSTER INIT command to initialize cluster manually";
+  }
   
   initialized_.store(true);
   return pstd::Status::OK();
@@ -532,21 +505,6 @@ pstd::Status RaftManager::GetClusterInfo(const std::string& db_name,
   return pstd::Status::OK();
 }
 
-bool RaftManager::IsRaftEnabled(const std::string& db_name) const {
-  std::shared_lock lock(nodes_mutex_);
-  return raft_nodes_.find(db_name) != raft_nodes_.end();
-}
-
-pstd::Status RaftManager::ApplyCommand(const std::string& db_name, 
-                                       const RaftLogEntry& entry) {
-  auto node = GetRaftNode(db_name);
-  if (!node) {
-    return pstd::Status::Corruption("Raft node not found for DB: " + db_name);
-  }
-  
-  return node->Apply(entry);
-}
-
 std::shared_ptr<PikaRaftNode> RaftManager::GetRaftNode(const std::string& db_name) {
   std::shared_lock lock(nodes_mutex_);
   auto it = raft_nodes_.find(db_name);
@@ -606,10 +564,6 @@ braft::PeerId RaftManager::ParsePeerId(const std::string& peer_str) {
 }
 
 // WriteDoneClosure implementation
-WriteDoneClosure::WriteDoneClosure(std::shared_ptr<Cmd> cmd, 
-                                   std::shared_ptr<net::RedisConn> conn)
-    : cmd_(std::move(cmd)), conn_(std::move(conn)) {
-}
 
 void WriteDoneClosure::Run() {
   std::unique_ptr<WriteDoneClosure> self_guard(this);
@@ -630,218 +584,79 @@ void WriteDoneClosure::Run() {
   }
 }
 
-// ApplyBinlog implementation
-pstd::Status RaftManager::ApplyBinlog(const std::string& db_name,
-                                      const std::string& binlog_data,
-                                      WriteDoneClosure* done) {
+void RaftManager::AppendLog(const std::string& db_name, 
+                            const ::pikiwidb::Binlog& log, 
+                            std::promise<rocksdb::Status>&& promise) {
   auto node = GetRaftNode(db_name);
   if (!node) {
-    if (done) {
-      delete done;
-    }
-    return pstd::Status::Corruption("Raft node not found for DB: " + db_name);
+    LOG(ERROR) << "Raft node not found for DB: " << db_name;
+    promise.set_value(rocksdb::Status::NotFound("Raft node not found"));
+    return;
   }
   
   if (!node->IsLeader()) {
     braft::PeerId leader = node->GetLeaderId();
-    if (done) {
-      delete done;
-    }
-    std::string error_msg = "Not leader, current leader: " + leader.to_string();
-    return pstd::Status::Corruption(error_msg);
+    LOG(WARNING) << "Current node is not leader for DB: " << db_name 
+                 << ", leader: " << leader.to_string();
+    promise.set_value(rocksdb::Status::Incomplete("Not leader"));
+    return;
   }
   
-  // Create Raft task
-  butil::IOBuf log;
-  log.append(binlog_data);
+  // 创建 WriteDoneClosure 并传递 promise
+  auto* done = new WriteDoneClosure();
+  done->SetPromise(std::make_shared<std::promise<rocksdb::Status>>(std::move(promise)));
   
+  // 序列化 binlog
+  butil::IOBuf data;
+  butil::IOBufAsZeroCopyOutputStream wrapper(&data);
+  if (!log.SerializeToZeroCopyStream(&wrapper)) {
+    done->status().set_error(-1, "Failed to serialize binlog");
+    done->Run();
+    return;
+  }
+  
+  // 创建 Raft 任务
   braft::Task task;
-  task.data = &log;
-  task.done = done;  // Async callback
+  task.data = &data;
+  task.done = done;
   
+  // 提交到 Raft
   node->GetRaftNode()->apply(task);
-  return pstd::Status::OK();
 }
 
 // Apply binlog entry to storage (called from on_apply)
-void RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
-  if (!storage_) {
-    return;
-  }
-  
+rocksdb::Status RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
   // 解析 binlog
   pikiwidb::Binlog binlog;
   if (!binlog.ParseFromString(binlog_data)) {
-    return;
+    return rocksdb::Status::Corruption("Failed to parse binlog");
   }
   
-  // 临时禁用 binlog 回调以避免循环
-  auto old_callback = storage_->GetBinlogCallback();
-  storage_->SetBinlogWriteCallback(nullptr);
+  // 从 binlog 中提取 db_name（假设默认是 db0，后续可以从 binlog 中读取）
+  std::string db_name = "db0";
   
-  // 创建 RocksBatch 直接写入（不触发 binlog）
-  auto batch = std::make_unique<storage::RocksBatch>(
-    storage_->GetStringsDB(),
-    storage_->GetHashesDB(),
-    storage_->GetListsDB(),
-    storage_->GetSetsDB(),
-    storage_->GetZSetsDB(),
-    storage_->GetStreamsDB()
-  );
-  
-  // 应用所有条目到 batch
-  for (const auto& entry : binlog.entries()) {
-    storage::DataType dtype = storage::ProtoToStorageDataType(entry.data_type());
-    
-    switch (entry.op_type()) {
-      case pikiwidb::OperateType::kPut:
-        batch->Put(dtype,
-                   rocksdb::Slice(entry.key()),
-                   rocksdb::Slice(entry.value()));
-        break;
-        
-      case pikiwidb::OperateType::kDelete:
-        batch->Delete(dtype, rocksdb::Slice(entry.key()));
-        break;
-        
-      default:
-        break;
-    }
-  }
-  
-  // 提交批量写入
-  auto status = batch->Commit();
-  
-  // 恢复 binlog 回调
-  storage_->SetBinlogWriteCallback(old_callback);
-}
-
-// Submit command with promise (for Plan A)
-pstd::Status RaftManager::SubmitCommandWithPromise(
-    const std::string& db_name,
-    const std::string& log_data,
-    std::promise<rocksdb::Status>&& promise) {
-  
-  auto node = GetRaftNode(db_name);
-  if (!node) {
-    promise.set_value(rocksdb::Status::NotFound("Raft node not found"));
-    return pstd::Status::NotFound("Raft node not found for db: " + db_name);
-  }
-  
-  if (!node->IsLeader()) {
-    braft::PeerId leader = node->GetLeaderId();
-    promise.set_value(rocksdb::Status::Aborted("Not leader"));
-    std::string error_msg = "Not leader, current leader: " + leader.to_string();
-    return pstd::Status::Corruption(error_msg);
-  }
-  
-  // Create closure with promise
-  auto* closure = new WriteDoneClosure(nullptr, nullptr);
-  closure->SetPromise(std::make_shared<std::promise<rocksdb::Status>>(
-      std::move(promise)));
-  
-  // Create braft::Task
-  braft::Task task;
-  butil::IOBuf buf;
-  buf.append(log_data);
-  task.data = &buf;
-  task.done = closure;
-  
-  // Submit to Raft
-  node->GetRaftNode()->apply(task);
-  
-  return pstd::Status::OK();
-}
-
-// Apply command from Redis protocol (called in on_apply)
-rocksdb::Status RaftManager::ApplyCommandFromRedisProtocol(
-    const std::string& redis_proto_data,
-    const std::string& db_name) {
-  
-  // Get DB
+  // 从 PikaServer 获取对应的 DB 和 Storage
   auto db = g_pika_server->GetDB(db_name);
   if (!db) {
-    return rocksdb::Status::NotFound("DB not found");
+    LOG(ERROR) << "Failed to get DB: " << db_name;
+    return rocksdb::Status::NotFound("DB not found: " + db_name);
   }
   
-  // Parse Redis protocol to extract command and args
-  std::vector<std::string> argv;
-  
-  // Redis protocol format:
-  // *<argc>\r\n$<len>\r\n<data>\r\n$<len>\r\n<data>\r\n...
-  size_t pos = 0;
-  if (redis_proto_data[pos] != '*') {
-    return rocksdb::Status::Corruption("Invalid Redis protocol");
-  }
-  pos++;
-  
-  // Parse argc
-  size_t newline_pos = redis_proto_data.find("\r\n", pos);
-  if (newline_pos == std::string::npos) {
-    return rocksdb::Status::Corruption("Invalid Redis protocol");
-  }
-  int argc = std::stoi(redis_proto_data.substr(pos, newline_pos - pos));
-  pos = newline_pos + 2;
-  
-  // Parse each argument
-  for (int i = 0; i < argc; i++) {
-    if (pos >= redis_proto_data.size() || redis_proto_data[pos] != '$') {
-      return rocksdb::Status::Corruption("Invalid Redis protocol");
-    }
-    pos++;
-    
-    // Parse argument length
-    newline_pos = redis_proto_data.find("\r\n", pos);
-    if (newline_pos == std::string::npos) {
-      return rocksdb::Status::Corruption("Invalid Redis protocol");
-    }
-    int arg_len = std::stoi(redis_proto_data.substr(pos, newline_pos - pos));
-    pos = newline_pos + 2;
-    
-    // Parse argument data
-    if (pos + arg_len > redis_proto_data.size()) {
-      return rocksdb::Status::Corruption("Invalid Redis protocol");
-    }
-    argv.push_back(redis_proto_data.substr(pos, arg_len));
-    pos += arg_len + 2;  // Skip \r\n
+  auto storage = db->storage();
+  if (!storage) {
+    LOG(ERROR) << "Storage is null for DB: " << db_name;
+    return rocksdb::Status::InvalidArgument("Storage is null");
   }
   
-  if (argv.empty()) {
-    return rocksdb::Status::Corruption("Empty command");
+  // 调用 Storage::OnBinlogWrite() 应用 binlog
+  // 注意：log_index 暂时传 0，后续可以从外部传入
+  auto status = storage->OnBinlogWrite(binlog, 0);
+  
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to apply binlog to " << db_name << ": " << status.ToString();
   }
   
-  // Convert command name to lowercase (Pika command table uses lowercase)
-  std::string cmd_name = argv[0];
-  std::transform(cmd_name.begin(), cmd_name.end(), cmd_name.begin(), ::tolower);
-  
-  // Set thread-local flag to indicate we're in on_apply context
-  g_in_raft_apply = true;
-  
-  // Create command object
-  std::shared_ptr<Cmd> cmd = g_pika_cmd_table_manager->GetCmd(cmd_name);
-  if (!cmd) {
-    g_in_raft_apply = false;
-    return rocksdb::Status::NotSupported("Unknown command");
-  }
-  
-  // Initialize and execute command
-  cmd->Initial(argv, db_name);
-  
-  // Execute the full command flow. DoBinlog() will be called but will skip
-  // because g_in_raft_apply is true.
-  cmd->Execute();
-  
-  // Clear thread-local flag
-  g_in_raft_apply = false;
-  
-  rocksdb::Status result;
-  if (cmd->res().ok()) {
-    result = rocksdb::Status::OK();
-  } else {
-    result = rocksdb::Status::IOError(cmd->res().message());
-  }
-  
-  return result;
+  return status;
 }
 
 }  // namespace pika_raft

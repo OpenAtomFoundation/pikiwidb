@@ -94,9 +94,17 @@ void RaftClusterCmd::Do() {
                 << " with peers: " << argv_[2];
       status = raft_mgr->InitCluster(db_name_, args_);
       if (status.ok()) {
-        // Raft 模式下关闭 RocksDB WAL（Raft Log 已提供持久化）
-        db_->storage()->DisableWal(true);
-        LOG(INFO) << "Disabled RocksDB WAL for Raft mode (DB: " << db_name_ << ")";
+        // Update raft-peers in config file and persist
+        std::string peers_str = argv_[2];
+        if (g_pika_conf->SetConfStr("raft-peers", peers_str)) {
+          if (g_pika_conf->WriteBack()) {
+            LOG(INFO) << "Updated raft-peers in config file: " << peers_str;
+          } else {
+            LOG(WARNING) << "Failed to write raft-peers to config file";
+          }
+        } else {
+          LOG(WARNING) << "Failed to update raft-peers in config";
+        }
         res_.AppendStringRaw("+OK\r\n");
       } else {
         res_.SetRes(CmdRes::kErrOther, "Failed to initialize cluster: " + status.ToString());
@@ -109,9 +117,6 @@ void RaftClusterCmd::Do() {
                 << " to leader: " << args_[0];
       status = raft_mgr->JoinCluster(db_name_, args_[0]);
       if (status.ok()) {
-        // Raft 模式下关闭 RocksDB WAL（Raft Log 已提供持久化）
-        db_->storage()->DisableWal(true);
-        LOG(INFO) << "Disabled RocksDB WAL for Raft mode (DB: " << db_name_ << ")";
         res_.AppendStringRaw("+OK\r\n");
       } else {
         res_.SetRes(CmdRes::kErrOther, "Failed to join cluster: " + status.ToString());
@@ -123,7 +128,6 @@ void RaftClusterCmd::Do() {
       std::string info;
       status = raft_mgr->GetClusterInfo(db_name_, &info);
       if (status.ok()) {
-        // 拆分成多行，以数组格式返回
         std::vector<std::string> lines;
         std::stringstream ss(info);
         std::string line;
@@ -200,6 +204,22 @@ void RaftNodeCmd::Do() {
                 << ", peer: " << peer_addr_;
       status = raft_mgr->AddNode(db_name_, peer_addr_);
       if (status.ok()) {
+        // Update raft-peers in config file
+        std::string current_peers = g_pika_conf->raft_peers();
+        if (current_peers.empty()) {
+          current_peers = peer_addr_;
+        } else if (current_peers.find(peer_addr_) == std::string::npos) {
+          current_peers += "," + peer_addr_;
+        }
+        
+        if (g_pika_conf->SetConfStr("raft-peers", current_peers)) {
+          if (g_pika_conf->WriteBack()) {
+            LOG(INFO) << "Updated raft-peers in config file: " << current_peers;
+          } else {
+            LOG(WARNING) << "Failed to write raft-peers to config file";
+          }
+        }
+        
         res_.AppendStringRaw("+OK\r\n");
       } else {
         res_.SetRes(CmdRes::kErrOther, "Failed to add node: " + status.ToString());
@@ -212,6 +232,39 @@ void RaftNodeCmd::Do() {
                 << ", peer: " << peer_addr_;
       status = raft_mgr->RemoveNode(db_name_, peer_addr_);
       if (status.ok()) {
+        // Update raft-peers in config file
+        std::string current_peers = g_pika_conf->raft_peers();
+        if (!current_peers.empty()) {
+          // Parse and rebuild peer list without the removed peer
+          std::vector<std::string> peer_list;
+          std::stringstream ss(current_peers);
+          std::string peer;
+          while (std::getline(ss, peer, ',')) {
+            peer.erase(0, peer.find_first_not_of(" \t"));
+            peer.erase(peer.find_last_not_of(" \t") + 1);
+            if (!peer.empty() && peer != peer_addr_) {
+              peer_list.push_back(peer);
+            }
+          }
+          
+          // Rebuild peers string
+          std::string new_peers;
+          for (size_t i = 0; i < peer_list.size(); i++) {
+            new_peers += peer_list[i];
+            if (i < peer_list.size() - 1) {
+              new_peers += ",";
+            }
+          }
+          
+          if (g_pika_conf->SetConfStr("raft-peers", new_peers)) {
+            if (g_pika_conf->WriteBack()) {
+              LOG(INFO) << "Updated raft-peers in config file: " << new_peers;
+            } else {
+              LOG(WARNING) << "Failed to write raft-peers to config file";
+            }
+          }
+        }
+        
         res_.AppendStringRaw("+OK\r\n");
       } else {
         res_.SetRes(CmdRes::kErrOther, "Failed to remove node: " + status.ToString());

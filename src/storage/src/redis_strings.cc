@@ -14,6 +14,8 @@
 #include <glog/logging.h>
 #include <iostream>
 
+#include "storage/batch.h"  // For Batch support
+
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
@@ -738,8 +740,12 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
 
 Status RedisStrings::Set(const Slice& key, const Slice& value) {
   StringsValue strings_value(value);
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  
+  // Strings DB 只有默认列族，索引为 0
+  batch->Put(0, key, strings_value.Encode());
+  return batch->Commit();
 }
 
 Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {

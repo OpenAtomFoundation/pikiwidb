@@ -8,6 +8,7 @@
 
 #include <unistd.h>
 #include <functional>
+#include <future>
 #include <list>
 #include <map>
 #include <queue>
@@ -23,7 +24,6 @@
 #include "rocksdb/status.h"
 #include "rocksdb/table.h"
 
-#include <future>
 #include "pstd/include/pstd_mutex.h"
 
 // Forward declarations
@@ -32,10 +32,6 @@ class Binlog;
 }
 
 namespace storage {
-
-// Forward declaration for binlog callback
-// Callback signature: void callback(const pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)
-using BinlogWriteCallback = std::function<void(const pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>;
 
 inline constexpr double ZSET_SCORE_MAX = std::numeric_limits<double>::max();
 inline constexpr double ZSET_SCORE_MIN = std::numeric_limits<double>::lowest();
@@ -79,6 +75,11 @@ struct StreamInfoResult;
 template <typename T1, typename T2>
 class LRUCache;
 
+// Forward declaration for Binlog
+namespace pikiwidb {
+class Binlog;
+}
+
 struct StorageOptions {
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions table_options;
@@ -87,6 +88,9 @@ struct StorageOptions {
   size_t statistics_max_size = 0;
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
+  
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)> append_log_function;
+  
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -1112,18 +1116,12 @@ class Storage {
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
 
-  // Raft binlog callback interface
-  void SetBinlogWriteCallback(BinlogWriteCallback callback);
-  bool IsRaftEnabled() const { return binlog_callback_ != nullptr; }
-  BinlogWriteCallback GetBinlogCallback() const { return binlog_callback_; }
+  bool IsRaftEnabled() const { return append_log_function_ != nullptr; }
   
-  // 获取各数据类型的 RocksDB 实例（供 Batch 使用）
-  rocksdb::DB* GetStringsDB();
-  rocksdb::DB* GetHashesDB();
-  rocksdb::DB* GetListsDB();
-  rocksdb::DB* GetSetsDB();
-  rocksdb::DB* GetZSetsDB();
-  rocksdb::DB* GetStreamsDB();
+  const std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>& 
+  GetAppendLogFunction() const { return append_log_function_; }
+  
+  rocksdb::Status OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index);
 
  private:
   std::unique_ptr<RedisStrings> strings_db_;
@@ -1149,7 +1147,7 @@ class Storage {
   std::atomic<bool> scan_keynum_exit_ = false;
 
   // Raft binlog callback
-  BinlogWriteCallback binlog_callback_;
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)> append_log_function_;
 };
 
 }  //  namespace storage

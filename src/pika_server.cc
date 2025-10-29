@@ -114,6 +114,15 @@ PikaServer::PikaServer()
       LOG(FATAL) << "Failed to initialize Raft manager: " << status.ToString();
     }
     LOG(INFO) << "Raft manager initialized successfully";
+    
+    std::lock_guard rwl(storage_options_rw_);
+    storage_options_.append_log_function = 
+      [this](const ::pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise) {
+        std::string db_name = "db0";
+        
+        raft_manager_->AppendLog(db_name, binlog, std::move(promise));
+      };
+    LOG(INFO) << "Raft append_log_function registered in storage_options";
   }
   
   bgsave_thread_.set_thread_name("PikaServer::bgsave_thread_");
@@ -237,58 +246,13 @@ void PikaServer::Start() {
     } else {
       LOG(INFO) << "Raft manager started successfully";
       
-      // 为每个数据库注册 binlog 回调
+      // Disable WAL for all databases when Raft is enabled
       for (const auto& db_item : dbs_) {
-        std::string db_name = db_item.first;
-        auto storage = db_item.second->storage();  // Returns std::shared_ptr<storage::Storage>
-        
-        if (!storage) {
-          LOG(WARNING) << "数据库 " << db_name << " 的 storage 为空，跳过回调注册";
-          continue;
+        auto storage = db_item.second->storage();
+        if (storage) {
+          storage->DisableWal(true);
+          LOG(INFO) << "Disabled WAL for DB: " << db_item.first;
         }
-        
-        // 设置存储引擎引用 (使用原始指针)
-        raft_manager_->SetStorage(storage.get());
-        
-        // 注册 binlog 回调（使用 promise/future 同步）
-        storage->SetBinlogWriteCallback(
-          [this, db_name](const pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise) {
-            // 序列化 binlog
-            std::string binlog_data;
-            if (!binlog.SerializeToString(&binlog_data)) {
-              LOG(ERROR) << "Failed to serialize binlog";
-              promise.set_value(rocksdb::Status::Corruption("Binlog serialization failed"));
-              return;
-            }
-            
-            LOG(INFO) << "收到 binlog 回调，数据库: " << db_name 
-                      << ", binlog 大小: " << binlog_data.size() << " 字节"
-                      << ", entries: " << binlog.entries_size();
-            
-            // 创建异步回调闭包
-            auto* closure = new pika_raft::WriteDoneClosure(nullptr, nullptr);
-            closure->SetBinlogData(binlog_data);
-            
-            // TODO: 这里需要将 promise 传递给 closure，让 Raft apply 完成后设置结果
-            // 目前先立即返回 OK，实际应该等待 Raft 应用完成
-            
-            // 提交到 Raft
-            auto apply_status = raft_manager_->ApplyBinlog(db_name, binlog_data, closure);
-            if (!apply_status.ok()) {
-              LOG(ERROR) << "提交 binlog 到 Raft 失败: " << apply_status.ToString();
-              // 设置错误状态并调用 Run，让 closure 自己清理
-              closure->status().set_error(-1, "%s", apply_status.ToString().c_str());
-              closure->Run();
-              promise.set_value(rocksdb::Status::IOError(apply_status.ToString()));
-            } else {
-              // TODO: 应该在 Raft apply 完成后才 set_value
-              // 目前先简单地立即返回 OK
-              promise.set_value(rocksdb::Status::OK());
-            }
-          }
-        );
-        
-        LOG(INFO) << "已为数据库 " << db_name << " 注册 binlog 回调";
       }
     }
   }
