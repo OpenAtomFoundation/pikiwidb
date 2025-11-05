@@ -2692,7 +2692,7 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       res_.AppendStringRaw("-ERR Set write-buffer-size wrong: " + s.ToString() + "\r\n");
       return;
     }
-    g_pika_conf->SetWriteBufferSize(static_cast<int>(ival));
+    g_pika_conf->SetWriteBufferSize(ival);
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-write-buffer-num") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0) {
