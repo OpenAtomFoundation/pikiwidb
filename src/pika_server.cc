@@ -117,10 +117,11 @@ PikaServer::PikaServer()
     
     std::lock_guard rwl(storage_options_rw_);
     storage_options_.append_log_function = 
-      [this](const ::pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise) {
+      [this](const ::pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise,
+             storage::CommitCallback callback) {
         std::string db_name = "db0";
         
-        raft_manager_->AppendLog(db_name, binlog, std::move(promise));
+        raft_manager_->AppendLog(db_name, binlog, std::move(promise), callback);
       };
     LOG(INFO) << "Raft append_log_function registered in storage_options";
   }
@@ -245,15 +246,6 @@ void PikaServer::Start() {
       LOG(WARNING) << "Failed to start Raft manager: " << status.ToString();
     } else {
       LOG(INFO) << "Raft manager started successfully";
-      
-      // Disable WAL for all databases when Raft is enabled
-      for (const auto& db_item : dbs_) {
-        auto storage = db_item.second->storage();
-        if (storage) {
-          storage->DisableWal(true);
-          LOG(INFO) << "Disabled WAL for DB: " << db_item.first;
-        }
-      }
     }
   }
 

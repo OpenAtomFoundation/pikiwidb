@@ -21,8 +21,10 @@
 #include "pstd/include/pstd_mutex.h"
 #include "pstd/include/pstd_status.h"
 #include "rocksdb/status.h"
+#include "storage/batch.h"
 
 class PikaServer;
+class Cmd;
 
 // Forward declarations
 namespace storage {
@@ -31,6 +33,10 @@ class Storage;
 
 namespace pikiwidb {
 class Binlog;
+}
+
+namespace net {
+class NetConn;
 }
 
 namespace pika_raft {
@@ -44,13 +50,22 @@ class WriteDoneClosure : public braft::Closure {
   
   void Run() override;
   
-  // Set promise for synchronous Raft apply
+  // Set promise for synchronous Raft apply (used in Follower on_apply)
   void SetPromise(std::shared_ptr<std::promise<rocksdb::Status>> p) {
     promise_ = p;
   }
+  
+  // Set callback for async response (used in Leader)
+  void SetCallback(storage::CommitCallback callback) {
+    callback_ = callback;
+  }
 
  private:
+  // For synchronous mode (Follower)
   std::shared_ptr<std::promise<rocksdb::Status>> promise_;
+  
+  // For asynchronous mode (Leader)
+  storage::CommitCallback callback_;
 };
 
 // Pika state machine implementation
@@ -150,9 +165,6 @@ class RaftManager {
   // Initialize a new Raft cluster
   pstd::Status InitCluster(const std::string& db_name, const std::vector<std::string>& peers);
 
-  // Join an existing Raft cluster
-  pstd::Status JoinCluster(const std::string& db_name, const std::string& leader_addr);
-
   // Add a node to the cluster
   pstd::Status AddNode(const std::string& db_name, const std::string& peer_addr);
 
@@ -162,16 +174,18 @@ class RaftManager {
   // Get cluster information
   pstd::Status GetClusterInfo(const std::string& db_name, std::string* info);
 
-  // Append binlog
+  // Append binlog (supports both sync and async modes)
+  // Sync mode: pass promise, async mode: pass callback
   void AppendLog(const std::string& db_name, 
                  const ::pikiwidb::Binlog& log, 
-                 std::promise<rocksdb::Status>&& promise);
+                 std::promise<rocksdb::Status>&& promise,
+                 storage::CommitCallback callback = nullptr);
   
   // Get Raft node for a specific DB
   std::shared_ptr<PikaRaftNode> GetRaftNode(const std::string& db_name);
   
   // Apply binlog entry to storage (public for PikaStateMachine to call)
-  rocksdb::Status ApplyBinlogEntry(const std::string& binlog_data);
+  rocksdb::Status ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog);
 
  private:
   std::atomic<bool> initialized_;

@@ -11,12 +11,11 @@
 
 namespace storage {
 
-// ==================== Batch 工厂方法 ====================
-
 std::unique_ptr<Batch> Batch::CreateBatch(Redis* redis) {
   if (redis->GetStorage() && redis->GetStorage()->IsRaftEnabled()) {
     return std::make_unique<BinlogBatch>(
       redis->GetStorage()->GetAppendLogFunction(),
+      redis->GetDataType(),  // data_type
       0,   // db_id
       0,   // slot_idx
       10   // timeout_s
@@ -29,8 +28,6 @@ std::unique_ptr<Batch> Batch::CreateBatch(Redis* redis) {
     );
   }
 }
-
-// ==================== RocksBatch 实现 ====================
 
 RocksBatch::RocksBatch(rocksdb::DB* db,
                        const rocksdb::WriteOptions& options,
@@ -56,15 +53,17 @@ void RocksBatch::Delete(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key) {
   count_++;
 }
 
-rocksdb::Status RocksBatch::Commit() {
+rocksdb::Status RocksBatch::Commit(CommitCallback callback) {
+  // RocksBatch is for non-Raft mode, always synchronous
+  // Ignore callback parameter
   return db_->Write(options_, &batch_);
 }
 
-// ==================== BinlogBatch 实现 ====================
 
-BinlogBatch::BinlogBatch(AppendLogFunction func, uint32_t db_id, uint32_t slot_idx, uint32_t timeout_s)
+BinlogBatch::BinlogBatch(AppendLogFunction func, uint32_t data_type, uint32_t db_id, uint32_t slot_idx, uint32_t timeout_s)
     : append_log_func_(std::move(func)),
       binlog_(std::make_unique<::pikiwidb::Binlog>()),
+      data_type_(data_type),
       timeout_seconds_(timeout_s) {
   binlog_->set_db_id(db_id);
   binlog_->set_slot_idx(slot_idx);
@@ -74,6 +73,7 @@ BinlogBatch::~BinlogBatch() = default;
 
 void BinlogBatch::Put(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key, const rocksdb::Slice& value) {
   auto* entry = binlog_->add_entries();
+  entry->set_data_type(static_cast<::pikiwidb::DataType>(data_type_));
   entry->set_cf_idx(cf_idx);
   entry->set_op_type(::pikiwidb::OperateType::kPut);
   entry->set_key(key.data(), key.size());
@@ -83,29 +83,39 @@ void BinlogBatch::Put(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key, const
 
 void BinlogBatch::Delete(ColumnFamilyIndex cf_idx, const rocksdb::Slice& key) {
   auto* entry = binlog_->add_entries();
+  entry->set_data_type(static_cast<::pikiwidb::DataType>(data_type_));
   entry->set_cf_idx(cf_idx);
   entry->set_op_type(::pikiwidb::OperateType::kDelete);
   entry->set_key(key.data(), key.size());
   count_++;
 }
 
-rocksdb::Status BinlogBatch::Commit() {
+rocksdb::Status BinlogBatch::Commit(CommitCallback callback) {
   if (count_ == 0) {
     return rocksdb::Status::OK();
   }
   
-  std::promise<rocksdb::Status> promise;
-  auto future = promise.get_future();
-  
-  append_log_func_(*binlog_, std::move(promise));
-  
-  auto status = future.wait_for(std::chrono::seconds(timeout_seconds_));
-  if (status == std::future_status::timeout) {
-    LOG(ERROR) << "Raft apply timeout after " << timeout_seconds_ << " seconds";
-    return rocksdb::Status::TimedOut("Wait for Raft apply timeout");
+  if (callback) {
+    // Async mode: pass callback to append_log_func
+    std::promise<rocksdb::Status> dummy_promise;
+    append_log_func_(*binlog_, std::move(dummy_promise), callback);
+    // Return OK immediately, actual response will be sent in Raft callback
+    return rocksdb::Status::OK();
+  } else {
+    // Sync mode: wait for Raft to apply
+    std::promise<rocksdb::Status> promise;
+    auto future = promise.get_future();
+    
+    append_log_func_(*binlog_, std::move(promise), nullptr);
+    
+    auto status = future.wait_for(std::chrono::seconds(timeout_seconds_));
+    if (status == std::future_status::timeout) {
+      LOG(ERROR) << "Raft apply timeout after " << timeout_seconds_ << " seconds";
+      return rocksdb::Status::TimedOut("Wait for Raft apply timeout");
+    }
+    
+    return future.get();
   }
-  
-  return future.get();
 }
 
 } // namespace storage
