@@ -713,8 +713,6 @@ int PikaConf::Load() {
     raft_group_id_ = "pika_raft_group";
   }
   
-  GetConfStr("raft-peers", &raft_peers_);
-  
   GetConfInt("raft-election-timeout-ms", &raft_election_timeout_ms_);
   if (raft_election_timeout_ms_ <= 0) {
     raft_election_timeout_ms_ = 1000;

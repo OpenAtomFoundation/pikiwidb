@@ -168,10 +168,6 @@ void InitCmdTable(CmdTable* cmd_table) {
       std::make_unique<RaftNodeCmd>(kCmdNameRaftNode, -3, kCmdFlagsWrite | kCmdFlagsAdmin | kCmdFlagsSlow);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftNode, std::move(raftnodeptr)));
 
-  std::unique_ptr<Cmd> raftconfigptr =
-      std::make_unique<RaftConfigCmd>(kCmdNameRaftConfig, -2, kCmdFlagsRead | kCmdFlagsAdmin | kCmdFlagsSlow);
-  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftConfig, std::move(raftconfigptr)));
-
 #ifdef WITH_COMMAND_DOCS
   std::unique_ptr<Cmd> commandptr =
       std::make_unique<CommandCmd>(kCmdNameCommand, -1, kCmdFlagsRead | kCmdFlagsAdmin | kCmdFlagsSlow);

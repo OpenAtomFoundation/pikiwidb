@@ -32,6 +32,7 @@ class Redis {
 
   rocksdb::DB* GetDB() { return db_; }
   Storage* GetStorage() { return storage_; }
+  DataType GetDataType() const { return type_; }
   const rocksdb::WriteOptions& GetWriteOptions() const { return default_write_options_; }
 
   struct KeyStatistics {

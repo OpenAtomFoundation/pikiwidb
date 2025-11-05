@@ -43,11 +43,15 @@ class RedisStrings : public Redis {
   Status MGetWithTTL(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss);
   Status MSet(const std::vector<KeyValue>& kvs);
   Status MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret);
-  Status Set(const Slice& key, const Slice& value);
-  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Set(const Slice& key, const Slice& value,
+             CommitCallback callback = nullptr);
+  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
   Status SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret);
-  Status Setex(const Slice& key, const Slice& value, int32_t ttl);
-  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Setex(const Slice& key, const Slice& value, int32_t ttl,
+               CommitCallback callback = nullptr);
+  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
   Status Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, int32_t ttl = 0);
   Status Delvx(const Slice& key, const Slice& value, int32_t* ret);
   Status Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret);

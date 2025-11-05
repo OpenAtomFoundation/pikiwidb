@@ -149,12 +149,13 @@ Status Storage::StoreCursorStartKey(const DataType& dtype, int64_t cursor, const
 }
 
 // Strings Commands
-Status Storage::Set(const Slice& key, const Slice& value) {
-  return strings_db_->Set(key, value);
+Status Storage::Set(const Slice& key, const Slice& value, CommitCallback callback) {
+  return strings_db_->Set(key, value, callback);
 }
 
-Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setxx(key, value, ret, ttl);
+Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                      CommitCallback callback) {
+  return strings_db_->Setxx(key, value, ret, ttl, callback);
 }
 
 Status Storage::Get(const Slice& key, std::string* value) { return strings_db_->Get(key, value); }
@@ -183,8 +184,9 @@ Status Storage::MGetWithTTL(const std::vector<std::string>& keys, std::vector<Va
   return strings_db_->MGetWithTTL(keys, vss);
 }
 
-Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setnx(key, value, ret, ttl);
+Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                      CommitCallback callback) {
+  return strings_db_->Setnx(key, value, ret, ttl, callback);
 }
 
 Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) { return strings_db_->MSetnx(kvs, ret); }
@@ -244,7 +246,9 @@ Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* r
   return strings_db_->Incrbyfloat(key, value, ret, expired_timestamp_sec);
 }
 
-Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl) { return strings_db_->Setex(key, value, ttl); }
+Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl, CommitCallback callback) {
+  return strings_db_->Setex(key, value, ttl, callback);
+}
 
 Status Storage::Strlen(const Slice& key, int32_t* len) { return strings_db_->Strlen(key, len); }
 
@@ -2070,39 +2074,86 @@ rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_
   write_options.disableWAL = true;
   
   for (const auto& entry : binlog.entries()) {
+    Redis* redis_db = nullptr;
+    switch (entry.data_type()) {
+      case ::pikiwidb::DataType::kStrings:
+        redis_db = strings_db_.get();
+        break;
+      case ::pikiwidb::DataType::kHashes:
+        redis_db = hashes_db_.get();
+        break;
+      case ::pikiwidb::DataType::kLists:
+        redis_db = lists_db_.get();
+        break;
+      case ::pikiwidb::DataType::kSets:
+        redis_db = sets_db_.get();
+        break;
+      case ::pikiwidb::DataType::kZSets:
+        redis_db = zsets_db_.get();
+        break;
+      case ::pikiwidb::DataType::kStreams:
+        redis_db = streams_db_.get();
+        break;
+      default:
+        LOG(WARNING) << "Unknown data type: " << static_cast<int>(entry.data_type());
+        continue;
+    }
+    
+    if (!redis_db) {
+      LOG(ERROR) << "Redis DB is null for data type: " << static_cast<int>(entry.data_type());
+      return rocksdb::Status::NotFound("Redis DB not found");
+    }
+    
+    rocksdb::DB* db = redis_db->GetDB();
+    if (!db) {
+      LOG(ERROR) << "RocksDB instance is null for data type: " << static_cast<int>(entry.data_type());
+      return rocksdb::Status::NotFound("RocksDB instance not found");
+    }
+    
     uint32_t cf_idx = entry.cf_idx();
+    const auto& handles = redis_db->GetHandles();
+    rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
     
-    
-    rocksdb::DB* db = nullptr;
-    rocksdb::Status s;
-    
-    if (cf_idx == 0) {
-      db = strings_db_->GetDB();
-      if (!db) {
-        LOG(ERROR) << "Strings DB is null";
-        return rocksdb::Status::NotFound("Strings DB not found");
-      }
-      
-      switch (entry.op_type()) {
-        case ::pikiwidb::OperateType::kPut:
-          s = db->Put(write_options, entry.key(), entry.value());
-          break;
-          
-        case ::pikiwidb::OperateType::kDelete:
-          s = db->Delete(write_options, entry.key());
-          break;
-          
-        default:
-          LOG(WARNING) << "Unknown operate type: " << static_cast<int>(entry.op_type());
-          continue;
+    if (entry.data_type() == ::pikiwidb::DataType::kStrings) {
+      if (cf_idx != 0) {
+        LOG(WARNING) << "Strings type should use cf_idx=0, got cf_idx=" << cf_idx;
       }
     } else {
-      LOG(WARNING) << "Unsupported cf_idx: " << cf_idx << ", skipping";
-      continue;
+      if (cf_idx >= handles.size()) {
+        LOG(ERROR) << "Invalid cf_idx " << cf_idx << " for data type " 
+                   << static_cast<int>(entry.data_type()) << ", available cf count: " << handles.size();
+        return rocksdb::Status::InvalidArgument("Invalid column family index");
+      }
+      cf_handle = handles[cf_idx];
+    }
+    
+    rocksdb::Status s;
+    switch (entry.op_type()) {
+      case ::pikiwidb::OperateType::kPut:
+        if (cf_handle) {
+          s = db->Put(write_options, cf_handle, entry.key(), entry.value());
+        } else {
+          s = db->Put(write_options, entry.key(), entry.value());
+        }
+        break;
+        
+      case ::pikiwidb::OperateType::kDelete:
+        if (cf_handle) {
+          s = db->Delete(write_options, cf_handle, entry.key());
+        } else {
+          s = db->Delete(write_options, entry.key());
+        }
+        break;
+        
+      default:
+        LOG(WARNING) << "Unknown operate type: " << static_cast<int>(entry.op_type());
+        continue;
     }
     
     if (!s.ok()) {
-      LOG(ERROR) << "Failed to apply binlog entry: " << s.ToString();
+      LOG(ERROR) << "Failed to apply binlog entry: " << s.ToString() 
+                 << ", data_type=" << static_cast<int>(entry.data_type())
+                 << ", cf_idx=" << cf_idx;
       return s;
     }
   }

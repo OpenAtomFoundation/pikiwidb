@@ -21,10 +21,9 @@
  * Raft Commands
  */
 
-// RAFT.CLUSTER [INIT|JOIN|INFO] [args...]
-// INIT: RAFT.CLUSTER INIT peer1,peer2,peer3
-// JOIN: RAFT.CLUSTER JOIN leader_address
-// INFO: RAFT.CLUSTER INFO
+// RAFT.CLUSTER [INIT|INFO] [args...]
+// INIT: RAFT.CLUSTER INIT [peer1,peer2,peer3]  (peers optional, no peers = prepare for cluster expansion)
+// INFO: RAFT.CLUSTER INFO [db_name]
 class RaftClusterCmd : public Cmd {
  public:
   RaftClusterCmd(const std::string& name, int arity, uint32_t flag)
@@ -36,7 +35,7 @@ class RaftClusterCmd : public Cmd {
   Cmd* Clone() override { return new RaftClusterCmd(*this); }
 
  private:
-  enum class Operation { INIT, JOIN, INFO, UNKNOWN };
+  enum class Operation { INIT, INFO, UNKNOWN };
   
   void DoInitial() override;
   void Clear() override {
@@ -73,34 +72,6 @@ class RaftNodeCmd : public Cmd {
   
   Operation operation_;
   std::string peer_addr_;
-  std::string db_name_;
-};
-
-// RAFT.CONFIG GET|SET key [value] [db_name]
-class RaftConfigCmd : public Cmd {
- public:
-  RaftConfigCmd(const std::string& name, int arity, uint32_t flag)
-      : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::ADMIN)) {}
-  
-  void Do() override;
-  void Split(const HintKeys& hint_keys) override {};
-  void Merge() override {};
-  Cmd* Clone() override { return new RaftConfigCmd(*this); }
-
- private:
-  enum class Operation { GET, SET, UNKNOWN };
-  
-  void DoInitial() override;
-  void Clear() override {
-    operation_ = Operation::UNKNOWN;
-    config_key_.clear();
-    config_value_.clear();
-    db_name_.clear();
-  }
-  
-  Operation operation_;
-  std::string config_key_;
-  std::string config_value_;
   std::string db_name_;
 };
 

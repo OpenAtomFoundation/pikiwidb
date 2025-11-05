@@ -16,9 +16,12 @@
 #include "brpc/closure_guard.h"
 #include "include/pika_conf.h"
 #include "include/pika_server.h"
+#include "include/pika_command.h"
+#include "include/pika_client_conn.h"
 #include "binlog.pb.h"
 #include "storage/storage.h"
 #include "storage/batch.h"
+#include "pstd/include/env.h"
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 extern std::unique_ptr<PikaServer> g_pika_server;
@@ -32,13 +35,10 @@ PikaStateMachine::PikaStateMachine()
 
 void PikaStateMachine::on_apply(braft::Iterator& iter) {
   for (; iter.valid(); iter.next()) {
-    // Use brpc::ClosureGuard instead of braft::AsyncClosureGuard for manual control
     auto done = iter.done();
     brpc::ClosureGuard done_guard(done);
     
     int64_t index = iter.index();
-    butil::IOBuf log_data = iter.data();
-    std::string log_str = log_data.to_string();
     
     if (!g_pika_server || !g_pika_server->GetRaftManager()) {
       applied_index_.store(index, std::memory_order_relaxed);
@@ -49,9 +49,9 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
       continue;
     }
     
-    // 直接解析 Protobuf binlog
     pikiwidb::Binlog binlog;
-    if (!binlog.ParseFromString(log_str)) {
+    butil::IOBufAsZeroCopyInputStream wrapper(iter.data());
+    if (!binlog.ParseFromZeroCopyStream(&wrapper)) {
       if (done) {
         done->status().set_error(EINVAL, "Failed to parse binlog");
       }
@@ -62,10 +62,8 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
       continue;
     }
     
-    // 应用 binlog 到 storage 并获取结果
-    rocksdb::Status apply_status = g_pika_server->GetRaftManager()->ApplyBinlogEntry(log_str);
+    rocksdb::Status apply_status = g_pika_server->GetRaftManager()->ApplyBinlogEntry(binlog);
     
-    // 根据应用结果设置 closure 状态
     if (done) {
       if (apply_status.ok()) {
         done->status().set_error(0, "OK");
@@ -86,28 +84,9 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
 
 void PikaStateMachine::on_snapshot_save(braft::SnapshotWriter* writer, braft::Closure* done) {
   brpc::ClosureGuard done_guard(done);
-  
-  // Save applied index to snapshot
-  std::string snapshot_path = writer->get_path() + "/pika_snapshot";
-  
-  // TODO: Save Pika DB state to snapshot
-  // For now, just save the applied index
-  
-  std::string meta_file = writer->get_path() + "/meta";
-  std::ofstream out(meta_file);
-  if (out.is_open()) {
-    out << applied_index_.load(std::memory_order_relaxed);
-    out.close();
-    
-    if (writer->add_file("meta") != 0) {
-      done->status().set_error(EIO, "Failed to add meta file");
-      return;
-    }
-  }
 }
 
 int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
-  // Load applied index from snapshot
   std::string meta_file = reader->get_path() + "/meta";
   std::ifstream in(meta_file);
   if (in.is_open()) {
@@ -211,7 +190,6 @@ pstd::Status PikaRaftNode::Init(const std::vector<braft::PeerId>& peers) {
     return pstd::Status::Corruption("Failed to init Raft node");
   }
   
-  LOG(INFO) << "Raft node initialized for group: " << group_id_;
   return pstd::Status::OK();
 }
 
@@ -252,6 +230,15 @@ pstd::Status PikaRaftNode::AddPeer(const braft::PeerId& peer) {
     return pstd::Status::Corruption("Raft node not initialized");
   }
   
+  // Check if current node is leader
+  // Member changes must be initiated by the leader
+  if (!IsLeader()) {
+    braft::PeerId leader = GetLeaderId();
+    std::string error_msg = "Not leader. Current leader is: " + leader.to_string();
+    LOG(WARNING) << "AddPeer failed: " << error_msg;
+    return pstd::Status::Corruption(error_msg);
+  }
+  
   braft::SynchronizedClosure done;
   node_->add_peer(peer, &done);
   done.wait();
@@ -266,6 +253,15 @@ pstd::Status PikaRaftNode::AddPeer(const braft::PeerId& peer) {
 pstd::Status PikaRaftNode::RemovePeer(const braft::PeerId& peer) {
   if (!node_) {
     return pstd::Status::Corruption("Raft node not initialized");
+  }
+  
+  // Check if current node is leader
+  // Member changes must be initiated by the leader
+  if (!IsLeader()) {
+    braft::PeerId leader = GetLeaderId();
+    std::string error_msg = "Not leader. Current leader is: " + leader.to_string();
+    LOG(WARNING) << "RemovePeer failed: " << error_msg;
+    return pstd::Status::Corruption(error_msg);
   }
   
   braft::SynchronizedClosure done;
@@ -295,18 +291,26 @@ void PikaRaftNode::GetStatus(std::string* status_str) {
   oss << "Leader: " << status.leader_id.to_string() << "\n";
   oss << "Term: " << status.term << "\n";
   
+  // Try to list cluster members
   std::vector<braft::PeerId> peers;
-  if (IsLeader()) {
-    butil::Status st = node_->list_peers(&peers);
-    if (st.ok() && !peers.empty()) {
-      oss << "Cluster Members: ";
-      for (size_t i = 0; i < peers.size(); i++) {
-        oss << peers[i].to_string();
-        if (i < peers.size() - 1) {
-          oss << ",";
-        }
+  butil::Status st = node_->list_peers(&peers);
+  
+  if (st.ok() && !peers.empty()) {
+    oss << "Cluster Members (" << peers.size() << "): ";
+    for (size_t i = 0; i < peers.size(); i++) {
+      oss << peers[i].to_string();
+      if (i < peers.size() - 1) {
+        oss << ", ";
       }
-      oss << "\n";
+    }
+    oss << "\n";
+  } else {
+    // For Follower nodes, list_peers() may not work, suggest querying Leader
+    if (!IsLeader()) {
+      oss << "Cluster Members: Query leader at " << status.leader_id.to_string() 
+          << " for full member list\n";
+    } else {
+      oss << "Cluster Members: Unable to retrieve\n";
     }
   }
   
@@ -347,44 +351,31 @@ pstd::Status RaftManager::Init() {
             << ", election_timeout: " << election_timeout_ms_ << "ms"
             << ", snapshot_interval: " << snapshot_interval_s_ << "s";
   
-  // Auto-initialize cluster from config if raft-peers is set
-  std::string raft_peers = g_pika_conf->raft_peers();
-  if (!raft_peers.empty()) {
-    LOG(INFO) << "Auto-initializing Raft cluster from config, peers: " << raft_peers;
+  // Check if Raft metadata directory exists (node was previously in a cluster)
+  std::string raft_meta_dir = g_pika_conf->db_path() + "/raft/" + group_id_ + "_db0/raft_meta";
+  bool raft_meta_exists = pstd::FileExists(raft_meta_dir);
+  
+  if (raft_meta_exists) {
+    // Node was previously in a cluster, restore from persisted metadata
+    LOG(INFO) << "Raft metadata directory exists, node was previously in cluster. Restoring from persisted configuration...";
     
-    // Parse peers
-    std::vector<std::string> peer_list;
-    std::stringstream ss(raft_peers);
-    std::string peer;
-    while (std::getline(ss, peer, ',')) {
-      // Trim whitespace
-      peer.erase(0, peer.find_first_not_of(" \t"));
-      peer.erase(peer.find_last_not_of(" \t") + 1);
-      if (!peer.empty()) {
-        peer_list.push_back(peer);
-      }
-    }
-    
-    if (!peer_list.empty()) {
-      // Check if cluster already initialized (avoid duplicate initialization after restart)
-      auto existing_node = GetRaftNode("db0");
-      if (existing_node) {
-        LOG(INFO) << "Raft cluster already initialized, skipping auto-initialization";
-      } else {
-        // Initialize cluster for default db
-        pstd::Status status = InitCluster("db0", peer_list);
-        if (!status.ok()) {
-          LOG(WARNING) << "Failed to auto-initialize Raft cluster: " << status.ToString();
-          LOG(WARNING) << "You may need to manually run RAFT.CLUSTER INIT command";
-        } else {
-          LOG(INFO) << "Raft cluster auto-initialized successfully with " 
-                    << peer_list.size() << " peers";
-        }
-      }
+    // When raft_meta exists, braft will ignore initial_conf and load configuration from raft_meta
+    // We pass an empty peer list as it will be ignored anyway
+    std::vector<std::string> empty_peer_list;
+    pstd::Status status = InitCluster("db0", empty_peer_list);
+    if (!status.ok()) {
+      LOG(ERROR) << "Failed to restore Raft node from metadata: " << status.ToString();
+    } else {
+      LOG(INFO) << "Raft node restored successfully from persisted configuration";
     }
   } else {
-    LOG(INFO) << "No raft-peers configured, cluster initialization skipped";
-    LOG(INFO) << "Use RAFT.CLUSTER INIT command to initialize cluster manually";
+    // First time startup - no raft_meta found
+    // Do not auto-initialize, require manual initialization via RAFT.CLUSTER INIT command
+    LOG(INFO) << "No existing Raft metadata found.";
+    LOG(INFO) << "This is the first time starting Raft on this node.";
+    LOG(INFO) << "Please initialize the cluster manually using: RAFT.CLUSTER INIT [peers]";
+    LOG(INFO) << "  - For single-node cluster: RAFT.CLUSTER INIT";
+    LOG(INFO) << "  - For multi-node cluster: RAFT.CLUSTER INIT <peer1>,<peer2>,...";
   }
   
   initialized_.store(true);
@@ -450,19 +441,6 @@ pstd::Status RaftManager::InitCluster(const std::string& db_name,
   return CreateRaftNode(db_name, peer_ids);
 }
 
-pstd::Status RaftManager::JoinCluster(const std::string& db_name, 
-                                      const std::string& leader_addr) {
-  // Parse leader address
-  braft::PeerId leader_id = ParsePeerId(leader_addr);
-  if (leader_id.is_empty()) {
-    return pstd::Status::Corruption("Invalid leader address: " + leader_addr);
-  }
-  
-  // For joining, we create a node with empty initial peers
-  // The node will be added through the AddNode command from the leader
-  std::vector<braft::PeerId> empty_peers;
-  return CreateRaftNode(db_name, empty_peers);
-}
 
 pstd::Status RaftManager::AddNode(const std::string& db_name, 
                                   const std::string& peer_addr) {
@@ -568,7 +546,7 @@ braft::PeerId RaftManager::ParsePeerId(const std::string& peer_str) {
 void WriteDoneClosure::Run() {
   std::unique_ptr<WriteDoneClosure> self_guard(this);
   
-  // If promise is set, notify the waiting thread
+  // If promise is set, notify the waiting thread (synchronous mode)
   if (promise_) {
     if (status().ok()) {
       promise_->set_value(rocksdb::Status::OK());
@@ -578,19 +556,37 @@ void WriteDoneClosure::Run() {
     return;
   }
   
-  // Legacy path for non-promise closures
-  if (!status().ok()) {
+  // If callback is set, call it (asynchronous mode for Leader)
+  if (callback_) {
+    rocksdb::Status s;
+    if (status().ok()) {
+      s = rocksdb::Status::OK();
+    } else {
+      s = rocksdb::Status::IOError(status().error_str());
+    }
+    // Call callback with status only (result is captured in lambda)
+    callback_(s);
     return;
+  }
+  
+  // Legacy path for closures without promise or callback
+  if (!status().ok()) {
+    LOG(WARNING) << "Raft operation failed: " << status().error_str();
   }
 }
 
 void RaftManager::AppendLog(const std::string& db_name, 
                             const ::pikiwidb::Binlog& log, 
-                            std::promise<rocksdb::Status>&& promise) {
+                            std::promise<rocksdb::Status>&& promise,
+                            storage::CommitCallback callback) {
   auto node = GetRaftNode(db_name);
   if (!node) {
     LOG(ERROR) << "Raft node not found for DB: " << db_name;
-    promise.set_value(rocksdb::Status::NotFound("Raft node not found"));
+    if (callback) {
+      callback(rocksdb::Status::NotFound("Raft node not found"));
+    } else {
+      promise.set_value(rocksdb::Status::NotFound("Raft node not found"));
+    }
     return;
   }
   
@@ -598,15 +594,22 @@ void RaftManager::AppendLog(const std::string& db_name,
     braft::PeerId leader = node->GetLeaderId();
     LOG(WARNING) << "Current node is not leader for DB: " << db_name 
                  << ", leader: " << leader.to_string();
-    promise.set_value(rocksdb::Status::Incomplete("Not leader"));
+    if (callback) {
+      callback(rocksdb::Status::Incomplete("Not leader, leader is: " + leader.to_string()));
+    } else {
+      promise.set_value(rocksdb::Status::Incomplete("Not leader"));
+    }
     return;
   }
   
-  // 创建 WriteDoneClosure 并传递 promise
   auto* done = new WriteDoneClosure();
-  done->SetPromise(std::make_shared<std::promise<rocksdb::Status>>(std::move(promise)));
   
-  // 序列化 binlog
+  if (callback) {
+    done->SetCallback(callback);
+  } else {
+    done->SetPromise(std::make_shared<std::promise<rocksdb::Status>>(std::move(promise)));
+  }
+  
   butil::IOBuf data;
   butil::IOBufAsZeroCopyOutputStream wrapper(&data);
   if (!log.SerializeToZeroCopyStream(&wrapper)) {
@@ -615,27 +618,16 @@ void RaftManager::AppendLog(const std::string& db_name,
     return;
   }
   
-  // 创建 Raft 任务
   braft::Task task;
   task.data = &data;
   task.done = done;
   
-  // 提交到 Raft
   node->GetRaftNode()->apply(task);
 }
 
-// Apply binlog entry to storage (called from on_apply)
-rocksdb::Status RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
-  // 解析 binlog
-  pikiwidb::Binlog binlog;
-  if (!binlog.ParseFromString(binlog_data)) {
-    return rocksdb::Status::Corruption("Failed to parse binlog");
-  }
-  
-  // 从 binlog 中提取 db_name（假设默认是 db0，后续可以从 binlog 中读取）
+rocksdb::Status RaftManager::ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog) {
   std::string db_name = "db0";
   
-  // 从 PikaServer 获取对应的 DB 和 Storage
   auto db = g_pika_server->GetDB(db_name);
   if (!db) {
     LOG(ERROR) << "Failed to get DB: " << db_name;
@@ -648,8 +640,6 @@ rocksdb::Status RaftManager::ApplyBinlogEntry(const std::string& binlog_data) {
     return rocksdb::Status::InvalidArgument("Storage is null");
   }
   
-  // 调用 Storage::OnBinlogWrite() 应用 binlog
-  // 注意：log_index 暂时传 0，后续可以从外部传入
   auto status = storage->OnBinlogWrite(binlog, 0);
   
   if (!status.ok()) {

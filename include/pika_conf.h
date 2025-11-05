@@ -893,10 +893,6 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return raft_group_id_;
   }
-  std::string raft_peers() {
-    std::shared_lock l(rwlock_);
-    return raft_peers_;
-  }
   int raft_election_timeout_ms() {
     std::shared_lock l(rwlock_);
     return raft_election_timeout_ms_;
@@ -1092,7 +1088,6 @@ class PikaConf : public pstd::BaseConf {
   // Raft configuration
   bool raft_enabled_ = false;
   std::string raft_group_id_;
-  std::string raft_peers_;
   int raft_election_timeout_ms_ = 1000;
   int raft_snapshot_interval_s_ = 3600;
 };

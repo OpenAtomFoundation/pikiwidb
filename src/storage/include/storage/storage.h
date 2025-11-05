@@ -25,10 +25,17 @@
 #include "rocksdb/table.h"
 
 #include "pstd/include/pstd_mutex.h"
+#include "storage/batch.h"
 
 // Forward declarations
 namespace pikiwidb {
 class Binlog;
+}
+
+class Cmd;
+
+namespace net {
+class NetConn;
 }
 
 namespace storage {
@@ -89,7 +96,8 @@ struct StorageOptions {
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
   
-  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)> append_log_function;
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                     CommitCallback)> append_log_function;
   
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
@@ -193,10 +201,12 @@ class Storage {
 
   // Set key to hold the string value. if key
   // already holds a value, it is overwritten
-  Status Set(const Slice& key, const Slice& value);
+  Status Set(const Slice& key, const Slice& value,
+             CommitCallback callback = nullptr);
 
   // Set key to hold the string value. if key exist
-  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
 
   // Get the value of key. If the key does not exist
   // the special value nil is returned
@@ -233,7 +243,8 @@ class Storage {
   // Set key to hold string value if key does not exist
   // return 1 if the key was set
   // return 0 if the key was not set
-  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
 
   // Sets the given keys to their respective values.
   // MSETNX will not perform any operation at all even
@@ -299,7 +310,8 @@ class Storage {
 
   // Set key to hold the string value and set key to timeout after a given
   // number of seconds
-  Status Setex(const Slice& key, const Slice& value, int32_t ttl);
+  Status Setex(const Slice& key, const Slice& value, int32_t ttl,
+               CommitCallback callback = nullptr);
 
   // Returns the length of the string value stored at key. An error
   // is returned when key holds a non-string value.
@@ -1118,11 +1130,12 @@ class Storage {
 
   bool IsRaftEnabled() const { return append_log_function_ != nullptr; }
   
-  const std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)>& 
+  const std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                           CommitCallback)>& 
   GetAppendLogFunction() const { return append_log_function_; }
   
   rocksdb::Status OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index);
-
+  
  private:
   std::unique_ptr<RedisStrings> strings_db_;
   std::unique_ptr<RedisHashes> hashes_db_;
@@ -1147,7 +1160,8 @@ class Storage {
   std::atomic<bool> scan_keynum_exit_ = false;
 
   // Raft binlog callback
-  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&)> append_log_function_;
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                     CommitCallback)> append_log_function_;
 };
 
 }  //  namespace storage
