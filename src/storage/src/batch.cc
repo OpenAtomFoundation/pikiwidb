@@ -119,4 +119,3 @@ rocksdb::Status BinlogBatch::Commit(CommitCallback callback) {
 }
 
 } // namespace storage
-

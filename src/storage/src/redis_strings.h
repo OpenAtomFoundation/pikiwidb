@@ -27,40 +27,40 @@ class RedisStrings : public Redis {
   Status ScanKeys(const std::string& pattern, std::vector<std::string>* keys) override;
   Status PKPatternMatchDelWithRemoveKeys(const DataType& data_type, const std::string& pattern, int64_t* ret, std::vector<std::string>* remove_keys, const int64_t& max_count) override;
   // Strings Command
-  Status Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value);
+  Status Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value, CommitCallback callback = nullptr);
   Status BitCount(const Slice& key, int64_t start_offset, int64_t end_offset, int32_t* ret, bool have_range);
   Status BitOp(BitOpType op, const std::string& dest_key, const std::vector<std::string>& src_keys, std::string &value_to_dest, int64_t* ret);
-  Status Decrby(const Slice& key, int64_t value, int64_t* ret);
+  Status Decrby(const Slice& key, int64_t value, int64_t* ret, CommitCallback callback = nullptr);
   Status Get(const Slice& key, std::string* value);
   Status GetWithTTL(const Slice& key, std::string* value, int64_t* ttl);
   Status GetBit(const Slice& key, int64_t offset, int32_t* ret);
   Status Getrange(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret);
   Status GetrangeWithValue(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret, std::string* value, int64_t* ttl);
-  Status GetSet(const Slice& key, const Slice& value, std::string* old_value);
-  Status Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec);
-  Status Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec);
+  Status GetSet(const Slice& key, const Slice& value, std::string* old_value, CommitCallback callback = nullptr);
+  Status Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec, CommitCallback callback = nullptr);
+  Status Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec, CommitCallback callback = nullptr);
   Status MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss);
   Status MGetWithTTL(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss);
-  Status MSet(const std::vector<KeyValue>& kvs);
-  Status MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret);
+  Status MSet(const std::vector<KeyValue>& kvs, CommitCallback callback = nullptr);
+  Status MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret, CommitCallback callback = nullptr);
   Status Set(const Slice& key, const Slice& value,
              CommitCallback callback = nullptr);
   Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
                CommitCallback callback = nullptr);
-  Status SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret);
+  Status SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret, CommitCallback callback = nullptr);
   Status Setex(const Slice& key, const Slice& value, int32_t ttl,
                CommitCallback callback = nullptr);
   Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
                CommitCallback callback = nullptr);
-  Status Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, int32_t ttl = 0);
-  Status Delvx(const Slice& key, const Slice& value, int32_t* ret);
-  Status Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret);
+  Status Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, int32_t ttl = 0, CommitCallback callback = nullptr);
+  Status Delvx(const Slice& key, const Slice& value, int32_t* ret, CommitCallback callback = nullptr);
+  Status Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret, CommitCallback callback = nullptr);
   Status Strlen(const Slice& key, int32_t* len);
 
   Status BitPos(const Slice& key, int32_t bit, int64_t* ret);
   Status BitPos(const Slice& key, int32_t bit, int64_t start_offset, int64_t* ret);
   Status BitPos(const Slice& key, int32_t bit, int64_t start_offset, int64_t end_offset, int64_t* ret);
-  Status PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp);
+  Status PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp, CommitCallback callback = nullptr);
   Status PKScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,
                      std::vector<KeyValue>* kvs, std::string* next_key);
   Status PKRScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,

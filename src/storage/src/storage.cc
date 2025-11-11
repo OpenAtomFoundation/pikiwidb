@@ -164,17 +164,19 @@ Status Storage::GetWithTTL(const Slice& key, std::string* value, int64_t* ttl) {
   return strings_db_->GetWithTTL(key, value, ttl);
 }
 
-Status Storage::GetSet(const Slice& key, const Slice& value, std::string* old_value) {
-  return strings_db_->GetSet(key, value, old_value);
+Status Storage::GetSet(const Slice& key, const Slice& value, std::string* old_value, CommitCallback callback) {
+  return strings_db_->GetSet(key, value, old_value, callback);
 }
 
-Status Storage::SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret) {
-  return strings_db_->SetBit(key, offset, value, ret);
+Status Storage::SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret, CommitCallback callback) {
+  return strings_db_->SetBit(key, offset, value, ret, callback);
 }
 
 Status Storage::GetBit(const Slice& key, int64_t offset, int32_t* ret) { return strings_db_->GetBit(key, offset, ret); }
 
-Status Storage::MSet(const std::vector<KeyValue>& kvs) { return strings_db_->MSet(kvs); }
+Status Storage::MSet(const std::vector<KeyValue>& kvs, CommitCallback callback) {
+  return strings_db_->MSet(kvs, callback);
+}
 
 Status Storage::MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss) {
   return strings_db_->MGet(keys, vss);
@@ -189,18 +191,22 @@ Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const 
   return strings_db_->Setnx(key, value, ret, ttl, callback);
 }
 
-Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) { return strings_db_->MSetnx(kvs, ret); }
-
-Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setvx(key, value, new_value, ret, ttl);
+Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret, CommitCallback callback) {
+  return strings_db_->MSetnx(kvs, ret, callback);
 }
 
-Status Storage::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
-  return strings_db_->Delvx(key, value, ret);
+Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const int32_t ttl,
+                       CommitCallback callback) {
+  return strings_db_->Setvx(key, value, new_value, ret, ttl, callback);
 }
 
-Status Storage::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret) {
-  return strings_db_->Setrange(key, start_offset, value, ret);
+Status Storage::Delvx(const Slice& key, const Slice& value, int32_t* ret, CommitCallback callback) {
+  return strings_db_->Delvx(key, value, ret, callback);
+}
+
+Status Storage::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret,
+                          CommitCallback callback) {
+  return strings_db_->Setrange(key, start_offset, value, ret, callback);
 }
 
 Status Storage::Getrange(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret) {
@@ -212,8 +218,9 @@ Status Storage::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_
   return strings_db_->GetrangeWithValue(key, start_offset, end_offset, ret, value, ttl);
 }
 
-Status Storage::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value) {
-  return strings_db_->Append(key, value, ret, expired_timestamp_sec, out_new_value);
+Status Storage::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec,
+                        std::string& out_new_value, CommitCallback callback) {
+  return strings_db_->Append(key, value, ret, expired_timestamp_sec, out_new_value, callback);
 }
 
 Status Storage::BitCount(const Slice& key, int64_t start_offset, int64_t end_offset, int32_t* ret, bool have_range) {
@@ -235,15 +242,19 @@ Status Storage::BitPos(const Slice& key, int32_t bit, int64_t start_offset, int6
   return strings_db_->BitPos(key, bit, start_offset, end_offset, ret);
 }
 
-Status Storage::Decrby(const Slice& key, int64_t value, int64_t* ret) { return strings_db_->Decrby(key, value, ret); }
-
-
-Status Storage::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec) {
-  return strings_db_->Incrby(key, value, ret, expired_timestamp_sec);
+Status Storage::Decrby(const Slice& key, int64_t value, int64_t* ret, CommitCallback callback) {
+  return strings_db_->Decrby(key, value, ret, callback);
 }
 
-Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec) {
-  return strings_db_->Incrbyfloat(key, value, ret, expired_timestamp_sec);
+
+Status Storage::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec,
+                        CommitCallback callback) {
+  return strings_db_->Incrby(key, value, ret, expired_timestamp_sec, callback);
+}
+
+Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec,
+                             CommitCallback callback) {
+  return strings_db_->Incrbyfloat(key, value, ret, expired_timestamp_sec, callback);
 }
 
 Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl, CommitCallback callback) {
@@ -252,20 +263,23 @@ Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl, CommitC
 
 Status Storage::Strlen(const Slice& key, int32_t* len) { return strings_db_->Strlen(key, len); }
 
-Status Storage::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp) {
-  return strings_db_->PKSetexAt(key, value, timestamp);
+Status Storage::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp, CommitCallback callback) {
+  return strings_db_->PKSetexAt(key, value, timestamp, callback);
 }
 
 // Hashes Commands
-Status Storage::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
-  return hashes_db_->HSet(key, field, value, res);
+Status Storage::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res,
+                     CommitCallback callback) {
+  return hashes_db_->HSet(key, field, value, res, callback);
 }
 
 Status Storage::HGet(const Slice& key, const Slice& field, std::string* value) {
   return hashes_db_->HGet(key, field, value);
 }
 
-Status Storage::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) { return hashes_db_->HMSet(key, fvs); }
+Status Storage::HMSet(const Slice& key, const std::vector<FieldValue>& fvs, CommitCallback callback) {
+  return hashes_db_->HMSet(key, fvs, callback);
+}
 
 Status Storage::HMGet(const Slice& key, const std::vector<std::string>& fields, std::vector<ValueStatus>* vss) {
   return hashes_db_->HMGet(key, fields, vss);
@@ -281,8 +295,9 @@ Status Storage::HKeys(const Slice& key, std::vector<std::string>* fields) { retu
 
 Status Storage::HVals(const Slice& key, std::vector<std::string>* values) { return hashes_db_->HVals(key, values); }
 
-Status Storage::HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret) {
-  return hashes_db_->HSetnx(key, field, value, ret);
+Status Storage::HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret,
+                        CommitCallback callback) {
+  return hashes_db_->HSetnx(key, field, value, ret, callback);
 }
 
 Status Storage::HLen(const Slice& key, int32_t* ret) { return hashes_db_->HLen(key, ret); }
@@ -293,16 +308,17 @@ Status Storage::HStrlen(const Slice& key, const Slice& field, int32_t* len) {
 
 Status Storage::HExists(const Slice& key, const Slice& field) { return hashes_db_->HExists(key, field); }
 
-Status Storage::HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret) {
-  return hashes_db_->HIncrby(key, field, value, ret);
+Status Storage::HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret, CommitCallback callback) {
+  return hashes_db_->HIncrby(key, field, value, ret, callback);
 }
 
-Status Storage::HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value) {
-  return hashes_db_->HIncrbyfloat(key, field, by, new_value);
+Status Storage::HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value, CommitCallback callback) {
+  return hashes_db_->HIncrbyfloat(key, field, by, new_value, callback);
 }
 
-Status Storage::HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret) {
-  return hashes_db_->HDel(key, fields, ret);
+Status Storage::HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret,
+                      CommitCallback callback) {
+  return hashes_db_->HDel(key, fields, ret, callback);
 }
 
 Status Storage::HScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -328,8 +344,9 @@ Status Storage::PKHRScanRange(const Slice& key, const Slice& field_start, const 
 }
 
 // Sets Commands
-Status Storage::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return sets_db_->SAdd(key, members, ret);
+Status Storage::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return sets_db_->SAdd(key, members, ret, callback);
 }
 
 Status Storage::SCard(const Slice& key, int32_t* ret) { return sets_db_->SCard(key, ret); }
@@ -338,16 +355,18 @@ Status Storage::SDiff(const std::vector<std::string>& keys, std::vector<std::str
   return sets_db_->SDiff(keys, members);
 }
 
-Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SDiffstore(destination, keys, value_to_dest, ret);
+Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                           CommitCallback callback) {
+  return sets_db_->SDiffstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   return sets_db_->SInter(keys, members);
 }
 
-Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SInterstore(destination, keys, value_to_dest, ret);
+Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return sets_db_->SInterstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SIsmember(const Slice& key, const Slice& member, int32_t* ret) {
@@ -362,29 +381,30 @@ Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* memb
   return sets_db_->SMembersWithTTL(key, members, ttl);
 }
 
-Status Storage::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret) {
-  return sets_db_->SMove(source, destination, member, ret);
+Status Storage::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret, CommitCallback callback) {
+  return sets_db_->SMove(source, destination, member, ret, callback);
 }
 
-Status Storage::SPop(const Slice& key, std::vector<std::string>* members, int64_t count) {
-  Status status = sets_db_->SPop(key, members, count);
-  return status;
+Status Storage::SPop(const Slice& key, std::vector<std::string>* members, int64_t count, CommitCallback callback) {
+  return sets_db_->SPop(key, members, count, callback);
 }
 
 Status Storage::SRandmember(const Slice& key, int32_t count, std::vector<std::string>* members) {
   return sets_db_->SRandmember(key, count, members);
 }
 
-Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return sets_db_->SRem(key, members, ret);
+Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return sets_db_->SRem(key, members, ret, callback);
 }
 
 Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   return sets_db_->SUnion(keys, members);
 }
 
-Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SUnionstore(destination, keys, value_to_dest, ret);
+Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return sets_db_->SUnionstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -392,12 +412,14 @@ Status Storage::SScan(const Slice& key, int64_t cursor, const std::string& patte
   return sets_db_->SScan(key, cursor, pattern, count, members, next_cursor);
 }
 
-Status Storage::LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret) {
-  return lists_db_->LPush(key, values, ret);
+Status Storage::LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+                       CommitCallback callback) {
+  return lists_db_->LPush(key, values, ret, callback);
 }
 
-Status Storage::RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret) {
-  return lists_db_->RPush(key, values, ret);
+Status Storage::RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+                       CommitCallback callback) {
+  return lists_db_->RPush(key, values, ret, callback);
 }
 
 Status Storage::LRange(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret) {
@@ -408,51 +430,63 @@ Status Storage::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std
   return lists_db_->LRangeWithTTL(key, start, stop, ret, ttl);
 }
 
-Status Storage::LTrim(const Slice& key, int64_t start, int64_t stop) { return lists_db_->LTrim(key, start, stop); }
+Status Storage::LTrim(const Slice& key, int64_t start, int64_t stop, CommitCallback callback) {
+  return lists_db_->LTrim(key, start, stop, callback);
+}
 
 Status Storage::LLen(const Slice& key, uint64_t* len) { return lists_db_->LLen(key, len); }
 
-Status Storage::LPop(const Slice& key, int64_t count, std::vector<std::string>* elements) { return lists_db_->LPop(key, count, elements); }
+Status Storage::LPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback) { 
+  return lists_db_->LPop(key, count, elements, callback); 
+}
 
-Status Storage::RPop(const Slice& key, int64_t count, std::vector<std::string>* elements) { return lists_db_->RPop(key, count, elements); }
+Status Storage::RPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback) { 
+  return lists_db_->RPop(key, count, elements, callback); 
+}
 
 Status Storage::LIndex(const Slice& key, int64_t index, std::string* element) {
   return lists_db_->LIndex(key, index, element);
 }
 
 Status Storage::LInsert(const Slice& key, const BeforeOrAfter& before_or_after, const std::string& pivot,
-                        const std::string& value, int64_t* ret) {
-  return lists_db_->LInsert(key, before_or_after, pivot, value, ret);
+                        const std::string& value, int64_t* ret, CommitCallback callback) {
+  return lists_db_->LInsert(key, before_or_after, pivot, value, ret, callback);
 }
 
-Status Storage::LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
-  return lists_db_->LPushx(key, values, len);
+Status Storage::LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                       CommitCallback callback) {
+  return lists_db_->LPushx(key, values, len, callback);
 }
 
-Status Storage::RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
-  return lists_db_->RPushx(key, values, len);
+Status Storage::RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                       CommitCallback callback) {
+  return lists_db_->RPushx(key, values, len, callback);
 }
 
-Status Storage::LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret) {
-  return lists_db_->LRem(key, count, value, ret);
+Status Storage::LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret,
+                     CommitCallback callback) {
+  return lists_db_->LRem(key, count, value, ret, callback);
 }
 
-Status Storage::LSet(const Slice& key, int64_t index, const Slice& value) { return lists_db_->LSet(key, index, value); }
-
-Status Storage::RPoplpush(const Slice& source, const Slice& destination, std::string* element) {
-  return lists_db_->RPoplpush(source, destination, element);
+Status Storage::LSet(const Slice& key, int64_t index, const Slice& value, CommitCallback callback) {
+  return lists_db_->LSet(key, index, value, callback);
 }
 
-Status Storage::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  return zsets_db_->ZPopMax(key, count, score_members);
+Status Storage::RPoplpush(const Slice& source, const Slice& destination, std::string* element, CommitCallback callback) {
+  return lists_db_->RPoplpush(source, destination, element, callback);
 }
 
-Status Storage::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  return zsets_db_->ZPopMin(key, count, score_members);
+Status Storage::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
+  return zsets_db_->ZPopMax(key, count, score_members, callback);
 }
 
-Status Storage::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret) {
-  return zsets_db_->ZAdd(key, score_members, ret);
+Status Storage::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
+  return zsets_db_->ZPopMin(key, count, score_members, callback);
+}
+
+Status Storage::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret,
+                      CommitCallback callback) {
+  return zsets_db_->ZAdd(key, score_members, ret, callback);
 }
 
 Status Storage::ZCard(const Slice& key, int32_t* ret) { return zsets_db_->ZCard(key, ret); }
@@ -461,8 +495,8 @@ Status Storage::ZCount(const Slice& key, double min, double max, bool left_close
   return zsets_db_->ZCount(key, min, max, left_close, right_close, ret);
 }
 
-Status Storage::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret) {
-  return zsets_db_->ZIncrby(key, member, increment, ret);
+Status Storage::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret, CommitCallback callback) {
+  return zsets_db_->ZIncrby(key, member, increment, ret, callback);
 }
 
 Status Storage::ZRange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members) {
@@ -489,17 +523,19 @@ Status Storage::ZRank(const Slice& key, const Slice& member, int32_t* rank) {
   return zsets_db_->ZRank(key, member, rank);
 }
 
-Status Storage::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return zsets_db_->ZRem(key, members, ret);
+Status Storage::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return zsets_db_->ZRem(key, members, ret, callback);
 }
 
-Status Storage::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret) {
-  return zsets_db_->ZRemrangebyrank(key, start, stop, ret);
+Status Storage::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret,
+                                 CommitCallback callback) {
+  return zsets_db_->ZRemrangebyrank(key, start, stop, ret, callback);
 }
 
 Status Storage::ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
-                                 int32_t* ret) {
-  return zsets_db_->ZRemrangebyscore(key, min, max, left_close, right_close, ret);
+                                 int32_t* ret, CommitCallback callback) {
+  return zsets_db_->ZRemrangebyscore(key, min, max, left_close, right_close, ret, callback);
 }
 
 Status Storage::ZRevrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
@@ -527,13 +563,15 @@ Status Storage::ZScore(const Slice& key, const Slice& member, double* ret) {
 }
 
 Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::string>& keys,
-                            const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret) {
-  return zsets_db_->ZUnionstore(destination, keys, weights, agg, value_to_dest, ret);
+                            const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return zsets_db_->ZUnionstore(destination, keys, weights, agg, value_to_dest, ret, callback);
 }
 
 Status Storage::ZInterstore(const Slice& destination, const std::vector<std::string>& keys,
-                            const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret) {
-  return zsets_db_->ZInterstore(destination, keys, weights, agg, value_to_dest, ret);
+                            const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return zsets_db_->ZInterstore(destination, keys, weights, agg, value_to_dest, ret, callback);
 }
 
 Status Storage::ZRangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
@@ -547,8 +585,8 @@ Status Storage::ZLexcount(const Slice& key, const Slice& min, const Slice& max, 
 }
 
 Status Storage::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                               int32_t* ret) {
-  return zsets_db_->ZRemrangebylex(key, min, max, left_close, right_close, ret);
+                               int32_t* ret, CommitCallback callback) {
+  return zsets_db_->ZRemrangebylex(key, min, max, left_close, right_close, ret, callback);
 }
 
 Status Storage::ZScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -1523,7 +1561,7 @@ void Storage::ScanDatabase(const DataType& type) {
 }
 
 // HyperLogLog
-Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update) {
+Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update, CommitCallback callback) {
   *update = false;
   if (values.size() >= kMaxKeys) {
     return Status::InvalidArgument("Invalid the number of key");
@@ -1550,7 +1588,7 @@ Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, 
   if (previous != now || (s.IsNotFound() && values.empty())) {
     *update = true;
   }
-  s = strings_db_->Set(key, result);
+  s = strings_db_->Set(key, result, callback);
   return s;
 }
 
@@ -1587,7 +1625,7 @@ Status Storage::PfCount(const std::vector<std::string>& keys, int64_t* result) {
   return Status::OK();
 }
 
-Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest) {
+Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest, CommitCallback callback) {
   if (keys.size() >= kMaxKeys || keys.empty()) {
     return Status::InvalidArgument("Invalid the number of key");
   }
@@ -1619,7 +1657,7 @@ Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value
     HyperLogLog log(kPrecision, registers);
     result = first_log.Merge(log);
   }
-  s = strings_db_->Set(keys[0], result);
+  s = strings_db_->Set(keys[0], result, callback);
   value_to_dest = std::move(result);
   return s;
 }

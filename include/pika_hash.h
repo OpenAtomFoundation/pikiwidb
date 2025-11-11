@@ -108,6 +108,7 @@ class HSetCmd : public Cmd {
   std::string key_, field_, value_;
   std::vector<std::string> fields_;
   std::vector<storage::FieldValue> fields_values_;
+  int32_t ret_ = 0;  // For async mode: 1 if field is new, 0 if updated
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -154,6 +155,7 @@ class HIncrbyCmd : public Cmd {
  private:
   std::string key_, field_;
   int64_t by_ = 0;
+  int64_t new_value_ = 0;  // For async mode: result after increment
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -176,6 +178,7 @@ class HIncrbyfloatCmd : public Cmd {
 
  private:
   std::string key_, field_, by_;
+  std::string new_value_;  // For async mode: result after increment
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -291,6 +294,7 @@ class HSetnxCmd : public Cmd {
 
  private:
   std::string key_, field_, value_;
+  int32_t ret_ = 0;  // For async mode: 1 if field was set, 0 if already exists
   void DoInitial() override;
   rocksdb::Status s_;
 };

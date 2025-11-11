@@ -27,6 +27,7 @@ class PfAddCmd : public Cmd {
  private:
   std::string key_;
   std::vector<std::string> values_;
+  bool update_ = false;
   void DoInitial() override;
   void Clear() override { values_.clear(); }
 };
