@@ -739,5 +739,21 @@ var _ = Describe("Server", func() {
 			Expect(client.Get(ctx, "foo").Err()).To(MatchError(redis.Nil))
 			Expect(client.Get(ctx, "key1").Err()).To(MatchError(redis.Nil))
 		})
+		
+		It("should load admin-cmd-list from config correctly", func() {
+			configGet := client.ConfigGet(ctx, "admin-cmd-list")
+			Expect(configGet.Err()).NotTo(HaveOccurred())
+			Expect(configGet.Val()).To(HaveLen(1))
+			
+			adminCmdList, ok := configGet.Val()["admin-cmd-list"]
+			Expect(ok).To(BeTrue())
+			
+			// 验证默认配置中包含了auth和config命令（修复的核心功能）
+			Expect(adminCmdList).To(ContainSubstring("auth"))
+			Expect(adminCmdList).To(ContainSubstring("config"))
+			Expect(adminCmdList).To(ContainSubstring("info"))
+			Expect(adminCmdList).To(ContainSubstring("ping"))
+			Expect(adminCmdList).To(ContainSubstring("monitor"))
+		})
 	})
 })
