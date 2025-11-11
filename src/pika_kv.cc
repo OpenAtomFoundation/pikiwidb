@@ -71,15 +71,9 @@ void SetCmd::Do() {
   int32_t res = 1;
   STAGE_TIMER_GUARD(storage_duration_ms, true);
   
-  bool is_raft_leader = false;
-  if (g_pika_server && g_pika_server->GetRaftManager()) {
-    auto node = g_pika_server->GetRaftManager()->GetRaftNode(db_->GetDBName());
-    is_raft_leader = (node && node->IsLeader());
-  }
-  
   storage::CommitCallback callback = nullptr;
   
-  if (is_raft_leader && db_->storage() && db_->storage()->IsRaftEnabled()) {
+  if (ShouldUseAsyncMode()) {
     auto self = std::static_pointer_cast<SetCmd>(shared_from_this());
     auto resp_ptr = std::make_shared<std::string>();
     
@@ -122,7 +116,7 @@ void SetCmd::Do() {
       s_ = db_->storage()->Setnx(key_, value_, &res, static_cast<int32_t>(sec_), callback);
       break;
     case SetCmd::kVX:
-      s_ = db_->storage()->Setvx(key_, target_, value_, &success_, static_cast<int32_t>(sec_));
+      s_ = db_->storage()->Setvx(key_, value_, target_, &success_, static_cast<int32_t>(sec_), callback);
       break;
     case SetCmd::kEXORPX:
       s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(sec_), callback);
@@ -132,12 +126,12 @@ void SetCmd::Do() {
       break;
   }
 
-  // For async mode (Leader), response is handled by callback
-  if (is_raft_leader && db_->storage() && db_->storage()->IsRaftEnabled()) {
+  // For async mode, response is handled by callback
+  if (callback) {
     return;
   }
   
-  // For sync mode (non-Leader or non-Raft), set response immediately
+  // For sync mode, set response immediately
   if (s_.ok() || s_.IsNotFound()) {
     if (condition_ == SetCmd::kVX) {
       res_.AppendInteger(success_);
@@ -330,8 +324,45 @@ void IncrCmd::DoInitial() {
 }
 
 void IncrCmd::Do() {
+  new_value_ = 0;
+  expired_timestamp_sec_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<IncrCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendContent(":" + std::to_string(self->new_value_));
+        AddSlotKey("k", self->key_, self->db_);
+      } else if (status.IsCorruption() && status.ToString() == "Corruption: Value is not a integer") {
+        self->res_.SetRes(CmdRes::kInvalidInt);
+      } else if (status.IsInvalidArgument()) {
+        self->res_.SetRes(CmdRes::kOverFlow);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Incrby(key_, 1, &new_value_, &expired_timestamp_sec_);
+  s_ = db_->storage()->Incrby(key_, 1, &new_value_, &expired_timestamp_sec_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
     AddSlotKey("k", key_, db_);
@@ -395,8 +426,45 @@ void IncrbyCmd::DoInitial() {
 }
 
 void IncrbyCmd::Do() {
+  new_value_ = 0;
+  expired_timestamp_sec_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<IncrbyCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendContent(":" + std::to_string(self->new_value_));
+        AddSlotKey("k", self->key_, self->db_);
+      } else if (status.IsCorruption() && status.ToString() == "Corruption: Value is not a integer") {
+        self->res_.SetRes(CmdRes::kInvalidInt);
+      } else if (status.IsInvalidArgument()) {
+        self->res_.SetRes(CmdRes::kOverFlow);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Incrby(key_, by_, &new_value_, &expired_timestamp_sec_);
+  s_ = db_->storage()->Incrby(key_, by_, &new_value_, &expired_timestamp_sec_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
     AddSlotKey("k", key_, db_);
@@ -461,8 +529,46 @@ void IncrbyfloatCmd::DoInitial() {
 }
 
 void IncrbyfloatCmd::Do() {
+  new_value_.clear();
+  expired_timestamp_sec_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<IncrbyfloatCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendStringLenUint64(self->new_value_.size());
+        self->res_.AppendContent(self->new_value_);
+        AddSlotKey("k", self->key_, self->db_);
+      } else if (status.IsCorruption() && status.ToString() == "Corruption: Value is not a vaild float") {
+        self->res_.SetRes(CmdRes::kInvalidFloat);
+      } else if (status.IsInvalidArgument()) {
+        self->res_.SetRes(CmdRes::KIncrByOverFlow);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Incrbyfloat(key_, value_, &new_value_, &expired_timestamp_sec_);
+  s_ = db_->storage()->Incrbyfloat(key_, value_, &new_value_, &expired_timestamp_sec_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
     res_.AppendStringLenUint64(new_value_.size());
     res_.AppendContent(new_value_);
@@ -526,8 +632,44 @@ void DecrCmd::DoInitial() {
 }
 
 void DecrCmd::Do() {
+  new_value_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<DecrCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendContent(":" + std::to_string(self->new_value_));
+      } else if (status.IsCorruption() && status.ToString() == "Corruption: Value is not a integer") {
+        self->res_.SetRes(CmdRes::kInvalidInt);
+      } else if (status.IsInvalidArgument()) {
+        self->res_.SetRes(CmdRes::kOverFlow);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_= db_->storage()->Decrby(key_, 1, &new_value_);
+    s_ = db_->storage()->Decrby(key_, 1, &new_value_, callback);
+
+  if (callback) {
+    return;
+  }
+
+  // For sync mode, handle response immediately
   if (s_.ok()) {
     res_.AppendContent(":" + std::to_string(new_value_));
   } else if (s_.IsCorruption() && s_.ToString() == "Corruption: Value is not a integer") {
@@ -564,8 +706,44 @@ void DecrbyCmd::DoInitial() {
 }
 
 void DecrbyCmd::Do() {
+  new_value_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<DecrbyCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        AddSlotKey("k", self->key_, self->db_);
+        self->res_.AppendContent(":" + std::to_string(self->new_value_));
+      } else if (status.IsCorruption() && status.ToString() == "Corruption: Value is not a integer") {
+        self->res_.SetRes(CmdRes::kInvalidInt);
+      } else if (status.IsInvalidArgument()) {
+        self->res_.SetRes(CmdRes::kOverFlow);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Decrby(key_, by_, &new_value_);
+  s_ = db_->storage()->Decrby(key_, by_, &new_value_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
     AddSlotKey("k", key_, db_);
     res_.AppendContent(":" + std::to_string(new_value_));
@@ -600,15 +778,53 @@ void GetsetCmd::DoInitial() {
 }
 
 void GetsetCmd::Do() {
-  std::string old_value;
+  old_value_.clear();
+
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<GetsetCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        if (self->old_value_.empty()) {
+          self->res_.AppendStringLen(-1);
+        } else {
+          self->res_.AppendStringLenUint64(self->old_value_.size());
+          self->res_.AppendContent(self->old_value_);
+        }
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->GetSet(key_, new_value_, &old_value);
-  if (s_.ok()) {
-    if (old_value.empty()) {
-      res_.AppendContent("$-1");
+  s_ = db_->storage()->GetSet(key_, new_value_, &old_value_, callback);
+
+  if (callback) {
+    return;
+  }
+
+  // For sync mode, handle response immediately
+  if (s_.ok() || s_.IsNotFound()) {
+    if (old_value_.empty()) {
+      res_.AppendStringLen(-1);
     } else {
-      res_.AppendStringLenUint64(old_value.size());
-      res_.AppendContent(old_value);
+      res_.AppendStringLenUint64(old_value_.size());
+      res_.AppendContent(old_value_);
     }
     AddSlotKey("k", key_, db_);
   } else {
@@ -638,11 +854,46 @@ void AppendCmd::DoInitial() {
 }
 
 void AppendCmd::Do() {
-  int32_t new_len = 0;
+  new_len_ = 0;
+  expired_timestamp_sec_ = 0;
+  new_value_.clear();
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<AppendCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        self->res_.AppendInteger(self->new_len_);
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Append(key_, value_, &new_len, &expired_timestamp_sec_, new_value_);
+  s_ = db_->storage()->Append(key_, value_, &new_len_, &expired_timestamp_sec_, new_value_, callback);
+
+  if (callback) {
+    // For async mode, response will be handled by callback
+    return;
+  }
+
+  // For sync mode, handle response immediately
   if (s_.ok() || s_.IsNotFound()) {
-    res_.AppendInteger(new_len);
+    res_.AppendInteger(new_len_);
     AddSlotKey("k", key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
@@ -886,8 +1137,39 @@ void SetnxCmd::DoInitial() {
 
 void SetnxCmd::Do() {
   success_ = 0;
+  storage::CommitCallback callback = nullptr;
+  
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<SetnxCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+    
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+    
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->success_);
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+      
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+  
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Setnx(key_, value_, &success_);
+  s_ = db_->storage()->Setnx(key_, value_, &success_, 0, callback);
+  
+  if (callback) {
+    return;
+  }
+  
   if (s_.ok()) {
     res_.AppendInteger(success_);
     AddSlotKey("k", key_, db_);
@@ -929,8 +1211,39 @@ void SetexCmd::DoInitial() {
 }
 
 void SetexCmd::Do() {
+  storage::CommitCallback callback = nullptr;
+  
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<SetexCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+    
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+    
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.SetRes(CmdRes::kOk);
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+      
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+  
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(sec_));
+  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(sec_), callback);
+  
+  if (callback) {
+    return;
+  }
+  
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
     AddSlotKey("k", key_, db_);
@@ -990,10 +1303,42 @@ void PsetexCmd::DoInitial() {
 }
 
 void PsetexCmd::Do() {
+  storage::CommitCallback callback = nullptr;
+  
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<PsetexCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+    
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+    
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.SetRes(CmdRes::kOk);
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+      
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+  
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(usec_ / 1000));
+  s_ = db_->storage()->Setex(key_, value_, static_cast<int32_t>(usec_ / 1000), callback);
+  
+  if (callback) {
+    return;
+  }
+  
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
+    AddSlotKey("k", key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
@@ -1072,13 +1417,45 @@ void MsetCmd::DoInitial() {
 }
 
 void MsetCmd::Do() {
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<MsetCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.SetRes(CmdRes::kOk);
+        for (const auto& it : self->kvs_) {
+          AddSlotKey("k", it.key, self->db_);
+        }
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->MSet(kvs_);
+  s_ = db_->storage()->MSet(kvs_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
-    std::vector<storage::KeyValue>::const_iterator it;
-    for (it = kvs_.begin(); it != kvs_.end(); it++) {
-      AddSlotKey("k", it->key, db_);
+    for (const auto& it : kvs_) {
+      AddSlotKey("k", it.key, db_);
     }
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
@@ -1160,13 +1537,45 @@ void MsetnxCmd::DoInitial() {
 
 void MsetnxCmd::Do() {
   success_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<MsetnxCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->success_);
+        for (const auto& it : self->kvs_) {
+          AddSlotKey("k", it.key, self->db_);
+        }
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_);
+  rocksdb::Status s = db_->storage()->MSetnx(kvs_, &success_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s.ok()) {
     res_.AppendInteger(success_);
-    std::vector<storage::KeyValue>::const_iterator it;
-    for (it = kvs_.begin(); it != kvs_.end(); it++) {
-      AddSlotKey("k", it->key, db_);
+    for (const auto& it : kvs_) {
+      AddSlotKey("k", it.key, db_);
     }
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
@@ -1282,11 +1691,42 @@ void SetrangeCmd::DoInitial() {
 }
 
 void SetrangeCmd::Do() {
-  int32_t new_len = 0;
+  new_len_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<SetrangeCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->new_len_);
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len);
+  s_ = db_->storage()->Setrange(key_, offset_, value_, &new_len_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
-    res_.AppendInteger(new_len);
+    res_.AppendInteger(new_len_);
     AddSlotKey("k", key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());

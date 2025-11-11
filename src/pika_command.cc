@@ -1110,3 +1110,20 @@ std::shared_ptr<std::string> Cmd::GetResp() { return resp_.lock(); }
 void Cmd::SetStage(CmdStage stage) { stage_ = stage; }
 bool Cmd::IsCacheMissedInRtc() const { return cache_missed_in_rtc_; }
 void Cmd::SetCacheMissedInRtc(bool value) { cache_missed_in_rtc_ = value; }
+
+// Raft async mode helper functions
+bool Cmd::IsRaftLeader() const {
+  if (!g_pika_server || !g_pika_server->GetRaftManager()) {
+    return false;
+  }
+  auto node = g_pika_server->GetRaftManager()->GetRaftNode(db_->GetDBName());
+  return node && node->IsLeader();
+}
+
+bool Cmd::IsRaftEnabled() const {
+  return db_ && db_->storage() && db_->storage()->IsRaftEnabled();
+}
+
+bool Cmd::ShouldUseAsyncMode() const {
+  return IsRaftLeader() && IsRaftEnabled();
+}

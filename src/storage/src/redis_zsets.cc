@@ -18,6 +18,7 @@
 #include "src/scope_snapshot.h"
 #include "src/zsets_filter.h"
 #include "storage/util.h"
+#include "storage/batch.h"
 
 #include "pstd/include/pstd_defer.h"
 
@@ -211,11 +212,11 @@ Status RedisZSets::PKPatternMatchDelWithRemoveKeys(const DataType& data_type, co
   return s;
 }
 
-Status RedisZSets::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  uint32_t statistic = 0;
+Status RedisZSets::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
   score_members->clear();
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
+  
   std::string meta_value;
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -229,7 +230,6 @@ Status RedisZSets::ZPopMax(const Slice& key, const int64_t count, std::vector<Sc
       num = num <= count ? num : count;
       int32_t version = parsed_zsets_meta_value.version();
       ZSetsScoreKey zsets_score_key(key, version, std::numeric_limits<double>::max(), Slice());
-      KeyStatisticsDurationGuard guard(this, key.ToString());
       rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[2]);
       int32_t del_cnt = 0;
       for (iter->SeekForPrev(zsets_score_key.Encode()); iter->Valid() && del_cnt < num; iter->Prev()) {
@@ -237,31 +237,28 @@ Status RedisZSets::ZPopMax(const Slice& key, const int64_t count, std::vector<Sc
         score_members->emplace_back(
             ScoreMember{parsed_zsets_score_key.score(), parsed_zsets_score_key.member().ToString()});
         ZSetsMemberKey zsets_member_key(key, version, parsed_zsets_score_key.member());
-        ++statistic;
         ++del_cnt;
-        batch.Delete(handles_[1], zsets_member_key.Encode());
-        batch.Delete(handles_[2], iter->key());
+        batch->Delete(1, zsets_member_key.Encode());
+        batch->Delete(2, iter->key());
       }
       delete iter;
       if (!parsed_zsets_meta_value.CheckModifyCount(-del_cnt)){
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
-      s = db_->Write(default_write_options_, &batch);
-      UpdateSpecificKeyStatistics(key.ToString(), statistic);
-      return s;
+      batch->Put(0, key, meta_value);
+      return batch->Commit(callback);
     }
   } else {
     return s;
   }
 }
 
-Status RedisZSets::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  uint32_t statistic = 0;
+Status RedisZSets::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
   score_members->clear();
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
+  
   std::string meta_value;
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -275,7 +272,6 @@ Status RedisZSets::ZPopMin(const Slice& key, const int64_t count, std::vector<Sc
       num = num <= count ? num : count;
       int32_t version = parsed_zsets_meta_value.version();
       ZSetsScoreKey zsets_score_key(key, version, std::numeric_limits<double>::lowest(), Slice());
-      KeyStatisticsDurationGuard guard(this, key.ToString());
       rocksdb::Iterator* iter = db_->NewIterator(default_read_options_, handles_[2]);
       int32_t del_cnt = 0;
       for (iter->Seek(zsets_score_key.Encode()); iter->Valid() && del_cnt < num; iter->Next()) {
@@ -283,27 +279,25 @@ Status RedisZSets::ZPopMin(const Slice& key, const int64_t count, std::vector<Sc
         score_members->emplace_back(
             ScoreMember{parsed_zsets_score_key.score(), parsed_zsets_score_key.member().ToString()});
         ZSetsMemberKey zsets_member_key(key, version, parsed_zsets_score_key.member());
-        ++statistic;
         ++del_cnt;
-        batch.Delete(handles_[1], zsets_member_key.Encode());
-        batch.Delete(handles_[2], iter->key());
+        batch->Delete(1, zsets_member_key.Encode());
+        batch->Delete(2, iter->key());
       }
       delete iter;
       if (!parsed_zsets_meta_value.CheckModifyCount(-del_cnt)){
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
-      s = db_->Write(default_write_options_, &batch);
-      UpdateSpecificKeyStatistics(key.ToString(), statistic);
-      return s;
+      batch->Put(0, key, meta_value);
+      return batch->Commit(callback);
     }
   } else {
     return s;
   }
 }
 
-Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret) {
+Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret,
+                         CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
   std::unordered_set<std::string> unique;
@@ -322,7 +316,7 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
   char score_buf[8];
   int32_t version = 0;
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -352,7 +346,7 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
             continue;
           } else {
             ZSetsScoreKey zsets_score_key(key, version, old_score, sm.member);
-            batch.Delete(handles_[2], zsets_score_key.Encode());
+            batch->Delete(2, zsets_score_key.Encode());
             // delete old zsets_score_key and overwirte zsets_member_key
             // but in different column_families so we accumulative 1
             statistic++;
@@ -364,10 +358,10 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
 
       const void* ptr_score = reinterpret_cast<const void*>(&sm.score);
       EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
-      batch.Put(handles_[1], zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
+      batch->Put(1, zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
 
       ZSetsScoreKey zsets_score_key(key, version, sm.score, sm.member);
-      batch.Put(handles_[2], zsets_score_key.Encode(), Slice());
+      batch->Put(2, zsets_score_key.Encode(), Slice());
       if (not_found) {
         cnt++;
       }
@@ -376,28 +370,28 @@ Status RedisZSets::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_
       return Status::InvalidArgument("zset size overflow");
     }
     parsed_zsets_meta_value.ModifyCount(cnt);
-    batch.Put(handles_[0], key, meta_value);
+    batch->Put(0, key, meta_value);
     *ret = cnt;
   } else if (s.IsNotFound()) {
     char buf[4];
     EncodeFixed32(buf, filtered_score_members.size());
     ZSetsMetaValue zsets_meta_value(Slice(buf, sizeof(int32_t)));
     version = zsets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], key, zsets_meta_value.Encode());
+    batch->Put(0, key, zsets_meta_value.Encode());
     for (const auto& sm : filtered_score_members) {
       ZSetsMemberKey zsets_member_key(key, version, sm.member);
       const void* ptr_score = reinterpret_cast<const void*>(&sm.score);
       EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
-      batch.Put(handles_[1], zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
+      batch->Put(1, zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
 
       ZSetsScoreKey zsets_score_key(key, version, sm.score, sm.member);
-      batch.Put(handles_[2], zsets_score_key.Encode(), Slice());
+      batch->Put(2, zsets_score_key.Encode(), Slice());
     }
     *ret = static_cast<int32_t>(filtered_score_members.size());
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
@@ -478,15 +472,15 @@ Status RedisZSets::ZCount(const Slice& key, double min, double max, bool left_cl
   return s;
 }
 
-Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret) {
+Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret, CommitCallback callback) {
   *ret = 0;
-  uint32_t statistic = 0;
   double score = 0;
   char score_buf[8];
   int32_t version = 0;
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
+  
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedZSetsMetaValue parsed_zsets_meta_value(&meta_value);
@@ -504,17 +498,14 @@ Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increme
       double old_score = *reinterpret_cast<const double*>(ptr_tmp);
       score = old_score + increment;
       ZSetsScoreKey zsets_score_key(key, version, old_score, member);
-      batch.Delete(handles_[2], zsets_score_key.Encode());
-      // delete old zsets_score_key and overwirte zsets_member_key
-      // but in different column_families so we accumulative 1
-      statistic++;
+      batch->Delete(2, zsets_score_key.Encode());
     } else if (s.IsNotFound()) {
       score = increment;
       if (!parsed_zsets_meta_value.CheckModifyCount(1)){
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(1);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     } else {
       return s;
     }
@@ -523,7 +514,7 @@ Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increme
     EncodeFixed32(buf, 1);
     ZSetsMetaValue zsets_meta_value(Slice(buf, sizeof(int32_t)));
     version = zsets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], key, zsets_meta_value.Encode());
+    batch->Put(0, key, zsets_meta_value.Encode());
     score = increment;
   } else {
     return s;
@@ -531,14 +522,13 @@ Status RedisZSets::ZIncrby(const Slice& key, const Slice& member, double increme
   ZSetsMemberKey zsets_member_key(key, version, member);
   const void* ptr_score = reinterpret_cast<const void*>(&score);
   EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
-  batch.Put(handles_[1], zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
+  batch->Put(1, zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
 
   ZSetsScoreKey zsets_score_key(key, version, score, member);
-  batch.Put(handles_[2], zsets_score_key.Encode(), Slice());
+  batch->Put(2, zsets_score_key.Encode(), Slice());
   *ret = score;
-  s = db_->Write(default_write_options_, &batch);
-  UpdateSpecificKeyStatistics(key.ToString(), statistic);
-  return s;
+  
+  return batch->Commit(callback);
 }
 
 Status RedisZSets::ZRange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members) {
@@ -755,7 +745,8 @@ Status RedisZSets::ZRank(const Slice& key, const Slice& member, int32_t* rank) {
   return s;
 }
 
-Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
+Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                         CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
   std::unordered_set<std::string> unique;
@@ -768,7 +759,7 @@ Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& member
   }
 
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -790,10 +781,10 @@ Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& member
           uint64_t tmp = DecodeFixed64(data_value.data());
           const void* ptr_tmp = reinterpret_cast<const void*>(&tmp);
           double score = *reinterpret_cast<const double*>(ptr_tmp);
-          batch.Delete(handles_[1], zsets_member_key.Encode());
+          batch->Delete(1, zsets_member_key.Encode());
 
           ZSetsScoreKey zsets_score_key(key, version, score, member);
-          batch.Delete(handles_[2], zsets_score_key.Encode());
+          batch->Delete(2, zsets_score_key.Encode());
         } else if (!s.IsNotFound()) {
           return s;
         }
@@ -803,21 +794,22 @@ Status RedisZSets::ZRem(const Slice& key, const std::vector<std::string>& member
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     }
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
 
-Status RedisZSets::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret) {
+Status RedisZSets::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret,
+                                    CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -846,8 +838,8 @@ Status RedisZSets::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop
         if (cur_index >= start_index) {
           ParsedZSetsScoreKey parsed_zsets_score_key(iter->key());
           ZSetsMemberKey zsets_member_key(key, version, parsed_zsets_score_key.member());
-          batch.Delete(handles_[1], zsets_member_key.Encode());
-          batch.Delete(handles_[2], iter->key());
+          batch->Delete(1, zsets_member_key.Encode());
+          batch->Delete(2, iter->key());
           del_cnt++;
           statistic++;
         }
@@ -858,22 +850,22 @@ Status RedisZSets::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     }
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
 
 Status RedisZSets::ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
-                                    int32_t* ret) {
+                                    int32_t* ret, CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
@@ -911,8 +903,8 @@ Status RedisZSets::ZRemrangebyscore(const Slice& key, double min, double max, bo
         }
         if (left_pass && right_pass) {
           ZSetsMemberKey zsets_member_key(key, version, parsed_zsets_score_key.member());
-          batch.Delete(handles_[1], zsets_member_key.Encode());
-          batch.Delete(handles_[2], iter->key());
+          batch->Delete(1, zsets_member_key.Encode());
+          batch->Delete(2, iter->key());
           del_cnt++;
           statistic++;
         }
@@ -926,12 +918,12 @@ Status RedisZSets::ZRemrangebyscore(const Slice& key, double min, double max, bo
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     }
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
@@ -1127,10 +1119,11 @@ Status RedisZSets::ZScore(const Slice& key, const Slice& member, double* score) 
 }
 
 Status RedisZSets::ZUnionstore(const Slice& destination, const std::vector<std::string>& keys,
-                               const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret) {
+                               const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret,
+                               CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot = nullptr;
 
@@ -1196,13 +1189,13 @@ Status RedisZSets::ZUnionstore(const Slice& destination, const std::vector<std::
       return Status::InvalidArgument("zset size overflow");
     }
     parsed_zsets_meta_value.set_count(static_cast<int32_t>(member_score_map.size()));
-    batch.Put(handles_[0], destination, meta_value);
+    batch->Put(0, destination, meta_value);
   } else {
     char buf[4];
     EncodeFixed32(buf, member_score_map.size());
     ZSetsMetaValue zsets_meta_value(Slice(buf, sizeof(int32_t)));
     version = zsets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, zsets_meta_value.Encode());
+    batch->Put(0, destination, zsets_meta_value.Encode());
   }
 
   char score_buf[8];
@@ -1211,27 +1204,28 @@ Status RedisZSets::ZUnionstore(const Slice& destination, const std::vector<std::
 
     const void* ptr_score = reinterpret_cast<const void*>(&sm.second);
     EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
-    batch.Put(handles_[1], zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
+    batch->Put(1, zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
 
     ZSetsScoreKey zsets_score_key(destination, version, sm.second, sm.first);
-    batch.Put(handles_[2], zsets_score_key.Encode(), Slice());
+    batch->Put(2, zsets_score_key.Encode(), Slice());
   }
   *ret = static_cast<int32_t>(member_score_map.size());
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(destination.ToString(), statistic);
   value_to_dest = std::move(member_score_map);
   return s;
 }
 
 Status RedisZSets::ZInterstore(const Slice& destination, const std::vector<std::string>& keys,
-                               const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret) {
+                               const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret,
+                               CommitCallback callback) {
   if (keys.empty()) {
     return Status::Corruption("ZInterstore invalid parameter, no keys");
   }
 
   *ret = 0;
   uint32_t statistic = 0;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot = nullptr;
   ScopeSnapshot ss(db_, &snapshot);
@@ -1327,13 +1321,13 @@ Status RedisZSets::ZInterstore(const Slice& destination, const std::vector<std::
       return Status::InvalidArgument("zset size overflow");
     }
     parsed_zsets_meta_value.set_count(static_cast<int32_t>(final_score_members.size()));
-    batch.Put(handles_[0], destination, meta_value);
+    batch->Put(0, destination, meta_value);
   } else {
     char buf[4];
     EncodeFixed32(buf, final_score_members.size());
     ZSetsMetaValue zsets_meta_value(Slice(buf, sizeof(int32_t)));
     version = zsets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, zsets_meta_value.Encode());
+    batch->Put(0, destination, zsets_meta_value.Encode());
   }
   char score_buf[8];
   for (const auto& sm : final_score_members) {
@@ -1341,13 +1335,13 @@ Status RedisZSets::ZInterstore(const Slice& destination, const std::vector<std::
 
     const void* ptr_score = reinterpret_cast<const void*>(&sm.score);
     EncodeFixed64(score_buf, *reinterpret_cast<const uint64_t*>(ptr_score));
-    batch.Put(handles_[1], zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
+    batch->Put(1, zsets_member_key.Encode(), Slice(score_buf, sizeof(uint64_t)));
 
     ZSetsScoreKey zsets_score_key(destination, version, sm.score, sm.member);
-    batch.Put(handles_[2], zsets_score_key.Encode(), Slice());
+    batch->Put(2, zsets_score_key.Encode(), Slice());
   }
   *ret = static_cast<int32_t>(final_score_members.size());
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(destination.ToString(), statistic);
   value_to_dest = std::move(final_score_members);
   return s;
@@ -1411,10 +1405,10 @@ Status RedisZSets::ZLexcount(const Slice& key, const Slice& min, const Slice& ma
 }
 
 Status RedisZSets::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close,
-                                  bool right_close, int32_t* ret) {
+                                  bool right_close, int32_t* ret, CommitCallback callback) {
   *ret = 0;
   uint32_t statistic = 0;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot = nullptr;
 
@@ -1451,13 +1445,13 @@ Status RedisZSets::ZRemrangebylex(const Slice& key, const Slice& min, const Slic
           right_pass = true;
         }
         if (left_pass && right_pass) {
-          batch.Delete(handles_[1], iter->key());
+          batch->Delete(1, iter->key());
 
           uint64_t tmp = DecodeFixed64(iter->value().data());
           const void* ptr_tmp = reinterpret_cast<const void*>(&tmp);
           double score = *reinterpret_cast<const double*>(ptr_tmp);
           ZSetsScoreKey zsets_score_key(key, version, score, member);
-          batch.Delete(handles_[2], zsets_score_key.Encode());
+          batch->Delete(2, zsets_score_key.Encode());
           del_cnt++;
           statistic++;
         }
@@ -1472,13 +1466,13 @@ Status RedisZSets::ZRemrangebylex(const Slice& key, const Slice& min, const Slic
         return Status::InvalidArgument("zset size overflow");
       }
       parsed_zsets_meta_value.ModifyCount(-del_cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
       *ret = del_cnt;
     }
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }

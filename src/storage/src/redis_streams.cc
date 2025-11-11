@@ -20,12 +20,14 @@
 #include "src/scope_snapshot.h"
 #include "storage/storage.h"
 #include "storage/util.h"
+#include "storage/batch.h"
+#include "glog/logging.h"
 
 #include "pstd/include/pstd_defer.h"
 
 namespace storage {
 
-Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args) {
+Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args, CommitCallback callback) {
   // With the lock, we do not need snapshot for read.
   // And it's bugy to use snapshot for read when we try to add message with trim.
   // such as: XADD key 1-0 field value MINID 1-0
@@ -66,11 +68,11 @@ Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_messag
   assert(current_id > serialized_last_id);
 #endif
 
+  // Use batch for Raft consistency
+  auto batch = Batch::CreateBatch(this);
+  
   StreamDataKey stream_data_key(key, stream_meta.version(), args.id.Serialize());
-  s = db_->Put(default_write_options_, handles_[1], stream_data_key.Encode(), serialized_message);
-  if (!s.ok()) {
-    return Status::Corruption("error from XADD, insert stream message failed 1: " + s.ToString());
-  }
+  batch->Put(1, stream_data_key.Encode(), serialized_message);
 
   // 3 update stream meta
   if (stream_meta.length() == 0) {
@@ -91,12 +93,9 @@ Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_messag
   }
 
   // 5 update stream meta
-  s = db_->Put(default_write_options_, handles_[0], key, stream_meta.value());
-  if (!s.ok()) {
-    return s;
-  }
-
-  return Status::OK();
+  batch->Put(0, key, stream_meta.value());
+  
+  return batch->Commit(callback);
 }
 
 Status RedisStreams::XTrim(const Slice& key, StreamAddTrimArgs& args, int32_t& count) {

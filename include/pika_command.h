@@ -621,6 +621,11 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   uint32_t aclCategory_ = 0;
   bool cache_missed_in_rtc_{false};
 
+  // Raft async mode helper functions
+  bool IsRaftLeader() const;
+  bool IsRaftEnabled() const;
+  bool ShouldUseAsyncMode() const;
+
  private:
   virtual void DoInitial() = 0;
   virtual void Clear(){};

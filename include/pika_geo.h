@@ -67,6 +67,8 @@ class GeoAddCmd : public Cmd {
  private:
   std::string key_;
   std::vector<GeoPoint> pos_;
+  rocksdb::Status s_;
+  int32_t count_ = 0;
   void DoInitial() override;
 };
 

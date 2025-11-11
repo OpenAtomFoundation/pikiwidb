@@ -32,6 +32,7 @@ class SAddCmd : public Cmd {
  private:
   std::string key_;
   std::vector<std::string> members_;
+  int32_t added_count_ = 0;  // For async mode: number of members added
   rocksdb::Status s_;
   void DoInitial() override;
 };
@@ -220,6 +221,7 @@ class SUnionstoreCmd : public SetOperationCmd {
 
  private:
   void DoInitial() override;
+  int32_t result_count_ = 0;  // For async mode: number of members in result
   rocksdb::Status s_;
 };
 
@@ -249,6 +251,7 @@ class SInterstoreCmd : public SetOperationCmd {
 
  private:
   void DoInitial() override;
+  int32_t result_count_ = 0;  // For async mode: number of members in result
   rocksdb::Status s_;
 };
 
@@ -301,6 +304,7 @@ class SDiffstoreCmd : public SetOperationCmd {
   Cmd* Clone() override { return new SDiffstoreCmd(*this); }
 
  private:
+  int32_t result_count_ = 0;  // For async mode: number of members in result
   rocksdb::Status s_;
   void DoInitial() override;
 };
@@ -337,6 +341,7 @@ class SMoveCmd : public Cmd {
   std::shared_ptr<SRemCmd> srem_cmd_;
   std::shared_ptr<SAddCmd> sadd_cmd_;
   int32_t move_success_{0};
+  rocksdb::Status s_;
 };
 
 class SRandmemberCmd : public Cmd {
