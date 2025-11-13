@@ -270,14 +270,26 @@ var _ = Describe("Set Commands", func() {
 			sAdd = client.SAdd(ctx, "set", "three")
 			Expect(sAdd.Err()).NotTo(HaveOccurred())
 
-			// 报错：redis: can't parse reply="*1" reading string
-			//sPop := client.SPop(ctx, "set")
-			//Expect(sPop.Err()).NotTo(HaveOccurred())
-			//Expect(sPop.Val()).NotTo(Equal(""))
+			sPop := client.SPop(ctx, "set")
+			Expect(sPop.Err()).NotTo(HaveOccurred())
+			Expect(sPop.Val()).NotTo(Equal(""))
 
 			sMembers := client.SMembers(ctx, "set")
 			Expect(sMembers.Err()).NotTo(HaveOccurred())
-			Expect(sMembers.Val()).To(HaveLen(3))
+			Expect(sMembers.Val()).To(HaveLen(2))
+
+			// 再添加一个元素进行批量弹出测试
+			sAdd = client.SAdd(ctx, "set2", "one")
+			Expect(sAdd.Err()).NotTo(HaveOccurred())
+			sAdd = client.SAdd(ctx, "set2", "two")
+			Expect(sAdd.Err()).NotTo(HaveOccurred())
+			sAdd = client.SAdd(ctx, "set2", "three")
+			Expect(sAdd.Err()).NotTo(HaveOccurred())
+
+			// 测试多个元素弹出，应该返回数组
+			sPopN := client.SPopN(ctx, "set2", 2)
+			Expect(sPopN.Err()).NotTo(HaveOccurred())
+			Expect(sPopN.Val()).To(HaveLen(2))
 
 			err := client.Do(ctx, "SPOP", "set", 1, 2).Err()
 			Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'spop' command")))
