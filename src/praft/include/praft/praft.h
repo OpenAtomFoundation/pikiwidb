@@ -97,8 +97,7 @@ class PikaStateMachine : public braft::StateMachine {
   void on_stop_following(const ::braft::LeaderChangeContext& ctx) override;
 
  private:
-  std::atomic<int64_t> applied_index_;
-  std::atomic<int64_t> leader_term_;
+
 };
 
 // Raft node wrapper
@@ -185,8 +184,8 @@ class RaftManager {
   std::shared_ptr<PikaRaftNode> GetRaftNode(const std::string& db_name);
   
   // Apply binlog entry to storage (public for PikaStateMachine to call)
-  rocksdb::Status ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog);
-
+  rocksdb::Status ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog, uint64_t log_index = 0);
+  
  private:
   std::atomic<bool> initialized_;
   std::atomic<bool> running_;
@@ -208,4 +207,3 @@ class RaftManager {
 }  // namespace pika_raft
 
 #endif  // PRAFT_PRAFT_H_
-

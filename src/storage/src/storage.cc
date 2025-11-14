@@ -2108,95 +2108,152 @@ void Storage::DisableWal(const bool is_wal_disable) {
 }
 
 rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index) {
-  rocksdb::WriteOptions write_options;
-  write_options.disableWAL = true;
+  rocksdb::WriteBatch batch;
+
+  // Check if there are any entries
+  if (binlog.entries().empty()) {
+    return rocksdb::Status::OK();
+  }
+
+  // Get the data type from the first entry (assuming all entries have the same data type)
+  ::pikiwidb::DataType data_type = binlog.entries(0).data_type();
   
+  Redis* redis_db = nullptr;
+  switch (data_type) {
+    case ::pikiwidb::DataType::kStrings:
+      redis_db = strings_db_.get();
+      break;
+    case ::pikiwidb::DataType::kHashes:
+      redis_db = hashes_db_.get();
+      break;
+    case ::pikiwidb::DataType::kLists:
+      redis_db = lists_db_.get();
+      break;
+    case ::pikiwidb::DataType::kSets:
+      redis_db = sets_db_.get();
+      break;
+    case ::pikiwidb::DataType::kZSets:
+      redis_db = zsets_db_.get();
+      break;
+    case ::pikiwidb::DataType::kStreams:
+      redis_db = streams_db_.get();
+      break;
+    default:
+      LOG(WARNING) << "Unknown data type: " << static_cast<int>(data_type);
+      return rocksdb::Status::InvalidArgument("Unknown data type");
+  }
+
+  if (!redis_db) {
+    LOG(ERROR) << "Redis DB is null for data type: " << static_cast<int>(data_type);
+    return rocksdb::Status::NotFound("Redis DB not found");
+  }
+
+  rocksdb::DB* db = redis_db->GetDB();
+  if (!db) {
+    LOG(ERROR) << "RocksDB instance is null for data type: " << static_cast<int>(data_type);
+    return rocksdb::Status::NotFound("RocksDB instance not found");
+  }
+
+  const auto& handles = redis_db->GetHandles();
+  auto seqno = redis_db->GetDB()->GetLatestSequenceNumber();
+
   for (const auto& entry : binlog.entries()) {
-    Redis* redis_db = nullptr;
-    switch (entry.data_type()) {
-      case ::pikiwidb::DataType::kStrings:
-        redis_db = strings_db_.get();
-        break;
-      case ::pikiwidb::DataType::kHashes:
-        redis_db = hashes_db_.get();
-        break;
-      case ::pikiwidb::DataType::kLists:
-        redis_db = lists_db_.get();
-        break;
-      case ::pikiwidb::DataType::kSets:
-        redis_db = sets_db_.get();
-        break;
-      case ::pikiwidb::DataType::kZSets:
-        redis_db = zsets_db_.get();
-        break;
-      case ::pikiwidb::DataType::kStreams:
-        redis_db = streams_db_.get();
-        break;
-      default:
-        LOG(WARNING) << "Unknown data type: " << static_cast<int>(entry.data_type());
-        continue;
-    }
-    
-    if (!redis_db) {
-      LOG(ERROR) << "Redis DB is null for data type: " << static_cast<int>(entry.data_type());
-      return rocksdb::Status::NotFound("Redis DB not found");
-    }
-    
-    rocksdb::DB* db = redis_db->GetDB();
-    if (!db) {
-      LOG(ERROR) << "RocksDB instance is null for data type: " << static_cast<int>(entry.data_type());
-      return rocksdb::Status::NotFound("RocksDB instance not found");
-    }
-    
     uint32_t cf_idx = entry.cf_idx();
-    const auto& handles = redis_db->GetHandles();
-    rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
     
-    if (entry.data_type() == ::pikiwidb::DataType::kStrings) {
+    // Check if restarting and log already applied
+    if (redis_db->IsApplied(cf_idx, log_index)) [[unlikely]] {
+      // If the starting phase is over, the log must not have been applied
+      // If the starting phase is not over and the log has been applied, skip it.
+      LOG(WARNING) << "Log " << log_index << " has been applied";
+      continue;
+    }
+
+    rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
+
+    if (data_type == ::pikiwidb::DataType::kStrings) {
       if (cf_idx != 0) {
         LOG(WARNING) << "Strings type should use cf_idx=0, got cf_idx=" << cf_idx;
       }
     } else {
       if (cf_idx >= handles.size()) {
-        LOG(ERROR) << "Invalid cf_idx " << cf_idx << " for data type " 
-                   << static_cast<int>(entry.data_type()) << ", available cf count: " << handles.size();
+        LOG(ERROR) << "Invalid cf_idx " << cf_idx << " for data type "
+                   << static_cast<int>(data_type) << ", available cf count: " << handles.size();
         return rocksdb::Status::InvalidArgument("Invalid column family index");
       }
       cf_handle = handles[cf_idx];
     }
-    
-    rocksdb::Status s;
+
     switch (entry.op_type()) {
       case ::pikiwidb::OperateType::kPut:
         if (cf_handle) {
-          s = db->Put(write_options, cf_handle, entry.key(), entry.value());
+          batch.Put(cf_handle, entry.key(), entry.value());
         } else {
-          s = db->Put(write_options, entry.key(), entry.value());
+          batch.Put(entry.key(), entry.value());
         }
         break;
-        
+
       case ::pikiwidb::OperateType::kDelete:
         if (cf_handle) {
-          s = db->Delete(write_options, cf_handle, entry.key());
+          batch.Delete(cf_handle, entry.key());
         } else {
-          s = db->Delete(write_options, entry.key());
+          batch.Delete(entry.key());
         }
         break;
-        
+
       default:
         LOG(WARNING) << "Unknown operate type: " << static_cast<int>(entry.op_type());
         continue;
     }
-    
-    if (!s.ok()) {
-      LOG(ERROR) << "Failed to apply binlog entry: " << s.ToString() 
-                 << ", data_type=" << static_cast<int>(entry.data_type())
-                 << ", cf_idx=" << cf_idx;
-      return s;
+
+    // Update applied log index for this column family
+    redis_db->UpdateAppliedLogIndexOfColumnFamily(cf_idx, log_index, ++seqno);
+  }
+
+  auto first_seqno = redis_db->GetDB()->GetLatestSequenceNumber() + 1;
+
+  rocksdb::WriteOptions write_options;
+  write_options.disableWAL = true;
+
+  // Commit the batch
+  rocksdb::Status s = redis_db->GetDB()->Write(write_options, &batch);
+
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to apply binlog batch: " << s.ToString();
+    return s;
+  }
+
+  // Update log index mapping with actual sequence number
+  redis_db->UpdateLogIndex(log_index, first_seqno);
+
+  return rocksdb::Status::OK();
+}
+
+uint64_t Storage::GetSmallestFlushedLogIndex() {
+  uint64_t max_log_index = 0;
+  
+  std::vector<Redis*> dbs = {
+    strings_db_.get(), 
+    hashes_db_.get(), 
+    lists_db_.get(),
+    sets_db_.get(), 
+    zsets_db_.get(), 
+    streams_db_.get()
+  };
+  
+  for (auto* db : dbs) {
+    if (db) {
+      auto [smallest_applied_log_index_cf, smallest_applied_log_index, 
+            smallest_flushed_log_index_cf, smallest_flushed_log_index, 
+            smallest_flushed_seqno] = db->GetLogIndexOfColumnFamilies().GetSmallestLogIndex(-1);
+      
+      // Use the maximum of all smallest_flushed_log_index as the recovery point
+      if (smallest_flushed_log_index != std::numeric_limits<int64_t>::max()) {
+        max_log_index = std::max(max_log_index, static_cast<uint64_t>(smallest_flushed_log_index));
+      }
     }
   }
   
-  return rocksdb::Status::OK();
+  return max_log_index;
 }
 
 }  //  namespace storage

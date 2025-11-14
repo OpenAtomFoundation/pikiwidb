@@ -37,9 +37,36 @@ Status RedisStrings::Open(const StorageOptions& storage_options, const std::stri
     table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
   table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
+  
   ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_ops));
+  
+  // Add LogIndex table properties collector for Raft
+  ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
 
-  return rocksdb::DB::Open(ops, db_path, &db_);
+  // Add LogIndex event listener for Raft
+  if (storage_options.do_snapshot_function) {
+    auto purger = std::make_shared<LogIndexAndSequenceCollectorPurger>(
+        &handles_, &log_index_collector_, &log_index_of_all_cfs_,
+        storage_options.do_snapshot_function);
+    ops.listeners.push_back(purger);
+  }
+
+  Status s = rocksdb::DB::Open(ops, db_path, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  
+  // Initialize handles for strings (default column family only)
+  handles_.push_back(db_->DefaultColumnFamily());
+  
+  // Initialize log index of column families
+  s = log_index_of_all_cfs_.Init(this);
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to init log index of column families for strings: " << s.ToString();
+  }
+  
+  return s;
 }
 
 Status RedisStrings::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,

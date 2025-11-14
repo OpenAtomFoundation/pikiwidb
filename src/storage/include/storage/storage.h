@@ -99,6 +99,8 @@ struct StorageOptions {
   std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
                      CommitCallback)> append_log_function;
   
+  std::function<void(int64_t, bool)> do_snapshot_function;
+  
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -1158,6 +1160,8 @@ class Storage {
   GetAppendLogFunction() const { return append_log_function_; }
   
   rocksdb::Status OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index);
+  
+  uint64_t GetSmallestFlushedLogIndex();
   
  private:
   std::unique_ptr<RedisStrings> strings_db_;

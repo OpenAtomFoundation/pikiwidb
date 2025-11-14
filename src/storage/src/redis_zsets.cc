@@ -76,15 +76,44 @@ Status RedisZSets::Open(const StorageOptions& storage_options, const std::string
     data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     score_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
+  
   meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_ops));
   data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(data_cf_table_ops));
   score_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(score_cf_table_ops));
+  
+  // Add LogIndex table properties collector for Raft
+  meta_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+  data_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+  score_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+
+  // Add LogIndex event listener for Raft
+  if (storage_options.do_snapshot_function) {
+    auto purger = std::make_shared<LogIndexAndSequenceCollectorPurger>(
+        &handles_, &log_index_collector_, &log_index_of_all_cfs_,
+        storage_options.do_snapshot_function);
+    db_ops.listeners.push_back(purger);
+  }
 
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   column_families.emplace_back("data_cf", data_cf_ops);
   column_families.emplace_back("score_cf", score_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  
+  // Initialize log index of column families
+  s = log_index_of_all_cfs_.Init(this);
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to init log index of column families for zsets: " << s.ToString();
+  }
+  
+  return s;
 }
 
 Status RedisZSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {

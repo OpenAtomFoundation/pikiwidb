@@ -17,6 +17,7 @@
 #include "pstd/include/env.h"
 
 #include "src/lock_mgr.h"
+#include "src/log_index.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
 #include "storage/storage.h"
@@ -144,6 +145,27 @@ class Redis {
   Status UpdateSpecificKeyStatistics(const std::string& key, uint64_t count);
   Status UpdateSpecificKeyDuration(const std::string& key, uint64_t duration);
   Status AddCompactKeyTaskIfNeeded(const std::string& key, uint64_t count, uint64_t duration);
+
+  // Log index management for Raft
+  LogIndexAndSequenceCollector log_index_collector_;
+  LogIndexOfColumnFamilies log_index_of_all_cfs_;
+
+ public:
+  void UpdateLogIndex(LogIndex applied_log_index, SequenceNumber seqno) {
+    log_index_collector_.Update(applied_log_index, seqno);
+  }
+
+  void UpdateAppliedLogIndexOfColumnFamily(size_t cf_idx, LogIndex logidx, SequenceNumber seqno) {
+    log_index_of_all_cfs_.Update(cf_idx, logidx, seqno);
+  }
+
+  bool IsApplied(size_t cf_idx, LogIndex logidx) const {
+    return log_index_of_all_cfs_.IsApplied(cf_idx, logidx);
+  }
+
+  LogIndexOfColumnFamilies& GetLogIndexOfColumnFamilies() { return log_index_of_all_cfs_; }
+
+  LogIndexAndSequenceCollector& GetCollector() { return log_index_collector_; }
 };
 
 }  //  namespace storage

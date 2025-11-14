@@ -29,9 +29,7 @@ extern std::unique_ptr<PikaServer> g_pika_server;
 namespace pika_raft {
 
 // PikaStateMachine implementation
-PikaStateMachine::PikaStateMachine() 
-    : applied_index_(0), leader_term_(-1) {
-}
+PikaStateMachine::PikaStateMachine() {} 
 
 void PikaStateMachine::on_apply(braft::Iterator& iter) {
   for (; iter.valid(); iter.next()) {
@@ -41,7 +39,6 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
     int64_t index = iter.index();
     
     if (!g_pika_server || !g_pika_server->GetRaftManager()) {
-      applied_index_.store(index, std::memory_order_relaxed);
       // Run closure asynchronously in bthread to avoid blocking on_apply
       if (done) {
         braft::run_closure_in_bthread(done_guard.release());
@@ -55,14 +52,14 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
       if (done) {
         done->status().set_error(EINVAL, "Failed to parse binlog");
       }
-      applied_index_.store(index, std::memory_order_relaxed);
       if (done) {
         braft::run_closure_in_bthread(done_guard.release());
       }
       continue;
     }
     
-    rocksdb::Status apply_status = g_pika_server->GetRaftManager()->ApplyBinlogEntry(binlog);
+    // Apply binlog with log index for tracking
+    rocksdb::Status apply_status = g_pika_server->GetRaftManager()->ApplyBinlogEntry(binlog, index);
     
     if (done) {
       if (apply_status.ok()) {
@@ -73,7 +70,6 @@ void PikaStateMachine::on_apply(braft::Iterator& iter) {
       }
     }
     
-    applied_index_.store(index, std::memory_order_relaxed);
     
     // Run closure asynchronously in bthread to avoid blocking on_apply
     if (done) {
@@ -94,7 +90,6 @@ int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
     in >> index;
     in.close();
     
-    applied_index_.store(index, std::memory_order_relaxed);
     return 0;
   }
   
@@ -102,11 +97,9 @@ int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
 }
 
 void PikaStateMachine::on_leader_start(int64_t term) {
-  leader_term_.store(term, std::memory_order_relaxed);
 }
 
 void PikaStateMachine::on_leader_stop(const butil::Status& status) {
-  leader_term_.store(-1, std::memory_order_relaxed);
 }
 
 void PikaStateMachine::on_error(const ::braft::Error& e) {
@@ -465,6 +458,7 @@ pstd::Status RaftManager::RemoveNode(const std::string& db_name,
   }
   
   braft::PeerId peer_id = ParsePeerId(peer_addr);
+    
   if (peer_id.is_empty()) {
     return pstd::Status::Corruption("Invalid peer address: " + peer_addr);
   }
@@ -475,6 +469,7 @@ pstd::Status RaftManager::RemoveNode(const std::string& db_name,
 pstd::Status RaftManager::GetClusterInfo(const std::string& db_name, 
                                          std::string* info) {
   auto node = GetRaftNode(db_name);
+
   if (!node) {
     return pstd::Status::Corruption("Raft node not found for DB: " + db_name);
   }
@@ -501,13 +496,38 @@ pstd::Status RaftManager::CreateRaftNode(const std::string& db_name,
     return pstd::Status::Corruption("Raft node already exists for DB: " + db_name);
   }
   
-  // Create peer ID for this node
-  // Use localhost since Pika doesn't expose a host() method
-  std::string addr = "127.0.0.1:" + std::to_string(g_pika_conf->port() + 3000);
-  braft::PeerId peer_id = ParsePeerId(addr);
-  if (peer_id.is_empty()) {
-    return pstd::Status::Corruption("Failed to create peer ID");
+  // Determine the Raft port for this node
+  // Raft uses Pika port + 3000
+  int raft_port = g_pika_conf->port() + 3000;
+  
+  // Find the peer address from the peers list that matches our Raft port
+  // This allows the user to specify the exact address in RAFT.CLUSTER INIT command
+  braft::PeerId peer_id;
+  bool found = false;
+  
+  for (const auto& peer : peers) {
+    if (peer.addr.port == raft_port) {
+      peer_id = peer;
+      found = true;
+      LOG(INFO) << "Found matching peer address in cluster config: " << peer.to_string();
+      break;
+    }
   }
+  
+  // If no matching peer found, return error
+  if (!found) {
+    std::string error_msg = "No matching peer address found in cluster config for Raft port " + 
+                           std::to_string(raft_port) + 
+                           ". Please include this node's address (with port " + 
+                           std::to_string(raft_port) + 
+                           ") in the RAFT.CLUSTER INIT command. " +
+                           "Example: RAFT.CLUSTER INIT <ip1>:" + std::to_string(raft_port) + 
+                           ",<ip2>:<port2>,...";
+    LOG(ERROR) << error_msg;
+    return pstd::Status::Corruption(error_msg);
+  }
+  
+  LOG(INFO) << "Creating Raft node for DB: " << db_name << " with address: " << peer_id.to_string();
   
   // Create Raft node
   auto node = std::make_shared<PikaRaftNode>(group_id_ + "_" + db_name, peer_id);
@@ -625,7 +645,7 @@ void RaftManager::AppendLog(const std::string& db_name,
   node->GetRaftNode()->apply(task);
 }
 
-rocksdb::Status RaftManager::ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog) {
+rocksdb::Status RaftManager::ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog, uint64_t log_index) {
   std::string db_name = "db0";
   
   auto db = g_pika_server->GetDB(db_name);
@@ -640,14 +660,15 @@ rocksdb::Status RaftManager::ApplyBinlogEntry(const ::pikiwidb::Binlog& binlog) 
     return rocksdb::Status::InvalidArgument("Storage is null");
   }
   
-  auto status = storage->OnBinlogWrite(binlog, 0);
+  // Pass log_index to storage layer for tracking
+  auto status = storage->OnBinlogWrite(binlog, log_index);
   
   if (!status.ok()) {
-    LOG(ERROR) << "Failed to apply binlog to " << db_name << ": " << status.ToString();
+    LOG(ERROR) << "Failed to apply binlog to " << db_name << " at log_index " << log_index 
+               << ": " << status.ToString();
   }
   
   return status;
 }
 
 }  // namespace pika_raft
-
