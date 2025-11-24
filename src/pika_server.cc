@@ -497,6 +497,37 @@ Status PikaServer::DoSameThingSpecificDB(const std::set<std::string>& dbs, const
       case TaskType::kCompactRangeList:
         db_item.second->CompactRange(storage::DataType::kLists, arg.argv[0], arg.argv[1]);
         break;
+      case TaskType::kLoadDBFromCheckpoint: {
+        // arg.argv[0] should contain checkpoint_path
+        if (arg.argv.empty()) {
+          LOG(ERROR) << "LoadDBFromCheckpoint requires checkpoint_path argument";
+          return Status::InvalidArgument("Missing checkpoint_path");
+        }
+        std::string checkpoint_path = arg.argv[0];
+        auto s = db_item.second->LoadDBFromCheckpoint(checkpoint_path);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to load DB from checkpoint: " << s.ToString();
+          return s;
+        }
+        LOG(INFO) << "Successfully loaded DB " << db_item.first << " from checkpoint: " << checkpoint_path;
+        break;
+      }
+      case TaskType::kCreateCheckpoint: {
+        // arg.argv[0] should contain checkpoint_path
+        if (arg.argv.empty()) {
+          LOG(ERROR) << "CreateCheckpoint requires checkpoint_path argument";
+          return Status::InvalidArgument("Missing checkpoint_path");
+        }
+        std::string checkpoint_path = arg.argv[0];
+        auto s = db_item.second->CreateCheckpoint(checkpoint_path);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to create checkpoint: " << s.ToString();
+          return s;
+        }
+        LOG(INFO) << "Successfully created checkpoint for DB " << db_item.first << " at: " << checkpoint_path;
+        break;
+      }
+      
       default:
         break;
     }

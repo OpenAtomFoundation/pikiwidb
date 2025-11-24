@@ -4,7 +4,7 @@
 
 #include "storage/storage.h"  
 #include "storage/batch.h"
-#include "src/redis.h"  
+#include "src/redis.h"   
 #include "glog/logging.h"
 #include "binlog.pb.h"  
 #include <sys/time.h>

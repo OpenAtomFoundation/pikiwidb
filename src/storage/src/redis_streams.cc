@@ -895,6 +895,11 @@ Status RedisStreams::TrimByMinid(TrimRet& trim_ret, StreamMetaValue& stream_meta
   trim_ret.next_field = stream_meta.first_id().Serialize();
   serialized_min_id = args.minid.Serialize();
 
+  // Early return: if first_id is already >= minid, nothing to trim
+  if (trim_ret.next_field >= serialized_min_id) {
+    return Status::OK();
+  }
+
   // we delete the message in batchs, prevent from using too much memory
   while (trim_ret.next_field < serialized_min_id && stream_meta.length() - trim_ret.count > 0) {
     auto cur_batch = static_cast<int32_t>(
@@ -909,17 +914,23 @@ Status RedisStreams::TrimByMinid(TrimRet& trim_ret, StreamMetaValue& stream_meta
       return s;
     }
 
-    if (!id_messages.empty()) {
-      if (id_messages.back().field == serialized_min_id) {
-        // we do not need to delete the message that it's id matches the minid
-        id_messages.pop_back();
-        trim_ret.next_field = serialized_min_id;
-      }
-      // duble check
-      if (!id_messages.empty()) {
-        trim_ret.max_deleted_field = id_messages.back().field;
-      }
+    // If no messages were found, break to avoid infinite loop
+    if (id_messages.empty()) {
+      break;
     }
+
+    if (id_messages.back().field == serialized_min_id) {
+      // we do not need to delete the message that it's id matches the minid
+      id_messages.pop_back();
+      trim_ret.next_field = serialized_min_id;
+    }
+    
+    // If after removing the minid entry, there's nothing left to delete, break
+    if (id_messages.empty()) {
+      break;
+    }
+    
+    trim_ret.max_deleted_field = id_messages.back().field;
 
     assert(id_messages.size() <= cur_batch);
     trim_ret.count += static_cast<int32_t>(id_messages.size());

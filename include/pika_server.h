@@ -71,6 +71,8 @@ enum TaskType {
   kCompactRangeSets,
   kCompactRangeZSets,
   kCompactRangeList,
+  kLoadDBFromCheckpoint,
+  kCreateCheckpoint,
 };
 
 struct TaskArg {

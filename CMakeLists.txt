@@ -22,7 +22,15 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   endif()
 endif()
 
-link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+# Link directories for gcc-toolset on RHEL/Rocky/CentOS
+# Support gcc-toolset-11, gcc-toolset-12 and gcc-toolset-13
+if(EXISTS "/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+  link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+elseif(EXISTS "/opt/rh/gcc-toolset-12/root/lib/gcc/x86_64-redhat-linux/12")
+  link_directories("/opt/rh/gcc-toolset-12/root/lib/gcc/x86_64-redhat-linux/12")
+elseif(EXISTS "/opt/rh/gcc-toolset-11/root/lib/gcc/x86_64-redhat-linux/11")
+  link_directories("/opt/rh/gcc-toolset-11/root/lib/gcc/x86_64-redhat-linux/11")
+endif()
 
 ############# You should enable sanitizer if you are developing pika #############
 # Uncomment the following two lines to enable AddressSanitizer to detect memory leaks and other memory-related bugs.
@@ -648,6 +656,10 @@ else()
 endif()
 set(LEVELDB_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 
+# Workaround for __has_attribute compatibility issue with newer GCC and glibc
+# The issue is that newer glibc uses __glibc_has_attribute which conflicts with GCC's __has_attribute
+# We need to set an include path that has a fixed version of the problematic header
+
 ExternalProject_Add(brpc
   DEPENDS
   gflags
@@ -657,13 +669,14 @@ ExternalProject_Add(brpc
   snappy
   zlib
   URL
-  https://github.com/apache/brpc/archive/refs/tags/1.6.0.tar.gz
+  https://github.com/apache/brpc/archive/refs/tags/1.11.0.tar.gz
   URL_HASH
-  MD5=0d37cea25bd006e89806f461ef7e39ba
+  MD5=f55e582fb8032768f9070865b48e892d
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
   ""
+
   LOG_CONFIGURE
   1
   LOG_BUILD
@@ -677,6 +690,8 @@ ExternalProject_Add(brpc
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
   -DWITH_GLOG=ON
   -DWITH_SNAPPY=ON
   -DBUILD_SHARED_LIBS=OFF
@@ -724,6 +739,8 @@ ExternalProject_Add(braft
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
   -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
   -DWITH_GLOG=ON
   -DBUILD_SHARED_LIBS=OFF
   -DBUILD_UNIT_TESTS=OFF

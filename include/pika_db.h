@@ -94,6 +94,8 @@ class DB : public std::enable_shared_from_this<DB>, public pstd::noncopyable {
   std::shared_ptr<storage::Storage> storage() const;
   void GetBgSaveMetaData(std::vector<std::string>* fileNames, std::string* snapshot_uuid);
   void BgSaveDB();
+  pstd::Status CreateCheckpoint(const std::string& checkpoint_dir);
+  pstd::Status LoadDBFromCheckpoint(const std::string& checkpoint_dir);
   void SetBinlogIoError();
   void SetBinlogIoErrorrelieve();
   bool IsBinlogIoError();

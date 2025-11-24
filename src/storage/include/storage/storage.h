@@ -1124,6 +1124,9 @@ class Storage {
   Status StartBGThread();
   Status RunBGTask();
   Status AddBGTask(const BGTask& bg_task);
+  Status CreateCheckpointInternal(const std::string& checkpoint_path, const std::string& db_name);
+  Status LoadCheckpointInternal(const std::string& checkpoint_sub_path, const std::string& db_sub_path,
+                                const std::string& db_type);
 
   Status Compact(const DataType& type, bool sync = false);
   Status CompactRange(const DataType& type, const std::string& start, const std::string& end, bool sync = false);
@@ -1163,7 +1166,21 @@ class Storage {
   
   uint64_t GetSmallestFlushedLogIndex();
   
+  // Load database from checkpoint directory
+  // This will replace current database data with checkpoint data
+  Status LoadFromCheckpoint(const std::string& checkpoint_path);
+  std::vector<std::future<Status>> LoadCheckpoint(const std::string& checkpoint_sub_path,
+                                                  const std::string& db_sub_path);
+  Status Close();
+  
+  // Create checkpoint (snapshot) of current database state
+  // This will create a consistent snapshot to the specified directory
+  std::vector<std::future<Status>> CreateCheckpoint(const std::string& checkpoint_path);
+  
  private:
+  std::string db_path_;  // Store db path for checkpoint restore
+  StorageOptions open_options_;
+  bool open_options_initialized_ = false;
   std::unique_ptr<RedisStrings> strings_db_;
   std::unique_ptr<RedisHashes> hashes_db_;
   std::unique_ptr<RedisSets> sets_db_;
