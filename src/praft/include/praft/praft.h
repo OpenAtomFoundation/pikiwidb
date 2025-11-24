@@ -18,6 +18,7 @@
 #include "braft/raft.h"
 #include "braft/storage.h"
 #include "braft/util.h"
+#include "braft/file_system_adaptor.h"
 #include "pstd/include/pstd_mutex.h"
 #include "pstd/include/pstd_status.h"
 #include "rocksdb/status.h"
@@ -31,6 +32,7 @@ namespace storage {
 class Storage;
 }
 
+// Forward declarations
 namespace pikiwidb {
 class Binlog;
 }
@@ -74,6 +76,8 @@ class PikaStateMachine : public braft::StateMachine {
   PikaStateMachine();
   ~PikaStateMachine() override = default;
 
+  void SetLeaderTerm(std::atomic<int64_t>* leader_term);
+
   // Apply committed log entry
   void on_apply(braft::Iterator& iter) override;
 
@@ -97,7 +101,8 @@ class PikaStateMachine : public braft::StateMachine {
   void on_stop_following(const ::braft::LeaderChangeContext& ctx) override;
 
  private:
-
+  std::atomic<bool> is_node_first_start_up_{true};  // 标记节点是否首次启动
+  std::atomic<int64_t>* leader_term_{nullptr};
 };
 
 // Raft node wrapper
@@ -130,6 +135,11 @@ class PikaRaftNode {
   // Get cluster status information
   void GetStatus(std::string* status_str);
 
+  void GetLeaderLeaseStatus(braft::LeaderLeaseStatus* status) const;
+  
+  // Trigger a snapshot creation
+  pstd::Status DoSnapshot(int64_t self_snapshot_index = 0, bool is_sync = true);
+
   braft::Node* GetRaftNode() { return node_.get(); }
 
  private:
@@ -144,6 +154,10 @@ class PikaRaftNode {
   std::string raft_log_uri_;
   std::string raft_meta_uri_;
   std::string raft_snapshot_uri_;
+  
+  // Snapshot adaptor
+  scoped_refptr<braft::FileSystemAdaptor> snapshot_adaptor_;
+  std::atomic<int64_t> leader_term_{-1};
 };
 
 // Raft cluster manager

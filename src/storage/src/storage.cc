@@ -8,8 +8,21 @@
 
 #include <glog/logging.h>
 
+#include <future>
 #include <utility>
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "std::filesystem is required"
+#endif
+
+#include "pstd/include/env.h"
+#include "rocksdb/utilities/checkpoint.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -67,19 +80,39 @@ Storage::~Storage() {
   bg_tasks_should_exit_ = true;
   bg_tasks_cond_var_.notify_one();
 
-  if (is_opened_) {
-    rocksdb::CancelAllBackgroundWork(strings_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(hashes_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(sets_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(lists_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(zsets_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(streams_db_->GetDB(), true);
-  }
-
+  // Wait for background task thread to finish before destroying databases
   int ret = 0;
   if ((ret = pthread_join(bg_tasks_thread_id_, nullptr)) != 0) {
     LOG(ERROR) << "pthread_join failed with bgtask thread error " << ret;
   }
+
+  // unique_ptr destruction will call Redis::~Redis() which properly handles:
+  // 1. CancelAllBackgroundWork(db_, true)
+  // 2. db_->Close() to wait for all background threads
+  // 3. Proper cleanup of column family handles and DB object
+  // No need to explicitly call CancelAllBackgroundWork here.
+}
+
+Status Storage::Close() {
+  if (!is_opened_) {
+    return Status::OK();
+  }
+
+  // Simply reset the unique_ptr to trigger Redis::~Redis()
+  // Redis::~Redis() will handle proper RocksDB shutdown sequence:
+  // 1. CancelAllBackgroundWork(db_, true)
+  // 2. db_->Close() to wait for background threads
+  // 3. Delete column family handles
+  // 4. Delete db_ object
+  strings_db_.reset();
+  hashes_db_.reset();
+  sets_db_.reset();
+  lists_db_.reset();
+  zsets_db_.reset();
+  streams_db_.reset();
+
+  is_opened_.store(false);
+  return Status::OK();
 }
 
 static std::string AppendSubDirectory(const std::string& db_path, const std::string& sub_db) {
@@ -90,8 +123,94 @@ static std::string AppendSubDirectory(const std::string& db_path, const std::str
   }
 }
 
+static Status CopyDirectoryRecursive(const std::string& src, const std::string& dst) {
+  std::error_code ec;
+  if (!fs::exists(src, ec) || !fs::is_directory(src, ec)) {
+    return Status::NotFound("Source checkpoint directory missing: " + src);
+  }
+
+  fs::create_directories(dst, ec);
+  if (ec) {
+    return Status::IOError("Failed to create target directory: " + dst + ", reason: " + ec.message());
+  }
+
+  const fs::path src_path(src);
+  const fs::path dst_path(dst);
+
+  for (fs::recursive_directory_iterator it(src_path, ec), end; it != end && !ec; ++it) {
+    auto relative = fs::relative(it->path(), src_path, ec);
+    if (ec) {
+      break;
+    }
+    fs::path target = dst_path / relative;
+
+    if (it->is_directory()) {
+      fs::create_directories(target, ec);
+    } else if (it->is_regular_file()) {
+      fs::create_directories(target.parent_path(), ec);
+      if (!ec) {
+        fs::copy_file(it->path(), target, fs::copy_options::overwrite_existing, ec);
+      }
+    } else if (it->is_symlink()) {
+      auto link_target = fs::read_symlink(it->path(), ec);
+      if (!ec) {
+        fs::create_directories(target.parent_path(), ec);
+        if (!ec) {
+          fs::create_symlink(link_target, target, ec);
+        }
+      }
+    }
+
+    if (ec) {
+      break;
+    }
+  }
+
+  if (ec) {
+    return Status::IOError("Failed to copy checkpoint data from " + src + " to " + dst + ": " + ec.message());
+  }
+
+  return Status::OK();
+}
+
+static Status ReplaceDirectoryWithCheckpoint(const std::string& source_dir, const std::string& target_dir) {
+  if (!pstd::FileExists(source_dir)) {
+    return Status::NotFound("Checkpoint source directory missing: " + source_dir);
+  }
+
+  auto tmp_dir = target_dir + ".tmp";
+  if (!pstd::DeleteDirIfExist(tmp_dir)) {
+    return Status::IOError("Failed to remove temporary directory: " + tmp_dir);
+  }
+
+  const bool target_exists = pstd::FileExists(target_dir);
+  if (target_exists) {
+    if (pstd::RenameFile(target_dir, tmp_dir) != 0) {
+      return Status::IOError("Failed to rename directory " + target_dir);
+    }
+  }
+
+  auto copy_status = CopyDirectoryRecursive(source_dir, target_dir);
+  if (!copy_status.ok()) {
+    pstd::DeleteDir(target_dir);
+    if (target_exists && pstd::RenameFile(tmp_dir, target_dir) != 0) {
+      LOG(WARNING) << "Failed to rollback directory from " << tmp_dir << " to " << target_dir;
+    }
+    return copy_status;
+  }
+
+  if (target_exists && !pstd::DeleteDirIfExist(tmp_dir)) {
+    LOG(WARNING) << "Failed to cleanup temporary directory: " << tmp_dir;
+  }
+
+  return Status::OK();
+}
+
 Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
+  db_path_ = db_path;
+  open_options_ = storage_options;
+  open_options_initialized_ = true;
 
   strings_db_ = std::make_unique<RedisStrings>(this, kStrings);
   Status s = strings_db_->Open(storage_options, AppendSubDirectory(db_path, "strings"));
@@ -2141,6 +2260,7 @@ rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_
     default:
       LOG(WARNING) << "Unknown data type: " << static_cast<int>(data_type);
       return rocksdb::Status::InvalidArgument("Unknown data type");
+      
   }
 
   if (!redis_db) {
@@ -2205,6 +2325,7 @@ rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_
         continue;
     }
 
+    // 更新 单个 Redis DB 的 Sequence number 和 Log index 的映射关系
     // Update applied log index for this column family
     redis_db->UpdateAppliedLogIndexOfColumnFamily(cf_idx, log_index, ++seqno);
   }
@@ -2226,6 +2347,192 @@ rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_
   redis_db->UpdateLogIndex(log_index, first_seqno);
 
   return rocksdb::Status::OK();
+}
+
+Status Storage::LoadFromCheckpoint(const std::string& checkpoint_path) {
+  if (!open_options_initialized_) {
+    return Status::Corruption("Storage options are not initialized");
+  }
+
+  if (!pstd::FileExists(checkpoint_path)) {
+    return Status::NotFound("Checkpoint path does not exist: " + checkpoint_path);
+  }
+
+  auto cancel_bg = [](const auto& db) {
+    if (db && db->GetDB()) {
+      rocksdb::CancelAllBackgroundWork(db->GetDB(), true);
+    }
+  };
+
+  cancel_bg(strings_db_);
+  cancel_bg(hashes_db_);
+  cancel_bg(sets_db_);
+  cancel_bg(lists_db_);
+  cancel_bg(zsets_db_);
+  cancel_bg(streams_db_);
+
+  strings_db_.reset();
+  hashes_db_.reset();
+  sets_db_.reset();
+  lists_db_.reset();
+  zsets_db_.reset();
+  streams_db_.reset();
+  is_opened_.store(false);
+
+  auto checkpoint_tasks = LoadCheckpoint(checkpoint_path, db_path_);
+  for (auto& task : checkpoint_tasks) {
+    auto status = task.get();
+    if (!status.ok()) {
+      return status;
+    }
+  }
+
+  strings_db_ = std::make_unique<RedisStrings>(this, kStrings);
+  Status s = strings_db_->Open(open_options_, AppendSubDirectory(db_path_, STRINGS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  hashes_db_ = std::make_unique<RedisHashes>(this, kHashes);
+  s = hashes_db_->Open(open_options_, AppendSubDirectory(db_path_, HASHES_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  lists_db_ = std::make_unique<RedisLists>(this, kLists);
+  s = lists_db_->Open(open_options_, AppendSubDirectory(db_path_, LISTS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  sets_db_ = std::make_unique<RedisSets>(this, kSets);
+  s = sets_db_->Open(open_options_, AppendSubDirectory(db_path_, SETS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  zsets_db_ = std::make_unique<RedisZSets>(this, kZSets);
+  s = zsets_db_->Open(open_options_, AppendSubDirectory(db_path_, ZSETS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  streams_db_ = std::make_unique<RedisStreams>(this, kStreams);
+  s = streams_db_->Open(open_options_, AppendSubDirectory(db_path_, STREAMS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  is_opened_.store(true);
+  return Status::OK();
+}
+
+std::vector<std::future<Status>> Storage::CreateCheckpoint(const std::string& checkpoint_path) {
+  if (!is_opened_) {
+    return {};
+  }
+
+  if (pstd::FileExists(checkpoint_path) && !pstd::DeleteDirIfExist(checkpoint_path)) {
+    return {};
+  }
+  if (mkpath(checkpoint_path.c_str(), 0755) != 0) {
+    return {};
+  }
+
+  std::vector<std::future<Status>> result;
+  result.reserve(6);
+
+  static const std::vector<std::string> kDbTypes = {STRINGS_DB, HASHES_DB, LISTS_DB, SETS_DB, ZSETS_DB, STREAMS_DB};
+  for (const auto& type : kDbTypes) {
+    auto task = std::async(std::launch::async, &Storage::CreateCheckpointInternal, this, checkpoint_path, type);
+    result.push_back(std::move(task));
+  }
+
+  return result;
+}
+
+Status Storage::CreateCheckpointInternal(const std::string& checkpoint_path, const std::string& db_name) {
+  Redis* db = nullptr;
+  if (db_name == STRINGS_DB) {
+    db = strings_db_.get();
+  } else if (db_name == HASHES_DB) {
+    db = hashes_db_.get();
+  } else if (db_name == LISTS_DB) {
+    db = lists_db_.get();
+  } else if (db_name == SETS_DB) {
+    db = sets_db_.get();
+  } else if (db_name == ZSETS_DB) {
+    db = zsets_db_.get();
+  } else if (db_name == STREAMS_DB) {
+    db = streams_db_.get();
+  }
+
+  if (db == nullptr) {
+    return Status::OK();
+  }
+
+  std::string db_checkpoint_path = checkpoint_path + "/" + db_name;
+  std::string tmp_checkpoint_path = db_checkpoint_path + ".tmp";
+
+  if (!pstd::DeleteDirIfExist(tmp_checkpoint_path)) {
+    return Status::IOError("Failed to remove temporary checkpoint directory: " + tmp_checkpoint_path);
+  }
+
+  rocksdb::Checkpoint* checkpoint = nullptr;
+  auto s = rocksdb::Checkpoint::Create(db->GetDB(), &checkpoint);
+  if (!s.ok()) {
+    return Status::IOError("Create checkpoint object failed: " + s.ToString());
+  }
+
+  std::unique_ptr<rocksdb::Checkpoint> guard(checkpoint);
+  s = checkpoint->CreateCheckpoint(tmp_checkpoint_path);
+  if (!s.ok()) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Create checkpoint failed: " + s.ToString());
+  }
+
+  if (!pstd::DeleteDirIfExist(db_checkpoint_path)) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Failed to clean checkpoint directory: " + db_checkpoint_path);
+  }
+
+  if (pstd::RenameFile(tmp_checkpoint_path, db_checkpoint_path) != 0) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Failed to finalize checkpoint directory: " + tmp_checkpoint_path);
+  }
+
+  LOG(INFO) << "CreateCheckpoint: Successfully created checkpoint for " << db_name << " at: " << db_checkpoint_path;
+  return Status::OK();
+}
+
+std::vector<std::future<Status>> Storage::LoadCheckpoint(const std::string& checkpoint_sub_path,
+                                                         const std::string& db_sub_path) {
+  static const std::vector<std::string> kDbTypes = {STRINGS_DB, HASHES_DB, SETS_DB, LISTS_DB, ZSETS_DB, STREAMS_DB};
+  std::vector<std::future<Status>> result;
+  result.reserve(kDbTypes.size());
+
+  for (const auto& db_type : kDbTypes) {
+    auto task = std::async(std::launch::async, &Storage::LoadCheckpointInternal, this, checkpoint_sub_path,
+                           db_sub_path, db_type);
+    result.push_back(std::move(task));
+  }
+  return result;
+}
+
+Status Storage::LoadCheckpointInternal(const std::string& checkpoint_sub_path, const std::string& db_sub_path,
+                                       const std::string& db_type) {
+  auto source_dir = checkpoint_sub_path + "/" + db_type;
+  if (!pstd::FileExists(source_dir)) {
+    LOG(INFO) << "Checkpoint directory for " << db_type << " not found, skip replacing";
+    return Status::OK();
+  }
+
+  auto target_dir = AppendSubDirectory(db_sub_path, db_type);
+  auto status = ReplaceDirectoryWithCheckpoint(source_dir, target_dir);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to load checkpoint for " << db_type << ": " << status.ToString();
+  }
+  return status;
 }
 
 uint64_t Storage::GetSmallestFlushedLogIndex() {

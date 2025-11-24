@@ -8,9 +8,13 @@
 #include <glog/logging.h>
 #include <algorithm>
 #include <fstream>
+#include <set>
 #include <sstream>
 
+#include <gflags/gflags.h>
+
 #include "braft/configuration.h"
+#include "braft/raft.h"
 #include "braft/repeated_timer_task.h"
 #include "brpc/server.h"
 #include "brpc/closure_guard.h"
@@ -22,6 +26,11 @@
 #include "storage/storage.h"
 #include "storage/batch.h"
 #include "pstd/include/env.h"
+#include "praft/psnapshot.h"
+
+namespace braft {
+DECLARE_bool(raft_enable_leader_lease);
+}  // namespace braft
 
 extern std::unique_ptr<PikaConf> g_pika_conf;
 extern std::unique_ptr<PikaServer> g_pika_server;
@@ -30,6 +39,10 @@ namespace pika_raft {
 
 // PikaStateMachine implementation
 PikaStateMachine::PikaStateMachine() {} 
+
+void PikaStateMachine::SetLeaderTerm(std::atomic<int64_t>* leader_term) {
+  leader_term_ = leader_term;
+}
 
 void PikaStateMachine::on_apply(braft::Iterator& iter) {
   for (; iter.valid(); iter.next()) {
@@ -83,23 +96,99 @@ void PikaStateMachine::on_snapshot_save(braft::SnapshotWriter* writer, braft::Cl
 }
 
 int PikaStateMachine::on_snapshot_load(braft::SnapshotReader* reader) {
-  std::string meta_file = reader->get_path() + "/meta";
-  std::ifstream in(meta_file);
-  if (in.is_open()) {
-    int64_t index;
-    in >> index;
-    in.close();
-    
-    return 0;
+  if (!reader) {
+    LOG(ERROR) << "SnapshotReader is null";
+    return -1;
   }
   
-  return -1;
+  if (!g_pika_server || !g_pika_server->GetRaftManager()) {
+    LOG(ERROR) << "PikaServer or RaftManager is not initialized";
+    return -1;
+  }
+  
+  // 首次启动时的处理
+  if (is_node_first_start_up_.load()) {
+    /*
+     * 场景分析：
+     * 1. 正常关机后重启：所有内存数据已刷盘，快照已截断到最新位置，
+     *    此时 flush-index 和 apply-index 相同，应该获取最大日志索引
+     * 2. 异常宕机后重启：部分数据未刷盘，应该获取最小 flush-index 作为
+     *    故障恢复的起点
+     */
+    std::string db_name = "db0";
+    auto db = g_pika_server->GetDB(db_name);
+    if (db && db->storage()) {
+      uint64_t replay_point = db->storage()->GetSmallestFlushedLogIndex();
+      LOG(INFO) << "Node first start, detected replay_point: " << replay_point;
+    }
+    
+    is_node_first_start_up_.store(false);
+    
+    /*
+     * 如果节点刚加入集群且没有任何数据，启动时不会加载本地快照。
+     * 因此需要在从 Leader 加载快照后，执行数据恢复。
+     * 
+     * 如果有本地日志数据（不是空节点），直接返回，从 replay_point 开始回放日志
+     */
+    uint64_t last_log_index = 0;
+    if (auto raft_mgr = g_pika_server->GetRaftManager()) {
+      auto raft_node = raft_mgr->GetRaftNode(db_name);
+      if (raft_node && raft_node->GetRaftNode()) {
+        braft::NodeStatus status;
+        raft_node->GetRaftNode()->get_status(&status);
+        last_log_index = status.last_index;
+      }
+    }
+    if (last_log_index != 0) {
+      LOG(INFO) << "Node has local data, last_log_index: " << last_log_index
+                << ", will replay from existing data";
+      return 0;
+    }
+  }
+  
+  /*
+   * 安装快照：
+   * 1. 新节点加入集群（无本地数据）
+   * 2. Follower 落后太多，Leader 主动推送快照
+   */
+  std::string reader_path = reader->get_path();
+  LOG(INFO) << "Loading snapshot from: " << reader_path;
+  
+  std::string db_name = "db0";
+  auto db = g_pika_server->GetDB(db_name);
+  if (!db) {
+    LOG(ERROR) << "Failed to get DB: " << db_name;
+    return -1;
+  }
+  
+  auto storage = db->storage();
+  if (!storage) {
+    LOG(ERROR) << "Storage is null for DB: " << db_name;
+    return -1;
+  }
+  
+  std::set<std::string> dbs{db_name};
+  TaskArg task(TaskType::kLoadDBFromCheckpoint, {reader_path});
+  auto status = g_pika_server->DoSameThingSpecificDB(dbs, task);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to load snapshot into DB: " << status.ToString();
+    return -1;
+  }
+  
+  LOG(INFO) << "Snapshot load completed from: " << reader_path;
+  return 0;
 }
 
 void PikaStateMachine::on_leader_start(int64_t term) {
+  if (leader_term_) {
+    leader_term_->store(term, std::memory_order_release);
+  }
 }
 
 void PikaStateMachine::on_leader_stop(const butil::Status& status) {
+  if (leader_term_) {
+    leader_term_->store(-1, std::memory_order_release);
+  }
 }
 
 void PikaStateMachine::on_error(const ::braft::Error& e) {
@@ -135,6 +224,7 @@ PikaRaftNode::~PikaRaftNode() {
 pstd::Status PikaRaftNode::Init(const std::vector<braft::PeerId>& peers) {
   // Create state machine
   state_machine_ = std::make_unique<PikaStateMachine>();
+  state_machine_->SetLeaderTerm(&leader_term_);
   
   // Create and start brpc server for Raft RPC
   server_ = std::make_unique<brpc::Server>();
@@ -170,10 +260,17 @@ pstd::Status PikaRaftNode::Init(const std::vector<braft::PeerId>& peers) {
   node_options.fsm = state_machine_.get();
   
   // Set election timeout
-  node_options.election_timeout_ms = g_pika_conf->raft_election_timeout_ms();
+  node_options.election_timeout_ms = g_pika_conf ? g_pika_conf->raft_election_timeout_ms() : 1000;
   
   // Set snapshot interval
-  node_options.snapshot_interval_s = g_pika_conf->raft_snapshot_interval_s();
+  node_options.snapshot_interval_s = g_pika_conf ? g_pika_conf->raft_snapshot_interval_s() : 3600;
+  
+  // Initialize custom snapshot adaptor
+  snapshot_adaptor_ = new PPosixFileSystemAdaptor();
+  node_options.snapshot_file_system_adaptor = &snapshot_adaptor_;
+  
+  // Enable leader lease for linearizable read
+  braft::FLAGS_raft_enable_leader_lease = true;
   
   // Create and initialize Raft node
   node_ = std::make_unique<braft::Node>(group_id_, peer_id_);
@@ -182,7 +279,7 @@ pstd::Status PikaRaftNode::Init(const std::vector<braft::PeerId>& peers) {
     LOG(ERROR) << "Failed to init Raft node";
     return pstd::Status::Corruption("Failed to init Raft node");
   }
-  
+
   return pstd::Status::OK();
 }
 
@@ -210,12 +307,25 @@ void PikaRaftNode::Shutdown() {
 
 bool PikaRaftNode::IsLeader() const {
   if (!node_) return false;
-  return node_->is_leader();
+
+  braft::LeaderLeaseStatus lease_status;
+  node_->get_leader_lease_status(&lease_status);
+
+  auto current_term = leader_term_.load(std::memory_order_acquire);
+  return current_term > 0 && current_term == lease_status.term &&
+         lease_status.state == braft::LeaseState::LEASE_VALID;
 }
 
 braft::PeerId PikaRaftNode::GetLeaderId() {
   if (!node_) return braft::PeerId();
   return node_->leader_id();
+}
+
+void PikaRaftNode::GetLeaderLeaseStatus(braft::LeaderLeaseStatus* status) const {
+  if (!node_ || !status) {
+    return;
+  }
+  node_->get_leader_lease_status(status);
 }
 
 pstd::Status PikaRaftNode::AddPeer(const braft::PeerId& peer) {
@@ -316,6 +426,26 @@ void PikaRaftNode::GetStatus(std::string* status_str) {
   oss << "Last Index: " << status.last_index << "\n";
   
   *status_str = oss.str();
+}
+
+pstd::Status PikaRaftNode::DoSnapshot(int64_t self_snapshot_index, bool is_sync) {
+  if (!node_) {
+    return pstd::Status::Corruption("Raft node not initialized");
+  }
+  
+  if (is_sync) {
+    braft::SynchronizedClosure done;
+    node_->snapshot(&done);
+    done.wait();
+    
+    if (!done.status().ok()) {
+      return pstd::Status::Corruption("Failed to create snapshot: " + done.status().error_str());
+    }
+  } else {
+    node_->snapshot(nullptr);
+  }
+  
+  return pstd::Status::OK();
 }
 
 // RaftManager implementation
