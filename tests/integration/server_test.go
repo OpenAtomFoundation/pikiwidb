@@ -321,7 +321,7 @@ var _ = Describe("Server", func() {
 			Expect(r.Val()).To(Equal("OK"))
 		})
 
-		FIt("should ConfigSet write-buffer-size large value", func() {
+		It("should ConfigSet write-buffer-size large value", func() {
 			// Test for fix: when setting write-buffer-size value larger than 2147483647,
 			// the value should not become negative
 			configSet := client.ConfigSet(ctx, "write-buffer-size", "3000000000")
