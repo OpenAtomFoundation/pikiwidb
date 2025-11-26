@@ -329,6 +329,18 @@ var _ = Describe("Server", func() {
 			Expect(r.Val()).To(Equal("OK"))
 		})
 
+		It("should ConfigSet write-buffer-size large value", func() {
+			// Test for fix: when setting write-buffer-size value larger than 2147483647,
+			// the value should not become negative
+			configSet := client.ConfigSet(ctx, "write-buffer-size", "3000000000")
+			Expect(configSet.Err()).NotTo(HaveOccurred())
+			Expect(configSet.Val()).To(Equal("OK"))
+			
+			configGet := client.ConfigGet(ctx, "write-buffer-size")
+			Expect(configGet.Err()).NotTo(HaveOccurred())
+			Expect(configGet.Val()).To(Equal(map[string]string{"write-buffer-size": "3000000000"}))
+		})
+
 		It("should ConfigSet maxmemory", func() {
 			configGet := client.ConfigGet(ctx, "maxmemory")
 			Expect(configGet.Err()).NotTo(HaveOccurred())

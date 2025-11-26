@@ -680,7 +680,7 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("max-background-jobs", std::to_string(value));
     max_background_jobs_ = value;
   }
-  void SetWriteBufferSize(const int& value) {
+  void SetWriteBufferSize(int64_t value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("write-buffer-size", std::to_string(value));
     write_buffer_size_ = value;
