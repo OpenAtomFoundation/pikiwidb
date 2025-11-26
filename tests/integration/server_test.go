@@ -434,6 +434,31 @@ var _ = Describe("Server", func() {
 			Expect(configRewrite.Err()).NotTo(HaveOccurred())
 			Expect(configRewrite.Val()).To(Equal("OK"))
 		})
+
+		// Test for cache-value-item-max-size & max-key-size-in-cache
+		It("should handle cache size configurations correctly", func() {
+			configGet := client.ConfigGet(ctx, "cache-value-item-max-size")
+			Expect(configGet.Err()).NotTo(HaveOccurred())
+			Expect(configGet.Val()).To(HaveKey("cache-value-item-max-size"))
+			
+			configGet2 := client.ConfigGet(ctx, "max-key-size-in-cache")
+			Expect(configGet2.Err()).NotTo(HaveOccurred())
+			Expect(configGet2.Val()).To(HaveKey("max-key-size-in-cache"))
+			
+			configSet1 := client.ConfigSet(ctx, "cache-value-item-max-size", "1024")
+			Expect(configSet1.Err()).NotTo(HaveOccurred())
+			Expect(configSet1.Val()).To(Equal("OK"))
+			
+			configSet2 := client.ConfigSet(ctx, "max-key-size-in-cache", "1048576")
+			Expect(configSet2.Err()).NotTo(HaveOccurred())
+			Expect(configSet2.Val()).To(Equal("OK"))
+			
+			configGet3 := client.ConfigGet(ctx, "cache-value-item-max-size")
+			Expect(configGet3.Val()["cache-value-item-max-size"]).To(Equal("1024"))
+			
+			configGet4 := client.ConfigGet(ctx, "max-key-size-in-cache")
+			Expect(configGet4.Val()["max-key-size-in-cache"]).To(Equal("1048576"))
+		})
 		//It("should DBSize", func() {
 		//	Expect(client.Set(ctx, "key", "value", 0).Val()).To(Equal("OK"))
 		//	Expect(client.Do(ctx, "info", "keyspace", "1").Err()).NotTo(HaveOccurred())
@@ -793,6 +818,28 @@ var _ = Describe("Server", func() {
 			Expect(client.Exists(ctx, "foo").Val()).To(Equal(int64(0)))
 			Expect(client.Get(ctx, "foo").Err()).To(MatchError(redis.Nil))
 			Expect(client.Get(ctx, "key1").Err()).To(MatchError(redis.Nil))
+		})
+		
+		//fix: added the correct loading of admin-cmd-list in the configuration file
+		It("should load admin-cmd-list from config correctly", func() {
+			configGet := client.ConfigGet(ctx, "admin-cmd-list")
+			Expect(configGet.Err()).NotTo(HaveOccurred())
+			Expect(configGet.Val()).To(HaveLen(1))
+			
+			adminCmdList, ok := configGet.Val()["admin-cmd-list"]
+			Expect(ok).To(BeTrue())
+			
+			Expect(adminCmdList).To(ContainSubstring("auth"))
+			Expect(adminCmdList).To(ContainSubstring("config"))
+			Expect(adminCmdList).To(ContainSubstring("info"))
+			Expect(adminCmdList).To(ContainSubstring("ping"))
+			Expect(adminCmdList).To(ContainSubstring("monitor"))
+		})
+
+		// fix add auth command to admin-thread-pool
+		It("should process auth command in admin thread pool", func() {
+			auth := client.Do(ctx, "auth", "wrongpassword")
+			Expect(auth.Err()).To(HaveOccurred())
 		})
 	})
 })
