@@ -770,15 +770,66 @@ void PikaServer::SetFirstMetaSync(bool v) {
 }
 
 void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_cmd, bool is_admin_cmd) {
-  if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
-    pika_slow_cmd_thread_pool_->Schedule(func, arg);
-    return;
-  }
+  // Admin commands always go to admin thread pool
   if (is_admin_cmd) {
     pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
-  pika_client_processor_->SchedulePool(func, arg);
+
+  // Check if thread pool borrowing is enabled
+  bool borrow_enable = g_pika_conf->threadpool_borrow_enable();
+  bool slow_cmd_pool_enable = g_pika_conf->slow_cmd_pool();
+  
+  if (!borrow_enable || !slow_cmd_pool_enable) {
+    // Original logic: direct routing without borrowing
+    if (is_slow_cmd && slow_cmd_pool_enable) {
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+      return;
+    }
+    pika_client_processor_->SchedulePool(func, arg);
+    return;
+  }
+
+  // Borrowing is enabled, check queue status and decide
+  size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
+  size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
+  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
+
+  int borrow_threshold_percent = g_pika_conf->threadpool_borrow_threshold_percent();
+  int idle_threshold_percent = g_pika_conf->threadpool_idle_threshold_percent();
+
+  // Calculate thresholds
+  size_t slow_borrow_threshold = slow_max_queue * borrow_threshold_percent / 100;
+  size_t fast_borrow_threshold = fast_max_queue * borrow_threshold_percent / 100;
+  size_t slow_idle_threshold = slow_max_queue * idle_threshold_percent / 100;
+  size_t fast_idle_threshold = fast_max_queue * idle_threshold_percent / 100;
+
+  if (is_slow_cmd) {
+    // This is a slow command
+    if (slow_queue_size >= slow_borrow_threshold && fast_queue_size <= fast_idle_threshold) {
+      // Slow pool is busy and fast pool is idle, borrow from fast pool
+      pika_client_processor_->SchedulePool(func, arg);
+      LOG(INFO) << "Slow cmd borrows fast pool (slow_queue: " << slow_queue_size 
+                << "/" << slow_max_queue << ", fast_queue: " << fast_queue_size 
+                << "/" << fast_max_queue << ")";
+    } else {
+      // Normal case: use slow pool
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+    }
+  } else {
+    // This is a fast command
+    if (fast_queue_size >= fast_borrow_threshold && slow_queue_size <= slow_idle_threshold) {
+      // Fast pool is busy and slow pool is idle, borrow from slow pool
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+      LOG(INFO) << "Fast cmd borrows slow pool (fast_queue: " << fast_queue_size 
+                << "/" << fast_max_queue << ", slow_queue: " << slow_queue_size 
+                << "/" << slow_max_queue << ")";
+    } else {
+      // Normal case: use fast pool
+      pika_client_processor_->SchedulePool(func, arg);
+    }
+  }
 }
 
 size_t PikaServer::ClientProcessorThreadPoolCurQueueSize() {
