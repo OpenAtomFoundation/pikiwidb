@@ -289,6 +289,8 @@ struct SlowlogEntry {
   int64_t start_time;
   int64_t duration;
   net::RedisCmdArgsType argv;
+  int64_t element_count;  // 复杂数据类型的元素个数，-1表示不适用
+  SlowlogEntry() : id(0), start_time(0), duration(0), element_count(-1) {}
 };
 
 #define PIKA_MIN_RESERVED_FDS 5000

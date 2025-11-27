@@ -232,7 +232,65 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
 
 void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr) {
   if (time_stat_->total_time() > g_pika_conf->slowlog_slower_than()) {
-    g_pika_server->SlowlogPushEntry(argv, time_stat_->start_ts() / 1000000, time_stat_->total_time());
+    // 获取复杂数据类型的元素个数
+    int64_t element_count = -1;
+    std::string cmd_name = argv.empty() ? "" : argv[0];
+    pstd::StringToLower(cmd_name);
+    
+    // 对于Hash和Set等复杂数据类型，获取元素个数
+    if (!argv.empty() && argv.size() >= 2) {
+      std::string key = argv[1];
+      std::shared_ptr<DB> db = c_ptr->GetDB();
+      
+      if (db) {
+        // Hash命令
+        if (cmd_name == "hset" || cmd_name == "hget" || cmd_name == "hdel" || 
+            cmd_name == "hexists" || cmd_name == "hgetall" || cmd_name == "hkeys" ||
+            cmd_name == "hvals" || cmd_name == "hlen" || cmd_name == "hmget" ||
+            cmd_name == "hmset" || cmd_name == "hsetnx" || cmd_name == "hincrby" ||
+            cmd_name == "hincrbyfloat" || cmd_name == "hstrlen" || cmd_name == "hscan") {
+          int32_t len = 0;
+          rocksdb::Status s = db->storage()->HLen(key, &len);
+          if (s.ok()) {
+            element_count = len;
+          }
+        }
+        // Set命令
+        else if (cmd_name == "sadd" || cmd_name == "srem" || cmd_name == "spop" ||
+                 cmd_name == "scard" || cmd_name == "smembers" || cmd_name == "sismember" ||
+                 cmd_name == "srandmember" || cmd_name == "sscan") {
+          int32_t len = 0;
+          rocksdb::Status s = db->storage()->SCard(key, &len);
+          if (s.ok()) {
+            element_count = len;
+          }
+        }
+        // List命令
+        else if (cmd_name == "lpush" || cmd_name == "rpush" || cmd_name == "lpop" ||
+                 cmd_name == "rpop" || cmd_name == "llen" || cmd_name == "lrange" ||
+                 cmd_name == "lindex" || cmd_name == "lset" || cmd_name == "lrem" ||
+                 cmd_name == "ltrim" || cmd_name == "linsert") {
+          uint64_t len = 0;
+          rocksdb::Status s = db->storage()->LLen(key, &len);
+          if (s.ok()) {
+            element_count = static_cast<int64_t>(len);
+          }
+        }
+        // ZSet命令
+        else if (cmd_name == "zadd" || cmd_name == "zrem" || cmd_name == "zcard" ||
+                 cmd_name == "zcount" || cmd_name == "zincrby" || cmd_name == "zrange" ||
+                 cmd_name == "zrangebyscore" || cmd_name == "zrank" || cmd_name == "zrevrank" ||
+                 cmd_name == "zrevrange" || cmd_name == "zscore" || cmd_name == "zscan") {
+          int32_t len = 0;
+          rocksdb::Status s = db->storage()->ZCard(key, &len);
+          if (s.ok()) {
+            element_count = len;
+          }
+        }
+      }
+    }
+    
+    g_pika_server->SlowlogPushEntry(argv, time_stat_->start_ts() / 1000000, time_stat_->total_time(), element_count);
     if (g_pika_conf->slowlog_write_errorlog()) {
       bool trim = false;
       std::string slow_log;
@@ -249,8 +307,15 @@ void PikaClientConn::ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr
           }
         }
       }
+      
+      std::string element_info;
+      if (element_count >= 0) {
+        element_info = ", element_count: " + std::to_string(element_count);
+      }
+      
       LOG(ERROR) << "ip_port: " << ip_port() << ", db: " << current_db_ << ", command:" << slow_log
                  << ", command_size: " << cmd_size - 1 << ", arguments: " << argv.size()
+                 << element_info
                  << ", total_time(ms): " << time_stat_->total_time() / 1000
                  << ", before_queue_time(ms): " << time_stat_->before_queue_time() / 1000
                  << ", queue_time(ms): " << time_stat_->queue_time() / 1000

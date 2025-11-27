@@ -951,7 +951,7 @@ void PikaServer::SlowlogObtain(int64_t number, std::vector<SlowlogEntry>* slowlo
   }
 }
 
-void PikaServer::SlowlogPushEntry(const PikaCmdArgsType& argv, int64_t time, int64_t duration) {
+void PikaServer::SlowlogPushEntry(const PikaCmdArgsType& argv, int64_t time, int64_t duration, int64_t element_count) {
   SlowlogEntry entry;
   uint32_t slargc = (argv.size() < SLOWLOG_ENTRY_MAX_ARGC) ? argv.size() : SLOWLOG_ENTRY_MAX_ARGC;
 
@@ -978,6 +978,7 @@ void PikaServer::SlowlogPushEntry(const PikaCmdArgsType& argv, int64_t time, int
     entry.id = static_cast<int64_t>(slowlog_entry_id_++);
     entry.start_time = time;
     entry.duration = duration;
+    entry.element_count = element_count;
     slowlog_list_.push_front(entry);
     slowlog_counter_++;
   }

@@ -3336,13 +3336,22 @@ void SlowlogCmd::Do() {
     g_pika_server->SlowlogObtain(number_, &slowlogs);
     res_.AppendArrayLenUint64(slowlogs.size());
     for (const auto& slowlog : slowlogs) {
-      res_.AppendArrayLen(4);
+      // 如果有元素个数信息，返回5个字段，否则返回4个字段
+      if (slowlog.element_count >= 0) {
+        res_.AppendArrayLen(5);
+      } else {
+        res_.AppendArrayLen(4);
+      }
       res_.AppendInteger(slowlog.id);
       res_.AppendInteger(slowlog.start_time);
       res_.AppendInteger(slowlog.duration);
       res_.AppendArrayLenUint64(slowlog.argv.size());
       for (const auto& arg : slowlog.argv) {
         res_.AppendString(arg);
+      }
+      // 如果有元素个数信息，追加第5个字段
+      if (slowlog.element_count >= 0) {
+        res_.AppendInteger(slowlog.element_count);
       }
     }
   }
