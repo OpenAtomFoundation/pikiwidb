@@ -194,6 +194,13 @@ class PikaServer : public pstd::noncopyable {
   size_t ClientProcessorThreadPoolMaxQueueSize();
   size_t SlowCmdThreadPoolCurQueueSize();
   size_t SlowCmdThreadPoolMaxQueueSize();
+  
+  /*
+   * Thread pool dynamic resize
+   */
+  bool ResizeFastCmdThreadPool(size_t new_size);
+  bool ResizeSlowCmdThreadPool(size_t new_size);
+  void GetThreadPoolInfo(std::string* info);
 
   /*
    * BGSave used

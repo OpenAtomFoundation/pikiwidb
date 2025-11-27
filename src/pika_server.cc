@@ -790,6 +790,34 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
     return;
   }
 
+  // Extract key from command to determine key affinity
+  // This ensures commands on the same key always go to the same thread pool
+  auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
+  bool key_affinity_to_slow = false;
+  bool has_key = false;
+  
+  if (bg_arg && !bg_arg->redis_cmds.empty() && !bg_arg->redis_cmds[0].empty()) {
+    const auto& cmd_args = bg_arg->redis_cmds[0];
+    std::string cmd_name = cmd_args[0];
+    pstd::StringToLower(cmd_name);
+    
+    // Extract key based on command type
+    // Most commands have key as the first argument after command name
+    std::string key;
+    if (cmd_args.size() > 1) {
+      // For most commands, key is argv[1]
+      // For special commands like MGET, MSET, we use the first key
+      key = cmd_args[1];
+      has_key = true;
+      
+      // Use simple hash to determine key affinity
+      // Same key will always have same affinity (fast or slow pool)
+      std::hash<std::string> hasher;
+      size_t hash_value = hasher(key);
+      key_affinity_to_slow = (hash_value % 2 == 1);
+    }
+  }
+
   // Borrowing is enabled, check queue status and decide
   size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
   size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
@@ -805,26 +833,45 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
   size_t slow_idle_threshold = slow_max_queue * idle_threshold_percent / 100;
   size_t fast_idle_threshold = fast_max_queue * idle_threshold_percent / 100;
 
+  // Decision logic considering both command type and key affinity
   if (is_slow_cmd) {
     // This is a slow command
-    if (slow_queue_size >= slow_borrow_threshold && fast_queue_size <= fast_idle_threshold) {
-      // Slow pool is busy and fast pool is idle, borrow from fast pool
+    if (has_key && !key_affinity_to_slow) {
+      // Key affinity is to fast pool, must use fast pool to maintain order
       pika_client_processor_->SchedulePool(func, arg);
-      LOG(INFO) << "Slow cmd borrows fast pool (slow_queue: " << slow_queue_size 
-                << "/" << slow_max_queue << ", fast_queue: " << fast_queue_size 
-                << "/" << fast_max_queue << ")";
+    } else if (slow_queue_size >= slow_borrow_threshold && fast_queue_size <= fast_idle_threshold) {
+      // Slow pool is busy and fast pool is idle
+      if (has_key && key_affinity_to_slow) {
+        // Key belongs to slow pool, cannot borrow
+        pika_slow_cmd_thread_pool_->Schedule(func, arg);
+      } else {
+        // Can borrow from fast pool
+        pika_client_processor_->SchedulePool(func, arg);
+        LOG(INFO) << "Slow cmd borrows fast pool (slow_queue: " << slow_queue_size 
+                  << "/" << slow_max_queue << ", fast_queue: " << fast_queue_size 
+                  << "/" << fast_max_queue << ")";
+      }
     } else {
       // Normal case: use slow pool
       pika_slow_cmd_thread_pool_->Schedule(func, arg);
     }
   } else {
     // This is a fast command
-    if (fast_queue_size >= fast_borrow_threshold && slow_queue_size <= slow_idle_threshold) {
-      // Fast pool is busy and slow pool is idle, borrow from slow pool
+    if (has_key && key_affinity_to_slow) {
+      // Key affinity is to slow pool, must use slow pool to maintain order
       pika_slow_cmd_thread_pool_->Schedule(func, arg);
-      LOG(INFO) << "Fast cmd borrows slow pool (fast_queue: " << fast_queue_size 
-                << "/" << fast_max_queue << ", slow_queue: " << slow_queue_size 
-                << "/" << slow_max_queue << ")";
+    } else if (fast_queue_size >= fast_borrow_threshold && slow_queue_size <= slow_idle_threshold) {
+      // Fast pool is busy and slow pool is idle
+      if (has_key && !key_affinity_to_slow) {
+        // Key belongs to fast pool, cannot borrow
+        pika_client_processor_->SchedulePool(func, arg);
+      } else {
+        // Can borrow from slow pool
+        pika_slow_cmd_thread_pool_->Schedule(func, arg);
+        LOG(INFO) << "Fast cmd borrows slow pool (fast_queue: " << fast_queue_size 
+                  << "/" << fast_max_queue << ", slow_queue: " << slow_queue_size 
+                  << "/" << slow_max_queue << ")";
+      }
     } else {
       // Normal case: use fast pool
       pika_client_processor_->SchedulePool(func, arg);
@@ -860,6 +907,115 @@ size_t PikaServer::SlowCmdThreadPoolMaxQueueSize() {
     return 0;
   }
   return pika_slow_cmd_thread_pool_->max_queue_size();
+}
+
+bool PikaServer::ResizeFastCmdThreadPool(size_t new_size) {
+  if (new_size == 0 || new_size > 1024) {
+    LOG(WARNING) << "Invalid fast cmd thread pool size: " << new_size << ", must be between 1 and 1024";
+    return false;
+  }
+
+  size_t old_size = g_pika_conf->thread_pool_size();
+  if (new_size == old_size) {
+    LOG(INFO) << "Fast cmd thread pool size unchanged: " << new_size;
+    return true;
+  }
+
+  LOG(INFO) << "Resizing fast cmd thread pool from " << old_size << " to " << new_size;
+  
+  // Update config
+  g_pika_conf->SetThreadPoolSize(static_cast<int>(new_size));
+  
+  // Stop old thread pool gracefully
+  LOG(INFO) << "Waiting for old fast cmd thread pool tasks to complete...";
+  pika_client_processor_->Stop();
+  
+  // Create and start new thread pool
+  pika_client_processor_ = std::make_unique<PikaClientProcessor>(new_size, 100000);
+  int ret = pika_client_processor_->Start();
+  if (ret != net::kSuccess) {
+    LOG(ERROR) << "Failed to start new fast cmd thread pool: " << ret;
+    return false;
+  }
+  
+  LOG(INFO) << "Successfully resized fast cmd thread pool to " << new_size;
+  return true;
+}
+
+bool PikaServer::ResizeSlowCmdThreadPool(size_t new_size) {
+  if (new_size == 0 || new_size > 1024) {
+    LOG(WARNING) << "Invalid slow cmd thread pool size: " << new_size << ", must be between 1 and 1024";
+    return false;
+  }
+
+  size_t old_size = g_pika_conf->slow_cmd_thread_pool_size();
+  if (new_size == old_size) {
+    LOG(INFO) << "Slow cmd thread pool size unchanged: " << new_size;
+    return true;
+  }
+
+  LOG(INFO) << "Resizing slow cmd thread pool from " << old_size << " to " << new_size;
+  
+  // Update config
+  g_pika_conf->SetLowLevelThreadPoolSize(static_cast<int>(new_size));
+  
+  // Stop old thread pool gracefully
+  LOG(INFO) << "Waiting for old slow cmd thread pool tasks to complete...";
+  while (SlowCmdThreadPoolCurQueueSize() != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  pika_slow_cmd_thread_pool_->stop_thread_pool();
+  
+  // Create and start new thread pool
+  pika_slow_cmd_thread_pool_ = std::make_unique<net::ThreadPool>(new_size, 100000);
+  int ret = pika_slow_cmd_thread_pool_->start_thread_pool();
+  if (ret != net::kSuccess) {
+    LOG(ERROR) << "Failed to start new slow cmd thread pool: " << ret;
+    return false;
+  }
+  
+  LOG(INFO) << "Successfully resized slow cmd thread pool to " << new_size;
+  return true;
+}
+
+void PikaServer::GetThreadPoolInfo(std::string* info) {
+  std::stringstream tmp_stream;
+  
+  // Fast cmd thread pool info
+  size_t fast_pool_size = g_pika_conf->thread_pool_size();
+  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
+  double fast_usage = fast_max_queue > 0 ? (fast_queue_size * 100.0 / fast_max_queue) : 0.0;
+  
+  tmp_stream << "# Threadpool\r\n";
+  tmp_stream << "fast_cmd_pool_size:" << fast_pool_size << "\r\n";
+  tmp_stream << "fast_cmd_pool_queue_size:" << fast_queue_size << "\r\n";
+  tmp_stream << "fast_cmd_pool_max_queue_size:" << fast_max_queue << "\r\n";
+  tmp_stream << "fast_cmd_pool_usage:" << std::fixed << std::setprecision(2) << fast_usage << "%\r\n";
+  
+  // Slow cmd thread pool info
+  if (g_pika_conf->slow_cmd_pool()) {
+    size_t slow_pool_size = g_pika_conf->slow_cmd_thread_pool_size();
+    size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
+    size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
+    double slow_usage = slow_max_queue > 0 ? (slow_queue_size * 100.0 / slow_max_queue) : 0.0;
+    
+    tmp_stream << "slow_cmd_pool_size:" << slow_pool_size << "\r\n";
+    tmp_stream << "slow_cmd_pool_queue_size:" << slow_queue_size << "\r\n";
+    tmp_stream << "slow_cmd_pool_max_queue_size:" << slow_max_queue << "\r\n";
+    tmp_stream << "slow_cmd_pool_usage:" << std::fixed << std::setprecision(2) << slow_usage << "%\r\n";
+  } else {
+    tmp_stream << "slow_cmd_pool_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_queue_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_max_queue_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_usage:0.00%\r\n";
+  }
+  
+  // Admin cmd thread pool info
+  size_t admin_pool_size = g_pika_conf->admin_thread_pool_size();
+  tmp_stream << "admin_cmd_pool_size:" << admin_pool_size << "\r\n";
+  
+  info->append(tmp_stream.str());
 }
 
 void PikaServer::BGSaveTaskSchedule(net::TaskFunc func, void* arg) {

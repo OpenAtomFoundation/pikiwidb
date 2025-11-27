@@ -295,6 +295,7 @@ class InfoCmd : public Cmd {
   const static std::string kDebugSection;
   const static std::string kCommandStatsSection;
   const static std::string kCacheSection;
+  const static std::string kThreadpoolSection;
 
   void DoInitial() override;
   void Clear() override {
