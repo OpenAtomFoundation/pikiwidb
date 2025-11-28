@@ -124,14 +124,14 @@ void RedisSender::Stop() {
 
 void RedisSender::SendRedisCommand(const std::string &command) {
   commands_mutex_.Lock();
-  if (commands_queue_.size() < 100) {
+  if (commands_queue_.size() < 100000) {
     commands_queue_.push(command);
     rsignal_.Signal();
     commands_mutex_.Unlock();
     return;
   }
 
-  while (commands_queue_.size() > 100) {
+  while (commands_queue_.size() > 100000) {
     wsignal_.Wait();
   }
   commands_queue_.push(command);
