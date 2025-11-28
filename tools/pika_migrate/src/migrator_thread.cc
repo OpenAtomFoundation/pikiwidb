@@ -9,9 +9,10 @@
 
 #include <vector>
 #include <functional>
+#define GLOG_USE_GLOG_EXPORT
 #include <glog/logging.h>
 
-#include "blackwidow/blackwidow.h"
+#include "storage/storage.h"
 #include "src/redis_strings.h"
 #include "src/redis_lists.h"
 #include "src/redis_hashes.h"
@@ -30,8 +31,6 @@ MigratorThread::~MigratorThread() {
 }
 
 void MigratorThread::MigrateStringsDB() {
-  blackwidow::BlackWidow *bw = (blackwidow::BlackWidow*)(db_);
-
   int64_t scan_batch_num = g_pika_conf->sync_batch_num() * 10;
   if (MAX_BATCH_NUM < scan_batch_num) {
     if (g_pika_conf->sync_batch_num() < MAX_BATCH_NUM) {
@@ -43,22 +42,22 @@ void MigratorThread::MigrateStringsDB() {
 
   int64_t ttl = -1;
   int64_t cursor = 0;
-  blackwidow::Status s;
+  storage::Status s;
   std::string value;
   std::vector<std::string> keys;
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
   while (true) {
-    cursor = bw->Scan(blackwidow::DataType::kStrings, cursor, "*", scan_batch_num, &keys);
+    cursor = storage_->Scan(storage::DataType::kStrings, cursor, "*", scan_batch_num, &keys);
 
     for (const auto& key : keys) {
-      s = bw->Get(key, &value);
+      s = storage_->Get(key, &value);
       if (!s.ok()) {
         LOG(WARNING) << "get " << key << " error: " << s.ToString();
         continue;
       }
 
-      pink::RedisCmdArgsType argv;
+      net::RedisCmdArgsType argv;
       std::string cmd;
 
       argv.push_back("SET");
@@ -67,9 +66,9 @@ void MigratorThread::MigrateStringsDB() {
 
       ttl = -1;
       type_status.clear();
-      type_timestamp = bw->TTL(key, &type_status);
-      if (type_timestamp[blackwidow::kStrings] != -2) {
-        ttl = type_timestamp[blackwidow::kStrings];
+      type_timestamp = storage_->TTL(key, &type_status);
+      if (type_timestamp[storage::kStrings] != -2) {
+        ttl = type_timestamp[storage::kStrings];
       }
 
       if (ttl > 0) {
@@ -77,7 +76,7 @@ void MigratorThread::MigrateStringsDB() {
         argv.push_back(std::to_string(ttl));
       }
 
-      pink::SerializeRedisCommand(argv, &cmd);
+      net::SerializeRedisCommand(argv, &cmd);
       PlusNum();
       DispatchKey(cmd, key);
     }
@@ -89,8 +88,6 @@ void MigratorThread::MigrateStringsDB() {
 }
 
 void MigratorThread::MigrateListsDB() {
-  blackwidow::BlackWidow *bw = (blackwidow::BlackWidow*)(db_);
-
   int64_t scan_batch_num = g_pika_conf->sync_batch_num() * 10;
   if (MAX_BATCH_NUM < scan_batch_num) {
     if (g_pika_conf->sync_batch_num() < MAX_BATCH_NUM) {
@@ -102,18 +99,18 @@ void MigratorThread::MigrateListsDB() {
 
   int64_t ttl = -1;
   int64_t cursor = 0;
-  blackwidow::Status s;
+  storage::Status s;
   std::vector<std::string> keys;
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
 
   while (true) {
-    cursor = bw->Scan(blackwidow::DataType::kLists, cursor, "*", scan_batch_num, &keys);
+    cursor = storage_->Scan(storage::DataType::kLists, cursor, "*", scan_batch_num, &keys);
 
     for (const auto& key : keys) {
       int64_t pos = 0;
       std::vector<std::string> nodes;
-      blackwidow::Status s = bw->LRange(key, pos, pos + g_pika_conf->sync_batch_num() - 1, &nodes);
+      storage::Status s = storage_->LRange(key, pos, pos + g_pika_conf->sync_batch_num() - 1, &nodes);
       if (!s.ok()) {
         LOG(WARNING) << "db->LRange(key:" << key << ", pos:" << pos
           << ", batch size: " << g_pika_conf->sync_batch_num() << ") = " << s.ToString();
@@ -121,7 +118,7 @@ void MigratorThread::MigrateListsDB() {
       }
 
       while (s.ok() && !should_exit_ && !nodes.empty()) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("RPUSH");
@@ -130,13 +127,13 @@ void MigratorThread::MigrateListsDB() {
           argv.push_back(node);
         }
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
 
         pos += g_pika_conf->sync_batch_num();
         nodes.clear();
-        s = bw->LRange(key, pos, pos + g_pika_conf->sync_batch_num() - 1, &nodes);
+        s = storage_->LRange(key, pos, pos + g_pika_conf->sync_batch_num() - 1, &nodes);
         if (!s.ok()) {
           LOG(WARNING) << "db->LRange(key:" << key << ", pos:" << pos
             << ", batch size:" << g_pika_conf->sync_batch_num() << ") = " << s.ToString();
@@ -145,20 +142,20 @@ void MigratorThread::MigrateListsDB() {
 
       ttl = -1;
       type_status.clear();
-      type_timestamp = bw->TTL(key, &type_status);
-      if (type_timestamp[blackwidow::kLists] != -2) {
-        ttl = type_timestamp[blackwidow::kLists];
+      type_timestamp = storage_->TTL(key, &type_status);
+      if (type_timestamp[storage::kLists] != -2) {
+        ttl = type_timestamp[storage::kLists];
       }
 
       if (s.ok() && ttl > 0) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("EXPIRE");
         argv.push_back(key);
         argv.push_back(std::to_string(ttl));
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
@@ -171,8 +168,6 @@ void MigratorThread::MigrateListsDB() {
 }
 
 void MigratorThread::MigrateHashesDB() {
-  blackwidow::BlackWidow *bw = (blackwidow::BlackWidow*)(db_);
-
   int64_t scan_batch_num = g_pika_conf->sync_batch_num() * 10;
   if (MAX_BATCH_NUM < scan_batch_num) {
     if (g_pika_conf->sync_batch_num() < MAX_BATCH_NUM) {
@@ -184,17 +179,17 @@ void MigratorThread::MigrateHashesDB() {
 
   int64_t ttl = -1;
   int64_t cursor = 0;
-  blackwidow::Status s;
+  storage::Status s;
   std::vector<std::string> keys;
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
 
   while (true) {
-    cursor = bw->Scan(blackwidow::DataType::kHashes, cursor, "*", scan_batch_num, &keys);
+    cursor = storage_->Scan(storage::DataType::kHashes, cursor, "*", scan_batch_num, &keys);
 
     for (const auto& key : keys) {
-      std::vector<blackwidow::FieldValue> fvs;
-      blackwidow::Status s = bw->HGetall(key, &fvs);
+      std::vector<storage::FieldValue> fvs;
+      storage::Status s = storage_->HGetall(key, &fvs);
       if (!s.ok()) {
         LOG(WARNING) << "db->HGetall(key:" << key << ") = " << s.ToString();
         continue;
@@ -202,7 +197,7 @@ void MigratorThread::MigrateHashesDB() {
 
       auto it = fvs.begin();
       while (!should_exit_ && it != fvs.end()) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("HMSET");
@@ -214,27 +209,27 @@ void MigratorThread::MigrateHashesDB() {
           argv.push_back(it->value);
         }
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
 
       ttl = -1;
       type_status.clear();
-      type_timestamp = bw->TTL(key, &type_status);
-      if (type_timestamp[blackwidow::kHashes] != -2) {
-        ttl = type_timestamp[blackwidow::kHashes];
+      type_timestamp = storage_->TTL(key, &type_status);
+      if (type_timestamp[storage::kHashes] != -2) {
+        ttl = type_timestamp[storage::kHashes];
       }
 
       if (s.ok() && ttl > 0) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("EXPIRE");
         argv.push_back(key);
         argv.push_back(std::to_string(ttl));
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
@@ -247,8 +242,6 @@ void MigratorThread::MigrateHashesDB() {
 }
 
 void MigratorThread::MigrateSetsDB() {
-  blackwidow::BlackWidow *bw = (blackwidow::BlackWidow*)(db_);
-
   int64_t scan_batch_num = g_pika_conf->sync_batch_num() * 10;
   if (MAX_BATCH_NUM < scan_batch_num) {
     if (g_pika_conf->sync_batch_num() < MAX_BATCH_NUM) {
@@ -260,17 +253,17 @@ void MigratorThread::MigrateSetsDB() {
 
   int64_t ttl = -1;
   int64_t cursor = 0;
-  blackwidow::Status s;
+  storage::Status s;
   std::vector<std::string> keys;
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
 
   while (true) {
-    cursor = bw->Scan(blackwidow::DataType::kSets, cursor, "*", scan_batch_num, &keys);
+    cursor = storage_->Scan(storage::DataType::kSets, cursor, "*", scan_batch_num, &keys);
 
     for (const auto& key : keys) {
       std::vector<std::string> members;
-      blackwidow::Status s = bw->SMembers(key, &members);
+      storage::Status s = storage_->SMembers(key, &members);
       if (!s.ok()) {
         LOG(WARNING) << "db->SMembers(key:" << key << ") = " << s.ToString();
         continue;
@@ -278,7 +271,7 @@ void MigratorThread::MigrateSetsDB() {
       auto it = members.begin();
       while (!should_exit_ && it != members.end()) {
         std::string cmd;
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
 
         argv.push_back("SADD");
         argv.push_back(key);
@@ -288,27 +281,27 @@ void MigratorThread::MigrateSetsDB() {
           argv.push_back(*it);
         }
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
 
       ttl = -1;
       type_status.clear();
-      type_timestamp = bw->TTL(key, &type_status);
-      if (type_timestamp[blackwidow::kSets] != -2) {
-        ttl = type_timestamp[blackwidow::kSets];
+      type_timestamp = storage_->TTL(key, &type_status);
+      if (type_timestamp[storage::kSets] != -2) {
+        ttl = type_timestamp[storage::kSets];
       }
 
       if (s.ok() && ttl > 0) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("EXPIRE");
         argv.push_back(key);
         argv.push_back(std::to_string(ttl));
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
@@ -321,8 +314,6 @@ void MigratorThread::MigrateSetsDB() {
 }
 
 void MigratorThread::MigrateZsetsDB() {
-  blackwidow::BlackWidow *bw = (blackwidow::BlackWidow*)(db_);
-
   int64_t scan_batch_num = g_pika_conf->sync_batch_num() * 10;
   if (MAX_BATCH_NUM < scan_batch_num) {
     if (g_pika_conf->sync_batch_num() < MAX_BATCH_NUM) {
@@ -334,24 +325,24 @@ void MigratorThread::MigrateZsetsDB() {
 
   int64_t ttl = -1;
   int64_t cursor = 0;
-  blackwidow::Status s;
+  storage::Status s;
   std::vector<std::string> keys;
-  std::map<blackwidow::DataType, int64_t> type_timestamp;
-  std::map<blackwidow::DataType, rocksdb::Status> type_status;
+  std::map<storage::DataType, int64_t> type_timestamp;
+  std::map<storage::DataType, rocksdb::Status> type_status;
 
   while (true) {
-    cursor = bw->Scan(blackwidow::DataType::kZSets, cursor, "*", scan_batch_num, &keys);
+    cursor = storage_->Scan(storage::DataType::kZSets, cursor, "*", scan_batch_num, &keys);
 
     for (const auto& key : keys) {
-      std::vector<blackwidow::ScoreMember> score_members;
-      blackwidow::Status s = bw->ZRange(key, 0, -1, &score_members);
+      std::vector<storage::ScoreMember> score_members;
+      storage::Status s = storage_->ZRange(key, 0, -1, &score_members);
       if (!s.ok()) {
         LOG(WARNING) << "db->ZRange(key:" << key << ") = " << s.ToString();
         continue;
       }
       auto it = score_members.begin();
       while (!should_exit_ && it != score_members.end()) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("ZADD");
@@ -363,27 +354,27 @@ void MigratorThread::MigrateZsetsDB() {
           argv.push_back(it->member);
         }
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
 
       ttl = -1;
       type_status.clear();
-      type_timestamp = bw->TTL(key, &type_status);
-      if (type_timestamp[blackwidow::kZSets] != -2) {
-        ttl = type_timestamp[blackwidow::kZSets];
+      type_timestamp = storage_->TTL(key, &type_status);
+      if (type_timestamp[storage::kZSets] != -2) {
+        ttl = type_timestamp[storage::kZSets];
       }
 
       if (s.ok() && ttl > 0) {
-        pink::RedisCmdArgsType argv;
+        net::RedisCmdArgsType argv;
         std::string cmd;
 
         argv.push_back("EXPIRE");
         argv.push_back(key);
         argv.push_back(std::to_string(ttl));
 
-        pink::SerializeRedisCommand(argv, &cmd);
+        net::SerializeRedisCommand(argv, &cmd);
         PlusNum();
         DispatchKey(cmd, key);
       }
@@ -397,27 +388,27 @@ void MigratorThread::MigrateZsetsDB() {
 
 void MigratorThread::MigrateDB() {
   switch (int(type_)) {
-    case int(blackwidow::kStrings) : {
+    case int(storage::kStrings) : {
       MigrateStringsDB();
       break;
     }
 
-    case int(blackwidow::kLists) : {
+    case int(storage::kLists) : {
       MigrateListsDB();
       break;
     }
 
-    case int(blackwidow::kHashes) : {
+    case int(storage::kHashes) : {
       MigrateHashesDB();
       break;
     }
 
-    case int(blackwidow::kSets) : {
+    case int(storage::kSets) : {
       MigrateSetsDB();
       break;
     }
 
-    case int(blackwidow::kZSets) : {
+    case int(storage::kZSets) : {
       MigrateZsetsDB();
       break;
     }
@@ -435,33 +426,33 @@ void MigratorThread::DispatchKey(const std::string &command, const std::string& 
   if (key.size()) { // no empty
     idx = std::hash<std::string>()(key) % thread_num_;
   }
-  (*senders_)[idx]->LoadKey(command);
+  (*senders_)[idx]->SendRedisCommand(command);
 }
 
 const char* GetDBTypeString(int type) {
   switch (type) {
-    case int(blackwidow::kStrings) : {
-	  return "blackwidow::kStrings";
+    case int(storage::kStrings) : {
+	  return "storage::kStrings";
     }
 
-    case int(blackwidow::kLists) : {
-	  return "blackwidow::kLists";
+    case int(storage::kLists) : {
+	  return "storage::kLists";
     }
 
-    case int(blackwidow::kHashes) : {
-	  return "blackwidow::kHashes";
+    case int(storage::kHashes) : {
+	  return "storage::kHashes";
     }
 
-    case int(blackwidow::kSets) : {
-	  return "blackwidow::kSets";
+    case int(storage::kSets) : {
+	  return "storage::kSets";
     }
 
-    case int(blackwidow::kZSets) : {
-	  return "blackwidow::kZSets";
+    case int(storage::kZSets) : {
+	  return "storage::kZSets";
     }
 
     default: {
-	  return "blackwidow::Unknown";
+	  return "storage::Unknown";
     }
   }
 }
@@ -472,4 +463,3 @@ void *MigratorThread::ThreadMain() {
   LOG(INFO) << GetDBTypeString(type_) << " keys have been dispatched completly";
   return NULL;
 }
-

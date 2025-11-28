@@ -6,27 +6,59 @@
 #ifndef PIKA_CMD_TABLE_MANAGER_H_
 #define PIKA_CMD_TABLE_MANAGER_H_
 
+#include <shared_mutex>
+#include <thread>
+
+#include "include/acl.h"
 #include "include/pika_command.h"
 #include "include/pika_data_distribution.h"
 
+struct CommandStatistics {
+  CommandStatistics() = default;
+  CommandStatistics(const CommandStatistics& other) {
+    cmd_time_consuming.store(other.cmd_time_consuming.load());
+    cmd_count.store(other.cmd_count.load());
+  }
+  std::atomic<uint64_t> cmd_count = 0;
+  std::atomic<uint64_t> cmd_time_consuming = 0;
+};
 
 class PikaCmdTableManager {
+  friend AclSelector;
+
  public:
   PikaCmdTableManager();
-  virtual ~PikaCmdTableManager();
+  virtual ~PikaCmdTableManager() = default;
+  void InitCmdTable(void);
+  void RenameCommand(const std::string before, const std::string after);
   std::shared_ptr<Cmd> GetCmd(const std::string& opt);
-  uint32_t DistributeKey(const std::string& key, uint32_t partition_num);
+  bool CmdExist(const std::string& cmd) const;
+  CmdTable* GetCmdTable();
+  uint32_t GetMaxCmdId();
+
+  std::vector<std::string> GetAclCategoryCmdNames(uint32_t flag);
+
+  /*
+  * Info Commandstats used
+  */
+  std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
+
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
 
   void InsertCurrentThreadDistributionMap();
-  bool CheckCurrentThreadDistributionMapExist(const pid_t& tid);
+  bool CheckCurrentThreadDistributionMapExist(const std::thread::id& tid);
 
-  void TryChangeToAlias(std::string *internal_opt);
+  std::unique_ptr<CmdTable> cmds_;
 
-  CmdTable* cmds_;
+  uint32_t cmdId_ = 0;
 
-  pthread_rwlock_t map_protector_;
-  std::unordered_map<pid_t, PikaDataDistribution*> thread_distribution_map_;
+  std::shared_mutex map_protector_;
+  std::unordered_map<std::thread::id, std::unique_ptr<PikaDataDistribution>> thread_distribution_map_;
+
+  /*
+  * Info Commandstats used
+  */
+  std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
 };
 #endif
