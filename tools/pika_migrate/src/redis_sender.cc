@@ -12,6 +12,9 @@
 #include <glog/logging.h>
 
 static time_t kCheckDiff = 1;
+// 增加空闲 keepalive 周期（秒），应小于服务端 keepalive_timeout（如 60s），默认 30s
+static time_t kKeepaliveInterval = 30;
+static std::string kpingCmd = "*1\r\n$4\r\nPING\r\n";
 
 RedisSender::RedisSender(int id, std::string ip, int64_t port, std::string user, std::string password):
   id_(id),
@@ -149,17 +152,28 @@ int RedisSender::SendCommand(std::string &command) {
 
 void *RedisSender::ThreadMain() {
   LOG(INFO) << "Start redis sender " << id_ << " thread...";
-  // sleep(15);
   int ret = 0;
 
   ConnectRedis();
 
   while (!should_exit_) {
-    std::unique_lock lock(signal_mutex_);
-    while (commandQueueSize() == 0 && !should_exit_) {
-      rsignal_.wait_for(lock, std::chrono::milliseconds(100));
+    commands_mutex_.Lock();
+    while (commands_queue_.size() == 0 && !should_exit_) {
+      rsignal_.TimedWait(100);
+      time_t whileNow = ::time(NULL);
+      // 如果队列仍为空，定期保活（PING）
+      if (commands_queue_.size() == 0 && cli_ != nullptr) {
+        if (whileNow - last_write_time_ >= kKeepaliveInterval) {         
+          int r = SendCommand(kpingCmd);
+          if (r == 0) {
+            LOG(INFO) << "RedisSender " << id_ << " keepalive PING sent to " << ip_ << ":" << port_;
+            last_write_time_ = ::time(NULL);
+          } else {
+            LOG(WARNING) << "RedisSender " << id_ << " keepalive PING failed, will try reconnect";
+          }
+        }
+      }
     }
-
     if (should_exit_) {
       break;
     }
@@ -170,11 +184,15 @@ void *RedisSender::ThreadMain() {
 
     // get redis command
     std::string command;
-    {
-      std::lock_guard l(command_queue_mutex_);
-      command = commands_queue_.front();
-      elements_++;
-      commands_queue_.pop();
+    commands_mutex_.Lock();
+    command = commands_queue_.front();
+    elements_++;
+    commands_queue_.pop();
+    wsignal_.Signal();
+    commands_mutex_.Unlock();
+    ret = SendCommand(command);
+    if (ret == 0) {
+      cnt_++;
     }
 
     wsignal_.notify_one();
