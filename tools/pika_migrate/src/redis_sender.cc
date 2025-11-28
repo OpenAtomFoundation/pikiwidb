@@ -14,6 +14,9 @@
 #include "slash/include/xdebug.h"
 
 static time_t kCheckDiff = 1;
+// 增加空闲 keepalive 周期（秒），应小于服务端 keepalive_timeout（如 60s），默认 30s
+static time_t kKeepaliveInterval = 30;
+static std::string kpingCmd = "*1\r\n$4\r\nPING\r\n";
 
 RedisSender::RedisSender(int id, std::string ip, int64_t port, std::string password):
   id_(id),
@@ -121,14 +124,14 @@ void RedisSender::Stop() {
 
 void RedisSender::SendRedisCommand(const std::string &command) {
   commands_mutex_.Lock();
-  if (commands_queue_.size() < 100000) {
+  if (commands_queue_.size() < 100) {
     commands_queue_.push(command);
     rsignal_.Signal();
     commands_mutex_.Unlock();
     return;
   }
 
-  while (commands_queue_.size() > 100000) {
+  while (commands_queue_.size() > 100) {
     wsignal_.Wait();
   }
   commands_queue_.push(command);
@@ -167,7 +170,6 @@ int RedisSender::SendCommand(std::string &command) {
 
 void *RedisSender::ThreadMain() {
   LOG(INFO) << "Start redis sender " << id_ << " thread...";
-  // sleep(15);
   int ret = 0;
 
   ConnectRedis();
@@ -176,9 +178,20 @@ void *RedisSender::ThreadMain() {
     commands_mutex_.Lock();
     while (commands_queue_.size() == 0 && !should_exit_) {
       rsignal_.TimedWait(100);
-      // rsignal_.Wait();
+      time_t whileNow = ::time(NULL);
+      // 如果队列仍为空，定期保活（PING）
+      if (commands_queue_.size() == 0 && cli_ != nullptr) {
+        if (whileNow - last_write_time_ >= kKeepaliveInterval) {         
+          int r = SendCommand(kpingCmd);
+          if (r == 0) {
+            LOG(INFO) << "RedisSender " << id_ << " keepalive PING sent to " << ip_ << ":" << port_;
+            last_write_time_ = ::time(NULL);
+          } else {
+            LOG(WARNING) << "RedisSender " << id_ << " keepalive PING failed, will try reconnect";
+          }
+        }
+      }
     }
-    // if (commands_queue_.size() == 0 && should_exit_) {
     if (should_exit_) {
       commands_mutex_.Unlock();
       break;
@@ -194,7 +207,6 @@ void *RedisSender::ThreadMain() {
     std::string command;
     commands_mutex_.Lock();
     command = commands_queue_.front();
-    // printf("%d, command %s\n", id_, command.c_str());
     elements_++;
     commands_queue_.pop();
     wsignal_.Signal();
