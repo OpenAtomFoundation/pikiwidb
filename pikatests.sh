@@ -5,8 +5,12 @@ function cleanup() {
     rm -rf ./log[0-9]*
     rm -rf ./db[0-9]*
     rm -rf dbsync/
-    rm src/redis-server
+    rm -f src/redis-server
+    echo "Cleanup completed"
 }
+
+# Add trap to ensure cleanup is executed on script exit, even if there's an error
+trap cleanup EXIT
 
 # check if tcl is installed
 function check_tcl {
