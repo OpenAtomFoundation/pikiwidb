@@ -9,8 +9,8 @@ rm -rf /tmp/codis || true
 rm -rf codis_data_1 || true
 rm -rf codis_data_2 || true
 
-# Clean up log directory in codis to free space, but preserve bin if it exists
-# to avoid unnecessary recompilation
+# Clean up temporary directories in codis to free space
+rm -rf ../codis/bin || true
 rm -rf ../codis/log || true
 mkdir -p ../codis/bin
 mkdir -p ../codis/log
@@ -39,9 +39,9 @@ mkdir codis_data_2
 sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8000|' -e 's|log-path : ./log/|log-path : ./codis_data_1/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_1/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_1/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_1/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_1/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8000.conf
 sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8001|' -e 's|log-path : ./log/|log-path : ./codis_data_2/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_2/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_2/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_2/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_2/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8001.conf
 # Start pika instances with reduced memory footprint
-# Add memory_limit parameter to reduce memory usage
-sed -i.bak -e 's|#max-memory : 0|max-memory : 512|' ./pika_8000.conf
-sed -i.bak -e 's|#max-memory : 0|max-memory : 512|' ./pika_8001.conf
+# Add memory_limit parameter to reduce memory usage (256MB per instance)
+sed -i.bak -e 's|#max-memory : 0|max-memory : 256|' ./pika_8000.conf
+sed -i.bak -e 's|#max-memory : 0|max-memory : 256|' ./pika_8001.conf
 
 # Start instances one by one with time to initialize
 ./pika -c ./pika_8000.conf
@@ -54,13 +54,17 @@ sleep 10
 free -h || true
 
 cd ../codis
-# Check if codis is already built to avoid unnecessary compilation
-if [ ! -f "bin/codis-admin" ] || [ ! -f "bin/codis-proxy" ] || [ ! -f "bin/codis-dashboard" ]; then
-    echo "Building codis..."
-    make
-else
-    echo "Codis already built, skipping compilation..."
+echo "Building codis..."
+
+# Free up memory before building
+echo "Clearing caches to free up memory..."
+sync
+if [ $(id -u) -eq 0 ]; then
+    echo 3 > /proc/sys/vm/drop_caches || true
 fi
+
+# Limit parallel jobs during make to reduce memory usage
+make -j2
 
 echo 'startup codis dashboard and codis proxy'
 ./admin/codis-dashboard-admin.sh start
