@@ -3,15 +3,20 @@
 # Clean up processes and temporary files
 pkill -9 pika || true
 pkill -9 codis || true
+# Wait for processes to fully terminate and release resources
+sleep 5
 rm -rf /tmp/codis || true
 rm -rf codis_data_1 || true
 rm -rf codis_data_2 || true
 
-# Clean up temporary directories in codis to free space
-rm -rf ../codis/bin || true
+# Clean up log directory in codis to free space, but preserve bin if it exists
+# to avoid unnecessary recompilation
 rm -rf ../codis/log || true
 mkdir -p ../codis/bin
 mkdir -p ../codis/log
+
+# Display memory usage for monitoring
+free -h || true
 
 # Display available disk space
 df -h
@@ -33,14 +38,29 @@ mkdir codis_data_2
 # Example Change the location for storing data on primary and secondary nodes in the configuration file
 sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8000|' -e 's|log-path : ./log/|log-path : ./codis_data_1/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_1/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_1/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_1/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_1/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8000.conf
 sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8001|' -e 's|log-path : ./log/|log-path : ./codis_data_2/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_2/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_2/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_2/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_2/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8001.conf
-# Start three nodes
+# Start pika instances with reduced memory footprint
+# Add memory_limit parameter to reduce memory usage
+sed -i.bak -e 's|#max-memory : 0|max-memory : 512|' ./pika_8000.conf
+sed -i.bak -e 's|#max-memory : 0|max-memory : 512|' ./pika_8001.conf
+
+# Start instances one by one with time to initialize
 ./pika -c ./pika_8000.conf
+sleep 5
 ./pika -c ./pika_8001.conf
 #ensure both master and slave are ready
 sleep 10
 
+# Display memory usage after starting pika instances
+free -h || true
+
 cd ../codis
-make
+# Check if codis is already built to avoid unnecessary compilation
+if [ ! -f "bin/codis-admin" ] || [ ! -f "bin/codis-proxy" ] || [ ! -f "bin/codis-dashboard" ]; then
+    echo "Building codis..."
+    make
+else
+    echo "Codis already built, skipping compilation..."
+fi
 
 echo 'startup codis dashboard and codis proxy'
 ./admin/codis-dashboard-admin.sh start
