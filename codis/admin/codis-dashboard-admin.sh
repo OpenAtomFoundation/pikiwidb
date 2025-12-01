@@ -20,8 +20,17 @@ CODIS_DASHBOARD_CONF_FILE=$CODIS_CONF_DIR/dashboard.toml
 echo $CODIS_DASHBOARD_CONF_FILE
 
 if [ ! -d $CODIS_LOG_DIR ]; then
-    mkdir -p $CODIS_LOG_DIR
+    # Try to create directory, but handle failure gracefully
+    mkdir -p $CODIS_LOG_DIR || {
+        echo "WARNING: Failed to create log directory at $CODIS_LOG_DIR"
+        # Use /tmp directory as fallback
+        CODIS_LOG_DIR="/tmp"
+        echo "Using fallback directory: $CODIS_LOG_DIR"
+    }
 fi
+
+# Clean up old log files to save space
+find $CODIS_LOG_DIR -name "codis-*.log" -type f -mtime +1 -delete 2>/dev/null || true
 
 
 case $1 in

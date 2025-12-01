@@ -45,9 +45,12 @@ jobs:
         # Build your program with the given configuration
         run: cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Artifacts
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps/src
+          rm -rf ./build/CMakeFiles
+          df -h
 
       - uses: actions/upload-artifact@v4
         with:
@@ -65,6 +68,17 @@ jobs:
         run: ./pikatests.sh all clean
 
         # master on port 9221, slave on port 9231, all with 2 db
+      - name: Check Disk Space
+        run: |
+          echo "Checking disk space before starting codis..."
+          df -h
+          echo "Cleaning up additional space if needed..."
+          docker system prune -af || true
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/share/boost || true
+          df -h
+
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
         run: |
@@ -105,9 +119,12 @@ jobs:
           source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Artifacts
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps/src
+          rm -rf ./build/CMakeFiles
+          df -h
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
@@ -116,6 +133,14 @@ jobs:
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
+
+      - name: Check Disk Space
+        run: |
+          echo "Checking disk space before starting codis..."
+          df -h
+          echo "Cleaning up additional space if needed..."
+          rm -rf /tmp/* || true
+          df -h
 
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
@@ -165,11 +190,14 @@ jobs:
         run: |
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Artifacts
         run: |
           cp deps/lib/libz.1.dylib .
           cp deps/lib/libz.1.dylib tests/integration/
           rm -rf ./buildtrees
+          rm -rf ./deps/src
+          rm -rf ./build/CMakeFiles
+          df -h
 
       - name: Test
         working-directory: ${{ github.workspace }}/build

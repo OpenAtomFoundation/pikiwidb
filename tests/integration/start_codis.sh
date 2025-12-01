@@ -1,10 +1,20 @@
 #!/bin/bash
 
-#pkill -9 pika
-#pkill -9 codis
-#rm -rf /tmp/codis
-#rm -rf codis_data_1
-#rm -rf codis_data_2
+# Clean up processes and temporary files
+pkill -9 pika || true
+pkill -9 codis || true
+rm -rf /tmp/codis || true
+rm -rf codis_data_1 || true
+rm -rf codis_data_2 || true
+
+# Clean up temporary directories in codis to free space
+rm -rf ../codis/bin || true
+rm -rf ../codis/log || true
+mkdir -p ../codis/bin
+mkdir -p ../codis/log
+
+# Display available disk space
+df -h
 
 CODIS_DASHBOARD_ADDR=127.0.0.1:18080
 
@@ -55,6 +65,3 @@ echo 'resync all groups'
 
 #ensure codis are ready
 sleep 10
-
-
-
