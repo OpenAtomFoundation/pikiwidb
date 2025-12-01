@@ -31,8 +31,8 @@ mkdir codis_data_1
 mkdir codis_data_2
 
 # Example Change the location for storing data on primary and secondary nodes in the configuration file
-sed -i '' -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8000|' -e 's|log-path : ./log/|log-path : ./codis_data_1/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_1/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_1/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_1/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_1/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8000.conf
-sed -i '' -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8001|' -e 's|log-path : ./log/|log-path : ./codis_data_2/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_2/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_2/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_2/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_2/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8001.conf
+sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8000|' -e 's|log-path : ./log/|log-path : ./codis_data_1/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_1/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_1/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_1/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_1/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8000.conf
+sed -i.bak -e 's|databases : 1|databases : 2|' -e 's|port : 9221|port : 8001|' -e 's|log-path : ./log/|log-path : ./codis_data_2/log/|' -e 's|db-path : ./db/|db-path : ./codis_data_2/db/|' -e 's|dump-path : ./dump/|dump-path : ./codis_data_2/dump/|' -e 's|pidfile : ./pika.pid|pidfile : ./codis_data_2/pika.pid|' -e 's|db-sync-path : ./dbsync/|db-sync-path : ./codis_data_2/dbsync/|' -e 's|#daemonize : yes|daemonize : yes|' ./pika_8001.conf
 # Start three nodes
 ./pika -c ./pika_8000.conf
 ./pika -c ./pika_8001.conf
