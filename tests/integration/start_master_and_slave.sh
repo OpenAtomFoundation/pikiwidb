@@ -15,7 +15,10 @@ mkdir slave_data
 sed -i.bak  \
   -e 's|databases : 1|databases : 2|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_single.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_single.conf
 
 sed -i.bak   \
   -e 's|databases : 1|databases : 2|'  \
@@ -26,7 +29,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./master_data/pika.pid|'  \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./master_data/dbsync/|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_master.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_master.conf
 
 sed -i.bak   \
   -e 's|databases : 1|databases : 2|'  \
@@ -37,7 +43,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./slave_data/pika.pid|'  \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./slave_data/dbsync/|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_slave.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_slave.conf
 
 sed -i.bak   \
   -e 's|# rename-command : FLUSHALL 360flushall|rename-command : FLUSHALL 360flushall|'  \
@@ -50,7 +59,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./rename_data/pika.pid|'  \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./rename_data/dbsync/|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_rename.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_rename.conf
 
 sed -i.bak   \
   -e 's|requirepass :|requirepass : requirepass|' \
@@ -64,7 +76,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./acl1_data/pika.pid|' \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./acl1_data/dbsync/|' \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_acl_both_password.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_acl_both_password.conf
 
 sed -i.bak   \
   -e 's|requirepass :|requirepass : requirepass|'  \
@@ -77,7 +92,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./acl2_data/pika.pid|'  \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./acl2_data/dbsync/|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_acl_only_admin_password.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_acl_only_admin_password.conf
 sed -i.bak   \
   -e 's|requirepass :|requirepass : requirepass|'  \
   -e 's|masterauth :|masterauth : requirepass|'  \
@@ -90,7 +108,10 @@ sed -i.bak   \
   -e 's|pidfile : ./pika.pid|pidfile : ./acl3_data/pika.pid|'  \
   -e 's|db-sync-path : ./dbsync/|db-sync-path : ./acl3_data/dbsync/|'  \
   -e 's|#daemonize : yes|daemonize : yes|' \
-  -e 's|timeout : 60|timeout : 500|' ./pika_has_other_acl_user.conf
+  -e 's|timeout : 60|timeout : 500|' \
+  -e 's|cache-maxmemory : 10737418240|cache-maxmemory : 268435456|' \
+  -e 's|max-write-buffer-size : 10737418240|max-write-buffer-size : 268435456|' \
+  -e 's|write-buffer-size : 256M|write-buffer-size : 64M|' ./pika_has_other_acl_user.conf
 echo -e '\nuser : limit on >limitpass ~* +@all &*' >> ./pika_has_other_acl_user.conf
 
 # Start three nodes
