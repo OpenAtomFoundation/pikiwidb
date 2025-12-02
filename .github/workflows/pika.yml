@@ -134,7 +134,7 @@ jobs:
       - name: Configure CMake
         run: |
           source /opt/rh/devtoolset-10/enable
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=OFF -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
 
       - name: Build
         run: |
@@ -144,17 +144,10 @@ jobs:
       - name: Cleanup Build Trees and Intermediate Files
         run: |
           rm -rf ./buildtrees
-          rm -rf ./deps
-          # 立即清理构建中间文件，保留可执行文件
-          find ./build -name "*.o" -type f -delete
-          find ./build -name "*.a" -type f -delete
-          rm -rf ./build/CMakeFiles
-          rm -rf ./build/_deps
-          rm -rf ./build/src
-          rm -rf ./build/tools/*/CMakeFiles
-          # 清理codis构建产物
-          rm -rf ./codis/bin/*.o
-          rm -rf ./codis/pkg
+          # 只清理非必要的构建中间文件，保留可执行文件和关键目录
+          find ./build -path "*/CMakeFiles/*.o" -delete || true
+          find ./build -path "*/CMakeFiles/*.a" -delete || true
+          # 保留codis目录和重要结构
           df -h
 
       - name: Test
