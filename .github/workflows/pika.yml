@@ -161,7 +161,14 @@ jobs:
       - name: Cleanup After Unit Test
         run: |
           # 清理单元测试产生的临时文件
-          rm -rf ./log* ./db* ./dump ./dbsync
+          find ${{ github.workspace }} -name "log*" -type d -exec rm -rf {} + || true
+          find ${{ github.workspace }} -name "db*" -type d -exec rm -rf {} + || true
+          find ${{ github.workspace }} -name "dump*" -type d -exec rm -rf {} + || true
+          find ${{ github.workspace }} -name "dbsync*" -type d -exec rm -rf {} + || true
+          # 更彻底地清理临时文件
+          find ${{ github.workspace }} -name "*.log" -type f -delete || true
+          find ${{ github.workspace }} -name "*.tmp" -type f -delete || true
+          find ${{ github.workspace }} -name "core.*" -type f -delete || true
           df -h
 
       - name: Cleanup Before Integration Tests
