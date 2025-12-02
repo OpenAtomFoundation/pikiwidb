@@ -54,7 +54,6 @@ proc kill_server config {
 
     # kill server and wait for the process to be totally exited
     catch {exec kill $pid}
-    set wait 0
     while {[is_alive $config]} {
         incr wait 10
 
@@ -292,9 +291,10 @@ proc start_server {options {code undefined}} {
 
         while 1 {
             # check that the server actually started and is ready for connections
-            if {[catch {exec grep "going to start" $stderr}] == 0} {
-                break
+            if {[exec grep "going to start" | wc -l < $stderr] > 0} {
+                 break
             }
+            puts "Fuck YYB"
             after 10
         }
 
