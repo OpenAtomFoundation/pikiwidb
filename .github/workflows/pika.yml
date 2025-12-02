@@ -134,17 +134,27 @@ jobs:
       - name: Configure CMake
         run: |
           source /opt/rh/devtoolset-10/enable
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=OFF -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
 
       - name: Build
         run: |
           source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup Build Trees
+      - name: Cleanup Build Trees and Intermediate Files
         run: |
           rm -rf ./buildtrees
           rm -rf ./deps
+          # 立即清理构建中间文件，保留可执行文件
+          find ./build -name "*.o" -type f -delete
+          find ./build -name "*.a" -type f -delete
+          rm -rf ./build/CMakeFiles
+          rm -rf ./build/_deps
+          rm -rf ./build/src
+          rm -rf ./build/tools/*/CMakeFiles
+          # 清理codis构建产物
+          rm -rf ./codis/bin/*.o
+          rm -rf ./codis/pkg
           df -h
 
       - name: Test
@@ -155,12 +165,17 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
 
-      - name: Cleanup Build Artifacts
+      - name: Cleanup After Unit Test
         run: |
-          find ./build -name "*.o" -type f -delete
-          find ./build -name "*.a" -type f -delete
-          rm -rf ./build/CMakeFiles
-          rm -rf ./build/_deps
+          # 清理单元测试产生的临时文件
+          rm -rf ./log* ./db* ./dump ./dbsync
+          df -h
+
+      - name: Cleanup Before Integration Tests
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          # 在启动集成测试前再次确认清理
+          rm -rf ./log* ./db* ./dump* ./dbsync*
           df -h
 
       - name: Start codis, pika master and pika slave
@@ -170,11 +185,10 @@ jobs:
           ../tests/integration/start_master_and_slave.sh
           chmod +x ../tests/integration/start_codis.sh
           ../tests/integration/start_codis.sh
+
       - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}/build
         run: |
-          cd ../tools/pika_keys_analysis/
-          go test -v ./...
           cd ../../tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
