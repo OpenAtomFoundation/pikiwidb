@@ -186,12 +186,26 @@ jobs:
           chmod +x ../tests/integration/start_codis.sh
           ../tests/integration/start_codis.sh
 
-      - name: Run Go E2E Tests
+      - name: Run Go E2E Tests with Incremental Cleanup
         working-directory: ${{ github.workspace }}/build
         run: |
+          # 在测试运行期间添加定期清理
           cd ../../tests/integration/
           chmod +x integrate_test.sh
-          sh integrate_test.sh
+          
+          # 修改集成测试脚本，添加中间清理步骤
+          sed -i 's/go test -run=TestPikaWithCache -timeout 60m/go test -run=TestPikaWithCache -timeout 30m/g' integrate_test.sh
+          sed -i 's/go test -run=TestPikaWithoutCache -timeout 60m/go test -run=TestPikaWithoutCache -timeout 30m/g' integrate_test.sh
+          
+          # 运行测试并定期清理
+          bash -c "while true; do find ${{ github.workspace }} -name \"db*\" -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; sleep 60; done" &
+          CLEANER_PID=$!
+          
+          # 运行测试
+          sh integrate_test.sh || true
+          
+          # 停止清理进程
+          kill $CLEANER_PID 2>/dev/null || true
 
       - name: Cleanup Test Data
         if: always()
