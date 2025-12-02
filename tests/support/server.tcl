@@ -292,7 +292,7 @@ proc start_server {options {code undefined}} {
         while 1 {
             # check that the server actually started and is ready for connections
             if {[exec grep "going to start" | wc -l < $stderr] > 0} {
-                 break
+                break
             }
             puts "Fuck YYB"
             after 10
