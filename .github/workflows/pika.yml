@@ -124,6 +124,11 @@ jobs:
           rm -rf /usr/share/dotnet
           rm -rf /opt/ghc
           rm -rf /usr/local/share/boost
+          # 彻底清理临时文件
+          find / -type f -name "*.log" -delete 2>/dev/null || true
+          find / -type f -name "*.tmp" -delete 2>/dev/null || true
+          find / -name '*cache*' -type d -exec rm -rf {} + 2>/dev/null || true
+          find / -name '*.bak' -type f -delete 2>/dev/null || true
           df -h
 
       - name: Checkout
@@ -145,6 +150,9 @@ jobs:
         run: |
           rm -rf ./buildtrees
           rm -rf ./deps
+          # Clean build intermediate files but keep binaries
+          find ./build -name "*.o" -type f -delete || true
+          find ./build -name "*.a" -type f -delete || true
           df -h
 
       - name: Test
@@ -154,6 +162,18 @@ jobs:
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
+
+      - name: Cleanup After Unit Test
+        run: |
+          # Clean up test data to free space before integration tests
+          rm -rf ./log* ./db* ./dump* ./dbsync* || true
+          df -h
+
+      - name: Create Log Directories
+        run: |
+          mkdir -p /__w/pikiwidb/pikiwidb/codis/admin/../log
+          mkdir -p /__w/pikiwidb/pikiwidb/log
+          df -h
 
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
