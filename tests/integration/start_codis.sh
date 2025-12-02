@@ -9,8 +9,8 @@ rm -rf /tmp/codis || true
 rm -rf codis_data_1 || true
 rm -rf codis_data_2 || true
 
-# Clean up temporary directories in codis to free space
-rm -rf ../codis/bin || true
+# Clean up log directory in codis to free space, but keep bin directory 
+# to preserve existing codis binaries
 rm -rf ../codis/log || true
 mkdir -p ../codis/bin
 mkdir -p ../codis/log
@@ -77,16 +77,7 @@ free -h || true
 
 cd ../codis
 echo "Building codis..."
-
-# Free up memory before building
-echo "Clearing caches to free up memory..."
-sync
-if [ $(id -u) -eq 0 ]; then
-    echo 3 > /proc/sys/vm/drop_caches || true
-fi
-
-# Limit parallel jobs during make to reduce memory usage
-make -j2
+make
 
 echo 'startup codis dashboard and codis proxy'
 ./admin/codis-dashboard-admin.sh start
