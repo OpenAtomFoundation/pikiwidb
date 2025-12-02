@@ -141,13 +141,10 @@ jobs:
           source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup Build Trees and Intermediate Files
+      - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
-          # 只清理非必要的构建中间文件，保留可执行文件和关键目录
-          find ./build -path "*/CMakeFiles/*.o" -delete || true
-          find ./build -path "*/CMakeFiles/*.a" -delete || true
-          # 保留codis目录和重要结构
+          rm -rf ./deps
           df -h
 
       - name: Test
@@ -158,26 +155,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
 
-      - name: Cleanup After Unit Test
-        run: |
-          # 清理单元测试产生的临时文件
-          find ${{ github.workspace }} -name "log*" -type d -exec rm -rf {} + || true
-          find ${{ github.workspace }} -name "db*" -type d -exec rm -rf {} + || true
-          find ${{ github.workspace }} -name "dump*" -type d -exec rm -rf {} + || true
-          find ${{ github.workspace }} -name "dbsync*" -type d -exec rm -rf {} + || true
-          # 更彻底地清理临时文件
-          find ${{ github.workspace }} -name "*.log" -type f -delete || true
-          find ${{ github.workspace }} -name "*.tmp" -type f -delete || true
-          find ${{ github.workspace }} -name "core.*" -type f -delete || true
-          df -h
-
-      - name: Cleanup Before Integration Tests
-        working-directory: ${{ github.workspace }}/build
-        run: |
-          # 在启动集成测试前再次确认清理
-          rm -rf ./log* ./db* ./dump* ./dbsync*
-          df -h
-
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
         run: |
@@ -186,26 +163,14 @@ jobs:
           chmod +x ../tests/integration/start_codis.sh
           ../tests/integration/start_codis.sh
 
-      - name: Run Go E2E Tests with Incremental Cleanup
+      - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}/build
         run: |
-          # 在测试运行期间添加定期清理
+          cd ../tools/pika_keys_analysis/
+          go test -v ./...
           cd ../../tests/integration/
           chmod +x integrate_test.sh
-          
-          # 修改集成测试脚本，添加中间清理步骤
-          sed -i 's/go test -run=TestPikaWithCache -timeout 60m/go test -run=TestPikaWithCache -timeout 30m/g' integrate_test.sh
-          sed -i 's/go test -run=TestPikaWithoutCache -timeout 60m/go test -run=TestPikaWithoutCache -timeout 30m/g' integrate_test.sh
-          
-          # 运行测试并定期清理
-          bash -c "while true; do find ${{ github.workspace }} -name \"db*\" -type d -mmin +10 -exec rm -rf {} + 2>/dev/null; sleep 60; done" &
-          CLEANER_PID=$!
-          
-          # 运行测试
-          sh integrate_test.sh || true
-          
-          # 停止清理进程
-          kill $CLEANER_PID 2>/dev/null || true
+          sh integrate_test.sh
 
       - name: Cleanup Test Data
         if: always()
