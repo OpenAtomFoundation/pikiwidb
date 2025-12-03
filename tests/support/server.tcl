@@ -287,7 +287,7 @@ proc start_server {options {code undefined}} {
         set line [exec head -n1 $stdout]
         if {[string match {*already in use*} $line]} {
             error_and_quit $config_file $line
-        }0
+        }
 
         while 1 {
             # check that the server actually started and is ready for connections
