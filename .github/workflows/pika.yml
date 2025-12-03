@@ -169,10 +169,32 @@ jobs:
           rm -rf ./log* ./db* ./dump* ./dbsync* || true
           df -h
 
+      - name: Extreme Disk Cleanup
+        run: |
+        
+          rm -rf /usr/local/share/* || true
+          rm -rf /usr/share/doc/* || true
+          rm -rf /usr/share/man/* || true
+          rm -rf /var/cache/* || true
+          
+          find ${{ github.workspace }} -name "*.o" -type f -delete || true
+          find ${{ github.workspace }} -name "*.a" -type f -delete || true
+          find ${{ github.workspace }} -name "*.la" -type f -delete || true
+          find ${{ github.workspace }} -name "*.so" -type f -delete || true
+          find ${{ github.workspace }} -name "*.pyc" -type f -delete || true
+          
+          rm -rf ${{ github.workspace }}/.git || true
+          
+          df -h
+          
+          echo "Largest directories:"
+          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -20
+
       - name: Create Log Directories
         run: |
           mkdir -p /__w/pikiwidb/pikiwidb/codis/admin/../log
           mkdir -p /__w/pikiwidb/pikiwidb/log
+          mkdir -p ./bin || true
           df -h
 
       - name: Start codis, pika master and pika slave
