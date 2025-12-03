@@ -124,7 +124,6 @@ jobs:
           rm -rf /usr/share/dotnet
           rm -rf /opt/ghc
           rm -rf /usr/local/share/boost
-          # 彻底清理临时文件
           find / -type f -name "*.log" -delete 2>/dev/null || true
           find / -type f -name "*.tmp" -delete 2>/dev/null || true
           find / -name '*cache*' -type d -exec rm -rf {} + 2>/dev/null || true
