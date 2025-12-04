@@ -188,7 +188,17 @@ jobs:
       - name: Install deps
         run: |
           yum update -y
-          yum install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar tar epel-release gcc-c++ libstdc++-devel
+          yum install -y bash wget git autoconf gcc perl-Digest-SHA tcl which tar epel-release gcc-c++ libstdc++-devel
+
+      - name: Install CMake 3.22
+        run: |
+          cd /tmp
+          wget https://github.com/Kitware/CMake/releases/download/v3.22.0/cmake-3.22.0-linux-x86_64.tar.gz
+          tar -zxvf cmake-3.22.0-linux-x86_64.tar.gz
+          mkdir -p /opt/cmake
+          cp -r cmake-3.22.0-linux-x86_64/* /opt/cmake/
+          ln -sf /opt/cmake/bin/cmake /usr/bin/cmake
+          cmake --version
 
       - name: Set up Go manually
         run: |
