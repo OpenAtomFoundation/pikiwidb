@@ -190,10 +190,14 @@ jobs:
           yum update -y
           yum install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar tar epel-release gcc-c++ libstdc++-devel
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.19
+      - name: Set up Go manually
+        run: |
+          cd /tmp
+          wget https://go.dev/dl/go1.19.13.linux-amd64.tar.gz
+          tar -C /usr/local -xzf go1.19.13.linux-amd64.tar.gz
+          echo 'export PATH=$PATH:/usr/local/go/bin' >> ~/.bashrc
+          export PATH=$PATH:/usr/local/go/bin
+          go version
 
       - name: Free Disk Space
         run: |
