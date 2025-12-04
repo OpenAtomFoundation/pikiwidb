@@ -19,6 +19,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - uses: actions/checkout@v4
 
       - name: Set up Go
@@ -45,9 +53,11 @@ jobs:
         # Build your program with the given configuration
         run: cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps
+          df -h
 
       - uses: actions/upload-artifact@v4
         with:
@@ -63,6 +73,14 @@ jobs:
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
+
+      - name: Cleanup Build Artifacts
+        run: |
+          find ./build -name "*.o" -type f -delete
+          find ./build -name "*.a" -type f -delete
+          rm -rf ./build/CMakeFiles
+          rm -rf ./build/_deps
+          df -h
 
         # master on port 9221, slave on port 9231, all with 2 db
       - name: Start codis, pika master and pika slave
@@ -82,10 +100,21 @@ jobs:
           chmod +x integrate_test.sh
           sh integrate_test.sh
 
-  build_on_rocky:
+      - name: Cleanup Test Data
+        if: always()
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          pkill -9 pika || true
+          pkill -9 codis || true
+          rm -rf master_data slave_data rename_data acl1_data acl2_data acl3_data
+          rm -rf codis_data_1 codis_data_2
+          rm -rf *.conf *.conf.bak
+          df -h
+
+  build_on_centos:
     runs-on: ubuntu-latest
     container:
-      image: rockylinux:9
+      image: cheniujh/pika-centos7-ci:v5
 
     steps:
       - name: set up mirror
@@ -166,14 +195,25 @@ jobs:
         with:
           go-version: 1.19
 
+      - name: Free Disk Space
+        run: |
+          rm -rf /usr/share/dotnet
+          rm -rf /opt/ghc
+          rm -rf /usr/local/share/boost
+          find / -type f -name "*.log" -delete 2>/dev/null || true
+          find / -type f -name "*.tmp" -delete 2>/dev/null || true
+          find / -name '*cache*' -type d -exec rm -rf {} + 2>/dev/null || true
+          find / -name '*.bak' -type f -delete 2>/dev/null || true
+          df -h
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v1
         with:
           fetch-depth: 0
 
       - name: Configure CMake
         run: |
-          source /opt/rh/gcc-toolset-13/enable
+          source /opt/rh/devtoolset-10/enable
           cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address .
 
       - uses: actions/cache@v3
@@ -188,12 +228,17 @@ jobs:
 
       - name: Build
         run: |
-          source /opt/rh/gcc-toolset-13/enable
+          source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps
+          # Clean build intermediate files but keep binaries
+          find ./build -name "*.o" -type f -delete || true
+          find ./build -name "*.a" -type f -delete || true
+          df -h
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
@@ -202,6 +247,40 @@ jobs:
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
+
+      - name: Cleanup After Unit Test
+        run: |
+          # Clean up test data to free space before integration tests
+          rm -rf ./log* ./db* ./dump* ./dbsync* || true
+          df -h
+
+      - name: Extreme Disk Cleanup
+        run: |
+        
+          rm -rf /usr/local/share/* || true
+          rm -rf /usr/share/doc/* || true
+          rm -rf /usr/share/man/* || true
+          rm -rf /var/cache/* || true
+          
+          find ${{ github.workspace }} -name "*.o" -type f -delete || true
+          find ${{ github.workspace }} -name "*.a" -type f -delete || true
+          find ${{ github.workspace }} -name "*.la" -type f -delete || true
+          find ${{ github.workspace }} -name "*.so" -type f -delete || true
+          find ${{ github.workspace }} -name "*.pyc" -type f -delete || true
+          
+          rm -rf ${{ github.workspace }}/.git || true
+          
+          df -h
+          
+          echo "Largest directories:"
+          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -20
+
+      - name: Create Log Directories
+        run: |
+          mkdir -p /__w/pikiwidb/pikiwidb/codis/admin/../log
+          mkdir -p /__w/pikiwidb/pikiwidb/log
+          mkdir -p ./bin || true
+          df -h
 
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
@@ -219,6 +298,15 @@ jobs:
           cd ../../tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
+
+      - name: Cleanup Test Data
+        if: always()
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          rm -rf master_data slave_data rename_data acl1_data acl2_data acl3_data
+          rm -rf codis_data_1 codis_data_2
+          rm -rf *.conf *.conf.bak
+          df -h
 
   build_on_macos:
 
