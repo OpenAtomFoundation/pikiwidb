@@ -187,8 +187,8 @@ jobs:
 
       - name: Install deps
         run: |
-          dnf update -y
-          dnf install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel gcc-toolset-13
+          yum update -y
+          yum install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar tar epel-release gcc-c++ libstdc++-devel
 
       - name: Set up Go
         uses: actions/setup-go@v5
