@@ -267,7 +267,8 @@ class InfoCmd : public Cmd {
     kInfoAll,
     kInfoDebug,
     kInfoCommandStats,
-    kInfoCache
+    kInfoCache,
+    kInfoThreadpool
   };
   InfoCmd(const std::string& name, int arity, uint32_t flag) : Cmd(name, arity, flag) {}
   void Do() override;
