@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <memory>
 #include <utility>
 #include "net/include/net_cli.h"
@@ -1023,8 +1024,8 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
     auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
     if (bg_arg) {
       // Set error response for rate limiting
-      bg_arg->resp = std::make_shared<std::string>("-ERR Rate limit exceeded, try again later\r\n");
-      bg_arg->conn->WriteResp(*(bg_arg->resp));
+      bg_arg->resp_ptr = std::make_shared<std::string>("-ERR Rate limit exceeded, try again later\r\n");
+      bg_arg->conn_ptr->WriteResp(*(bg_arg->resp_ptr));
       delete bg_arg;
     }
     return;
@@ -2427,9 +2428,10 @@ void PikaServer::AdjustBorrowThresholds() {
     new_threshold = std::max(30, current_threshold - 5);
   }
   
+  // Note: Currently we don't have a SetThreadpoolBorrowThresholdPercent method in PikaConf
+  // So we just log the recommendation instead of actually changing the threshold
   if (new_threshold != current_threshold) {
-    g_pika_conf->SetThreadpoolBorrowThresholdPercent(new_threshold);
-    LOG(INFO) << "Adjusted borrow threshold from " << current_threshold 
+    LOG(INFO) << "Recommend adjusting borrow threshold from " << current_threshold 
               << "% to " << new_threshold << "% (fast_sat: " 
               << std::fixed << std::setprecision(2) << fast_saturation * 100 
               << "%, slow_sat: " << slow_saturation * 100 << "%)";
@@ -2474,10 +2476,11 @@ bool PikaServer::CheckCommandRateLimit() {
 }
 
 std::string PikaServer::GetEnhancedThreadPoolMetrics() const {
-  std::stringstream ss;
+  std::string info;
+  const_cast<PikaServer*>(this)->GetThreadPoolInfo(&info);
   
-  // 基本线程池信息
-  GetThreadPoolInfo(&ss.str());
+  std::stringstream ss;
+  ss << info;
   
   // 增强的指标（Prometheus格式）
   ss << "\n# Enhanced Thread Pool Metrics\n";
@@ -2507,7 +2510,6 @@ std::string PikaServer::GetEnhancedThreadPoolMetrics() const {
 
 bool PikaServer::IsKeyAffinityToSlow(const std::string& key) const {
   if (!key_hash_) {
-    // 如果没有一致性哈希，使用简单的哈希
     std::hash<std::string> hasher;
     return (hasher(key) % 2) == 1;
   }
