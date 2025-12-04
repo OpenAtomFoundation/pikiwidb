@@ -76,6 +76,20 @@ int PikaConf::Load() {
   GetConfStr("slow-cmd-pool", &slowcmdpool);
   slow_cmd_pool_.store(slowcmdpool == "yes" ? true : false);
 
+  std::string threadpool_borrow;
+  GetConfStr("threadpool-borrow-enable", &threadpool_borrow);
+  threadpool_borrow_enable_ = threadpool_borrow == "yes" ? true : false;
+
+  GetConfInt("threadpool-borrow-threshold-percent", &threadpool_borrow_threshold_percent_);
+  if (threadpool_borrow_threshold_percent_ <= 0 || threadpool_borrow_threshold_percent_ >= 100) {
+    threadpool_borrow_threshold_percent_ = 80;
+  }
+
+  GetConfInt("threadpool-idle-threshold-percent", &threadpool_idle_threshold_percent_);
+  if (threadpool_idle_threshold_percent_ <= 0 || threadpool_idle_threshold_percent_ >= 100) {
+    threadpool_idle_threshold_percent_ = 20;
+  }
+
   int binlog_writer_num = 1;
   GetConfInt("binlog-writer-num", &binlog_writer_num);
   if (binlog_writer_num <= 0 || binlog_writer_num > 24) {

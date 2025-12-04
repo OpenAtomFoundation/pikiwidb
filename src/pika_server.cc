@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <ctime>
 #include <fstream>
+#include <iomanip>
 #include <memory>
 #include <utility>
 #include "net/include/net_cli.h"
@@ -33,6 +34,248 @@ extern std::unique_ptr<net::NetworkStatistic> g_network_statistic;
 // QUEUE_SIZE_THRESHOLD_PERCENTAGE is used to represent a percentage value and should be within the range of 0 to 100.
 const size_t QUEUE_SIZE_THRESHOLD_PERCENTAGE = 75;
 
+// CommandClassifier 实现
+void CommandClassifier::CommandStats::AddTime(uint64_t time, size_t window_size) {
+  total_time += time;
+  count++;
+  
+  if (recent_times.size() < window_size) {
+    recent_times.push_back(time);
+  } else {
+    if (!initialized) {
+      initialized = true;
+    }
+    // 替换最旧的记录
+    total_time -= recent_times[time_index];
+    recent_times[time_index] = time;
+    time_index = (time_index + 1) % window_size;
+  }
+}
+
+double CommandClassifier::CommandStats::GetAverageTime() const {
+  return count > 0 ? static_cast<double>(total_time) / count : 0.0;
+}
+
+double CommandClassifier::CommandStats::GetRecentAverageTime() const {
+  if (!initialized && recent_times.empty()) {
+    return 0.0;
+  }
+  
+  size_t sample_count = initialized ? recent_times.size() : time_index;
+  if (sample_count == 0) {
+    return 0.0;
+  }
+  
+  uint64_t recent_total = 0;
+  for (size_t i = 0; i < sample_count; i++) {
+    recent_total += recent_times[i];
+  }
+  
+  return static_cast<double>(recent_total) / sample_count;
+}
+
+CommandClassifier::CommandClassifier(uint64_t slow_threshold_us, uint64_t fast_threshold_us, size_t window_size)
+    : slow_threshold_us_(slow_threshold_us),
+      fast_threshold_us_(fast_threshold_us),
+      window_size_(window_size) {}
+
+void CommandClassifier::RecordExecutionTime(const std::string& cmd_name, uint64_t duration_us) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  
+  // 更新命令执行时间统计
+  auto& stats = cmd_stats_[cmd_name];
+  stats.AddTime(duration_us, window_size_);
+  
+  // 根据最近平均执行时间分类命令
+  if (stats.initialized || stats.recent_times.size() >= window_size_ / 2) {
+    double recent_avg = stats.GetRecentAverageTime();
+    
+    if (recent_avg > slow_threshold_us_) {
+      // 如果平均时间超过慢命令阈值，标记为慢命令
+      if (slow_commands_.find(cmd_name) == slow_commands_.end()) {
+        LOG(INFO) << "Command '" << cmd_name << "' reclassified as SLOW (avg time: " 
+                  << recent_avg / 1000.0 << "ms)";
+        slow_commands_.insert(cmd_name);
+      }
+    } else if (recent_avg < fast_threshold_us_ && stats.initialized) {
+      // 如果平均时间低于快命令阈值且有足够样本，可能标记为快命令
+      if (slow_commands_.find(cmd_name) != slow_commands_.end()) {
+        LOG(INFO) << "Command '" << cmd_name << "' reclassified as FAST (avg time: " 
+                  << recent_avg / 1000.0 << "ms)";
+        slow_commands_.erase(cmd_name);
+      }
+    }
+  }
+}
+
+bool CommandClassifier::IsSlowCommand(const std::string& cmd_name) const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  return slow_commands_.find(cmd_name) != slow_commands_.end();
+}
+
+void CommandClassifier::MarkAsSlowCommand(const std::string& cmd_name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  slow_commands_.insert(cmd_name);
+}
+
+void CommandClassifier::MarkAsFastCommand(const std::string& cmd_name) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  slow_commands_.erase(cmd_name);
+}
+
+std::unordered_map<std::string, double> CommandClassifier::GetCommandAvgTimes() const {
+  std::lock_guard<std::mutex> lock(mutex_);
+  std::unordered_map<std::string, double> result;
+  
+  for (const auto& [cmd_name, stats] : cmd_stats_) {
+    result[cmd_name] = stats.GetAverageTime();
+  }
+  
+  return result;
+}
+
+// ThreadPoolMetrics 实现
+void ThreadPoolMetrics::RecordLatency(uint64_t latency_us) {
+  if (latency_us < 1000) {
+    latency_buckets[0]++;
+  } else if (latency_us < 5000) {
+    latency_buckets[1]++;
+  } else if (latency_us < 10000) {
+    latency_buckets[2]++;
+  } else if (latency_us < 50000) {
+    latency_buckets[3]++;
+  } else if (latency_us < 100000) {
+    latency_buckets[4]++;
+  } else if (latency_us < 500000) {
+    latency_buckets[5]++;
+  } else if (latency_us < 1000000) {
+    latency_buckets[6]++;
+  } else if (latency_us < 5000000) {
+    latency_buckets[7]++;
+  } else {
+    latency_buckets[8]++;
+  }
+}
+
+std::string ThreadPoolMetrics::ExportMetrics(const std::string& pool_name) const {
+  std::stringstream ss;
+  
+  ss << "# TYPE pika_threadpool_tasks_scheduled counter\n"
+     << "pika_threadpool_tasks_scheduled{pool=\"" << pool_name << "\"} " << tasks_scheduled.load() << "\n"
+     << "# TYPE pika_threadpool_tasks_completed counter\n"
+     << "pika_threadpool_tasks_completed{pool=\"" << pool_name << "\"} " << tasks_completed.load() << "\n"
+     << "# TYPE pika_threadpool_queue_overflows counter\n"
+     << "pika_threadpool_queue_overflows{pool=\"" << pool_name << "\"} " << queue_overflows.load() << "\n"
+     << "# TYPE pika_threadpool_borrow_attempts counter\n"
+     << "pika_threadpool_borrow_attempts{pool=\"" << pool_name << "\"} " << borrow_attempts.load() << "\n"
+     << "# TYPE pika_threadpool_successful_borrows counter\n"
+     << "pika_threadpool_successful_borrows{pool=\"" << pool_name << "\"} " << successful_borrows.load() << "\n";
+  
+  // 延迟分布
+  ss << "# TYPE pika_threadpool_latency_buckets counter\n";
+  const char* bucket_labels[] = {
+    "0_1ms", "1_5ms", "5_10ms", "10_50ms", "50_100ms", 
+    "100_500ms", "500_1000ms", "1_5s", "over_5s"
+  };
+  
+  for (size_t i = 0; i < latency_buckets.size(); i++) {
+    ss << "pika_threadpool_latency_bucket{pool=\"" << pool_name 
+       << "\",bucket=\"" << bucket_labels[i] << "\"} " 
+       << latency_buckets[i].load() << "\n";
+  }
+  
+  return ss.str();
+}
+
+void ThreadPoolMetrics::Reset() {
+  tasks_scheduled.store(0);
+  tasks_completed.store(0);
+  queue_overflows.store(0);
+  borrow_attempts.store(0);
+  successful_borrows.store(0);
+  
+  for (auto& bucket : latency_buckets) {
+    bucket.store(0);
+  }
+}
+
+// RateLimiter 实现
+RateLimiter::RateLimiter(double rate_per_sec, double burst_size)
+    : rate_(rate_per_sec),
+      max_tokens_(burst_size),
+      tokens_(burst_size),
+      last_update_(std::chrono::steady_clock::now()) {}
+
+void RateLimiter::Refill() {
+  auto now = std::chrono::steady_clock::now();
+  double elapsed = std::chrono::duration<double>(now - last_update_).count();
+  double new_tokens = elapsed * rate_;
+  tokens_ = std::min(tokens_ + new_tokens, max_tokens_);
+  last_update_ = now;
+}
+
+bool RateLimiter::TryAcquire(double tokens) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Refill();
+  
+  if (tokens_ >= tokens) {
+    tokens_ -= tokens;
+    return true;
+  }
+  return false;
+}
+
+void RateLimiter::SetRate(double rate_per_sec) {
+  std::lock_guard<std::mutex> lock(mutex_);
+  Refill();  // 先根据旧速率更新令牌
+  rate_ = rate_per_sec;
+}
+
+// ConsistentHash 实现
+ConsistentHash::ConsistentHash(int num_replicas, int num_buckets)
+    : num_replicas_(num_replicas) {
+  // 添加"fast"和"slow"两个节点
+  AddNode("fast");
+  AddNode("slow");
+}
+
+void ConsistentHash::AddNode(const std::string& node) {
+  for (int i = 0; i < num_replicas_; i++) {
+    std::string key = node + ":" + std::to_string(i);
+    size_t hash = hasher_(key);
+    ring_[hash] = node;
+  }
+}
+
+void ConsistentHash::RemoveNode(const std::string& node) {
+  for (int i = 0; i < num_replicas_; i++) {
+    std::string key = node + ":" + std::to_string(i);
+    size_t hash = hasher_(key);
+    ring_.erase(hash);
+  }
+}
+
+std::string ConsistentHash::GetNode(const std::string& key) const {
+  if (ring_.empty()) {
+    return "fast";  // 默认返回fast
+  }
+  
+  size_t hash = HashKey(key);
+  
+  // 找到第一个大于等于hash的节点
+  auto it = ring_.lower_bound(hash);
+  if (it == ring_.end()) {
+    // 如果没有找到，则环绕到第一个节点
+    return ring_.begin()->second;
+  } else {
+    return it->second;
+  }
+}
+
+size_t ConsistentHash::HashKey(const std::string& key) const {
+  return hasher_(key);
+}
+
 void DoPurgeDir(void* arg) {
   std::unique_ptr<std::string> path(static_cast<std::string*>(arg));
   LOG(INFO) << "Delete dir: " << *path << " start";
@@ -47,7 +290,12 @@ PikaServer::PikaServer()
       last_check_compact_time_({0, 0}),
       last_check_resume_time_({0, 0}),
       repl_state_(PIKA_REPL_NO_CONNECT),
-      role_(PIKA_ROLE_SINGLE) {
+      role_(PIKA_ROLE_SINGLE),
+      cmd_classifier_(new CommandClassifier(50000, 10000, 1000)),
+      fast_pool_metrics_(new ThreadPoolMetrics()),
+      slow_pool_metrics_(new ThreadPoolMetrics()),
+      cmd_rate_limiter_(new RateLimiter(g_pika_conf->maxclients() * 2)), // 默认速率：最大客户端连接数的2倍
+      key_hash_(new ConsistentHash(100, 1024)) {
   // Init server ip host
   if (!ServerInit()) {
     LOG(FATAL) << "ServerInit iotcl error";
@@ -770,15 +1018,153 @@ void PikaServer::SetFirstMetaSync(bool v) {
 }
 
 void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_cmd, bool is_admin_cmd) {
-  if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
-    pika_slow_cmd_thread_pool_->Schedule(func, arg);
+  // Apply rate limiting if enabled (only for non-admin commands)
+  if (!is_admin_cmd && !CheckCommandRateLimit()) {
+    // Rate limit exceeded, handle gracefully
+    auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
+    if (bg_arg) {
+      // Set error response for rate limiting
+      bg_arg->resp_ptr = std::make_shared<std::string>("-ERR Rate limit exceeded, try again later\r\n");
+      bg_arg->conn_ptr->WriteResp(*(bg_arg->resp_ptr));
+      delete bg_arg;
+    }
     return;
   }
+
+  // Admin commands always go to admin thread pool
   if (is_admin_cmd) {
-    pika_admin_cmd_thread_pool_->Schedule(func, arg);
+    if (pika_admin_cmd_thread_pool_) {
+      pika_admin_cmd_thread_pool_->Schedule(func, arg);
+    }
     return;
   }
-  pika_client_processor_->SchedulePool(func, arg);
+  
+  // Extract command info for dynamic classification and key affinity
+  auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
+  std::string cmd_name;
+  std::string key;
+  bool has_key = false;
+  bool key_affinity_to_slow = false;
+  
+  if (bg_arg && !bg_arg->redis_cmds.empty() && !bg_arg->redis_cmds[0].empty()) {
+    const auto& cmd_args = bg_arg->redis_cmds[0];
+    if (!cmd_args.empty()) {
+      cmd_name = cmd_args[0];
+      pstd::StringToLower(cmd_name);
+      
+      // Extract key for affinity routing
+      if (cmd_args.size() > 1) {
+        key = cmd_args[1];
+        has_key = true;
+        // Use improved consistent hashing for key affinity
+        key_affinity_to_slow = IsKeyAffinityToSlow(key);
+      }
+    }
+  }
+  
+  // Check if command is dynamically classified as slow
+  // Override static classification if dynamic classification exists
+  if (!cmd_name.empty() && cmd_classifier_) {
+    bool dynamic_is_slow = IsDynamicSlowCommand(cmd_name);
+    if (dynamic_is_slow) {
+      is_slow_cmd = true;
+    }
+  }
+  
+  // Check if thread pool borrowing is enabled
+  bool borrow_enable = g_pika_conf->threadpool_borrow_enable();
+  bool slow_cmd_pool_enable = g_pika_conf->slow_cmd_pool();
+  
+  // Update metrics before scheduling
+  if (is_slow_cmd && slow_pool_metrics_) {
+    slow_pool_metrics_->tasks_scheduled++;
+  } else if (fast_pool_metrics_) {
+    fast_pool_metrics_->tasks_scheduled++;
+  }
+  
+  // If borrowing or slow pool is disabled, use simple routing
+  if (!borrow_enable || !slow_cmd_pool_enable) {
+    if (is_slow_cmd && slow_cmd_pool_enable) {
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+    } else {
+      pika_client_processor_->SchedulePool(func, arg);
+    }
+    return;
+  }
+
+  // Borrowing is enabled, check queue status
+  size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
+  size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
+  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
+
+  int borrow_threshold_percent = g_pika_conf->threadpool_borrow_threshold_percent();
+  int idle_threshold_percent = g_pika_conf->threadpool_idle_threshold_percent();
+
+  // Calculate thresholds
+  size_t slow_borrow_threshold = slow_max_queue * borrow_threshold_percent / 100;
+  size_t fast_borrow_threshold = fast_max_queue * borrow_threshold_percent / 100;
+  size_t slow_idle_threshold = slow_max_queue * idle_threshold_percent / 100;
+  size_t fast_idle_threshold = fast_max_queue * idle_threshold_percent / 100;
+
+  // Enhanced decision logic considering dynamic classification and improved key affinity
+  if (is_slow_cmd) {
+    // This is a slow command (either statically or dynamically classified)
+    if (has_key && !key_affinity_to_slow) {
+      // Key affinity is to fast pool, must use fast pool to maintain order
+      pika_client_processor_->SchedulePool(func, arg);
+    } else if (slow_queue_size >= slow_borrow_threshold && fast_queue_size <= fast_idle_threshold) {
+      // Slow pool is busy and fast pool is idle
+      if (has_key && key_affinity_to_slow) {
+        // Key belongs to slow pool, cannot borrow
+        pika_slow_cmd_thread_pool_->Schedule(func, arg);
+      } else {
+        // Can borrow from fast pool
+        if (slow_pool_metrics_) {
+          slow_pool_metrics_->borrow_attempts++;
+          slow_pool_metrics_->successful_borrows++;
+        }
+        pika_client_processor_->SchedulePool(func, arg);
+        LOG(INFO) << "Slow cmd " << cmd_name << " borrows fast pool (slow_queue: " << slow_queue_size 
+                  << "/" << slow_max_queue << ", fast_queue: " << fast_queue_size 
+                  << "/" << fast_max_queue << ")";
+      }
+    } else {
+      // Normal case: use slow pool
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+    }
+  } else {
+    // This is a fast command
+    if (has_key && key_affinity_to_slow) {
+      // Key affinity is to slow pool, must use slow pool to maintain order
+      pika_slow_cmd_thread_pool_->Schedule(func, arg);
+    } else if (fast_queue_size >= fast_borrow_threshold && slow_queue_size <= slow_idle_threshold) {
+      // Fast pool is busy and slow pool is idle
+      if (has_key && !key_affinity_to_slow) {
+        // Key belongs to fast pool, cannot borrow
+        pika_client_processor_->SchedulePool(func, arg);
+      } else {
+        // Can borrow from slow pool
+        if (fast_pool_metrics_) {
+          fast_pool_metrics_->borrow_attempts++;
+          fast_pool_metrics_->successful_borrows++;
+        }
+        pika_slow_cmd_thread_pool_->Schedule(func, arg);
+        LOG(INFO) << "Fast cmd " << cmd_name << " borrows slow pool (fast_queue: " << fast_queue_size 
+                  << "/" << fast_max_queue << ", slow_queue: " << slow_queue_size 
+                  << "/" << slow_max_queue << ")";
+      }
+    } else {
+      // Normal case: use fast pool
+      pika_client_processor_->SchedulePool(func, arg);
+    }
+  }
+  
+  // Periodically adjust borrow thresholds based on load (every 100 commands)
+  static int command_counter = 0;
+  if (++command_counter % 100 == 0) {
+    AdjustBorrowThresholds();
+  }
 }
 
 size_t PikaServer::ClientProcessorThreadPoolCurQueueSize() {
@@ -809,6 +1195,115 @@ size_t PikaServer::SlowCmdThreadPoolMaxQueueSize() {
     return 0;
   }
   return pika_slow_cmd_thread_pool_->max_queue_size();
+}
+
+bool PikaServer::ResizeFastCmdThreadPool(size_t new_size) {
+  if (new_size == 0 || new_size > 1024) {
+    LOG(WARNING) << "Invalid fast cmd thread pool size: " << new_size << ", must be between 1 and 1024";
+    return false;
+  }
+
+  size_t old_size = g_pika_conf->thread_pool_size();
+  if (new_size == old_size) {
+    LOG(INFO) << "Fast cmd thread pool size unchanged: " << new_size;
+    return true;
+  }
+
+  LOG(INFO) << "Resizing fast cmd thread pool from " << old_size << " to " << new_size;
+  
+  // Update config
+  g_pika_conf->SetThreadPoolSize(static_cast<int>(new_size));
+  
+  // Stop old thread pool gracefully
+  LOG(INFO) << "Waiting for old fast cmd thread pool tasks to complete...";
+  pika_client_processor_->Stop();
+  
+  // Create and start new thread pool
+  pika_client_processor_ = std::make_unique<PikaClientProcessor>(new_size, 100000);
+  int ret = pika_client_processor_->Start();
+  if (ret != net::kSuccess) {
+    LOG(ERROR) << "Failed to start new fast cmd thread pool: " << ret;
+    return false;
+  }
+  
+  LOG(INFO) << "Successfully resized fast cmd thread pool to " << new_size;
+  return true;
+}
+
+bool PikaServer::ResizeSlowCmdThreadPool(size_t new_size) {
+  if (new_size == 0 || new_size > 1024) {
+    LOG(WARNING) << "Invalid slow cmd thread pool size: " << new_size << ", must be between 1 and 1024";
+    return false;
+  }
+
+  size_t old_size = g_pika_conf->slow_cmd_thread_pool_size();
+  if (new_size == old_size) {
+    LOG(INFO) << "Slow cmd thread pool size unchanged: " << new_size;
+    return true;
+  }
+
+  LOG(INFO) << "Resizing slow cmd thread pool from " << old_size << " to " << new_size;
+  
+  // Update config
+  g_pika_conf->SetLowLevelThreadPoolSize(static_cast<int>(new_size));
+  
+  // Stop old thread pool gracefully
+  LOG(INFO) << "Waiting for old slow cmd thread pool tasks to complete...";
+  while (SlowCmdThreadPoolCurQueueSize() != 0) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  pika_slow_cmd_thread_pool_->stop_thread_pool();
+  
+  // Create and start new thread pool
+  pika_slow_cmd_thread_pool_ = std::make_unique<net::ThreadPool>(new_size, 100000);
+  int ret = pika_slow_cmd_thread_pool_->start_thread_pool();
+  if (ret != net::kSuccess) {
+    LOG(ERROR) << "Failed to start new slow cmd thread pool: " << ret;
+    return false;
+  }
+  
+  LOG(INFO) << "Successfully resized slow cmd thread pool to " << new_size;
+  return true;
+}
+
+void PikaServer::GetThreadPoolInfo(std::string* info) {
+  std::stringstream tmp_stream;
+  
+  // Fast cmd thread pool info
+  size_t fast_pool_size = g_pika_conf->thread_pool_size();
+  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
+  double fast_usage = fast_max_queue > 0 ? (fast_queue_size * 100.0 / fast_max_queue) : 0.0;
+  
+  tmp_stream << "# Threadpool\r\n";
+  tmp_stream << "fast_cmd_pool_size:" << fast_pool_size << "\r\n";
+  tmp_stream << "fast_cmd_pool_queue_size:" << fast_queue_size << "\r\n";
+  tmp_stream << "fast_cmd_pool_max_queue_size:" << fast_max_queue << "\r\n";
+  tmp_stream << "fast_cmd_pool_usage:" << std::fixed << std::setprecision(2) << fast_usage << "%\r\n";
+  
+  // Slow cmd thread pool info
+  if (g_pika_conf->slow_cmd_pool()) {
+    size_t slow_pool_size = g_pika_conf->slow_cmd_thread_pool_size();
+    size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
+    size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
+    double slow_usage = slow_max_queue > 0 ? (slow_queue_size * 100.0 / slow_max_queue) : 0.0;
+    
+    tmp_stream << "slow_cmd_pool_size:" << slow_pool_size << "\r\n";
+    tmp_stream << "slow_cmd_pool_queue_size:" << slow_queue_size << "\r\n";
+    tmp_stream << "slow_cmd_pool_max_queue_size:" << slow_max_queue << "\r\n";
+    tmp_stream << "slow_cmd_pool_usage:" << std::fixed << std::setprecision(2) << slow_usage << "%\r\n";
+  } else {
+    tmp_stream << "slow_cmd_pool_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_queue_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_max_queue_size:0\r\n";
+    tmp_stream << "slow_cmd_pool_usage:0.00%\r\n";
+  }
+  
+  // Admin cmd thread pool info
+  size_t admin_pool_size = g_pika_conf->admin_thread_pool_size();
+  tmp_stream << "admin_cmd_pool_size:" << admin_pool_size << "\r\n";
+  
+  info->append(tmp_stream.str());
 }
 
 void PikaServer::BGSaveTaskSchedule(net::TaskFunc func, void* arg) {
@@ -1901,3 +2396,136 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
   cache_cfg.lfu_decay_time = g_pika_conf->cache_lfu_decay_time();
 }
 void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }
+
+// 改进的快慢命令分离相关方法实现
+
+void PikaServer::AdjustBorrowThresholds() {
+  // 这个方法可以根据系统负载动态调整借用阈值
+  // 当前使用简单的队列饱和度来调整
+  
+  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
+  size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
+  size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
+  
+  if (fast_max_queue == 0 || slow_max_queue == 0) {
+    return;
+  }
+  
+  // 计算队列饱和度
+  double fast_saturation = static_cast<double>(fast_queue_size) / fast_max_queue;
+  double slow_saturation = static_cast<double>(slow_queue_size) / slow_max_queue;
+  
+  int current_threshold = g_pika_conf->threadpool_borrow_threshold_percent();
+  int new_threshold = current_threshold;
+  
+  // 如果两个线程池都很繁忙（饱和度>0.8），提高借用阈值（更难借用）
+  if (fast_saturation > 0.8 && slow_saturation > 0.8) {
+    new_threshold = std::min(90, current_threshold + 5);
+  }
+  // 如果两个线程池都很空闲（饱和度<0.3），降低借用阈值（更容易借用）
+  else if (fast_saturation < 0.3 && slow_saturation < 0.3) {
+    new_threshold = std::max(30, current_threshold - 5);
+  }
+  
+  // Note: Currently we don't have a SetThreadpoolBorrowThresholdPercent method in PikaConf
+  // So we just log the recommendation instead of actually changing the threshold
+  if (new_threshold != current_threshold) {
+    LOG(INFO) << "Recommend adjusting borrow threshold from " << current_threshold 
+              << "% to " << new_threshold << "% (fast_sat: " 
+              << std::fixed << std::setprecision(2) << fast_saturation * 100 
+              << "%, slow_sat: " << slow_saturation * 100 << "%)";
+  }
+}
+
+bool PikaServer::IsDynamicSlowCommand(const std::string& cmd_name) const {
+  if (!cmd_classifier_) {
+    return false;
+  }
+  return cmd_classifier_->IsSlowCommand(cmd_name);
+}
+
+void PikaServer::RecordCommandExecutionTime(const std::string& cmd_name, uint64_t duration_us) {
+  if (cmd_classifier_) {
+    cmd_classifier_->RecordExecutionTime(cmd_name, duration_us);
+  }
+  
+  // 同时记录到线程池指标中
+  // 注意：这里需要知道命令是在哪个线程池执行的，简化起见我们根据是否是慢命令来判断
+  if (IsDynamicSlowCommand(cmd_name) && slow_pool_metrics_) {
+    slow_pool_metrics_->RecordLatency(duration_us);
+    slow_pool_metrics_->tasks_completed++;
+  } else if (fast_pool_metrics_) {
+    fast_pool_metrics_->RecordLatency(duration_us);
+    fast_pool_metrics_->tasks_completed++;
+  }
+}
+
+void PikaServer::SetCommandRateLimit(double rate_per_sec) {
+  if (cmd_rate_limiter_) {
+    cmd_rate_limiter_->SetRate(rate_per_sec);
+    LOG(INFO) << "Command rate limit set to " << rate_per_sec << " commands/sec";
+  }
+}
+
+bool PikaServer::CheckCommandRateLimit() {
+  if (!cmd_rate_limiter_) {
+    return true;  // 如果没有限流器，总是允许
+  }
+  return cmd_rate_limiter_->TryAcquire(1.0);
+}
+
+std::string PikaServer::GetEnhancedThreadPoolMetrics() const {
+  std::string info;
+  const_cast<PikaServer*>(this)->GetThreadPoolInfo(&info);
+  
+  std::stringstream ss;
+  ss << info;
+  
+  // 增强的指标（Prometheus格式）
+  ss << "\n# Enhanced Thread Pool Metrics\n";
+  
+  if (fast_pool_metrics_) {
+    ss << fast_pool_metrics_->ExportMetrics("fast");
+  }
+  
+  if (slow_pool_metrics_ && g_pika_conf->slow_cmd_pool()) {
+    ss << slow_pool_metrics_->ExportMetrics("slow");
+  }
+  
+  // 命令分类统计
+  if (cmd_classifier_) {
+    ss << "\n# Command Classification\n";
+    auto cmd_avg_times = cmd_classifier_->GetCommandAvgTimes();
+    for (const auto& [cmd_name, avg_time] : cmd_avg_times) {
+      bool is_slow = cmd_classifier_->IsSlowCommand(cmd_name);
+      ss << "command_avg_time{cmd=\"" << cmd_name 
+         << "\",type=\"" << (is_slow ? "slow" : "fast") << "\"} " 
+         << avg_time / 1000.0 << " # milliseconds\n";
+    }
+  }
+  
+  return ss.str();
+}
+
+bool PikaServer::IsKeyAffinityToSlow(const std::string& key) const {
+  if (!key_hash_) {
+    std::hash<std::string> hasher;
+    return (hasher(key) % 2) == 1;
+  }
+  
+  std::string node = key_hash_->GetNode(key);
+  return node == "slow";
+}
+
+void PikaServer::ResetThreadPoolMetrics() {
+  if (fast_pool_metrics_) {
+    fast_pool_metrics_->Reset();
+  }
+  
+  if (slow_pool_metrics_) {
+    slow_pool_metrics_->Reset();
+  }
+  
+  LOG(INFO) << "Thread pool metrics reset";
+}

@@ -884,6 +884,7 @@ const std::string InfoCmd::kRocksDBSection = "rocksdb";
 const std::string InfoCmd::kDebugSection = "debug";
 const std::string InfoCmd::kCommandStatsSection = "commandstats";
 const std::string InfoCmd::kCacheSection = "cache";
+const std::string InfoCmd::kThreadpoolSection = "threadpool";
 
 
 const std::string ClientCmd::KILLTYPE_NORMAL = "normal";
@@ -969,6 +970,8 @@ void InfoCmd::DoInitial() {
     info_section_ = kInfoCommandStats;
   } else if (strcasecmp(argv_[1].data(), kCacheSection.data()) == 0) {
     info_section_ = kInfoCache;
+  } else if (strcasecmp(argv_[1].data(), kThreadpoolSection.data()) == 0) {
+    info_section_ = kInfoThreadpool;
   } else {
     info_section_ = kInfoErr;
   }
@@ -1009,6 +1012,8 @@ void InfoCmd::Do() {
       InfoCommandStats(info);
       info.append("\r\n");
       InfoCache(info, db_);
+      info.append("\r\n");
+      g_pika_server->GetThreadPoolInfo(&info);
       info.append("\r\n");
       InfoCPU(info);
       info.append("\r\n");
@@ -1053,6 +1058,9 @@ void InfoCmd::Do() {
       break;
     case kInfoCache:
       InfoCache(info, db_);
+      break;
+    case kInfoThreadpool:
+      g_pika_server->GetThreadPoolInfo(&info);
       break;
     default:
       // kInfoErr is nothing

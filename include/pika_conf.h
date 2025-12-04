@@ -168,6 +168,18 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return slow_cmd_pool_;
   }
+  bool threadpool_borrow_enable() {
+    std::shared_lock l(rwlock_);
+    return threadpool_borrow_enable_;
+  }
+  int threadpool_borrow_threshold_percent() {
+    std::shared_lock l(rwlock_);
+    return threadpool_borrow_threshold_percent_;
+  }
+  int threadpool_idle_threshold_percent() {
+    std::shared_lock l(rwlock_);
+    return threadpool_idle_threshold_percent_;
+  }
   std::string server_id() {
     std::shared_lock l(rwlock_);
     return server_id_;
@@ -942,6 +954,11 @@ class PikaConf : public pstd::BaseConf {
   std::string bgsave_prefix_;
   std::string pidfile_;
   std::atomic<bool> slow_cmd_pool_;
+  
+  // Thread pool task borrowing configuration
+  bool threadpool_borrow_enable_ = true;
+  int threadpool_borrow_threshold_percent_ = 80;
+  int threadpool_idle_threshold_percent_ = 20;
 
   std::string compression_;
   std::string compression_per_level_;

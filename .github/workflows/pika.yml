@@ -19,6 +19,14 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Free Disk Space
+        run: |
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/share/boost
+          sudo rm -rf "$AGENT_TOOLSDIRECTORY"
+          df -h
+
       - uses: actions/checkout@v4
 
       - name: Set up Go
@@ -45,9 +53,11 @@ jobs:
         # Build your program with the given configuration
         run: cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps
+          df -h
 
       - uses: actions/upload-artifact@v4
         with:
@@ -58,16 +68,25 @@ jobs:
         working-directory: ${{ github.workspace }}/build
         # Execute tests defined by the CMake configuration.
         # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: ctest -C ${{ env.BUILD_TYPE }}
+        run: ctest -C ${{ env.BUILD_TYPE }} --verbose
 
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
 
+      - name: Cleanup Build Artifacts
+        run: |
+          find ./build -name "*.o" -type f -delete
+          find ./build -name "*.a" -type f -delete
+          rm -rf ./build/CMakeFiles
+          rm -rf ./build/_deps
+          df -h
+
         # master on port 9221, slave on port 9231, all with 2 db
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
         run: |
+          echo "hello"
           chmod +x ../tests/integration/start_master_and_slave.sh
           ../tests/integration/start_master_and_slave.sh
           chmod +x ../tests/integration/start_codis.sh
@@ -82,118 +101,58 @@ jobs:
           chmod +x integrate_test.sh
           sh integrate_test.sh
 
-  build_on_rocky:
+      - name: Cleanup Test Data
+        if: always()
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          pkill -9 pika || true
+          pkill -9 codis || true
+          rm -rf master_data slave_data rename_data acl1_data acl2_data acl3_data
+          rm -rf codis_data_1 codis_data_2
+          rm -rf *.conf *.conf.bak
+          df -h
+
+
+  build_on_centos:
     runs-on: ubuntu-latest
     container:
-      image: rockylinux:9
+      image: cheniujh/pika-centos7-ci:v5
 
     steps:
-      - name: set up mirror
+      - name: Free Disk Space
         run: |
-          rm -rf /etc/yum.repos.d/CentOS-Base.repo 
-          cat > /etc/yum.repos.d/CentOS-Base.repo << EOL
-          [base]
-          name=CentOS-\$releasever - Base
-          baseurl=https://mirrors.aliyun.com/centos-vault/7.9.2009/os/\$basearch/
-          gpgcheck=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
-          
-          [updates]
-          name=CentOS-\$releasever - Updates
-          baseurl=https://mirrors.aliyun.com/centos-vault/7.9.2009/updates/\$basearch/
-          gpgcheck=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
-          
-          [extras]
-          name=CentOS-\$releasever - Extras
-          baseurl=https://mirrors.aliyun.com/centos-vault/7.9.2009/extras/\$basearch/
-          gpgcheck=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
-          
-          [centosplus]
-          name=CentOS-\$releasever - Plus
-          baseurl=https://mirrors.aliyun.com/centos-vault/7.9.2009/centosplus/\$basearch/
-          gpgcheck=1
-          enabled=0
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-7
-          EOL
-          
-          cat > /etc/yum.repos.d/CentOS-SCLo-scl.repo << EOL
-          [centos-sclo-sclo]
-          name=CentOS-7 - SCLo sclo
-          baseurl=https://mirrors.aliyun.com/centos/7/sclo/x86_64/sclo/
-          gpgcheck=1
-          enabled=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
-          
-          [centos-sclo-sclo-source]
-          name=CentOS-7 - SCLo sclo Source
-          baseurl=https://mirrors.aliyun.com/centos/7/sclo/Source/sclo/
-          gpgcheck=1
-          enabled=0
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
-          EOL
-          
-          cat > /etc/yum.repos.d/CentOS-SCLo-scl-rh.repo << EOL
-          [centos-sclo-rh]
-          name=CentOS-7 - SCLo rh
-          baseurl=https://mirrors.aliyun.com/centos/7/sclo/x86_64/rh/
-          gpgcheck=1
-          enabled=1
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
-          
-          [centos-sclo-rh-source]
-          name=CentOS-7 - SCLo rh Source
-          baseurl=https://mirrors.aliyun.com/centos/7/sclo/Source/rh/
-          gpgcheck=1
-          enabled=0
-          gpgkey=file:///etc/pki/rpm-gpg/RPM-GPG-KEY-CentOS-SIG-SCLo
-          EOL
-          
-          rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7
-          rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-SIG-SCLo
-          
-          yum clean all
-          yum makecache
-
-      - name: Install deps
-        run: |
-          dnf update -y
-          dnf install -y bash cmake wget git autoconf gcc perl-Digest-SHA tcl which tar g++ tar epel-release gcc-c++ libstdc++-devel gcc-toolset-13
-
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.19
+          rm -rf /usr/share/dotnet
+          rm -rf /opt/ghc
+          rm -rf /usr/local/share/boost
+          find / -type f -name "*.log" -delete 2>/dev/null || true
+          find / -type f -name "*.tmp" -delete 2>/dev/null || true
+          find / -name '*cache*' -type d -exec rm -rf {} + 2>/dev/null || true
+          find / -name '*.bak' -type f -delete 2>/dev/null || true
+          df -h
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v1
         with:
           fetch-depth: 0
 
       - name: Configure CMake
         run: |
-          source /opt/rh/gcc-toolset-13/enable
-          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address .
-
-      - uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/deps
-          key: ${{ runner.os }}-rocky-deps-${{ hashFiles('**/CMakeLists.txt') }}
-
-      - uses: actions/cache@v3
-        with:
-          path: ${{ github.workspace }}/buildtrees
-          key: ${{ runner.os }}-rocky-buildtrees-${{ hashFiles('**/CMakeLists.txt') }}
+          source /opt/rh/devtoolset-10/enable
+          cmake -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DUSE_PIKA_TOOLS=ON -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
 
       - name: Build
         run: |
-          source /opt/rh/gcc-toolset-13/enable
+          source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
 
-      - name: Cleanup
+      - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
+          rm -rf ./deps
+          # Clean build intermediate files but keep binaries
+          find ./build -name "*.o" -type f -delete || true
+          find ./build -name "*.a" -type f -delete || true
+          df -h
 
       - name: Test
         working-directory: ${{ github.workspace }}/build
@@ -203,6 +162,40 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: ./pikatests.sh all clean
 
+      - name: Cleanup After Unit Test
+        run: |
+          # Clean up test data to free space before integration tests
+          rm -rf ./log* ./db* ./dump* ./dbsync* || true
+          df -h
+
+      - name: Extreme Disk Cleanup
+        run: |
+          
+          rm -rf /usr/local/share/* || true
+          rm -rf /usr/share/doc/* || true
+          rm -rf /usr/share/man/* || true
+          rm -rf /var/cache/* || true
+          
+          find ${{ github.workspace }} -name "*.o" -type f -delete || true
+          find ${{ github.workspace }} -name "*.a" -type f -delete || true
+          find ${{ github.workspace }} -name "*.la" -type f -delete || true
+          find ${{ github.workspace }} -name "*.so" -type f -delete || true
+          find ${{ github.workspace }} -name "*.pyc" -type f -delete || true
+          
+          rm -rf ${{ github.workspace }}/.git || true
+          
+          df -h
+          
+          echo "Largest directories:"
+          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -20
+
+      - name: Create Log Directories
+        run: |
+          mkdir -p /__w/pikiwidb/pikiwidb/codis/admin/../log
+          mkdir -p /__w/pikiwidb/pikiwidb/log
+          mkdir -p ./bin || true
+          df -h
+
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
         run: |
@@ -219,6 +212,16 @@ jobs:
           cd ../../tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
+
+      - name: Cleanup Test Data
+        if: always()
+        working-directory: ${{ github.workspace }}/build
+        run: |
+          rm -rf master_data slave_data rename_data acl1_data acl2_data acl3_data
+          rm -rf codis_data_1 codis_data_2
+          rm -rf *.conf *.conf.bak
+          df -h
+
 
   build_on_macos:
 
@@ -257,6 +260,10 @@ jobs:
           cp deps/lib/libz.1.dylib tests/integration/
           rm -rf ./buildtrees
 
+      - name: Test
+        working-directory: ${{ github.workspace }}/build
+        run: ctest -C ${{ env.BUILD_TYPE }} --verbose
+
       - name: Unit Test
         working-directory: ${{ github.workspace }}
         run: |
@@ -270,14 +277,14 @@ jobs:
           ./start_master_and_slave.sh
           chmod +x start_codis.sh
           ./start_codis.sh
-          
+
 
       - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}
         run: |
           cd tests/integration/
           chmod +x integrate_test.sh
-   #       sh integrate_test.sh
+    #       sh integrate_test.sh
 
   build_pika_image:
     name: Build Pika Docker image
