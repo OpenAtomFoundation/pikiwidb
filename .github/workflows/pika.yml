@@ -145,34 +145,6 @@ jobs:
           source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
   
-      - name: Debug Disk Usage After Build
-        run: |
-          echo "==================== 磁盘使用全景 ===================="
-          df -h
-          echo ""
-          echo "==================== 根目录大小Top 20 ===================="
-          sudo du -h --max-depth=1 / 2>/dev/null | sort -hr | head -20 || true
-          echo ""
-          echo "==================== 工作区大小详情 ===================="
-          du -h --max-depth=3 ${{ github.workspace }} 2>/dev/null | sort -hr | head -30 || true
-          echo ""
-          echo "==================== 寻找大于100MB的文件 ===================="
-          find / -type f -size +100M 2>/dev/null | xargs -I {} ls -lh {} 2>/dev/null | head -20 || true
-          echo ""
-          echo "==================== 重点目录检查 ===================="
-          echo "--- deps 目录 ---"
-          ls -la ${{ github.workspace }}/deps/ 2>/dev/null | head -5 || true
-          du -sh ${{ github.workspace }}/deps/ 2>/dev/null || true
-          echo ""
-          echo "--- buildtrees 目录 ---"
-          du -sh ${{ github.workspace }}/buildtrees/ 2>/dev/null || true
-          echo ""
-          echo "--- /usr/local 目录 ---"
-          du -sh /usr/local/ 2>/dev/null || true
-          echo ""
-          echo "--- /opt 目录 ---"
-          du -sh /opt/ 2>/dev/null || true
-
       - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
@@ -198,24 +170,12 @@ jobs:
 
       - name: Extreme Disk Cleanup
         run: |
-        
-          rm -rf /usr/local/share/* || true
-          rm -rf /usr/share/doc/* || true
-          rm -rf /usr/share/man/* || true
-          rm -rf /var/cache/* || true
-          
-          find ${{ github.workspace }} -name "*.o" -type f -delete || true
-          find ${{ github.workspace }} -name "*.a" -type f -delete || true
-          find ${{ github.workspace }} -name "*.la" -type f -delete || true
-          find ${{ github.workspace }} -name "*.so" -type f -delete || true
-          find ${{ github.workspace }} -name "*.pyc" -type f -delete || true
-          
-          rm -rf ${{ github.workspace }}/.git || true
-          
-          df -h
-          
-          echo "Largest directories:"
-          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -20
+          rm -rf /__w/pikiwidb/pikiwidb/buildtrees 2>/dev/null || true
+          rm -rf /__w/pikiwidb/pikiwidb/deps 2>/dev/null || true 
+          find /__w/pikiwidb/pikiwidb -type f \( -name "librocksdb.a" -o -name "libprotoc.a" -o -name "libprotobuf.a" \) -delete 2>/dev/null || true
+          find /__w/pikiwidb/pikiwidb -type f \( -name "*.o" -o -name "*.a" -o -name "*.la" -o -name "*.so" -o -name "*_test" \) ! -path "*/build/pika" -delete 2>/dev/null || true
+          rm -rf /__w/pikiwidb/pikiwidb/.git 2>/dev/null || true
+          df -h  
 
       - name: Create Log Directories
         run: |
