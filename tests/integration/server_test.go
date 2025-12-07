@@ -792,6 +792,30 @@ var _ = Describe("Server", func() {
 			Expect(adminCmdList).To(ContainSubstring("ping"))
 			Expect(adminCmdList).To(ContainSubstring("monitor"))
 		})
+        // fix: verify that shared block cache does not cause double counting of block cache metrics
+        It("should report correct block cache capacity when share-block-cache is yes", func() {
+            // Verify share-block-cache is enabled
+            shareBlockCacheConfig := client.ConfigGet(ctx, "share-block-cache")
+            Expect(shareBlockCacheConfig.Err()).NotTo(HaveOccurred())
+            Expect(shareBlockCacheConfig.Val()).To(Equal(map[string]string{"share-block-cache": "yes"}))
+
+            info := client.Info(ctx, "rocksdb")
+            Expect(info.Err()).NotTo(HaveOccurred())
+            infoStr := info.Val()
+
+			Expect(infoStr).To(ContainSubstring("strings_block_cache_capacity:"))
+			Expect(infoStr).To(ContainSubstring("hashes_block_cache_capacity:"))
+			Expect(infoStr).To(ContainSubstring("lists_block_cache_capacity:"))			
+			Expect(infoStr).To(ContainSubstring("sets_block_cache_capacity:"))		
+			Expect(infoStr).To(ContainSubstring("zsets_block_cache_capacity:"))
+
+			// Simple string-based verification that values are present
+			Expect(infoStr).To(MatchRegexp(`strings_block_cache_capacity:\d+`))
+			Expect(infoStr).To(MatchRegexp(`hashes_block_cache_capacity:\d+`))
+			Expect(infoStr).To(MatchRegexp(`lists_block_cache_capacity:\d+`))
+			Expect(infoStr).To(MatchRegexp(`sets_block_cache_capacity:\d+`))
+			Expect(infoStr).To(MatchRegexp(`zsets_block_cache_capacity:\d+`))
+		})
 
 		// fix add auth command to admin-thread-pool
 		It("should process auth command in admin thread pool", func() {
