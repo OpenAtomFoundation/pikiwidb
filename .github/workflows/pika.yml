@@ -144,7 +144,7 @@ jobs:
         run: |
           source /opt/rh/devtoolset-10/enable
           cmake --build build --config ${{ env.BUILD_TYPE }}
-  
+
       - name: Cleanup Build Trees
         run: |
           rm -rf ./buildtrees
@@ -175,7 +175,7 @@ jobs:
           find /__w/pikiwidb/pikiwidb -type f \( -name "librocksdb.a" -o -name "libprotoc.a" -o -name "libprotobuf.a" \) -delete 2>/dev/null || true
           find /__w/pikiwidb/pikiwidb -type f \( -name "*.o" -o -name "*.a" -o -name "*.la" -o -name "*.so" -o -name "*_test" \) ! -path "*/build/pika" -delete 2>/dev/null || true
           rm -rf /__w/pikiwidb/pikiwidb/.git 2>/dev/null || true
-          df -h  
+          df -h
 
       - name: Create Log Directories
         run: |
