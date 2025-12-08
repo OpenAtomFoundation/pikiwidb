@@ -170,24 +170,12 @@ jobs:
 
       - name: Extreme Disk Cleanup
         run: |
-        
-          rm -rf /usr/local/share/* || true
-          rm -rf /usr/share/doc/* || true
-          rm -rf /usr/share/man/* || true
-          rm -rf /var/cache/* || true
-          
-          find ${{ github.workspace }} -name "*.o" -type f -delete || true
-          find ${{ github.workspace }} -name "*.a" -type f -delete || true
-          find ${{ github.workspace }} -name "*.la" -type f -delete || true
-          find ${{ github.workspace }} -name "*.so" -type f -delete || true
-          find ${{ github.workspace }} -name "*.pyc" -type f -delete || true
-          
-          rm -rf ${{ github.workspace }}/.git || true
-          
+          rm -rf /__w/pikiwidb/pikiwidb/buildtrees 2>/dev/null || true
+          rm -rf /__w/pikiwidb/pikiwidb/deps 2>/dev/null || true 
+          find /__w/pikiwidb/pikiwidb -type f \( -name "librocksdb.a" -o -name "libprotoc.a" -o -name "libprotobuf.a" \) -delete 2>/dev/null || true
+          find /__w/pikiwidb/pikiwidb -type f \( -name "*.o" -o -name "*.a" -o -name "*.la" -o -name "*.so" -o -name "*_test" \) ! -path "*/build/pika" -delete 2>/dev/null || true
+          rm -rf /__w/pikiwidb/pikiwidb/.git 2>/dev/null || true
           df -h
-          
-          echo "Largest directories:"
-          du -h --max-depth=2 / 2>/dev/null | sort -hr | head -20
 
       - name: Create Log Directories
         run: |
