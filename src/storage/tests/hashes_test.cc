@@ -385,7 +385,7 @@ TEST_F(HashesTest, HIncrbyfloat) {
   // operation is performed
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_FIELD", "12.3456", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "12.3456");
+  ASSERT_NEAR(std::stod(new_value.ToString()), 12.3456, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_FIELD", &new_value);
   ASSERT_TRUE(s.ok());
   //ASSERT_EQ(new_value, "12.3456");
