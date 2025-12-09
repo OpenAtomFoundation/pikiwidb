@@ -231,13 +231,13 @@ jobs:
       - name: Install Deps
         run: |
            brew list --versions cmake && brew uninstall --ignore-dependencies --force cmake || true
-           brew install gcc@10 automake cmake make binutils
+           brew install gcc@13 automake cmake make binutils
 
       - name: Configure CMake
         run: |
-          GCC_PREFIX=$(brew --prefix gcc@10)
-          export CC=$GCC_PREFIX/bin/gcc-10 
-          cmake -B build -DCMAKE_C_COMPILER=$GCC_PREFIX/bin/gcc-10 -DUSE_PIKA_TOOLS=ON -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
+          GCC_PREFIX=$(brew --prefix gcc@13)
+          export CC=$GCC_PREFIX/bin/gcc-13 
+          cmake -B build -DCMAKE_C_COMPILER=$GCC_PREFIX/bin/gcc-13 -DUSE_PIKA_TOOLS=ON -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address -D CMAKE_C_COMPILER_LAUNCHER=ccache -D CMAKE_CXX_COMPILER_LAUNCHER=ccache
 
       - name: Build
         run: |
