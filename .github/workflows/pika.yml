@@ -225,12 +225,21 @@ jobs:
       - name: Cleanup artifacts
         working-directory: ${{ github.workspace }}/build
         run: |
-          rm -rf Testing CMakeFiles CMakeCache.txt
+          df -h        
+          rm -rf Testing CMakeFiles CMakeCache.txt cmake_install.cmake Makefile
           find . -name "*.o" -o -name "*.a" -delete
           find . -name "*.log" -delete
-          go clean -cache -testcache
+          find . -name "*.cmake" -delete
+          find . -type d -name "CMakeFiles" -exec rm -rf {} + || true
+          go clean -cache -testcache -modcache
           rm -rf "$HOME/.cache/go-build" "$HOME/go/pkg/mod"
           rm -rf ../log ../pika_log ../dump ../*.log ../dbsync ../db[0-9]* ../log[0-9]*
+          find ../src -name "*.o" -delete || true
+          find . -name "*.pb.cc" -o -name "*.pb.h" -delete || true
+          dnf clean all
+          rm -rf /var/cache/dnf /tmp/*
+          echo "Disk usage after deep cleanup:"
+          df -h
 
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
