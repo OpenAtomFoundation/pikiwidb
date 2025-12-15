@@ -204,7 +204,7 @@ jobs:
         run: |
           rm -rf ./buildtrees
           rm -rf ./build/Testing
-          rm -rf deps/src deps/include deps/share deps/lib deps/lib64
+          rm -rf ./deps/src ./deps/include ./deps/share
 
           echo "Cleaning up object files to save space..."
           find ./build -name "*.o" -type f -delete
@@ -240,6 +240,7 @@ jobs:
           find . -name "*.pb.cc" -o -name "*.pb.h" -delete || true
           find . -type f -name "*_test" -executable -delete || true
           find ./src/storage/tests -type f -perm -111 -delete || true
+          find ../deps -name "*.a" -delete
 
           go clean -cache -testcache -modcache
           rm -rf /root/.cache/go-build /root/go/pkg/mod
@@ -263,6 +264,8 @@ jobs:
       - name: Run Go E2E Tests
         working-directory: ${{ github.workspace }}/build
         run: |
+          find . -name "pika.conf" -exec sed -i 's/loglevel : info/loglevel : error/g' {} +
+          find . -name "pika.conf" -exec sed -i 's/loglevel : debug/loglevel : error/g' {} +
           cd ../tools/pika_keys_analysis/
           go test -v ./...
           cd ../../tests/integration/
