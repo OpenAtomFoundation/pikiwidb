@@ -204,7 +204,7 @@ jobs:
         run: |
           rm -rf ./buildtrees
           rm -rf ./build/Testing
-          rm -rf deps/src deps/include deps/share
+          rm -rf deps/src deps/include deps/share deps/lib deps/lib64
 
           echo "Cleaning up object files to save space..."
           find ./build -name "*.o" -type f -delete
