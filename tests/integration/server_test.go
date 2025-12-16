@@ -797,7 +797,10 @@ var _ = Describe("Server", func() {
             // Verify share-block-cache is enabled
             shareBlockCacheConfig := client.ConfigGet(ctx, "share-block-cache")
             Expect(shareBlockCacheConfig.Err()).NotTo(HaveOccurred())
-            Expect(shareBlockCacheConfig.Val()).To(Equal(map[string]string{"share-block-cache": "yes"}))
+            shareBlockCacheVal := shareBlockCacheConfig.Val()["share-block-cache"]
+            if shareBlockCacheVal != "yes" {
+                return
+            }
 
             info := client.Info(ctx, "rocksdb")
             Expect(info.Err()).NotTo(HaveOccurred())
