@@ -71,6 +71,17 @@ enum TaskType {
   kCompactRangeList,
 };
 
+enum TaskPoolType {
+  kFastCmdPool,
+  kSlowCmdPool,
+  kNone
+};
+
+struct VirtualSlot {
+  std::atomic<int> active_count{0};
+  std::atomic<TaskPoolType> bound_pool{TaskPoolType::kNone};
+};
+
 struct TaskArg {
   TaskType type;
   std::vector<std::string> argv;
@@ -607,7 +618,15 @@ class PikaServer : public pstd::noncopyable {
   void ProcessCronTask();
   double HitRatio();
   void SetLogNetActivities(bool value);
-  
+  // Slot management
+  int GetVirtualSlotID(const std::string& key);
+  void ReleaseVirtualSlot(int slot_id);
+
+  // Pool status check
+  bool IsSlowPoolBusy();
+  bool IsSlowPoolIdle();
+  bool IsFastPoolBusy();
+  bool IsFastPoolIdle();
   /*
    * 改进的快慢命令分离相关方法
    */
@@ -624,9 +643,6 @@ class PikaServer : public pstd::noncopyable {
   
   // 获取增强的监控指标
   std::string GetEnhancedThreadPoolMetrics() const;
-  
-  // 使用一致性哈希判断键亲和性
-  bool IsKeyAffinityToSlow(const std::string& key) const;
   
   // 重置监控指标
   void ResetThreadPoolMetrics();
@@ -793,7 +809,8 @@ class PikaServer : public pstd::noncopyable {
   std::unique_ptr<ThreadPoolMetrics> fast_pool_metrics_;
   std::unique_ptr<ThreadPoolMetrics> slow_pool_metrics_;
   std::unique_ptr<RateLimiter> cmd_rate_limiter_;
-  std::unique_ptr<ConsistentHash> key_hash_;
+  // 逻辑slot数组
+  std::vector<VirtualSlot> virtual_slots_;
 
   /*
    * acl

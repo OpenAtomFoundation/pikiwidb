@@ -41,7 +41,6 @@ struct TimeStat {
 class PikaClientConn : public net::RedisConn {
  public:
   using WriteCompleteCallback = std::function<void()>;
-
   struct BgTaskArg {
     std::shared_ptr<Cmd> cmd_ptr;
     std::shared_ptr<PikaClientConn> conn_ptr;
@@ -50,6 +49,8 @@ class PikaClientConn : public net::RedisConn {
     LogOffset offset;
     std::string db_name;
     bool cache_miss_in_rtc_;
+    //在任务参数中携带 slot_id，任务执行完毕后，Worker 线程知道要去释放哪个 Slot。
+    int slot_id = -1;
   };
 
   struct TxnStateBitMask {

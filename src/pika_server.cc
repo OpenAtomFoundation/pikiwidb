@@ -294,8 +294,7 @@ PikaServer::PikaServer()
       cmd_classifier_(new CommandClassifier(50000, 10000, 1000)),
       fast_pool_metrics_(new ThreadPoolMetrics()),
       slow_pool_metrics_(new ThreadPoolMetrics()),
-      cmd_rate_limiter_(new RateLimiter(g_pika_conf->maxclients() * 2)), // 默认速率：最大客户端连接数的2倍
-      key_hash_(new ConsistentHash(100, 1024)) {
+      cmd_rate_limiter_(new RateLimiter(g_pika_conf->maxclients() * 2)){
   // Init server ip host
   if (!ServerInit()) {
     LOG(FATAL) << "ServerInit iotcl error";
@@ -356,6 +355,13 @@ PikaServer::PikaServer()
   bgslots_cleanup_thread_.set_thread_name("PikaServer::bgslots_cleanup_thread_");
   common_bg_thread_.set_thread_name("PikaServer::common_bg_thread_");
   key_scan_thread_.set_thread_name("PikaServer::key_scan_thread_");
+
+  int slot_num = g_pika_conf->default_slot_num();
+  // 这里判断的时候，能否认为没有配置的时候就没有使用sharding模式呢
+  if(slot_num <= 0){
+    slot_num = 1024;
+  }
+  virtual_slot_.resize(slot_num);
 }
 
 PikaServer::~PikaServer() {
@@ -1057,7 +1063,7 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
         key = cmd_args[1];
         has_key = true;
         // Use improved consistent hashing for key affinity
-        key_affinity_to_slow = IsKeyAffinityToSlow(key);
+        // key_affinity_to_slow = IsKeyAffinityToSlow(key);
       }
     }
   }
@@ -2508,16 +2514,6 @@ std::string PikaServer::GetEnhancedThreadPoolMetrics() const {
   return ss.str();
 }
 
-bool PikaServer::IsKeyAffinityToSlow(const std::string& key) const {
-  if (!key_hash_) {
-    std::hash<std::string> hasher;
-    return (hasher(key) % 2) == 1;
-  }
-  
-  std::string node = key_hash_->GetNode(key);
-  return node == "slow";
-}
-
 void PikaServer::ResetThreadPoolMetrics() {
   if (fast_pool_metrics_) {
     fast_pool_metrics_->Reset();
@@ -2528,4 +2524,59 @@ void PikaServer::ResetThreadPoolMetrics() {
   }
   
   LOG(INFO) << "Thread pool metrics reset";
+}
+
+int PikaServer::GetVirtualSlotID(const std::string& key){
+  if (key.empty() || virtual_slots_.empty()) {
+    return -1;
+  }
+  uint32_t crc = pstd::hash::crc32(0, key.data(), key.size());
+  return static_cast<int>(crc % virtual_slots_.size());
+}
+
+void PikaServer::ReleaseVirtualSlotID(int slot_id){
+  if(slot_id < 0 || slot_id >= virtual_slots_.size()){
+    return;
+  }
+  virtual_slots_[slot_id].active_count.fetch_sub(1, std::memory_order_release);
+}
+
+bool PikaServer::IsSlowPoolBusy() {
+  size_t current_size = SlowCmdThreadPoolCurQueueSize();
+  size_t max_size = SlowCmdThreadPoolMaxQueueSize();
+  if (max_size == 0) {
+    return false;
+  }
+  int threadhold = g_pika_conf->threadpool_borrow_threshold_percent();
+  return current_size >= (max_size * threadhold / 100);
+}
+
+bool PikaServer::IsSlowPoolIdle(){
+  size_t current_size = SlowCmdThreadPoolCurQueueSize();
+  size_t max_size = SlowCmdThreadPoolMaxQueueSize();
+  if (max_size == 0) {
+    return true;
+  }
+  int threshold = g_pika_conf->threadpool_idle_threshold_percent();
+  return current_size <= (max_size * threshold / 100);
+}
+
+bool PikaServer::IsFastPoolBusy() {
+  size_t current_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t max_size = ClientProcessorThreadPoolMaxQueueSize();
+  if (max_size == 0) {
+    return false;
+  }
+  int threadhold = g_pika_conf->threadpool_borrow_threshold_percent();
+  return current_size >= (max_size * threadhold / 100);
+}
+
+bool PikaServer::IsFastPoolIdle(){
+  size_t current_size = ClientProcessorThreadPoolCurQueueSize();
+  size_t max_size = ClientProcessorThreadPoolMaxQueueSize();
+  if (max_size == 0) {
+    return true;
+  }
+  int threshold = g_pika_conf->threadpool_idle_threshold_percent();
+  return current_size <= (max_size * threshold / 100);
 }
