@@ -74,13 +74,8 @@ enum TaskType {
 enum TaskPoolType {
   kFastCmdPool,
   kSlowCmdPool,
-  kNone
 };
 
-struct VirtualSlot {
-  std::atomic<int> active_count{0};
-  std::atomic<TaskPoolType> bound_pool{TaskPoolType::kNone};
-};
 
 struct TaskArg {
   TaskType type;
@@ -618,9 +613,6 @@ class PikaServer : public pstd::noncopyable {
   void ProcessCronTask();
   double HitRatio();
   void SetLogNetActivities(bool value);
-  // Slot management
-  int GetVirtualSlotID(const std::string& key);
-  void ReleaseVirtualSlot(int slot_id);
 
   // Pool status check
   bool IsSlowPoolBusy();
@@ -636,7 +628,8 @@ class PikaServer : public pstd::noncopyable {
   // 自适应命令分类
   bool IsDynamicSlowCommand(const std::string& cmd_name) const;
   void RecordCommandExecutionTime(const std::string& cmd_name, uint64_t duration_us);
-  
+  TaskPoolType DecidePoolType(const std::string& cmd_name, bool is_slow_cmd);
+
   // 设置流控
   void SetCommandRateLimit(double rate_per_sec);
   bool CheckCommandRateLimit();
@@ -809,8 +802,6 @@ class PikaServer : public pstd::noncopyable {
   std::unique_ptr<ThreadPoolMetrics> fast_pool_metrics_;
   std::unique_ptr<ThreadPoolMetrics> slow_pool_metrics_;
   std::unique_ptr<RateLimiter> cmd_rate_limiter_;
-  // 逻辑slot数组
-  std::vector<VirtualSlot> virtual_slots_;
 
   /*
    * acl

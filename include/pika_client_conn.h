@@ -49,8 +49,6 @@ class PikaClientConn : public net::RedisConn {
     LogOffset offset;
     std::string db_name;
     bool cache_miss_in_rtc_;
-    //在任务参数中携带 slot_id，任务执行完毕后，Worker 线程知道要去释放哪个 Slot。
-    int slot_id = -1;
   };
 
   struct TxnStateBitMask {

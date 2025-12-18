@@ -25,6 +25,7 @@
 #include "include/pika_monotonic_time.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "pstd/include/pstd_hash.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -355,13 +356,6 @@ PikaServer::PikaServer()
   bgslots_cleanup_thread_.set_thread_name("PikaServer::bgslots_cleanup_thread_");
   common_bg_thread_.set_thread_name("PikaServer::common_bg_thread_");
   key_scan_thread_.set_thread_name("PikaServer::key_scan_thread_");
-
-  int slot_num = g_pika_conf->default_slot_num();
-  // 这里判断的时候，能否认为没有配置的时候就没有使用sharding模式呢
-  if(slot_num <= 0){
-    slot_num = 1024;
-  }
-  virtual_slot_.resize(slot_num);
 }
 
 PikaServer::~PikaServer() {
@@ -1024,152 +1018,43 @@ void PikaServer::SetFirstMetaSync(bool v) {
 }
 
 void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_cmd, bool is_admin_cmd) {
-  // Apply rate limiting if enabled (only for non-admin commands)
-  if (!is_admin_cmd && !CheckCommandRateLimit()) {
-    // Rate limit exceeded, handle gracefully
-    auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
-    if (bg_arg) {
-      // Set error response for rate limiting
-      bg_arg->resp_ptr = std::make_shared<std::string>("-ERR Rate limit exceeded, try again later\r\n");
-      bg_arg->conn_ptr->WriteResp(*(bg_arg->resp_ptr));
-      delete bg_arg;
-    }
-    return;
-  }
-
-  // Admin commands always go to admin thread pool
   if (is_admin_cmd) {
-    if (pika_admin_cmd_thread_pool_) {
-      pika_admin_cmd_thread_pool_->Schedule(func, arg);
-    }
+    pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
-  
-  // Extract command info for dynamic classification and key affinity
-  auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
-  std::string cmd_name;
-  std::string key;
-  bool has_key = false;
-  bool key_affinity_to_slow = false;
-  
-  if (bg_arg && !bg_arg->redis_cmds.empty() && !bg_arg->redis_cmds[0].empty()) {
-    const auto& cmd_args = bg_arg->redis_cmds[0];
-    if (!cmd_args.empty()) {
-      cmd_name = cmd_args[0];
-      pstd::StringToLower(cmd_name);
-      
-      // Extract key for affinity routing
-      if (cmd_args.size() > 1) {
-        key = cmd_args[1];
-        has_key = true;
-        // Use improved consistent hashing for key affinity
-        // key_affinity_to_slow = IsKeyAffinityToSlow(key);
-      }
+  // 这里的速率判断后要做些什么
+  // if(cmd_rate_limiter_ && !cmd_rate_limiter_->TryAcquire(1.0)) {
+  //   p
+  // }
+
+  TaskPoolType target_pool = TaskPoolType::kFastCmdPool;
+  bool borrow_enabled = g_pika_conf->threadpool_borrow_enable();
+  if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
+    target_pool = TaskPoolType::kSlowCmdPool; // 默认归宿
+
+    if (borrow_enabled && IsSlowPoolBusy() && IsFastPoolIdle()) {
+        target_pool = TaskPoolType::kFastCmdPool;
+        LOG_EVERY_N(INFO, 1000) << "Slow command borrows fast pool (Risk Taken)";
+    }
+  } 
+  else {
+    target_pool = TaskPoolType::kFastCmdPool; // 默认归宿
+    if (borrow_enabled && IsFastPoolBusy() && IsSlowPoolIdle()) {
+        target_pool = TaskPoolType::kSlowCmdPool;
+        LOG_EVERY_N(INFO, 1000) << "Fast command borrows slow pool";
     }
   }
-  
-  // Check if command is dynamically classified as slow
-  // Override static classification if dynamic classification exists
-  if (!cmd_name.empty() && cmd_classifier_) {
-    bool dynamic_is_slow = IsDynamicSlowCommand(cmd_name);
-    if (dynamic_is_slow) {
-      is_slow_cmd = true;
+
+  if (target_pool == TaskPoolType::kSlowCmdPool) {
+    if (slow_pool_metrics_) {
+        slow_pool_metrics_->tasks_scheduled.fetch_add(1, std::memory_order_relaxed);
     }
-  }
-  
-  // Check if thread pool borrowing is enabled
-  bool borrow_enable = g_pika_conf->threadpool_borrow_enable();
-  bool slow_cmd_pool_enable = g_pika_conf->slow_cmd_pool();
-  
-  // Update metrics before scheduling
-  if (is_slow_cmd && slow_pool_metrics_) {
-    slow_pool_metrics_->tasks_scheduled++;
-  } else if (fast_pool_metrics_) {
-    fast_pool_metrics_->tasks_scheduled++;
-  }
-  
-  // If borrowing or slow pool is disabled, use simple routing
-  if (!borrow_enable || !slow_cmd_pool_enable) {
-    if (is_slow_cmd && slow_cmd_pool_enable) {
-      pika_slow_cmd_thread_pool_->Schedule(func, arg);
-    } else {
-      pika_client_processor_->SchedulePool(func, arg);
-    }
-    return;
-  }
-
-  // Borrowing is enabled, check queue status
-  size_t slow_queue_size = SlowCmdThreadPoolCurQueueSize();
-  size_t slow_max_queue = SlowCmdThreadPoolMaxQueueSize();
-  size_t fast_queue_size = ClientProcessorThreadPoolCurQueueSize();
-  size_t fast_max_queue = ClientProcessorThreadPoolMaxQueueSize();
-
-  int borrow_threshold_percent = g_pika_conf->threadpool_borrow_threshold_percent();
-  int idle_threshold_percent = g_pika_conf->threadpool_idle_threshold_percent();
-
-  // Calculate thresholds
-  size_t slow_borrow_threshold = slow_max_queue * borrow_threshold_percent / 100;
-  size_t fast_borrow_threshold = fast_max_queue * borrow_threshold_percent / 100;
-  size_t slow_idle_threshold = slow_max_queue * idle_threshold_percent / 100;
-  size_t fast_idle_threshold = fast_max_queue * idle_threshold_percent / 100;
-
-  // Enhanced decision logic considering dynamic classification and improved key affinity
-  if (is_slow_cmd) {
-    // This is a slow command (either statically or dynamically classified)
-    if (has_key && !key_affinity_to_slow) {
-      // Key affinity is to fast pool, must use fast pool to maintain order
-      pika_client_processor_->SchedulePool(func, arg);
-    } else if (slow_queue_size >= slow_borrow_threshold && fast_queue_size <= fast_idle_threshold) {
-      // Slow pool is busy and fast pool is idle
-      if (has_key && key_affinity_to_slow) {
-        // Key belongs to slow pool, cannot borrow
-        pika_slow_cmd_thread_pool_->Schedule(func, arg);
-      } else {
-        // Can borrow from fast pool
-        if (slow_pool_metrics_) {
-          slow_pool_metrics_->borrow_attempts++;
-          slow_pool_metrics_->successful_borrows++;
-        }
-        pika_client_processor_->SchedulePool(func, arg);
-        LOG(INFO) << "Slow cmd " << cmd_name << " borrows fast pool (slow_queue: " << slow_queue_size 
-                  << "/" << slow_max_queue << ", fast_queue: " << fast_queue_size 
-                  << "/" << fast_max_queue << ")";
-      }
-    } else {
-      // Normal case: use slow pool
-      pika_slow_cmd_thread_pool_->Schedule(func, arg);
-    }
+    pika_slow_cmd_thread_pool_->Schedule(func, arg);
   } else {
-    // This is a fast command
-    if (has_key && key_affinity_to_slow) {
-      // Key affinity is to slow pool, must use slow pool to maintain order
-      pika_slow_cmd_thread_pool_->Schedule(func, arg);
-    } else if (fast_queue_size >= fast_borrow_threshold && slow_queue_size <= slow_idle_threshold) {
-      // Fast pool is busy and slow pool is idle
-      if (has_key && !key_affinity_to_slow) {
-        // Key belongs to fast pool, cannot borrow
-        pika_client_processor_->SchedulePool(func, arg);
-      } else {
-        // Can borrow from slow pool
-        if (fast_pool_metrics_) {
-          fast_pool_metrics_->borrow_attempts++;
-          fast_pool_metrics_->successful_borrows++;
-        }
-        pika_slow_cmd_thread_pool_->Schedule(func, arg);
-        LOG(INFO) << "Fast cmd " << cmd_name << " borrows slow pool (fast_queue: " << fast_queue_size 
-                  << "/" << fast_max_queue << ", slow_queue: " << slow_queue_size 
-                  << "/" << slow_max_queue << ")";
-      }
-    } else {
-      // Normal case: use fast pool
-      pika_client_processor_->SchedulePool(func, arg);
+    if (fast_pool_metrics_) {
+        fast_pool_metrics_->tasks_scheduled.fetch_add(1, std::memory_order_relaxed);
     }
-  }
-  
-  // Periodically adjust borrow thresholds based on load (every 100 commands)
-  static int command_counter = 0;
-  if (++command_counter % 100 == 0) {
-    AdjustBorrowThresholds();
+    pika_client_processor_->SchedulePool(func, arg);
   }
 }
 
@@ -2526,20 +2411,6 @@ void PikaServer::ResetThreadPoolMetrics() {
   LOG(INFO) << "Thread pool metrics reset";
 }
 
-int PikaServer::GetVirtualSlotID(const std::string& key){
-  if (key.empty() || virtual_slots_.empty()) {
-    return -1;
-  }
-  uint32_t crc = pstd::hash::crc32(0, key.data(), key.size());
-  return static_cast<int>(crc % virtual_slots_.size());
-}
-
-void PikaServer::ReleaseVirtualSlotID(int slot_id){
-  if(slot_id < 0 || slot_id >= virtual_slots_.size()){
-    return;
-  }
-  virtual_slots_[slot_id].active_count.fetch_sub(1, std::memory_order_release);
-}
 
 bool PikaServer::IsSlowPoolBusy() {
   size_t current_size = SlowCmdThreadPoolCurQueueSize();
@@ -2551,7 +2422,7 @@ bool PikaServer::IsSlowPoolBusy() {
   return current_size >= (max_size * threadhold / 100);
 }
 
-bool PikaServer::IsSlowPoolIdle(){
+bool PikaServer::IsSlowPoolIdle() {
   size_t current_size = SlowCmdThreadPoolCurQueueSize();
   size_t max_size = SlowCmdThreadPoolMaxQueueSize();
   if (max_size == 0) {
@@ -2571,7 +2442,7 @@ bool PikaServer::IsFastPoolBusy() {
   return current_size >= (max_size * threadhold / 100);
 }
 
-bool PikaServer::IsFastPoolIdle(){
+bool PikaServer::IsFastPoolIdle() {
   size_t current_size = ClientProcessorThreadPoolCurQueueSize();
   size_t max_size = ClientProcessorThreadPoolMaxQueueSize();
   if (max_size == 0) {
@@ -2579,4 +2450,51 @@ bool PikaServer::IsFastPoolIdle(){
   }
   int threshold = g_pika_conf->threadpool_idle_threshold_percent();
   return current_size <= (max_size * threshold / 100);
+}
+
+TaskPoolType PikaServer::DecidePoolType(const std::string& cmd_name, bool is_slow_cmd) {
+  if (!g_pika_conf->slow_cmd_pool()) {
+    return TaskPoolType::kFastCmdPool;
+  }
+
+  bool borrow_enabled = g_pika_conf->threadpool_borrow_enable();
+
+  // 场景 A: 当前是 慢命令 (Slow Command)
+  if (is_slow_cmd) {
+    // 默认归宿：慢池
+    TaskPoolType decision = TaskPoolType::kSlowCmdPool;
+
+    // 借用逻辑：慢池忙(Busy) 且 快池闲(Idle) -> 借用快池
+    if (borrow_enabled && IsSlowPoolBusy() && IsFastPoolIdle()) {
+      decision = TaskPoolType::kFastCmdPool;
+
+      // 更新 慢池 的借用指标 (代表慢池向外借力)
+      if (slow_pool_metrics_) {
+        slow_pool_metrics_->borrow_attempts.fetch_add(1, std::memory_order_relaxed);
+        slow_pool_metrics_->successful_borrows.fetch_add(1, std::memory_order_relaxed);
+      }
+      
+      LOG_EVERY_N(INFO, 1000) << "Slow command '" << cmd_name << "' borrows fast pool";
+    }
+    return decision;
+  }
+  else {
+    // 默认归宿：快池
+    TaskPoolType decision = TaskPoolType::kFastCmdPool;
+
+    // 借用逻辑：快池忙(Busy) 且 慢池闲(Idle) -> 借用慢池
+    // 注意：这里必须要求慢池非常“闲”才借用，防止快命令阻塞慢池中的长任务
+    if (borrow_enabled && IsFastPoolBusy() && IsSlowPoolIdle()) {
+      decision = TaskPoolType::kSlowCmdPool;
+
+      // 更新 [快池] 的借用指标 (代表快池向外借力)
+      if (fast_pool_metrics_) {
+        fast_pool_metrics_->borrow_attempts.fetch_add(1, std::memory_order_relaxed);
+        fast_pool_metrics_->successful_borrows.fetch_add(1, std::memory_order_relaxed);
+      }
+
+      LOG_EVERY_N(INFO, 1000) << "Fast command '" << cmd_name << "' borrows slow pool";
+    }
+    return decision;
+  }
 }

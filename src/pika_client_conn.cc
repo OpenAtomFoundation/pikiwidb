@@ -19,6 +19,7 @@
 #include "net/src/dispatch_thread.h"
 #include "net/src/worker_thread.h"
 #include "src/pstd/include/scope_record_lock.h"
+#include "pstd/include/pstd_defer.h"
 
 #include "rocksdb/perf_context.h"
 #include "rocksdb/iostats_context.h"
