@@ -30,3 +30,7 @@ func TestPikaWithoutCache(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "Pika integration test without cache")
 }
+
+// Note: TestRaftConsistency is now in a separate package (tests/integration/raft)
+// Run Raft consistency tests with:
+//   cd tests/integration/raft && go test -v -timeout 30m
