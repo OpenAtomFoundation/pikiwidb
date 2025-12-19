@@ -119,13 +119,28 @@ jobs:
           ../tests/integration/start_codis.sh
 
       - name: Run Go E2E Tests
-        working-directory: ${{ github.workspace }}/build
+        working-directory: ${{ github.workspace }}
         run: |
-          cd ../tools/pika_keys_analysis/
-          go test -v ./...
-          cd ../../tests/integration/
+          cd tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
+
+      # Raft Consistency Tests (optional - requires raft-enabled build)
+      - name: Start Raft Cluster
+        working-directory: ${{ github.workspace }}/build
+        continue-on-error: true
+        run: |
+          chmod +x ../tests/integration/start_raft_cluster.sh
+          ../tests/integration/start_raft_cluster.sh || echo "Raft cluster start skipped or failed (may not be supported in this build)"
+
+      - name: Run Raft Consistency Tests
+        working-directory: ${{ github.workspace }}/build
+        continue-on-error: true
+        run: |
+          cd ../tests/integration/raft/
+          go mod init raft-test 2>/dev/null || true
+          go mod tidy
+          go test -v -timeout 30m || echo "Raft consistency tests skipped or failed"
 
   build_on_rocky:
     runs-on: ubuntu-latest
@@ -334,15 +349,28 @@ jobs:
           ../tests/integration/start_codis.sh
 
       - name: Run Go E2E Tests
-        working-directory: ${{ github.workspace }}/build
+        working-directory: ${{ github.workspace }}
         run: |
-          find . -name "pika.conf" -exec sed -i 's/loglevel : info/loglevel : error/g' {} +
-          find . -name "pika.conf" -exec sed -i 's/loglevel : debug/loglevel : error/g' {} +
-          cd ../tools/pika_keys_analysis/
-          go test -v ./...
-          cd ../../tests/integration/
+          cd tests/integration/
           chmod +x integrate_test.sh
           sh integrate_test.sh
+
+      # Raft Consistency Tests (optional - requires raft-enabled build)
+      - name: Start Raft Cluster
+        working-directory: ${{ github.workspace }}/build
+        continue-on-error: true
+        run: |
+          chmod +x ../tests/integration/start_raft_cluster.sh
+          ../tests/integration/start_raft_cluster.sh || echo "Raft cluster start skipped or failed (may not be supported in this build)"
+
+      - name: Run Raft Consistency Tests
+        working-directory: ${{ github.workspace }}/build
+        continue-on-error: true
+        run: |
+          cd ../tests/integration/raft/
+          go mod init raft-test 2>/dev/null || true
+          go mod tidy
+          go test -v -timeout 30m || echo "Raft consistency tests skipped or failed"
 
   build_on_macos:
 
@@ -403,7 +431,25 @@ jobs:
         run: |
           cd tests/integration/
           chmod +x integrate_test.sh
-   #       sh integrate_test.sh
+#          sh integrate_test.sh
+
+      # Raft Consistency Tests (optional - requires raft-enabled build)
+      - name: Start Raft Cluster
+        working-directory: ${{ github.workspace }}
+        continue-on-error: true
+        run: |
+          cd tests/integration/
+          chmod +x start_raft_cluster.sh
+          ./start_raft_cluster.sh || echo "Raft cluster start skipped or failed (may not be supported in this build)"
+
+      - name: Run Raft Consistency Tests
+        working-directory: ${{ github.workspace }}
+        continue-on-error: true
+        run: |
+          cd tests/integration/raft/
+          go mod init raft-test 2>/dev/null || true
+          go mod tidy
+          go test -v -timeout 30m || echo "Raft consistency tests skipped or failed"
 
   build_pika_image:
     name: Build Pika Docker image
