@@ -1022,28 +1022,29 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
     pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
+  // 慢池未开启，直接用快池调用
+  if(!g_pika_conf->slow_cmd_pool()) {
+    pika_client_processor_->SchedulePool(func, arg);
+    return;
+  }
   // 这里的速率判断后要做些什么
   // if(cmd_rate_limiter_ && !cmd_rate_limiter_->TryAcquire(1.0)) {
-  //   p
+  //
   // }
 
-  TaskPoolType target_pool = TaskPoolType::kFastCmdPool;
-  bool borrow_enabled = g_pika_conf->threadpool_borrow_enable();
-  if (is_slow_cmd && g_pika_conf->slow_cmd_pool()) {
-    target_pool = TaskPoolType::kSlowCmdPool; // 默认归宿
-
-    if (borrow_enabled && IsSlowPoolBusy() && IsFastPoolIdle()) {
-        target_pool = TaskPoolType::kFastCmdPool;
-        LOG_EVERY_N(INFO, 1000) << "Slow command borrows fast pool (Risk Taken)";
-    }
-  } 
-  else {
-    target_pool = TaskPoolType::kFastCmdPool; // 默认归宿
-    if (borrow_enabled && IsFastPoolBusy() && IsSlowPoolIdle()) {
-        target_pool = TaskPoolType::kSlowCmdPool;
-        LOG_EVERY_N(INFO, 1000) << "Fast command borrows slow pool";
-    }
+  std::string cmd_name;
+  auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
+  if (bg_arg && !bg_arg->redis_cmds.empty() && !bg_arg->redis_cmds[0].empty()) {
+    cmd_name = bg_arg->redis_cmds[0][0];
   }
+
+  TaskPoolType target_pool = DecidePoolType(cmd_name, is_slow_cmd);
+  const char* pool_name = (target_pool == TaskPoolType::kSlowCmdPool) ? "SLOW" : "FAST";
+  const char* cmd_type = is_slow_cmd ? "slow" : "fast";
+    LOG_EVERY_N(INFO, 100) << "[TEST] Command='" << cmd_name 
+                         << "' Type=" << cmd_type
+                         << " -> Pool=" << pool_name;
+
 
   if (target_pool == TaskPoolType::kSlowCmdPool) {
     if (slow_pool_metrics_) {
@@ -1172,6 +1173,18 @@ void PikaServer::GetThreadPoolInfo(std::string* info) {
   tmp_stream << "fast_cmd_pool_max_queue_size:" << fast_max_queue << "\r\n";
   tmp_stream << "fast_cmd_pool_usage:" << std::fixed << std::setprecision(2) << fast_usage << "%\r\n";
   
+
+   // 快池借用统计（新增）
+  if (g_pika_server->fast_pool_metrics_) {
+    tmp_stream << "fast_cmd_pool_tasks_scheduled:" 
+       << g_pika_server->fast_pool_metrics_->tasks_scheduled.load() << "\r\n";
+    tmp_stream << "fast_cmd_pool_borrow_attempts:" 
+       << g_pika_server->fast_pool_metrics_->borrow_attempts.load() << "\r\n";
+    tmp_stream << "fast_cmd_pool_successful_borrows:" 
+       << g_pika_server->fast_pool_metrics_->successful_borrows.load() << "\r\n";
+  }
+
+
   // Slow cmd thread pool info
   if (g_pika_conf->slow_cmd_pool()) {
     size_t slow_pool_size = g_pika_conf->slow_cmd_thread_pool_size();
@@ -1188,6 +1201,16 @@ void PikaServer::GetThreadPoolInfo(std::string* info) {
     tmp_stream << "slow_cmd_pool_queue_size:0\r\n";
     tmp_stream << "slow_cmd_pool_max_queue_size:0\r\n";
     tmp_stream << "slow_cmd_pool_usage:0.00%\r\n";
+  }
+
+    // 慢池借用统计（新增）
+  if (g_pika_server->slow_pool_metrics_) {
+    tmp_stream << "slow_cmd_pool_tasks_scheduled:" 
+       << g_pika_server->slow_pool_metrics_->tasks_scheduled.load() << "\r\n";
+    tmp_stream << "slow_cmd_pool_borrow_attempts:" 
+       << g_pika_server->slow_pool_metrics_->borrow_attempts.load() << "\r\n";
+    tmp_stream << "slow_cmd_pool_successful_borrows:" 
+       << g_pika_server->slow_pool_metrics_->successful_borrows.load() << "\r\n";
   }
   
   // Admin cmd thread pool info
@@ -2439,6 +2462,9 @@ bool PikaServer::IsFastPoolBusy() {
     return false;
   }
   int threadhold = g_pika_conf->threadpool_borrow_threshold_percent();
+  // [测试日志] 定期打印慢池状态
+  LOG_EVERY_N(INFO, 1000) << "[TEST-POOL] FastPool: " << current_size << "/" << max_size 
+                          << " (" << (max_size > 0 ? current_size * 100 / max_size : 0) << "%)";
   return current_size >= (max_size * threadhold / 100);
 }
 
@@ -2449,6 +2475,9 @@ bool PikaServer::IsFastPoolIdle() {
     return true;
   }
   int threshold = g_pika_conf->threadpool_idle_threshold_percent();
+    // [测试日志] 定期打印快池状态
+  LOG_EVERY_N(INFO, 1000) << "[TEST-POOL] FastPool: " << current_size << "/" << max_size 
+                          << " (" << (max_size > 0 ? current_size * 100 / max_size : 0) << "%)";
   return current_size <= (max_size * threshold / 100);
 }
 
@@ -2459,7 +2488,7 @@ TaskPoolType PikaServer::DecidePoolType(const std::string& cmd_name, bool is_slo
 
   bool borrow_enabled = g_pika_conf->threadpool_borrow_enable();
 
-  // 场景 A: 当前是 慢命令 (Slow Command)
+  // 场景 A: 当前是 慢命令
   if (is_slow_cmd) {
     // 默认归宿：慢池
     TaskPoolType decision = TaskPoolType::kSlowCmdPool;
@@ -2473,12 +2502,24 @@ TaskPoolType PikaServer::DecidePoolType(const std::string& cmd_name, bool is_slo
         slow_pool_metrics_->borrow_attempts.fetch_add(1, std::memory_order_relaxed);
         slow_pool_metrics_->successful_borrows.fetch_add(1, std::memory_order_relaxed);
       }
-      
       LOG_EVERY_N(INFO, 1000) << "Slow command '" << cmd_name << "' borrows fast pool";
+    
+      // [测试日志] 慢命令借用快池
+      size_t slow_cur = SlowCmdThreadPoolCurQueueSize();
+      size_t slow_max = SlowCmdThreadPoolMaxQueueSize();
+      size_t fast_cur = ClientProcessorThreadPoolCurQueueSize();
+      size_t fast_max = ClientProcessorThreadPoolMaxQueueSize();
+      
+      LOG(WARNING) << "[TEST-BORROW] SLOW->FAST: cmd='" << cmd_name 
+                   << "' slow_queue=" << slow_cur << "/" << slow_max 
+                   << "(" << (slow_max > 0 ? slow_cur * 100 / slow_max : 0) << "%)"
+                   << " fast_queue=" << fast_cur << "/" << fast_max
+                   << "(" << (fast_max > 0 ? fast_cur * 100 / fast_max : 0) << "%)"
+                   << " total_borrows=" << slow_pool_metrics_->successful_borrows.load();
+
     }
     return decision;
-  }
-  else {
+  } else {
     // 默认归宿：快池
     TaskPoolType decision = TaskPoolType::kFastCmdPool;
 
@@ -2494,6 +2535,20 @@ TaskPoolType PikaServer::DecidePoolType(const std::string& cmd_name, bool is_slo
       }
 
       LOG_EVERY_N(INFO, 1000) << "Fast command '" << cmd_name << "' borrows slow pool";
+    
+      // [测试日志] 快命令借用慢池
+      size_t slow_cur = SlowCmdThreadPoolCurQueueSize();
+      size_t slow_max = SlowCmdThreadPoolMaxQueueSize();
+      size_t fast_cur = ClientProcessorThreadPoolCurQueueSize();
+      size_t fast_max = ClientProcessorThreadPoolMaxQueueSize();
+      
+      LOG(INFO) << "[TEST-BORROW] FAST->SLOW: cmd='" << cmd_name 
+                << "' fast_queue=" << fast_cur << "/" << fast_max 
+                << "(" << (fast_max > 0 ? fast_cur * 100 / fast_max : 0) << "%)"
+                << " slow_queue=" << slow_cur << "/" << slow_max
+                << "(" << (slow_max > 0 ? slow_cur * 100 / slow_max : 0) << "%)"
+                << " total_borrows=" << fast_pool_metrics_->successful_borrows.load();
+
     }
     return decision;
   }
