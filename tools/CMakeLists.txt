@@ -1,5 +1,6 @@
 add_subdirectory(./aof_to_pika)
 add_subdirectory(./benchmark_client)
+add_subdirectory(./bigkey_analyzer)
 add_subdirectory(./binlog_sender)
 add_subdirectory(./manifest_generator)
 add_subdirectory(./rdb_to_pika)
