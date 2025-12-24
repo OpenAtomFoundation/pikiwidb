@@ -17,6 +17,12 @@ target_include_directories(bigkey_analyzer PRIVATE
   ${INSTALL_INCLUDEDIR}
 )
 
+# Link directories
+target_link_directories(bigkey_analyzer PRIVATE
+  ${INSTALL_LIBDIR_64}
+  ${INSTALL_LIBDIR}
+)
+
 # Link libraries
 target_link_libraries(bigkey_analyzer
   storage
