@@ -30,7 +30,7 @@ bool DirectoryExists(const std::string& path) {
 // Replace special characters for consistent display
 std::string ReplaceAll(std::string str, const std::string& from, const std::string& to) {
   size_t start_pos = 0;
-  while ((start_pos = str.find(from, start_pos)) != std::string::npos) {
+  while((start_pos = str.find(from, start_pos)) != std::string::npos) {
     str.replace(start_pos, from.length(), to);
     start_pos += to.length(); // Handles case where 'to' is a substring of 'from'
   }
@@ -284,7 +284,6 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
       size_t separator = key.find('|');
       if (separator != std::string::npos) {
         std::string hash_key = key.substr(1, separator - 1);  // Extract the hash key
-        std::string field = key.substr(separator + 1);       // Extract the field name
         
         // Add field size to hash size
         auto it = hash_sizes.find(hash_key);
@@ -364,7 +363,6 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
       size_t separator = key.find('|');
       if (separator != std::string::npos) {
         std::string set_key = key.substr(1, separator - 1);  // Extract the set key
-        std::string member = key.substr(separator + 1);      // Extract the member name
         
         // Add member size to set size
         auto it = set_sizes.find(set_key);
@@ -593,7 +591,7 @@ void GeneratePrefixStats(const std::vector<KeyInfo>& key_infos, const std::strin
   }
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]){
   // Parse command line arguments
   Config config;
   if (!ParseArgs(argc, argv, config)) {
