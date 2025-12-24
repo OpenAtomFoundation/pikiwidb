@@ -188,7 +188,7 @@ bool DeleteDirIfExist(const std::string& path) {
   return !(IsDir(path) == 0 && DeleteDir(path) != 0);
 }
 
-uuint64_t Du(const std::string& path) {
+uint64_t Du(const std::string& path) {
   uint64_t sum = 0;
   try {
     if (!filesystem::exists(path)) {
