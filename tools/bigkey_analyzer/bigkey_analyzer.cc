@@ -212,7 +212,8 @@ void AnalyzeStrings(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
     std::string user_key = DecodeUserKey(encoded_key);
     
     // Parse the value
-    storage::ParsedStringsValue parsed_value(&value.ToString());
+    std::string value_str = value.ToString();
+    storage::ParsedStringsValue parsed_value(&value_str);
     
     // Calculate TTL
     int64_t ttl = -1;
@@ -270,7 +271,8 @@ void AnalyzeHashes(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       continue;
     }
     
-    storage::ParsedHashesMetaValue parsed_meta(&value.ToString());
+    std::string value_str = value.ToString();
+    storage::ParsedHashesMetaValue parsed_meta(&value_str);
     
     // Skip if expired or empty
     if (parsed_meta.IsStale() || parsed_meta.Count() == 0) {
@@ -350,7 +352,8 @@ void AnalyzeSets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       continue;
     }
     
-    storage::ParsedSetsMetaValue parsed_meta(&value.ToString());
+    std::string value_str = value.ToString();
+    storage::ParsedSetsMetaValue parsed_meta(&value_str);
     
     if (parsed_meta.IsStale() || parsed_meta.Count() == 0) {
       continue;
