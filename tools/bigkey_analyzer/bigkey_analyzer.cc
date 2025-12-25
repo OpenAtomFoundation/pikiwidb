@@ -13,16 +13,25 @@
 #include <sys/stat.h>
 #include <getopt.h>
 
-#include "storage/include/storage/storage.h"
+// RocksDB headers
 #include "rocksdb/options.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
 #include "rocksdb/iterator.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
+#include "rocksdb/comparator.h"
+
+// Storage headers - include storage.h first to get Slice typedef
+#include "storage/include/storage/storage.h"
+
+// Storage format headers  
+#include "storage/src/coding.h"
 #include "storage/src/base_data_key_format.h"
 #include "storage/src/base_meta_value_format.h"
 #include "storage/src/lists_meta_value_format.h"
+#include "storage/src/lists_data_key_format.h"
+#include "storage/src/zsets_data_key_format.h"
 #include "storage/src/custom_comparator.h"
 
 // Comparator instances
