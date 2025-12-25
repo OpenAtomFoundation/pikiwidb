@@ -13,7 +13,7 @@
 #include <sys/stat.h>
 #include <getopt.h>
 
-#include "storage/storage.h"
+#include "storage/include/storage/storage.h"
 #include "rocksdb/options.h"
 #include "rocksdb/db.h"
 #include "rocksdb/env.h"
@@ -652,10 +652,7 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   rocksdb::DBOptions db_options;
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  
-  rocksdb::ColumnFamilyOptions data_cf_ops;
-  data_cf_ops.comparator = storage::ListsDataKeyComparator();
-  column_families.emplace_back("data_cf", data_cf_ops);
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
