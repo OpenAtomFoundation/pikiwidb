@@ -22,6 +22,7 @@
 #include "rocksdb/status.h"
 #include "storage/src/base_data_key_format.h"
 #include "storage/src/base_meta_value_format.h"
+#include "storage/src/lists_meta_value_format.h"
 
 // Utility function to check if a directory exists
 bool DirectoryExists(const std::string& path) {
@@ -682,13 +683,13 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
     if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
       storage::ParsedListsMetaValue parsed_meta(value_slice);
       
-      // Skip stale or empty lists
-      if (parsed_meta.IsStale() || parsed_meta.count() == 0) {
+      // Skip empty lists
+      if (parsed_meta.count() == 0) {
         continue;
       }
       
       int32_t timestamp = parsed_meta.timestamp();
-      if (timestamp > 0 && !parsed_meta.IsPermanentSurvival()) {
+      if (timestamp > 0) {
         int64_t diff = timestamp - curtime;
         ttl = diff > 0 ? diff : -2;
       }
