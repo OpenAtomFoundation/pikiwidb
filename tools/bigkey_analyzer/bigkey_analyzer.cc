@@ -351,65 +351,104 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   
   std::cout << "Analyzing sets database at " << path << "..." << std::endl;
   
-  // 初始化存储选项
-  storage::StorageOptions storage_options;
-  storage::Storage storage;
-  rocksdb::Status s = storage.Open(storage_options, path);
+  // Open database with column families
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
   
-  if (!s.ok()) {
-    std::cerr << "Error opening sets database: " << s.ToString() << std::endl;
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
+  rocksdb::DB* db;
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
+  
+  if (!status.ok()) {
+    std::cerr << "Error opening sets database: " << status.ToString() << std::endl;
     return;
   }
-
-  // 使用Scan API遍历所有set keys
-  std::string start_key;
-  const std::string pattern("*");
-  const int64_t count = 1000;
-  std::string next_key;
-  bool scan_finished = false;
   
-  while (!scan_finished) {
-    std::vector<std::string> keys;
-    s = storage.Scanx(storage::DataType::kSets, start_key, pattern, count, &keys, &next_key);
-    if (!s.ok()) {
-      std::cerr << "Error scanning sets: " << s.ToString() << std::endl;
-      break;
-    }
+  int64_t curtime;
+  db->GetEnv()->GetCurrentTime(&curtime).ok();
+  
+  rocksdb::ReadOptions read_options;
+  
+  // Using an unordered_map to group set members by key
+  std::unordered_map<std::string, std::pair<int64_t, int64_t>> set_sizes; // key -> (size, ttl)
+  
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // 如果next_key为空，或者没有找到更多键，则结束扫描
-    if (next_key.empty() || keys.empty()) {
-      scan_finished = true;
-    }
+    int64_t ttl = -1;
     
-    start_key = next_key;
-    
-    // 处理每个集合键
-    for (const auto& key : keys) {
-      int64_t sum = 0;
-      sum = sum + key.size() + 12;  // 基础元数据大小
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedSetsMetaValue parsed_meta(value_slice);
       
-      // 获取set的所有成员
-      std::vector<std::string> members;
-      int64_t ttl = -1;
-      
-      s = storage.SMembersWithTTL(key, &members, &ttl);
-      if (!s.ok()) {
+      // Skip stale or empty sets
+      if (parsed_meta.IsStale() || parsed_meta.count() == 0) {
         continue;
       }
       
-      // 计算每个成员的大小并加总
-      for (const auto& member : members) {
-        sum = sum + 4 + key.size() + 4 + member.size();
-      }
-      
-      // 如果key大小超过阈值，添加到结果集
-      if (sum >= config.min_size) {
-        std::string display_key = ReplaceAll(key, "\n", "\\n");
-        display_key = ReplaceAll(display_key, " ", "\\x20");
-        key_infos.emplace_back("set", display_key, sum, ttl);
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0 && !parsed_meta.IsPermanentSurvival()) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -2;
       }
     }
+    
+    // Initialize with base metadata size (key + 12 bytes overhead)
+    int64_t sum = key.size() + 12;
+    set_sizes[key] = std::make_pair(sum, ttl);
   }
+  delete meta_iter;
+  
+  // Read data members from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the set key and member
+    try {
+      storage::ParsedSetsMemberKey parsed_key(encoded_key_slice);
+      std::string set_key = parsed_key.key().ToString();
+      std::string member = parsed_key.member().ToString();
+      
+      // Calculate member size: 4 (size prefix) + key + 4 (size prefix) + member
+      int64_t member_size = 4 + set_key.size() + 4 + member.size();
+      
+      // Add member size to the corresponding set
+      auto it = set_sizes.find(set_key);
+      if (it != set_sizes.end()) {
+        it->second.first += member_size;
+      } else {
+        // If metadata not found, initialize with member size and default ttl
+        set_sizes[set_key] = std::make_pair(set_key.size() + 12 + member_size, -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete data_iter;
+  
+  // Add set keys to the result
+  for (const auto& entry : set_sizes) {
+    if (entry.second.first >= config.min_size) {
+      std::string display_key = ReplaceAll(entry.first, "\n", "\\n");
+      display_key = ReplaceAll(display_key, " ", "\\x20");
+      key_infos.emplace_back("set", display_key, entry.second.first, entry.second.second);
+    }
+  }
+  
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
+  delete db;
 }
 
 // Analyze zsets database
@@ -607,68 +646,103 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   
   std::cout << "Analyzing lists database at " << path << "..." << std::endl;
   
-  // 初始化存储选项
-  storage::StorageOptions storage_options;
-  storage::Storage storage;
-  rocksdb::Status s = storage.Open(storage_options, path);
+  // Open database with column families
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
   
-  if (!s.ok()) {
-    std::cerr << "Error opening lists database: " << s.ToString() << std::endl;
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
+  rocksdb::DB* db;
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
+  
+  if (!status.ok()) {
+    std::cerr << "Error opening lists database: " << status.ToString() << std::endl;
     return;
   }
-
-  // 使用Scan API遍历所有list keys
-  std::string start_key;
-  const std::string pattern("*");
-  const int64_t count = 1000;
-  const int64_t batch_count = 1000;
-  std::string next_key;
-  bool scan_finished = false;
   
-  while (!scan_finished) {
-    std::vector<std::string> keys;
-    s = storage.Scanx(storage::DataType::kLists, start_key, pattern, count, &keys, &next_key);
-    if (!s.ok()) {
-      std::cerr << "Error scanning lists: " << s.ToString() << std::endl;
-      break;
-    }
+  int64_t curtime;
+  db->GetEnv()->GetCurrentTime(&curtime).ok();
+  
+  rocksdb::ReadOptions read_options;
+  
+  // Using an unordered_map to group list items by key
+  std::unordered_map<std::string, std::pair<int64_t, int64_t>> list_sizes; // key -> (size, ttl)
+  
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // 如果next_key为空，或者没有找到更多键，则结束扫描
-    if (next_key.empty() || keys.empty()) {
-      scan_finished = true;
-    }
+    int64_t ttl = -1;
     
-    start_key = next_key;
-    
-    // 处理每个列表键
-    for (const auto& key : keys) {
-      int64_t sum = 0;
-      sum = sum + key.size() + 12 + 16;  // 基础元数据大小
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedListsMetaValue parsed_meta(value_slice);
       
-      // 获取list的所有元素，分批获取
-      int64_t pos = 0;
-      std::vector<std::string> list_items;
-      int64_t ttl = -1;
-      
-      s = storage.LRangeWithTTL(key, pos, pos + batch_count - 1, &list_items, &ttl);
-      while (s.ok() && !list_items.empty()) {
-        for (const auto& item : list_items) {
-          sum = sum + 4 + key.size() + 4 + 8 + item.size();
-        }
-        
-        pos += batch_count;
-        list_items.clear();
-        s = storage.LRange(key, pos, pos + batch_count - 1, &list_items);
+      // Skip stale or empty lists
+      if (parsed_meta.IsStale() || parsed_meta.count() == 0) {
+        continue;
       }
       
-      // 如果key大小超过阈值，添加到结果集
-      if (sum >= config.min_size) {
-        std::string display_key = ReplaceAll(key, "\n", "\\n");
-        display_key = ReplaceAll(display_key, " ", "\\x20");
-        key_infos.emplace_back("list", display_key, sum, ttl);
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0 && !parsed_meta.IsPermanentSurvival()) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -2;
       }
+    }
+    
+    // Initialize with base metadata size (key + 12 + 16 bytes overhead)
+    int64_t sum = key.size() + 12 + 16;
+    list_sizes[key] = std::make_pair(sum, ttl);
+  }
+  delete meta_iter;
+  
+  // Read data items from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the list key
+    try {
+      storage::ParsedBaseDataKey parsed_key(encoded_key_slice); // Lists use BaseDataKey directly
+      std::string list_key = parsed_key.key().ToString();
+      
+      // Calculate element size: 4 + key + 4 + 8 (index) + element
+      int64_t element_size = 4 + list_key.size() + 4 + 8 + value_slice.size();
+      
+      // Add element size to the corresponding list
+      auto it = list_sizes.find(list_key);
+      if (it != list_sizes.end()) {
+        it->second.first += element_size;
+      } else {
+        // If metadata not found, initialize with element size and default ttl
+        list_sizes[list_key] = std::make_pair(list_key.size() + 12 + 16 + element_size, -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
     }
   }
+  delete data_iter;
+  
+  // Add list keys to the result
+  for (const auto& entry : list_sizes) {
+    if (entry.second.first >= config.min_size) {
+      std::string display_key = ReplaceAll(entry.first, "\n", "\\n");
+      display_key = ReplaceAll(display_key, " ", "\\x20");
+      key_infos.emplace_back("list", display_key, entry.second.first, entry.second.second);
+    }
+  }
+  
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
+  delete db;
 }
 
 // Get the prefix of a key
