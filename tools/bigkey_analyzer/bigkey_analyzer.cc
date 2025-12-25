@@ -23,6 +23,7 @@
 #include "storage/src/base_data_key_format.h"
 #include "storage/src/base_meta_value_format.h"
 #include "storage/src/lists_meta_value_format.h"
+#include "storage/src/custom_comparator.h"
 
 // Utility function to check if a directory exists
 bool DirectoryExists(const std::string& path) {
@@ -356,7 +357,7 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   rocksdb::DBOptions db_options;
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("member_cf", rocksdb::ColumnFamilyOptions());
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
@@ -651,7 +652,10 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   rocksdb::DBOptions db_options;
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  
+  rocksdb::ColumnFamilyOptions data_cf_ops;
+  data_cf_ops.comparator = storage::ListsDataKeyComparator();
+  column_families.emplace_back("data_cf", data_cf_ops);
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
