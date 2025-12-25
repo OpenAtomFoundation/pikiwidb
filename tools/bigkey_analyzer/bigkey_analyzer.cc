@@ -25,6 +25,7 @@
 #include "src/storage/src/base_meta_value_format.h"
 #include "src/storage/src/strings_value_format.h"
 #include "src/storage/src/base_data_value_format.h"
+#include "src/storage/src/lists_meta_value_format.h"
 #include "src/storage/src/coding.h"
 
 // Utility function to check if a directory exists
@@ -424,7 +425,8 @@ void AnalyzeZsets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       continue;
     }
     
-    storage::ParsedZSetsMetaValue parsed_meta(&value.ToString());
+    std::string value_str = value.ToString();
+    storage::ParsedZSetsMetaValue parsed_meta(&value_str);
     
     if (parsed_meta.IsStale() || parsed_meta.Count() == 0) {
       continue;
@@ -519,7 +521,8 @@ void AnalyzeLists(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       continue;
     }
     
-    storage::ParsedListsMetaValue parsed_meta(&value.ToString());
+    std::string value_str = value.ToString();
+    storage::ParsedListsMetaValue parsed_meta(&value_str);
     
     if (parsed_meta.IsStale() || parsed_meta.Count() == 0) {
       continue;
