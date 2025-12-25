@@ -20,6 +20,8 @@
 #include "rocksdb/iterator.h"
 #include "rocksdb/slice.h"
 #include "rocksdb/status.h"
+#include "storage/src/base_data_key_format.h"
+#include "storage/src/base_meta_value_format.h"
 
 // Utility function to check if a directory exists
 bool DirectoryExists(const std::string& path) {
@@ -240,9 +242,15 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
   
   std::cout << "Analyzing hashes database at " << path << "..." << std::endl;
   
-  rocksdb::Options options;
+  // Open database with column families
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(options, path, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening hashes database: " << status.ToString() << std::endl;
@@ -253,49 +261,59 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
   db->GetEnv()->GetCurrentTime(&curtime).ok();
   
   rocksdb::ReadOptions read_options;
-  auto iter = db->NewIterator(read_options);
   
   // Using an unordered_map to group hash fields by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> hash_sizes; // key -> (size, ttl)
   
-  for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
-    const std::string& key = iter->key().ToString();
-    const std::string& value = iter->value().ToString();
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // Check if this is a metadata key or field
-    if (key.find('m') == 0) {
-      // This is a metadata key (handle ttl, etc)
-      std::string hash_key = key.substr(1);  // Strip the 'm' prefix
-      int64_t ttl = -1;
-      
-      // Extract ttl from metadata - simplified, real implementation would use ParsedHashesMetaValue
-      if (value.size() >= 12) {
-        int64_t ts = *reinterpret_cast<const int64_t*>(value.data() + value.size() - 12);
-        if (ts != 0) {
-          ttl = ts - curtime;
-          if (ttl <= 0) ttl = -1;
-        }
-      }
-      
-      // Initialize size to metadata size
-      hash_sizes[hash_key] = std::make_pair(key.size() + value.size(), ttl);
-    } else if (key.find('f') == 0) {
-      // This is a field key
-      size_t separator = key.find('|');
-      if (separator != std::string::npos) {
-        std::string hash_key = key.substr(1, separator - 1);  // Extract the hash key
-        
-        // Add field size to hash size
-        auto it = hash_sizes.find(hash_key);
-        if (it != hash_sizes.end()) {
-          it->second.first += key.size() + value.size();
-        } else {
-          // If we encounter a field before metadata, initialize with default ttl
-          hash_sizes[hash_key] = std::make_pair(key.size() + value.size(), -1);
-        }
+    int64_t ttl = -1;
+    
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedHashesMetaValue parsed_meta(value_slice);
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -1;
       }
     }
+    
+    // Initialize with metadata size
+    hash_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
   }
+  delete meta_iter;
+  
+  // Read data fields from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the hash key
+    try {
+      storage::ParsedHashesDataKey parsed_key(encoded_key_slice);
+      std::string hash_key = parsed_key.key().ToString();
+      
+      // Add field size to the corresponding hash
+      auto it = hash_sizes.find(hash_key);
+      if (it != hash_sizes.end()) {
+        it->second.first += encoded_key_slice.size() + value_slice.size();
+      } else {
+        // If metadata not found, initialize with default ttl
+        hash_sizes[hash_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete data_iter;
   
   // Add hash keys to the result
   for (const auto& entry : hash_sizes) {
@@ -306,7 +324,10 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
     }
   }
   
-  delete iter;
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
   delete db;
 }
 
@@ -319,9 +340,15 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   
   std::cout << "Analyzing sets database at " << path << "..." << std::endl;
   
-  rocksdb::Options options;
+  // Open database with column families
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(options, path, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening sets database: " << status.ToString() << std::endl;
@@ -332,49 +359,59 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   db->GetEnv()->GetCurrentTime(&curtime).ok();
   
   rocksdb::ReadOptions read_options;
-  auto iter = db->NewIterator(read_options);
   
   // Using an unordered_map to group set members by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> set_sizes; // key -> (size, ttl)
   
-  for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
-    const std::string& key = iter->key().ToString();
-    const std::string& value = iter->value().ToString();
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // Check if this is a metadata key or member
-    if (key.find('m') == 0) {
-      // This is a metadata key
-      std::string set_key = key.substr(1);  // Strip the 'm' prefix
-      int64_t ttl = -1;
-      
-      // Extract ttl from metadata - simplified, real implementation would use ParsedSetsMetaValue
-      if (value.size() >= 12) {
-        int64_t ts = *reinterpret_cast<const int64_t*>(value.data() + value.size() - 12);
-        if (ts != 0) {
-          ttl = ts - curtime;
-          if (ttl <= 0) ttl = -1;
-        }
-      }
-      
-      // Initialize size to metadata size
-      set_sizes[set_key] = std::make_pair(key.size() + value.size(), ttl);
-    } else if (key.find('s') == 0) {
-      // This is a member key
-      size_t separator = key.find('|');
-      if (separator != std::string::npos) {
-        std::string set_key = key.substr(1, separator - 1);  // Extract the set key
-        
-        // Add member size to set size
-        auto it = set_sizes.find(set_key);
-        if (it != set_sizes.end()) {
-          it->second.first += key.size() + value.size();
-        } else {
-          // If we encounter a member before metadata, initialize with default ttl
-          set_sizes[set_key] = std::make_pair(key.size() + value.size(), -1);
-        }
+    int64_t ttl = -1;
+    
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedSetsMetaValue parsed_meta(value_slice);
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -1;
       }
     }
+    
+    // Initialize with metadata size
+    set_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
   }
+  delete meta_iter;
+  
+  // Read data members from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the set key
+    try {
+      storage::ParsedSetsMemberKey parsed_key(encoded_key_slice);
+      std::string set_key = parsed_key.key().ToString();
+      
+      // Add member size to the corresponding set
+      auto it = set_sizes.find(set_key);
+      if (it != set_sizes.end()) {
+        it->second.first += encoded_key_slice.size() + value_slice.size();
+      } else {
+        // If metadata not found, initialize with default ttl
+        set_sizes[set_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete data_iter;
   
   // Add set keys to the result
   for (const auto& entry : set_sizes) {
@@ -385,7 +422,10 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
     }
   }
   
-  delete iter;
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
   delete db;
 }
 
@@ -398,9 +438,16 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   
   std::cout << "Analyzing zsets database at " << path << "..." << std::endl;
   
-  rocksdb::Options options;
+  // ZSets use 3 column families: default for meta, data_cf for member data, and score_cf for scores
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("score_cf", rocksdb::ColumnFamilyOptions());
+  
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(options, path, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening zsets database: " << status.ToString() << std::endl;
@@ -411,49 +458,83 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   db->GetEnv()->GetCurrentTime(&curtime).ok();
   
   rocksdb::ReadOptions read_options;
-  auto iter = db->NewIterator(read_options);
   
   // Using an unordered_map to group zset members by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> zset_sizes; // key -> (size, ttl)
   
-  for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
-    const std::string& key = iter->key().ToString();
-    const std::string& value = iter->value().ToString();
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // Check if this is a metadata key, score key or data key
-    if (key.find('m') == 0) {
-      // This is a metadata key
-      std::string zset_key = key.substr(1);  // Strip the 'm' prefix
-      int64_t ttl = -1;
-      
-      // Extract ttl from metadata - simplified, real implementation would use ParsedZSetsMetaValue
-      if (value.size() >= 12) {
-        int64_t ts = *reinterpret_cast<const int64_t*>(value.data() + value.size() - 12);
-        if (ts != 0) {
-          ttl = ts - curtime;
-          if (ttl <= 0) ttl = -1;
-        }
-      }
-      
-      // Initialize size to metadata size
-      zset_sizes[zset_key] = std::make_pair(key.size() + value.size(), ttl);
-    } else if (key.find('z') == 0 || key.find('s') == 0) {
-      // This is a score key or data key
-      size_t separator = key.find('|');
-      if (separator != std::string::npos) {
-        std::string zset_key = key.substr(1, separator - 1);  // Extract the zset key
-        
-        // Add member size to zset size
-        auto it = zset_sizes.find(zset_key);
-        if (it != zset_sizes.end()) {
-          it->second.first += key.size() + value.size();
-        } else {
-          // If we encounter a member before metadata, initialize with default ttl
-          zset_sizes[zset_key] = std::make_pair(key.size() + value.size(), -1);
-        }
+    int64_t ttl = -1;
+    
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedZSetsMetaValue parsed_meta(value_slice);
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -1;
       }
     }
+    
+    // Initialize with metadata size
+    zset_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
   }
+  delete meta_iter;
+  
+  // Read member data from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the zset key
+    try {
+      storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice);
+      std::string zset_key = parsed_key.key().ToString();
+      
+      // Add member size to the corresponding zset
+      auto it = zset_sizes.find(zset_key);
+      if (it != zset_sizes.end()) {
+        it->second.first += encoded_key_slice.size() + value_slice.size();
+      } else {
+        // If metadata not found, initialize with default ttl
+        zset_sizes[zset_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete data_iter;
+  
+  // Read score data from score column family (handles[2])
+  auto score_iter = db->NewIterator(read_options, handles[2]);
+  for (score_iter->SeekToFirst(); score_iter->Valid(); score_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = score_iter->key();
+    rocksdb::Slice value_slice = score_iter->value();
+    
+    // ZSetsScoreKey has the same structure as other data keys
+    try {
+      storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice); // We can use the same parser for score keys
+      std::string zset_key = parsed_key.key().ToString();
+      
+      // Add score entry size to the corresponding zset
+      auto it = zset_sizes.find(zset_key);
+      if (it != zset_sizes.end()) {
+        it->second.first += encoded_key_slice.size() + value_slice.size();
+      } 
+      // No else case here because we should have seen the metadata or data entry first
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete score_iter;
   
   // Add zset keys to the result
   for (const auto& entry : zset_sizes) {
@@ -464,7 +545,10 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
     }
   }
   
-  delete iter;
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
   delete db;
 }
 
@@ -477,9 +561,15 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   
   std::cout << "Analyzing lists database at " << path << "..." << std::endl;
   
-  rocksdb::Options options;
+  // Open database with column families
+  rocksdb::DBOptions db_options;
+  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
+  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
+  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  
+  std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(options, path, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening lists database: " << status.ToString() << std::endl;
@@ -490,49 +580,59 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   db->GetEnv()->GetCurrentTime(&curtime).ok();
   
   rocksdb::ReadOptions read_options;
-  auto iter = db->NewIterator(read_options);
   
   // Using an unordered_map to group list items by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> list_sizes; // key -> (size, ttl)
   
-  for (iter->SeekToFirst(); iter->Valid(); iter->Next()) {
-    const std::string& key = iter->key().ToString();
-    const std::string& value = iter->value().ToString();
+  // Read metadata from default column family (handles[0])
+  auto meta_iter = db->NewIterator(read_options, handles[0]);
+  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+    rocksdb::Slice key_slice = meta_iter->key();
+    rocksdb::Slice value_slice = meta_iter->value();
+    std::string key = key_slice.ToString();
     
-    // Check if this is a metadata key or item key
-    if (key.find('m') == 0) {
-      // This is a metadata key
-      std::string list_key = key.substr(1);  // Strip the 'm' prefix
-      int64_t ttl = -1;
-      
-      // Extract ttl from metadata - simplified, real implementation would use ParsedListsMetaValue
-      if (value.size() >= 12) {
-        int64_t ts = *reinterpret_cast<const int64_t*>(value.data() + value.size() - 12);
-        if (ts != 0) {
-          ttl = ts - curtime;
-          if (ttl <= 0) ttl = -1;
-        }
-      }
-      
-      // Initialize size to metadata size
-      list_sizes[list_key] = std::make_pair(key.size() + value.size(), ttl);
-    } else if (key.find('l') == 0) {
-      // This is an item key
-      size_t separator = key.find('|');
-      if (separator != std::string::npos) {
-        std::string list_key = key.substr(1, separator - 1);  // Extract the list key
-        
-        // Add item size to list size
-        auto it = list_sizes.find(list_key);
-        if (it != list_sizes.end()) {
-          it->second.first += key.size() + value.size();
-        } else {
-          // If we encounter an item before metadata, initialize with default ttl
-          list_sizes[list_key] = std::make_pair(key.size() + value.size(), -1);
-        }
+    int64_t ttl = -1;
+    
+    // Parse metadata value to get TTL
+    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+      storage::ParsedBaseMetaValue parsed_meta(value_slice); // Lists use BaseMetaValue too
+      int32_t timestamp = parsed_meta.timestamp();
+      if (timestamp > 0) {
+        int64_t diff = timestamp - curtime;
+        ttl = diff > 0 ? diff : -1;
       }
     }
+    
+    // Initialize with metadata size
+    list_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
   }
+  delete meta_iter;
+  
+  // Read data items from data column family (handles[1])
+  auto data_iter = db->NewIterator(read_options, handles[1]);
+  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+    rocksdb::Slice encoded_key_slice = data_iter->key();
+    rocksdb::Slice value_slice = data_iter->value();
+    
+    // Parse the data key to extract the list key
+    try {
+      storage::ParsedBaseDataKey parsed_key(encoded_key_slice); // Lists use BaseDataKey directly
+      std::string list_key = parsed_key.key().ToString();
+      
+      // Add item size to the corresponding list
+      auto it = list_sizes.find(list_key);
+      if (it != list_sizes.end()) {
+        it->second.first += encoded_key_slice.size() + value_slice.size();
+      } else {
+        // If metadata not found, initialize with default ttl
+        list_sizes[list_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
+    }
+  }
+  delete data_iter;
   
   // Add list keys to the result
   for (const auto& entry : list_sizes) {
@@ -543,7 +643,10 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
     }
   }
   
-  delete iter;
+  // Cleanup
+  for (auto handle : handles) {
+    delete handle;
+  }
   delete db;
 }
 
