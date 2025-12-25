@@ -38,13 +38,10 @@ target_link_libraries(bigkey_analyzer
   ${JEMALLOC_LIBRARY}
 )
 
-# Add dependencies
-add_dependencies(bigkey_analyzer
-  rocksdb
-  glog
-  gflags
-  storage
-)
+# Add dependencies (only if these targets exist in the parent CMake)
+if(TARGET storage)
+  add_dependencies(bigkey_analyzer storage)
+endif()
 
 # Installation
 install(TARGETS bigkey_analyzer
