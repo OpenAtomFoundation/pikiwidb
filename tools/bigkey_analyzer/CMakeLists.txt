@@ -19,7 +19,6 @@ target_include_directories(bigkey_analyzer
 
 target_link_libraries(bigkey_analyzer 
     storage
-    rocksdb
     pthread
 )
 
