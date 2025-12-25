@@ -195,7 +195,6 @@ uint64_t Du(const std::string& path) {
       return 0;
     }
 
-    // 用 error_code 避免异常在老实现上导致问题
     std::error_code ec;
 
     if (filesystem::is_symlink(path, ec) && !ec) {
