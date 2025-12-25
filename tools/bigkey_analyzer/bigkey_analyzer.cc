@@ -274,18 +274,25 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
     
     int64_t ttl = -1;
     
-    // Parse metadata value to get TTL
+    // Parse metadata value to get TTL and check if stale
     if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
       storage::ParsedHashesMetaValue parsed_meta(value_slice);
+      
+      // Skip stale or empty hashes
+      if (parsed_meta.IsStale() || parsed_meta.count() == 0) {
+        continue;
+      }
+      
       int32_t timestamp = parsed_meta.timestamp();
-      if (timestamp > 0) {
+      if (timestamp > 0 && !parsed_meta.IsPermanentSurvival()) {
         int64_t diff = timestamp - curtime;
-        ttl = diff > 0 ? diff : -1;
+        ttl = diff > 0 ? diff : -2;
       }
     }
     
-    // Initialize with metadata size
-    hash_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
+    // Initialize with base metadata size (key + 12 bytes overhead)
+    int64_t sum = key.size() + 12;
+    hash_sizes[key] = std::make_pair(sum, ttl);
   }
   delete meta_iter;
   
@@ -295,18 +302,22 @@ void AnalyzeHashes(const std::string& path, std::vector<KeyInfo>& key_infos, con
     rocksdb::Slice encoded_key_slice = data_iter->key();
     rocksdb::Slice value_slice = data_iter->value();
     
-    // Parse the data key to extract the hash key
+    // Parse the data key to extract the hash key and field
     try {
       storage::ParsedHashesDataKey parsed_key(encoded_key_slice);
       std::string hash_key = parsed_key.key().ToString();
+      std::string field = parsed_key.field().ToString();
+      
+      // Calculate field size: 4 (size prefix) + key + 4 (size prefix) + field + value
+      int64_t field_size = 4 + hash_key.size() + 4 + field.size() + value_slice.size();
       
       // Add field size to the corresponding hash
       auto it = hash_sizes.find(hash_key);
       if (it != hash_sizes.end()) {
-        it->second.first += encoded_key_slice.size() + value_slice.size();
+        it->second.first += field_size;
       } else {
-        // If metadata not found, initialize with default ttl
-        hash_sizes[hash_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+        // If metadata not found, initialize with field size and default ttl
+        hash_sizes[hash_key] = std::make_pair(hash_key.size() + 12 + field_size, -1);
       }
     } catch (...) {
       // Skip malformed keys
@@ -341,14 +352,27 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   std::cout << "Analyzing sets database at " << path << "..." << std::endl;
   
   // Open database with column families
+  std::vector<std::string> column_families;
+  rocksdb::Options options;
+  // 先列出所有可用的列族
+  rocksdb::Status s = rocksdb::DB::ListColumnFamilies(options, path, &column_families);
+  
+  if (!s.ok()) {
+    std::cerr << "Error listing column families for sets: " << s.ToString() << std::endl;
+    return;
+  }
+  
   rocksdb::DBOptions db_options;
-  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  std::vector<rocksdb::ColumnFamilyDescriptor> cf_descriptors;
+  
+  // 添加所有列族到描述符
+  for (const auto& cf_name : column_families) {
+    cf_descriptors.emplace_back(cf_name, rocksdb::ColumnFamilyOptions());
+  }
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, cf_descriptors, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening sets database: " << status.ToString() << std::endl;
@@ -363,55 +387,71 @@ void AnalyzeSets(const std::string& path, std::vector<KeyInfo>& key_infos, const
   // Using an unordered_map to group set members by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> set_sizes; // key -> (size, ttl)
   
-  // Read metadata from default column family (handles[0])
-  auto meta_iter = db->NewIterator(read_options, handles[0]);
-  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
-    rocksdb::Slice key_slice = meta_iter->key();
-    rocksdb::Slice value_slice = meta_iter->value();
-    std::string key = key_slice.ToString();
-    
-    int64_t ttl = -1;
-    
-    // Parse metadata value to get TTL
-    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
-      storage::ParsedSetsMetaValue parsed_meta(value_slice);
-      int32_t timestamp = parsed_meta.timestamp();
-      if (timestamp > 0) {
-        int64_t diff = timestamp - curtime;
-        ttl = diff > 0 ? diff : -1;
-      }
-    }
-    
-    // Initialize with metadata size
-    set_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
-  }
-  delete meta_iter;
+  // 找到default和data_cf的索引
+  int default_cf_index = -1;
+  int data_cf_index = -1;
   
-  // Read data members from data column family (handles[1])
-  auto data_iter = db->NewIterator(read_options, handles[1]);
-  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
-    rocksdb::Slice encoded_key_slice = data_iter->key();
-    rocksdb::Slice value_slice = data_iter->value();
-    
-    // Parse the data key to extract the set key
-    try {
-      storage::ParsedSetsMemberKey parsed_key(encoded_key_slice);
-      std::string set_key = parsed_key.key().ToString();
-      
-      // Add member size to the corresponding set
-      auto it = set_sizes.find(set_key);
-      if (it != set_sizes.end()) {
-        it->second.first += encoded_key_slice.size() + value_slice.size();
-      } else {
-        // If metadata not found, initialize with default ttl
-        set_sizes[set_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
-      }
-    } catch (...) {
-      // Skip malformed keys
-      continue;
+  for (size_t i = 0; i < column_families.size(); i++) {
+    if (column_families[i] == "default") {
+      default_cf_index = i;
+    } else if (column_families[i] == "data_cf") {
+      data_cf_index = i;
     }
   }
-  delete data_iter;
+  
+  // 处理元数据 (default 列族)
+  if (default_cf_index != -1) {
+    auto meta_iter = db->NewIterator(read_options, handles[default_cf_index]);
+    for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+      rocksdb::Slice key_slice = meta_iter->key();
+      rocksdb::Slice value_slice = meta_iter->value();
+      std::string key = key_slice.ToString();
+      
+      int64_t ttl = -1;
+      
+      // Parse metadata value to get TTL
+      if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+        storage::ParsedSetsMetaValue parsed_meta(value_slice);
+        int32_t timestamp = parsed_meta.timestamp();
+        if (timestamp > 0) {
+          int64_t diff = timestamp - curtime;
+          ttl = diff > 0 ? diff : -1;
+        }
+      }
+      
+      // Initialize with metadata size
+      set_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
+    }
+    delete meta_iter;
+  }
+  
+  // 处理数据 (data_cf 列族)
+  if (data_cf_index != -1) {
+    auto data_iter = db->NewIterator(read_options, handles[data_cf_index]);
+    for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+      rocksdb::Slice encoded_key_slice = data_iter->key();
+      rocksdb::Slice value_slice = data_iter->value();
+      
+      // Parse the data key to extract the set key
+      try {
+        storage::ParsedSetsMemberKey parsed_key(encoded_key_slice);
+        std::string set_key = parsed_key.key().ToString();
+        
+        // Add member size to the corresponding set
+        auto it = set_sizes.find(set_key);
+        if (it != set_sizes.end()) {
+          it->second.first += encoded_key_slice.size() + value_slice.size();
+        } else {
+          // If metadata not found, initialize with default ttl
+          set_sizes[set_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+        }
+      } catch (...) {
+        // Skip malformed keys
+        continue;
+      }
+    }
+    delete data_iter;
+  }
   
   // Add set keys to the result
   for (const auto& entry : set_sizes) {
@@ -438,16 +478,28 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   
   std::cout << "Analyzing zsets database at " << path << "..." << std::endl;
   
-  // ZSets use 3 column families: default for meta, data_cf for member data, and score_cf for scores
+  // Open database with column families
+  std::vector<std::string> column_families;
+  rocksdb::Options options;
+  // 先列出所有可用的列族
+  rocksdb::Status s = rocksdb::DB::ListColumnFamilies(options, path, &column_families);
+  
+  if (!s.ok()) {
+    std::cerr << "Error listing column families for zsets: " << s.ToString() << std::endl;
+    return;
+  }
+  
   rocksdb::DBOptions db_options;
-  std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
-  column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("score_cf", rocksdb::ColumnFamilyOptions());
+  std::vector<rocksdb::ColumnFamilyDescriptor> cf_descriptors;
+  
+  // 添加所有列族到描述符
+  for (const auto& cf_name : column_families) {
+    cf_descriptors.emplace_back(cf_name, rocksdb::ColumnFamilyOptions());
+  }
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
-  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, column_families, &handles, &db);
+  rocksdb::Status status = rocksdb::DB::OpenForReadOnly(db_options, path, cf_descriptors, &handles, &db);
   
   if (!status.ok()) {
     std::cerr << "Error opening zsets database: " << status.ToString() << std::endl;
@@ -462,79 +514,100 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   // Using an unordered_map to group zset members by key
   std::unordered_map<std::string, std::pair<int64_t, int64_t>> zset_sizes; // key -> (size, ttl)
   
-  // Read metadata from default column family (handles[0])
-  auto meta_iter = db->NewIterator(read_options, handles[0]);
-  for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
-    rocksdb::Slice key_slice = meta_iter->key();
-    rocksdb::Slice value_slice = meta_iter->value();
-    std::string key = key_slice.ToString();
-    
-    int64_t ttl = -1;
-    
-    // Parse metadata value to get TTL
-    if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
-      storage::ParsedZSetsMetaValue parsed_meta(value_slice);
-      int32_t timestamp = parsed_meta.timestamp();
-      if (timestamp > 0) {
-        int64_t diff = timestamp - curtime;
-        ttl = diff > 0 ? diff : -1;
+  // 找到default、data_cf和score_cf的索引
+  int default_cf_index = -1;
+  int data_cf_index = -1;
+  int score_cf_index = -1;
+  
+  for (size_t i = 0; i < column_families.size(); i++) {
+    if (column_families[i] == "default") {
+      default_cf_index = i;
+    } else if (column_families[i] == "data_cf") {
+      data_cf_index = i;
+    } else if (column_families[i] == "score_cf") {
+      score_cf_index = i;
+    }
+  }
+  
+  // 处理元数据 (default 列族)
+  if (default_cf_index != -1) {
+    auto meta_iter = db->NewIterator(read_options, handles[default_cf_index]);
+    for (meta_iter->SeekToFirst(); meta_iter->Valid(); meta_iter->Next()) {
+      rocksdb::Slice key_slice = meta_iter->key();
+      rocksdb::Slice value_slice = meta_iter->value();
+      std::string key = key_slice.ToString();
+      
+      int64_t ttl = -1;
+      
+      // Parse metadata value to get TTL
+      if (value_slice.size() >= storage::ParsedBaseMetaValue::kBaseMetaValueSuffixLength) {
+        storage::ParsedZSetsMetaValue parsed_meta(value_slice);
+        int32_t timestamp = parsed_meta.timestamp();
+        if (timestamp > 0) {
+          int64_t diff = timestamp - curtime;
+          ttl = diff > 0 ? diff : -1;
+        }
+      }
+      
+      // Initialize with metadata size
+      zset_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
+    }
+    delete meta_iter;
+  }
+  
+  // 处理成员数据 (data_cf 列族)
+  if (data_cf_index != -1) {
+    auto data_iter = db->NewIterator(read_options, handles[data_cf_index]);
+    for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
+      rocksdb::Slice encoded_key_slice = data_iter->key();
+      rocksdb::Slice value_slice = data_iter->value();
+      
+      // Parse the data key to extract the zset key
+      try {
+        storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice);
+        std::string zset_key = parsed_key.key().ToString();
+        
+        // Add member size to the corresponding zset
+        auto it = zset_sizes.find(zset_key);
+        if (it != zset_sizes.end()) {
+          it->second.first += encoded_key_slice.size() + value_slice.size();
+        } else {
+          // If metadata not found, initialize with default ttl
+          zset_sizes[zset_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+        }
+      } catch (...) {
+        // Skip malformed keys
+        continue;
       }
     }
-    
-    // Initialize with metadata size
-    zset_sizes[key] = std::make_pair(key_slice.size() + value_slice.size(), ttl);
+    delete data_iter;
   }
-  delete meta_iter;
   
-  // Read member data from data column family (handles[1])
-  auto data_iter = db->NewIterator(read_options, handles[1]);
-  for (data_iter->SeekToFirst(); data_iter->Valid(); data_iter->Next()) {
-    rocksdb::Slice encoded_key_slice = data_iter->key();
-    rocksdb::Slice value_slice = data_iter->value();
-    
-    // Parse the data key to extract the zset key
-    try {
-      storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice);
-      std::string zset_key = parsed_key.key().ToString();
+  // 处理分数数据 (score_cf 列族)
+  if (score_cf_index != -1) {
+    auto score_iter = db->NewIterator(read_options, handles[score_cf_index]);
+    for (score_iter->SeekToFirst(); score_iter->Valid(); score_iter->Next()) {
+      rocksdb::Slice encoded_key_slice = score_iter->key();
+      rocksdb::Slice value_slice = score_iter->value();
       
-      // Add member size to the corresponding zset
-      auto it = zset_sizes.find(zset_key);
-      if (it != zset_sizes.end()) {
-        it->second.first += encoded_key_slice.size() + value_slice.size();
-      } else {
-        // If metadata not found, initialize with default ttl
-        zset_sizes[zset_key] = std::make_pair(encoded_key_slice.size() + value_slice.size(), -1);
+      // ZSetsScoreKey has the same structure as other data keys
+      try {
+        storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice); // We can use the same parser for score keys
+        std::string zset_key = parsed_key.key().ToString();
+        
+        // Add score entry size to the corresponding zset
+        auto it = zset_sizes.find(zset_key);
+        if (it != zset_sizes.end()) {
+          it->second.first += encoded_key_slice.size() + value_slice.size();
+        } 
+        // No else case here because we should have seen the metadata or data entry first
+      } catch (...) {
+        // Skip malformed keys
+        continue;
       }
-    } catch (...) {
-      // Skip malformed keys
-      continue;
     }
+    delete score_iter;
   }
-  delete data_iter;
-  
-  // Read score data from score column family (handles[2])
-  auto score_iter = db->NewIterator(read_options, handles[2]);
-  for (score_iter->SeekToFirst(); score_iter->Valid(); score_iter->Next()) {
-    rocksdb::Slice encoded_key_slice = score_iter->key();
-    rocksdb::Slice value_slice = score_iter->value();
-    
-    // ZSetsScoreKey has the same structure as other data keys
-    try {
-      storage::ParsedZSetsMemberKey parsed_key(encoded_key_slice); // We can use the same parser for score keys
-      std::string zset_key = parsed_key.key().ToString();
-      
-      // Add score entry size to the corresponding zset
-      auto it = zset_sizes.find(zset_key);
-      if (it != zset_sizes.end()) {
-        it->second.first += encoded_key_slice.size() + value_slice.size();
-      } 
-      // No else case here because we should have seen the metadata or data entry first
-    } catch (...) {
-      // Skip malformed keys
-      continue;
-    }
-  }
-  delete score_iter;
   
   // Add zset keys to the result
   for (const auto& entry : zset_sizes) {
