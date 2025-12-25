@@ -25,6 +25,17 @@
 #include "storage/src/lists_meta_value_format.h"
 #include "storage/src/custom_comparator.h"
 
+// Comparator instances
+const rocksdb::Comparator* ListsDataKeyComparator() {
+  static storage::ListsDataKeyComparatorImpl ldkc;
+  return &ldkc;
+}
+
+const rocksdb::Comparator* ZSetsScoreKeyComparator() {
+  static storage::ZSetsScoreKeyComparatorImpl zskc;
+  return &zskc;
+}
+
 // Utility function to check if a directory exists
 bool DirectoryExists(const std::string& path) {
   struct stat st;
@@ -478,7 +489,13 @@ void AnalyzeZsets(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   
   // 添加所有列族到描述符
   for (const auto& cf_name : column_families) {
-    cf_descriptors.emplace_back(cf_name, rocksdb::ColumnFamilyOptions());
+    if (cf_name == "score_cf") {
+      rocksdb::ColumnFamilyOptions score_cf_ops;
+      score_cf_ops.comparator = ZSetsScoreKeyComparator();
+      cf_descriptors.emplace_back(cf_name, score_cf_ops);
+    } else {
+      cf_descriptors.emplace_back(cf_name, rocksdb::ColumnFamilyOptions());
+    }
   }
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
@@ -652,7 +669,11 @@ void AnalyzeLists(const std::string& path, std::vector<KeyInfo>& key_infos, cons
   rocksdb::DBOptions db_options;
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, rocksdb::ColumnFamilyOptions());
-  column_families.emplace_back("data_cf", rocksdb::ColumnFamilyOptions());
+  
+  // 使用自定义比较器
+  rocksdb::ColumnFamilyOptions data_cf_ops;
+  data_cf_ops.comparator = ListsDataKeyComparator();
+  column_families.emplace_back("data_cf", data_cf_ops);
   
   std::vector<rocksdb::ColumnFamilyHandle*> handles;
   rocksdb::DB* db;
