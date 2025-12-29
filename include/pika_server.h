@@ -95,27 +95,6 @@ struct ThreadPoolMetrics {
   void Reset();
 };
 
-// 基于令牌桶的流量控制
-class RateLimiter {
-public:
-  explicit RateLimiter(double rate_per_sec, double burst_size = 100.0);
-  
-  // 尝试获取令牌，成功返回true
-  bool TryAcquire(double tokens = 1.0);
-  
-  // 调整速率
-  void SetRate(double rate_per_sec);
-  
-private:
-  void Refill();
-  
-  double rate_;             // 每秒允许的令牌数
-  double max_tokens_;       // 令牌桶容量
-  double tokens_;           // 当前令牌数
-  std::chrono::steady_clock::time_point last_update_; // 上次更新时间
-  std::mutex mutex_;
-};
-
 class PikaServer : public pstd::noncopyable {
  public:
   PikaServer();

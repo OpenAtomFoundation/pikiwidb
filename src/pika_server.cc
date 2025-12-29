@@ -35,7 +35,7 @@ extern std::unique_ptr<net::NetworkStatistic> g_network_statistic;
 // QUEUE_SIZE_THRESHOLD_PERCENTAGE is used to represent a percentage value and should be within the range of 0 to 100.
 const size_t QUEUE_SIZE_THRESHOLD_PERCENTAGE = 75;
 
-// ThreadPoolMetrics 实现
+// ThreadPoolMetrics 
 void ThreadPoolMetrics::RecordLatency(uint64_t latency_us) {
   if (latency_us < 1000) {
     latency_buckets[0]++;
@@ -66,7 +66,7 @@ std::string ThreadPoolMetrics::ExportMetrics(const std::string& pool_name) const
      << "# TYPE pika_threadpool_borrow_attempts counter\n"
      << "pika_threadpool_borrow_attempts{pool=\"" << pool_name << "\"} " << borrow_attempts.load() << "\n";
   
-  // 延迟分布
+  // latency metrics
   ss << "# TYPE pika_threadpool_latency_buckets counter\n";
   const char* bucket_labels[] = {
     "0_1ms", "1_5ms", "5_10ms", "10_50ms", "50_100ms", 
@@ -835,7 +835,7 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
     pika_admin_cmd_thread_pool_->Schedule(func, arg);
     return;
   }
-  // 慢池未开启，直接用快池调用
+  // if slow cmd thread pool disabled
   if(!g_pika_conf->slow_cmd_pool()) {
     pika_client_processor_->SchedulePool(func, arg);
     return;
@@ -843,7 +843,6 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
 
   auto bg_arg = static_cast<PikaClientConn::BgTaskArg*>(arg);
 
-  // 看看是否需要下沉。
   TaskPoolType target_pool = DecidePoolType(is_slow_cmd);
   if (bg_arg) {
     bg_arg->pool_type = target_pool;
@@ -970,7 +969,6 @@ void PikaServer::GetThreadPoolInfo(std::string* info) {
   tmp_stream << "fast_cmd_pool_max_queue_size:" << fast_max_queue << "\r\n";
   tmp_stream << "fast_cmd_pool_usage:" << std::fixed << std::setprecision(2) << fast_usage << "%\r\n";
 
-   // 快池借用统计
   if (g_pika_server->fast_pool_metrics_) {
     tmp_stream << "fast_cmd_pool_tasks_scheduled:" 
        << g_pika_server->fast_pool_metrics_->tasks_scheduled.load() << "\r\n";
@@ -990,7 +988,6 @@ void PikaServer::GetThreadPoolInfo(std::string* info) {
     tmp_stream << "slow_cmd_pool_max_queue_size:" << slow_max_queue << "\r\n";
     tmp_stream << "slow_cmd_pool_usage:" << std::fixed << std::setprecision(2) << slow_usage << "%\r\n";
 
-    // 慢池借用统计
     if (g_pika_server->slow_pool_metrics_) {
       tmp_stream << "slow_cmd_pool_tasks_scheduled:" 
         << g_pika_server->slow_pool_metrics_->tasks_scheduled.load() << "\r\n";
@@ -2101,7 +2098,7 @@ void PikaServer::CacheConfigInit(cache::CacheConfig& cache_cfg) {
 }
 void PikaServer::SetLogNetActivities(bool value) { pika_dispatch_thread_->SetLogNetActivities(value); }
 
-// 改进的快慢命令分离相关方法实现
+// slow/fast relevent methods
 std::string PikaServer::GetEnhancedThreadPoolMetrics() {
   std::string info;
   GetThreadPoolInfo(&info);
@@ -2181,19 +2178,18 @@ TaskPoolType PikaServer::DecidePoolType(bool is_slow_cmd) {
   bool borrow_enabled = g_pika_conf->threadpool_borrow_enable();
   TaskPoolType decision;
   if (is_slow_cmd) {
-    // 默认慢池
+    // default: slow pool
     decision = TaskPoolType::kSlowCmdPool;
 
-    // 借用逻辑：慢池忙(Busy) 且 快池闲(Idle) -> 借用快池
+    // slow pool busy & fast pool idle -> borrow fast pool
     if (borrow_enabled && IsSlowPoolBusy() && IsFastPoolIdle()) {
       decision = TaskPoolType::kFastCmdPool;
 
-      // 更新 慢池 的借用指标 (代表慢池向外借力)
+      // update metrics for the slow pool
       if (slow_pool_metrics_) {
         slow_pool_metrics_->borrow_attempts.fetch_add(1, std::memory_order_relaxed);
       }
     
-      // 慢命令借用快池
       size_t slow_cur = SlowCmdThreadPoolCurQueueSize();
       size_t slow_max = SlowCmdThreadPoolMaxQueueSize();
       size_t fast_cur = ClientProcessorThreadPoolCurQueueSize();
@@ -2204,17 +2200,17 @@ TaskPoolType PikaServer::DecidePoolType(bool is_slow_cmd) {
                 << ", fast_queue: " << fast_cur << "/" << fast_max << ")";
     }
   } else {
-    // 默认归宿：快池
+    // default: fast pool
     decision = TaskPoolType::kFastCmdPool;
 
-    // 借用逻辑：快池忙(Busy) 且 慢池闲(Idle) -> 借用慢池
+    // fast pool busy & slow pool idle -> borrow slow pool
     if (borrow_enabled && IsFastPoolBusy() && IsSlowPoolIdle()) {
       decision = TaskPoolType::kSlowCmdPool;
-      // 更新借用指标 
+      // update metrics for the fast pool
       if (fast_pool_metrics_) {
         fast_pool_metrics_->borrow_attempts.fetch_add(1, std::memory_order_relaxed);
       }
-      // 快命令借用慢池
+
       size_t slow_cur = SlowCmdThreadPoolCurQueueSize();
       size_t slow_max = SlowCmdThreadPoolMaxQueueSize();
       size_t fast_cur = ClientProcessorThreadPoolCurQueueSize();
