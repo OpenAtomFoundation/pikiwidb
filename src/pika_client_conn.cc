@@ -227,6 +227,14 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   (*cmdstat_map)[opt].cmd_count.fetch_add(1);
   (*cmdstat_map)[opt].cmd_time_consuming.fetch_add(time_stat_->total_time());
 
+  uint64_t duration_us = time_stat_->total_time();
+  ThreadPoolMetrics* metrics = (task_pool_type_ == TaskPoolType::kSlowCmdPool)
+                                ? g_pika_server->GetSlowPoolMetrics()
+                                : g_pika_server->GetFastPoolMetrics();
+  if (metrics) {
+    metrics->RecordLatency(duration_us);
+    metrics->tasks_completed.fetch_add(1, std::memory_order_relaxed);
+  }
   if (g_pika_conf->slowlog_slower_than() >= 0) {
     ProcessSlowlog(argv, c_ptr, pipeline_idx, pipeline_total);
   }
@@ -341,6 +349,7 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
 void PikaClientConn::DoBackgroundTask(void* arg) {
   std::unique_ptr<BgTaskArg> bg_arg(static_cast<BgTaskArg*>(arg));
   std::shared_ptr<PikaClientConn> conn_ptr = bg_arg->conn_ptr;
+  conn_ptr->task_pool_type_ = bg_arg->pool_type;
   conn_ptr->time_stat_->dequeue_ts_ = pstd::NowMicros();
   if (conn_ptr->IsClose()) {
     LOG(INFO) << "conn " << conn_ptr->ip_port() << " has already been closed, skip processing command";
@@ -410,6 +419,15 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
     time_stat_->process_done_ts_ = pstd::NowMicros();
     (*cmdstat_map)[argv[0]].cmd_count.fetch_add(1);
     (*cmdstat_map)[argv[0]].cmd_time_consuming.fetch_add(time_stat_->total_time());
+
+    uint64_t duration_us = time_stat_->total_time();
+    ThreadPoolMetrics* metrics = (task_pool_type_ == TaskPoolType::kSlowCmdPool)
+                                  ? g_pika_server->GetSlowPoolMetrics()
+                                  : g_pika_server->GetFastPoolMetrics();
+    if (metrics) {
+      metrics->RecordLatency(duration_us);
+      metrics->tasks_completed.fetch_add(1, std::memory_order_relaxed);
+    }
     resp_array.emplace_back(std::make_shared<std::string>(std::move(c_ptr->res().message())));
     TryWriteResp();
   }

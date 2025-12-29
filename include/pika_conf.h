@@ -493,6 +493,20 @@ class PikaConf : public pstd::BaseConf {
     std::lock_guard l(rwlock_);
     admin_thread_pool_size_ = value;
   }
+  void SetThreadPoolBorrowEnable(const bool value) {
+    std::lock_guard l(rwlock_);
+    threadpool_borrow_enable_ = value;
+  }
+
+  void SetThreadPoolBorrowThresholdPercent(const int value) {
+    std::lock_guard l(rwlock_);
+    threadpool_borrow_threshold_percent_ = value;
+  }
+
+  void SetThreadPoolIdleThresholdPercent(const int value) {
+    std::lock_guard l(rwlock_);
+    threadpool_idle_threshold_percent_ = value;
+  }
 
   void SetSlaveof(const std::string& value) {
     std::lock_guard l(rwlock_);
