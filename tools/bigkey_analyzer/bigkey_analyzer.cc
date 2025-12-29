@@ -26,6 +26,8 @@
 #include "src/storage/src/strings_value_format.h"
 #include "src/storage/src/base_data_value_format.h"
 #include "src/storage/src/lists_meta_value_format.h"
+#include "src/storage/src/lists_data_key_format.h"
+#include "src/storage/src/zsets_data_key_format.h"
 #include "src/storage/src/coding.h"
 
 // Utility function to check if a directory exists
@@ -474,16 +476,18 @@ void AnalyzeZsets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
     const rocksdb::Slice& score_key = score_iter->key();
     const rocksdb::Slice& score_value = score_iter->value();
     
-    const char* ptr = storage::SeekUserkeyDelim(score_key.data(), score_key.size());
-    size_t user_key_len = ptr - score_key.data();
-    
-    if (user_key_len == 0 || user_key_len > score_key.size()) continue;
-    
-    std::string encoded_user_key(score_key.data(), user_key_len);
-    
-    auto it = zset_info.find(encoded_user_key);
-    if (it != zset_info.end()) {
-      std::get<0>(it->second) += score_key.size() + score_value.size();
+    // Parse the score key using ParsedZSetsScoreKey
+    try {
+      storage::ParsedZSetsScoreKey parsed_key(score_key);
+      std::string encoded_user_key = parsed_key.key().ToString();
+      
+      auto it = zset_info.find(encoded_user_key);
+      if (it != zset_info.end()) {
+        std::get<0>(it->second) += score_key.size() + score_value.size();
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
     }
   }
   
@@ -549,16 +553,18 @@ void AnalyzeLists(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
     const rocksdb::Slice& data_key = data_iter->key();
     const rocksdb::Slice& data_value = data_iter->value();
     
-    const char* ptr = storage::SeekUserkeyDelim(data_key.data(), data_key.size());
-    size_t user_key_len = ptr - data_key.data();
-    
-    if (user_key_len == 0 || user_key_len > data_key.size()) continue;
-    
-    std::string encoded_user_key(data_key.data(), user_key_len);
-    
-    auto it = list_info.find(encoded_user_key);
-    if (it != list_info.end()) {
-      std::get<0>(it->second) += data_key.size() + data_value.size();
+    // Parse the data key using ParsedListsDataKey
+    try {
+      storage::ParsedListsDataKey parsed_key(data_key);
+      std::string encoded_user_key = parsed_key.key().ToString();
+      
+      auto it = list_info.find(encoded_user_key);
+      if (it != list_info.end()) {
+        std::get<0>(it->second) += data_key.size() + data_value.size();
+      }
+    } catch (...) {
+      // Skip malformed keys
+      continue;
     }
   }
   
