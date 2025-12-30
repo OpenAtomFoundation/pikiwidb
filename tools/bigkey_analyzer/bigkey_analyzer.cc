@@ -12,6 +12,8 @@
 #include <ctime>
 #include <sys/stat.h>
 #include <getopt.h>
+#include <dirent.h>
+#include <cctype>
 
 #include "rocksdb/options.h"
 #include "rocksdb/db.h"
@@ -716,6 +718,9 @@ int main(int argc, char *argv[]){
   // Check if this is a single DB or multiple DB instances
   std::vector<std::tuple<std::string, std::string, std::string>> db_paths; // (path, db_name, partition)
   
+  // 先显示当前正在检测的路径，帮助调试
+  std::cout << "Checking path: " << config.db_path << std::endl;
+  
   // First, check if db_path itself is a valid RocksDB
   std::string test_path = config.db_path;
   if (DirectoryExists(test_path + "/CURRENT")) {
@@ -724,6 +729,39 @@ int main(int argc, char *argv[]){
     std::cout << "Detected single database instance" << std::endl;
   } else {
     // 处理几种常见的情况:
+    
+    // 调试信息：显示目录内容
+    std::cout << "Directory contents of " << config.db_path << ":" << std::endl;
+    DIR* dir = opendir(config.db_path.c_str());
+    if (dir) {
+      struct dirent* entry;
+      while ((entry = readdir(dir)) != NULL) {
+        if (entry->d_name[0] != '.') {  // 跳过 . 和 .. 
+          std::string full_path = config.db_path + "/" + entry->d_name;
+          std::cout << " - " << entry->d_name;
+          if (DirectoryExists(full_path)) {
+            std::cout << " (dir)";
+            // 显示子目录内容
+            DIR* subdir = opendir(full_path.c_str());
+            if (subdir) {
+              std::cout << " contains: ";
+              struct dirent* subentry;
+              int count = 0;
+              while ((subentry = readdir(subdir)) != NULL && count < 5) {
+                if (subentry->d_name[0] != '.') {
+                  std::cout << subentry->d_name << " ";
+                  count++;
+                }
+              }
+              if (count == 5) std::cout << "...";
+              closedir(subdir);
+            }
+          }
+          std::cout << std::endl;
+        }
+      }
+      closedir(dir);
+    }
     
     // 1. 如果输入路径本身是dbN格式，直接检测其子目录（无需额外的dbN前缀）
     std::string db_name_input = "";
