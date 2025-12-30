@@ -35,7 +35,17 @@
 // Utility function to check if a directory exists
 bool DirectoryExists(const std::string& path) {
   struct stat st;
-  return stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+  bool result = stat(path.c_str(), &st) == 0 && S_ISDIR(st.st_mode);
+  std::cout << "Checking directory: " << path << " - " << (result ? "EXISTS" : "NOT FOUND") << std::endl;
+  return result;
+}
+
+// Utility function to check if a file exists
+bool FileExists(const std::string& path) {
+  struct stat st;
+  bool result = stat(path.c_str(), &st) == 0 && S_ISREG(st.st_mode);
+  std::cout << "Checking file: " << path << " - " << (result ? "EXISTS" : "NOT FOUND") << std::endl;
+  return result;
 }
 
 // Replace special characters for consistent display
@@ -723,7 +733,9 @@ int main(int argc, char *argv[]){
   
   // First, check if db_path itself is a valid RocksDB
   std::string test_path = config.db_path;
-  if (DirectoryExists(test_path + "/CURRENT")) {
+  
+  // Debug info: Does CURRENT file exist?
+  if (FileExists(test_path + "/CURRENT")) {
     // This is a single database instance
     db_paths.push_back(std::make_tuple(test_path, "", ""));
     std::cout << "Detected single database instance" << std::endl;
@@ -782,13 +794,19 @@ int main(int argc, char *argv[]){
     // 如果是dbN格式目录，直接检查其下的子目录
     if (is_db_dir) {
       // 检查这个db下的所有分区子目录
+      std::cout << "Found dbN directory: " << db_name_input << std::endl;
       bool found_partitions = false;
       for (int partition = 0; partition < 1000; partition++) {
         std::string partition_path = db_dir + "/" + std::to_string(partition);
-        if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
-          db_paths.push_back(std::make_tuple(partition_path, db_name_input, std::to_string(partition)));
-          found_partitions = true;
-        } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
+        std::cout << "Checking partition path: " << partition_path << std::endl;
+        if (DirectoryExists(partition_path)) {
+          std::cout << "Partition directory exists, checking for CURRENT file..." << std::endl;
+          if (FileExists(partition_path + "/CURRENT")) {
+            db_paths.push_back(std::make_tuple(partition_path, db_name_input, std::to_string(partition)));
+            found_partitions = true;
+            std::cout << "Found valid partition: " << partition << std::endl;
+          }
+        } else if (partition > 0 && found_partitions) {
           // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
           break;
         }
@@ -812,11 +830,14 @@ int main(int argc, char *argv[]){
           bool found_partitions = false;
           for (int partition = 0; partition < 1000; partition++) {
             std::string partition_path = db_dir + "/" + std::to_string(partition);
-            if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
-              db_paths.push_back(std::make_tuple(partition_path, db_name, std::to_string(partition)));
-              found_partitions = true;
-              found_dbn_format = true;
-            } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
+            if (DirectoryExists(partition_path)) {
+              if (FileExists(partition_path + "/CURRENT")) {
+                db_paths.push_back(std::make_tuple(partition_path, db_name, std::to_string(partition)));
+                std::cout << "Found valid dbN/M path: " << db_name << "/" << partition << std::endl;
+                found_partitions = true;
+                found_dbn_format = true;
+              }
+            } else if (partition > 0 && found_partitions) {
               // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
               break;
             }
@@ -836,9 +857,12 @@ int main(int argc, char *argv[]){
     if (db_paths.empty()) {
       for (int db_index = 0; db_index < 1000; db_index++) {
         std::string db_inst_path = config.db_path + "/" + std::to_string(db_index);
-        if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
-          db_paths.push_back(std::make_tuple(db_inst_path, "", std::to_string(db_index)));
-        } else if (db_index > 0 && !DirectoryExists(db_inst_path) && !db_paths.empty()) {
+        if (DirectoryExists(db_inst_path)) {
+          if (FileExists(db_inst_path + "/CURRENT")) {
+            db_paths.push_back(std::make_tuple(db_inst_path, "", std::to_string(db_index)));
+            std::cout << "Found direct partition directory: " << db_index << std::endl;
+          }
+        } else if (db_index > 0 && !db_paths.empty()) {
           // 如果目录不存在且已找到至少一个DB，则认为已到达末尾
           break;
         }
@@ -850,9 +874,12 @@ int main(int argc, char *argv[]){
       int db_index = 0;
       while (true) {
         std::string db_inst_path = config.db_path + "/db/" + std::to_string(db_index);
-        if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
-          db_paths.push_back(std::make_tuple(db_inst_path, "db", std::to_string(db_index)));
-          db_index++;
+        if (DirectoryExists(db_inst_path)) {
+          if (FileExists(db_inst_path + "/CURRENT")) {
+            db_paths.push_back(std::make_tuple(db_inst_path, "db", std::to_string(db_index)));
+            std::cout << "Found classic db/N format: " << db_index << std::endl;
+            db_index++;
+          }
         } else {
           break;
         }
