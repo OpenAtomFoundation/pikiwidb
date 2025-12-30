@@ -1,6 +1,10 @@
 # Big Key Analyzer
 
-大key分析工具,用于分析PikiwiDB实例中的大key情况。本工具适用于unstable分支新的存储结构,支持单实例和多DB实例(db/0, db/1, db/2...)。
+大key分析工具,用于分析PikiwiDB实例中的大key情况。本工具适用于unstable分支新的存储结构,支持多种目录结构:
+- 单实例 RocksDB
+- 多DB实例 (db/0, db/1, db/2...)
+- 直接分区目录 (0/, 1/, 2/...)
+- **新增**: dbN/M 三层嵌套结构 (db0/0, db0/1, db1/0...)
 
 ## 功能特点
 
@@ -92,10 +96,10 @@ Options:
 
 ```
 ===== Big Key Analysis =====
-Type    Size    Key     TTL
-hash    1048576 user:profile:1001    -1
-zset    524288  ranking:global       3600
-string  262144  config:settings      -1
+DB      Partition       Type    Size    Key     TTL
+db0     1               hash    1048576 user:profile:1001    -1
+db0     2               zset    524288  ranking:global       3600
+db1     0               string  262144  config:settings      -1
 ...
 
 ===== Key Prefix Statistics =====

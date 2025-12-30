@@ -72,20 +72,26 @@ struct KeyInfo {
   std::string key;
   int64_t size;
   int64_t ttl;
+  std::string db_name;
+  std::string partition;
   
-  KeyInfo() : type(""), key(""), size(0), ttl(-1) {}
+  KeyInfo() : type(""), key(""), size(0), ttl(-1), db_name(""), partition("") {}
   
-  KeyInfo(const std::string& t, const std::string& k, int64_t s, int64_t tt)
-    : type(t), key(k), size(s), ttl(tt) {}
+  KeyInfo(const std::string& t, const std::string& k, int64_t s, int64_t tt,
+          const std::string& db = "", const std::string& part = "")
+    : type(t), key(k), size(s), ttl(tt), db_name(db), partition(part) {}
   
-  KeyInfo(std::string&& t, std::string&& k, int64_t s, int64_t tt)
-    : type(std::move(t)), key(std::move(k)), size(s), ttl(tt) {}
+  KeyInfo(std::string&& t, std::string&& k, int64_t s, int64_t tt,
+          const std::string& db = "", const std::string& part = "")
+    : type(std::move(t)), key(std::move(k)), size(s), ttl(tt), db_name(db), partition(part) {}
   
-  KeyInfo(const char* t, const std::string& k, int64_t s, int64_t tt)
-    : type(t), key(k), size(s), ttl(tt) {}
+  KeyInfo(const char* t, const std::string& k, int64_t s, int64_t tt,
+          const std::string& db = "", const std::string& part = "")
+    : type(t), key(k), size(s), ttl(tt), db_name(db), partition(part) {}
   
-  KeyInfo(const char* t, std::string&& k, int64_t s, int64_t tt)
-    : type(t), key(std::move(k)), size(s), ttl(tt) {}
+  KeyInfo(const char* t, std::string&& k, int64_t s, int64_t tt,
+          const std::string& db = "", const std::string& part = "")
+    : type(t), key(std::move(k)), size(s), ttl(tt), db_name(db), partition(part) {}
     
   bool operator<(const KeyInfo& other) const {
     return size > other.size; // Sort in descending order by size
@@ -188,7 +194,8 @@ bool ParseArgs(int argc, char* argv[], Config& config) {
 
 // Analyze strings in MetaCF
 void AnalyzeStrings(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
-                   std::vector<KeyInfo>& key_infos, const Config& config) {
+                   std::vector<KeyInfo>& key_infos, const Config& config,
+                   const std::string& db_name, const std::string& partition) {
   std::cout << "Analyzing strings..." << std::endl;
   
   int64_t curtime;
@@ -236,7 +243,7 @@ void AnalyzeStrings(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
     if (size >= config.min_size) {
       std::string display_key = ReplaceAll(user_key, "\n", "\\n");
       display_key = ReplaceAll(display_key, " ", "\\x20");
-      key_infos.emplace_back("string", std::move(display_key), size, ttl);
+      key_infos.emplace_back("string", std::move(display_key), size, ttl, db_name, partition);
     }
   }
   
@@ -248,7 +255,8 @@ void AnalyzeStrings(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
 // Analyze hashes
 void AnalyzeHashes(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
                   rocksdb::ColumnFamilyHandle* data_handle,
-                  std::vector<KeyInfo>& key_infos, const Config& config) {
+                  std::vector<KeyInfo>& key_infos, const Config& config,
+                  const std::string& db_name, const std::string& partition) {
   std::cout << "Analyzing hashes..." << std::endl;
   
   int64_t curtime;
@@ -323,7 +331,7 @@ void AnalyzeHashes(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       std::string user_key = DecodeUserKey(entry.first);
       std::string display_key = ReplaceAll(user_key, "\n", "\\n");
       display_key = ReplaceAll(display_key, " ", "\\x20");
-      key_infos.emplace_back("hash", std::move(display_key), size, std::get<1>(entry.second));
+      key_infos.emplace_back("hash", std::move(display_key), size, std::get<1>(entry.second), db_name, partition);
     }
   }
 }
@@ -331,7 +339,8 @@ void AnalyzeHashes(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
 // Analyze sets
 void AnalyzeSets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
                 rocksdb::ColumnFamilyHandle* data_handle,
-                std::vector<KeyInfo>& key_infos, const Config& config) {
+                std::vector<KeyInfo>& key_infos, const Config& config,
+                const std::string& db_name, const std::string& partition) {
   std::cout << "Analyzing sets..." << std::endl;
   
   int64_t curtime;
@@ -398,7 +407,7 @@ void AnalyzeSets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       std::string user_key = DecodeUserKey(entry.first);
       std::string display_key = ReplaceAll(user_key, "\n", "\\n");
       display_key = ReplaceAll(display_key, " ", "\\x20");
-      key_infos.emplace_back("set", std::move(display_key), size, std::get<1>(entry.second));
+      key_infos.emplace_back("set", std::move(display_key), size, std::get<1>(entry.second), db_name, partition);
     }
   }
 }
@@ -407,7 +416,8 @@ void AnalyzeSets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
 void AnalyzeZsets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
                  rocksdb::ColumnFamilyHandle* data_handle,
                  rocksdb::ColumnFamilyHandle* score_handle,
-                 std::vector<KeyInfo>& key_infos, const Config& config) {
+                 std::vector<KeyInfo>& key_infos, const Config& config,
+                 const std::string& db_name, const std::string& partition) {
   std::cout << "Analyzing zsets..." << std::endl;
   
   int64_t curtime;
@@ -497,7 +507,7 @@ void AnalyzeZsets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       std::string user_key = DecodeUserKey(entry.first);
       std::string display_key = ReplaceAll(user_key, "\n", "\\n");
       display_key = ReplaceAll(display_key, " ", "\\x20");
-      key_infos.emplace_back("zset", std::move(display_key), size, std::get<1>(entry.second));
+      key_infos.emplace_back("zset", std::move(display_key), size, std::get<1>(entry.second), db_name, partition);
     }
   }
 }
@@ -505,7 +515,8 @@ void AnalyzeZsets(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
 // Analyze lists
 void AnalyzeLists(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
                  rocksdb::ColumnFamilyHandle* data_handle,
-                 std::vector<KeyInfo>& key_infos, const Config& config) {
+                 std::vector<KeyInfo>& key_infos, const Config& config,
+                 const std::string& db_name, const std::string& partition) {
   std::cout << "Analyzing lists..." << std::endl;
   
   int64_t curtime;
@@ -574,7 +585,7 @@ void AnalyzeLists(rocksdb::DB* db, rocksdb::ColumnFamilyHandle* meta_handle,
       std::string user_key = DecodeUserKey(entry.first);
       std::string display_key = ReplaceAll(user_key, "\n", "\\n");
       display_key = ReplaceAll(display_key, " ", "\\x20");
-      key_infos.emplace_back("list", std::move(display_key), size, std::get<1>(entry.second));
+      key_infos.emplace_back("list", std::move(display_key), size, std::get<1>(entry.second), db_name, partition);
     }
   }
 }
@@ -620,7 +631,8 @@ void GeneratePrefixStats(const std::vector<KeyInfo>& key_infos, const std::strin
 }
 
 // Analyze a single database instance
-void AnalyzeSingleDB(const std::string& db_path, std::vector<KeyInfo>& key_infos, const Config& config) {
+void AnalyzeSingleDB(const std::string& db_path, std::vector<KeyInfo>& key_infos, const Config& config,
+                    const std::string& db_name, const std::string& partition) {
   rocksdb::DBOptions db_options;
   db_options.create_if_missing = false;
   
@@ -654,24 +666,24 @@ void AnalyzeSingleDB(const std::string& db_path, std::vector<KeyInfo>& key_infos
   
   // Analyze each type
   if (config.type_filter == "all" || config.type_filter == "strings") {
-    AnalyzeStrings(db, handles[storage::kMetaCF], key_infos, config);
+    AnalyzeStrings(db, handles[storage::kMetaCF], key_infos, config, db_name, partition);
   }
   
   if (config.type_filter == "all" || config.type_filter == "hashes") {
-    AnalyzeHashes(db, handles[storage::kMetaCF], handles[storage::kHashesDataCF], key_infos, config);
+    AnalyzeHashes(db, handles[storage::kMetaCF], handles[storage::kHashesDataCF], key_infos, config, db_name, partition);
   }
   
   if (config.type_filter == "all" || config.type_filter == "sets") {
-    AnalyzeSets(db, handles[storage::kMetaCF], handles[storage::kSetsDataCF], key_infos, config);
+    AnalyzeSets(db, handles[storage::kMetaCF], handles[storage::kSetsDataCF], key_infos, config, db_name, partition);
   }
   
   if (config.type_filter == "all" || config.type_filter == "zsets") {
     AnalyzeZsets(db, handles[storage::kMetaCF], handles[storage::kZsetsDataCF], 
-                 handles[storage::kZsetsScoreCF], key_infos, config);
+                 handles[storage::kZsetsScoreCF], key_infos, config, db_name, partition);
   }
   
   if (config.type_filter == "all" || config.type_filter == "lists") {
-    AnalyzeLists(db, handles[storage::kMetaCF], handles[storage::kListsDataCF], key_infos, config);
+    AnalyzeLists(db, handles[storage::kMetaCF], handles[storage::kListsDataCF], key_infos, config, db_name, partition);
   }
   
   // Cleanup
@@ -702,33 +714,61 @@ int main(int argc, char *argv[]){
   }
   
   // Check if this is a single DB or multiple DB instances
-  std::vector<std::string> db_paths;
+  std::vector<std::tuple<std::string, std::string, std::string>> db_paths; // (path, db_name, partition)
   
   // First, check if db_path itself is a valid RocksDB
   std::string test_path = config.db_path;
   if (DirectoryExists(test_path + "/CURRENT")) {
     // This is a single database instance
-    db_paths.push_back(test_path);
+    db_paths.push_back(std::make_tuple(test_path, "", ""));
     std::cout << "Detected single database instance" << std::endl;
   } else {
-    // Check if each subdirectory is a valid RocksDB (direct subdirectories like 0/, 1/, 2/)
-    for (int db_index = 0; db_index < 1000; db_index++) { // 防止无限循环，设置上限
-      std::string db_inst_path = config.db_path + "/" + std::to_string(db_index);
-      if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
-        db_paths.push_back(db_inst_path);
-      } else if (db_index > 0 && !DirectoryExists(db_inst_path)) {
-        // 如果目录不存在且已找到至少一个DB，则认为已到达末尾
+    // 尝试检测dbN/M/格式 (如 db0/1, db0/2, db1/0 等)
+    bool found_dbn_format = false;
+    for (int db_index = 0; db_index < 1000; db_index++) {
+      std::string db_name = "db" + std::to_string(db_index);
+      std::string db_dir = config.db_path + "/" + db_name;
+      
+      if (DirectoryExists(db_dir)) {
+        // 检查这个db下的所有分区子目录
+        bool found_partitions = false;
+        for (int partition = 0; partition < 1000; partition++) {
+          std::string partition_path = db_dir + "/" + std::to_string(partition);
+          if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
+            db_paths.push_back(std::make_tuple(partition_path, db_name, std::to_string(partition)));
+            found_partitions = true;
+            found_dbn_format = true;
+          } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
+            // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
+            break;
+          }
+        }
+      } else if (db_index > 0 && found_dbn_format) {
+        // 当前db不存在且已找到至少一个db，认为已到达末尾
         break;
       }
     }
     
-    // 如果上面的检测失败，尝试经典的db/N格式
+    // 如果没有找到dbN/M格式，尝试检测直接的分区目录格式 (如 0/, 1/, 2/)
+    if (db_paths.empty()) {
+      for (int db_index = 0; db_index < 1000; db_index++) {
+        std::string db_inst_path = config.db_path + "/" + std::to_string(db_index);
+        if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
+          db_paths.push_back(std::make_tuple(db_inst_path, "", std::to_string(db_index)));
+        } else if (db_index > 0 && !DirectoryExists(db_inst_path) && !db_paths.empty()) {
+          // 如果目录不存在且已找到至少一个DB，则认为已到达末尾
+          break;
+        }
+      }
+    }
+    
+    // 尝试经典的db/N格式
     if (db_paths.empty()) {
       int db_index = 0;
       while (true) {
         std::string db_inst_path = config.db_path + "/db/" + std::to_string(db_index);
         if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
-          db_paths.push_back(db_inst_path);
+          db_paths.push_back(std::make_tuple(db_inst_path, "db", std::to_string(db_index)));
           db_index++;
         } else {
           break;
@@ -738,7 +778,7 @@ int main(int argc, char *argv[]){
     
     if (db_paths.empty()) {
       std::cerr << "Error: No valid database found at " << config.db_path << std::endl;
-      std::cerr << "Checked for single instance, direct subdirectories (0, 1, 2...), and db/0, db/1, ... directories" << std::endl;
+      std::cerr << "Checked for single instance, dbN/M format, direct subdirectories (0, 1, 2...), and db/0, db/1, ... directories" << std::endl;
       return 1;
     }
     
@@ -746,8 +786,11 @@ int main(int argc, char *argv[]){
   }
   
   // Analyze each database instance
-  for (const auto& db_path : db_paths) {
-    AnalyzeSingleDB(db_path, key_infos, config);
+  for (const auto& db_info : db_paths) {
+    const std::string& db_path = std::get<0>(db_info);
+    const std::string& db_name = std::get<1>(db_info);
+    const std::string& partition = std::get<2>(db_info);
+    AnalyzeSingleDB(db_path, key_infos, config, db_name, partition);
   }
   
   // Sort keys by size
@@ -760,10 +803,12 @@ int main(int argc, char *argv[]){
   
   // Output results
   *out << "===== Big Key Analysis =====\n";
-  *out << "Type\tSize\tKey\tTTL\n";
+  *out << "DB\tPartition\tType\tSize\tKey\tTTL\n";
   
   for (const auto& info : key_infos) {
-    *out << info.type << "\t" << info.size << "\t" << info.key << "\t" << info.ttl << "\n";
+    *out << info.db_name << "\t" << info.partition << "\t" 
+         << info.type << "\t" << info.size << "\t" 
+         << info.key << "\t" << info.ttl << "\n";
   }
   
   // Generate prefix statistics if requested
