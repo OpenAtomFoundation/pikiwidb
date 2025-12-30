@@ -702,7 +702,6 @@ int main(int argc, char *argv[]){
   }
   
   // Check if this is a single DB or multiple DB instances
-  // Try to detect db/0, db/1, db/2, etc.
   std::vector<std::string> db_paths;
   
   // First, check if db_path itself is a valid RocksDB
@@ -712,21 +711,34 @@ int main(int argc, char *argv[]){
     db_paths.push_back(test_path);
     std::cout << "Detected single database instance" << std::endl;
   } else {
-    // Check for multiple database instances (db/0, db/1, db/2, ...)
-    int db_index = 0;
-    while (true) {
-      std::string db_inst_path = config.db_path + "/db/" + std::to_string(db_index);
+    // Check if each subdirectory is a valid RocksDB (direct subdirectories like 0/, 1/, 2/)
+    for (int db_index = 0; db_index < 1000; db_index++) { // 防止无限循环，设置上限
+      std::string db_inst_path = config.db_path + "/" + std::to_string(db_index);
       if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
         db_paths.push_back(db_inst_path);
-        db_index++;
-      } else {
+      } else if (db_index > 0 && !DirectoryExists(db_inst_path)) {
+        // 如果目录不存在且已找到至少一个DB，则认为已到达末尾
         break;
+      }
+    }
+    
+    // 如果上面的检测失败，尝试经典的db/N格式
+    if (db_paths.empty()) {
+      int db_index = 0;
+      while (true) {
+        std::string db_inst_path = config.db_path + "/db/" + std::to_string(db_index);
+        if (DirectoryExists(db_inst_path) && DirectoryExists(db_inst_path + "/CURRENT")) {
+          db_paths.push_back(db_inst_path);
+          db_index++;
+        } else {
+          break;
+        }
       }
     }
     
     if (db_paths.empty()) {
       std::cerr << "Error: No valid database found at " << config.db_path << std::endl;
-      std::cerr << "Checked for single instance and db/0, db/1, ... directories" << std::endl;
+      std::cerr << "Checked for single instance, direct subdirectories (0, 1, 2...), and db/0, db/1, ... directories" << std::endl;
       return 1;
     }
     
