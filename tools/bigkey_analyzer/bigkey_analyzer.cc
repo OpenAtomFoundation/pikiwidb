@@ -723,29 +723,74 @@ int main(int argc, char *argv[]){
     db_paths.push_back(std::make_tuple(test_path, "", ""));
     std::cout << "Detected single database instance" << std::endl;
   } else {
-    // 尝试检测dbN/M/格式 (如 db0/1, db0/2, db1/0 等)
-    bool found_dbn_format = false;
-    for (int db_index = 0; db_index < 1000; db_index++) {
-      std::string db_name = "db" + std::to_string(db_index);
-      std::string db_dir = config.db_path + "/" + db_name;
-      
-      if (DirectoryExists(db_dir)) {
-        // 检查这个db下的所有分区子目录
-        bool found_partitions = false;
-        for (int partition = 0; partition < 1000; partition++) {
-          std::string partition_path = db_dir + "/" + std::to_string(partition);
-          if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
-            db_paths.push_back(std::make_tuple(partition_path, db_name, std::to_string(partition)));
-            found_partitions = true;
-            found_dbn_format = true;
-          } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
-            // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
-            break;
-          }
+    // 处理几种常见的情况:
+    
+    // 1. 如果输入路径本身是dbN格式，直接检测其子目录（无需额外的dbN前缀）
+    std::string db_name_input = "";
+    bool is_db_dir = false;
+    std::string db_dir = config.db_path;
+    
+    // 检查输入路径的末尾目录名是否匹配dbN模式
+    size_t last_slash = config.db_path.find_last_of("/\\");
+    if (last_slash != std::string::npos) {
+      std::string dir_name = config.db_path.substr(last_slash + 1);
+      if (dir_name.size() > 2 && dir_name.substr(0, 2) == "db" && 
+          std::all_of(dir_name.begin() + 2, dir_name.end(), ::isdigit)) {
+        db_name_input = dir_name;
+        is_db_dir = true;
+      }
+    }
+    
+    // 如果是dbN格式目录，直接检查其下的子目录
+    if (is_db_dir) {
+      // 检查这个db下的所有分区子目录
+      bool found_partitions = false;
+      for (int partition = 0; partition < 1000; partition++) {
+        std::string partition_path = db_dir + "/" + std::to_string(partition);
+        if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
+          db_paths.push_back(std::make_tuple(partition_path, db_name_input, std::to_string(partition)));
+          found_partitions = true;
+        } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
+          // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
+          break;
         }
-      } else if (db_index > 0 && found_dbn_format) {
-        // 当前db不存在且已找到至少一个db，认为已到达末尾
-        break;
+      }
+      
+      // 如果在dbN目录下找到了有效的子目录，就不需要继续搜索其他格式了
+      if (!db_paths.empty()) {
+        std::cout << "Detected " << db_paths.size() << " database partitions in " << db_name_input << std::endl;
+      }
+    }
+    
+    // 2. 如果上面的检测未能找到数据库，尝试标准的dbN/M格式
+    if (db_paths.empty()) {
+      bool found_dbn_format = false;
+      for (int db_index = 0; db_index < 1000; db_index++) {
+        std::string db_name = "db" + std::to_string(db_index);
+        std::string db_dir = config.db_path + "/" + db_name;
+        
+        if (DirectoryExists(db_dir)) {
+          // 检查这个db下的所有分区子目录
+          bool found_partitions = false;
+          for (int partition = 0; partition < 1000; partition++) {
+            std::string partition_path = db_dir + "/" + std::to_string(partition);
+            if (DirectoryExists(partition_path) && DirectoryExists(partition_path + "/CURRENT")) {
+              db_paths.push_back(std::make_tuple(partition_path, db_name, std::to_string(partition)));
+              found_partitions = true;
+              found_dbn_format = true;
+            } else if (partition > 0 && !DirectoryExists(partition_path) && found_partitions) {
+              // 当前partition不存在且已找到至少一个partition，认为已到达该db的末尾
+              break;
+            }
+          }
+        } else if (db_index > 0 && found_dbn_format) {
+          // 当前db不存在且已找到至少一个db，认为已到达末尾
+          break;
+        }
+      }
+      
+      if (found_dbn_format) {
+        std::cout << "Detected " << db_paths.size() << " database partitions in dbN/M format" << std::endl;
       }
     }
     
