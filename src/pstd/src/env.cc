@@ -194,28 +194,55 @@ uint64_t Du(const std::string& path) {
     if (!filesystem::exists(path)) {
       return 0;
     }
-    if (filesystem::is_symlink(path)) {
-      filesystem::path symlink_path = filesystem::read_symlink(path);
-      sum = Du(symlink_path);
-    } else if (filesystem::is_directory(path)) {
+
+    std::error_code ec;
+
+    if (filesystem::is_symlink(path, ec) && !ec) {
+      filesystem::path symlink_path = filesystem::read_symlink(path, ec);
+      if (!ec) {
+        sum = Du(symlink_path.string());
+      }
+    } else if (filesystem::is_directory(path, ec) && !ec) {
       for (const auto& entry : filesystem::directory_iterator(path)) {
-        if (entry.is_symlink()) {
-          sum += Du(filesystem::read_symlink(entry.path()));
-        } else if (entry.is_directory()) {
-          sum += Du(entry.path());
-        } else if (entry.is_regular_file()) {
-          sum += entry.file_size();
+        auto st = entry.symlink_status(ec);
+        if (ec) {
+          ec.clear();
+          continue;
+        }
+
+        if (filesystem::is_symlink(st)) {
+          auto p = filesystem::read_symlink(entry.path(), ec);
+          if (!ec) {
+            sum += Du(p.string());
+          } else {
+            ec.clear();
+          }
+        } else if (filesystem::is_directory(st)) {
+          sum += Du(entry.path().string());
+        } else if (filesystem::is_regular_file(st)) {
+          auto sz = filesystem::file_size(entry.path(), ec);
+          if (!ec) {
+            sum += sz;
+          } else {
+            ec.clear();
+          }
         }
       }
-    } else if (filesystem::is_regular_file(path)) {
-      sum = filesystem::file_size(path);
+    } else if (filesystem::is_regular_file(path, ec) && !ec) {
+      auto sz = filesystem::file_size(path, ec);
+      if (!ec) {
+        sum = sz;
+      }
     }
   } catch (const filesystem::filesystem_error& ex) {
+    LOG(WARNING) << "Error accessing path: " << ex.what();
+  } catch (const std::exception& ex) {
     LOG(WARNING) << "Error accessing path: " << ex.what();
   }
 
   return sum;
 }
+
 
 uint64_t NowMicros() {
   auto now = std::chrono::system_clock::now();
