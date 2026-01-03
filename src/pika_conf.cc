@@ -90,6 +90,34 @@ int PikaConf::Load() {
     threadpool_idle_threshold_percent_ = 20;
   }
 
+  // EMA queue-wait based load signals (used together with queue percent)
+  int alpha_num = 0;
+  int alpha_den = 0;
+  GetConfInt("threadpool-ema-alpha-numerator", &alpha_num);
+  GetConfInt("threadpool-ema-alpha-denominator", &alpha_den);
+  if (alpha_num > 0 && alpha_den > 0 && alpha_num <= alpha_den) {
+    threadpool_ema_alpha_numerator_ = static_cast<uint32_t>(alpha_num);
+    threadpool_ema_alpha_denominator_ = static_cast<uint32_t>(alpha_den);
+  }
+
+  int64_t threshold = 0;
+  GetConfInt64("threadpool-fast-busy-threshold", &threshold);
+  if (threshold > 0) {
+    threadpool_fast_busy_threshold_ = static_cast<uint64_t>(threshold);
+  }
+  GetConfInt64("threadpool-fast-idle-threshold", &threshold);
+  if (threshold > 0) {
+    threadpool_fast_idle_threshold_ = static_cast<uint64_t>(threshold);
+  }
+  GetConfInt64("threadpool-slow-busy-threshold", &threshold);
+  if (threshold > 0) {
+    threadpool_slow_busy_threshold_ = static_cast<uint64_t>(threshold);
+  }
+  GetConfInt64("threadpool-slow-idle-threshold", &threshold);
+  if (threshold > 0) {
+    threadpool_slow_idle_threshold_ = static_cast<uint64_t>(threshold);
+  }
+
   int binlog_writer_num = 1;
   GetConfInt("binlog-writer-num", &binlog_writer_num);
   if (binlog_writer_num <= 0 || binlog_writer_num > 24) {

@@ -2130,44 +2130,109 @@ void PikaServer::ResetThreadPoolMetrics() {
 }
 
 
-bool PikaServer::IsSlowPoolBusy() {
-  size_t current_size = SlowCmdThreadPoolCurQueueSize();
-  size_t max_size = SlowCmdThreadPoolMaxQueueSize();
-  if (max_size == 0) {
-    return false;
+// Load EMA-related configurations from pika.conf
+void PikaServer::LoadThreadPoolConfig() {
+  ema_alpha_numerator_.store(g_pika_conf->threadpool_ema_alpha_numerator(), std::memory_order_relaxed);
+  ema_alpha_denominator_.store(g_pika_conf->threadpool_ema_alpha_denominator(), std::memory_order_relaxed);
+  fast_busy_threshold_us_.store(g_pika_conf->threadpool_fast_busy_threshold(), std::memory_order_relaxed);
+  fast_idle_threshold_us_.store(g_pika_conf->threadpool_fast_idle_threshold(), std::memory_order_relaxed);
+  slow_busy_threshold_us_.store(g_pika_conf->threadpool_slow_busy_threshold(), std::memory_order_relaxed);
+  slow_idle_threshold_us_.store(g_pika_conf->threadpool_slow_idle_threshold(), std::memory_order_relaxed);
+}
+
+// Update EMA statistics for queue wait time (lock-free)
+void PikaServer::UpdateQueueWaitStats(TaskPoolType pool_type, uint64_t queue_wait_us) {
+  auto& stats = (pool_type == kFastCmdPool) ? fast_pool_stats_ : slow_pool_stats_;
+
+  uint64_t now = pstd::NowMicros();
+  uint64_t last = stats.last_update_us_.exchange(now, std::memory_order_relaxed);
+
+  uint32_t alpha_num = ema_alpha_numerator_.load(std::memory_order_relaxed);
+  uint32_t alpha_den = ema_alpha_denominator_.load(std::memory_order_relaxed);
+
+  if (last > 0) {
+    uint64_t elapsed = now - last;
+    if (elapsed > 1000) { // If last update was more than 1ms ago, increase alpha to adapt faster
+      alpha_num = std::min(alpha_num * 2, alpha_den / 2);
+    }
   }
-  int threadhold = g_pika_conf->threadpool_borrow_threshold_percent();
-  return current_size >= (max_size * threadhold / 100);
+
+  uint64_t old_val = stats.ema_queue_wait_us_.load(std::memory_order_relaxed);
+  uint64_t new_val = (old_val * (alpha_den - alpha_num) + queue_wait_us * alpha_num) / alpha_den;
+  stats.ema_queue_wait_us_.store(new_val, std::memory_order_relaxed);
+}
+
+// Get the current EMA queue wait time
+uint64_t PikaServer::GetEMAQueueWait(TaskPoolType pool_type) const {
+  const auto& stats = (pool_type == kFastCmdPool) ? fast_pool_stats_ : slow_pool_stats_;
+  return stats.ema_queue_wait_us_.load(std::memory_order_relaxed);
+}
+
+// --- Internal helpers for busy/idle checks based on EMA ---
+bool PikaServer::IsFastPoolBusyByEMA() const {
+  return GetEMAQueueWait(kFastCmdPool) > fast_busy_threshold_us_.load(std::memory_order_relaxed);
+}
+
+bool PikaServer::IsFastPoolIdleByEMA() const {
+  return GetEMAQueueWait(kFastCmdPool) < fast_idle_threshold_us_.load(std::memory_order_relaxed);
+}
+
+bool PikaServer::IsSlowPoolBusyByEMA() const {
+  return GetEMAQueueWait(kSlowCmdPool) > slow_busy_threshold_us_.load(std::memory_order_relaxed);
+}
+
+bool PikaServer::IsSlowPoolIdleByEMA() const {
+  return GetEMAQueueWait(kSlowCmdPool) < slow_idle_threshold_us_.load(std::memory_order_relaxed);
+}
+
+bool PikaServer::IsSlowPoolBusy() {
+  // Queue percentage signal
+  size_t cur = SlowCmdThreadPoolCurQueueSize();
+  size_t max = SlowCmdThreadPoolMaxQueueSize();
+  bool busy_by_queue = false;
+  if (max > 0) {
+    int thr = g_pika_conf->threadpool_borrow_threshold_percent();
+    busy_by_queue = cur >= (max * thr / 100);
+  }
+  // EMA signal
+  bool busy_by_ema = IsSlowPoolBusyByEMA();
+  return busy_by_queue || busy_by_ema;
 }
 
 bool PikaServer::IsSlowPoolIdle() {
-  size_t current_size = SlowCmdThreadPoolCurQueueSize();
-  size_t max_size = SlowCmdThreadPoolMaxQueueSize();
-  if (max_size == 0) {
-    return true;
+  size_t cur = SlowCmdThreadPoolCurQueueSize();
+  size_t max = SlowCmdThreadPoolMaxQueueSize();
+  bool idle_by_queue = true;
+  if (max > 0) {
+    int thr = g_pika_conf->threadpool_idle_threshold_percent();
+    idle_by_queue = cur <= (max * thr / 100);
   }
-  int threshold = g_pika_conf->threadpool_idle_threshold_percent();
-  return current_size <= (max_size * threshold / 100);
+  bool idle_by_ema = IsSlowPoolIdleByEMA();
+  return idle_by_queue && idle_by_ema;
 }
 
 bool PikaServer::IsFastPoolBusy() {
-  size_t current_size = ClientProcessorThreadPoolCurQueueSize();
-  size_t max_size = ClientProcessorThreadPoolMaxQueueSize();
-  if (max_size == 0) {
-    return false;
+  size_t cur = ClientProcessorThreadPoolCurQueueSize();
+  size_t max = ClientProcessorThreadPoolMaxQueueSize();
+  bool busy_by_queue = false;
+  if (max > 0) {
+    int thr = g_pika_conf->threadpool_borrow_threshold_percent();
+    busy_by_queue = cur >= (max * thr / 100);
   }
-  int threadhold = g_pika_conf->threadpool_borrow_threshold_percent();
-  return current_size >= (max_size * threadhold / 100);
+  bool busy_by_ema = IsFastPoolBusyByEMA();
+  return busy_by_queue || busy_by_ema;
 }
 
 bool PikaServer::IsFastPoolIdle() {
-  size_t current_size = ClientProcessorThreadPoolCurQueueSize();
-  size_t max_size = ClientProcessorThreadPoolMaxQueueSize();
-  if (max_size == 0) {
-    return true;
+  size_t cur = ClientProcessorThreadPoolCurQueueSize();
+  size_t max = ClientProcessorThreadPoolMaxQueueSize();
+  bool idle_by_queue = true;
+  if (max > 0) {
+    int thr = g_pika_conf->threadpool_idle_threshold_percent();
+    idle_by_queue = cur <= (max * thr / 100);
   }
-  int threshold = g_pika_conf->threadpool_idle_threshold_percent();
-  return current_size <= (max_size * threshold / 100);
+  bool idle_by_ema = IsFastPoolIdleByEMA();
+  return idle_by_queue && idle_by_ema;
 }
 
 TaskPoolType PikaServer::DecidePoolType(bool is_slow_cmd) {

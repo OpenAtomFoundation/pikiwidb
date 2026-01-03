@@ -180,6 +180,7 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return threadpool_idle_threshold_percent_;
   }
+
   std::string server_id() {
     std::shared_lock l(rwlock_);
     return server_id_;
@@ -506,6 +507,57 @@ class PikaConf : public pstd::BaseConf {
   void SetThreadPoolIdleThresholdPercent(const int value) {
     std::lock_guard l(rwlock_);
     threadpool_idle_threshold_percent_ = value;
+  }
+
+  // Getters for EMA configuration
+  uint32_t threadpool_ema_alpha_numerator() {
+    std::shared_lock l(rwlock_);
+    return threadpool_ema_alpha_numerator_;
+  }
+  uint32_t threadpool_ema_alpha_denominator() {
+    std::shared_lock l(rwlock_);
+    return threadpool_ema_alpha_denominator_;
+  }
+  uint64_t threadpool_fast_busy_threshold() {
+    std::shared_lock l(rwlock_);
+    return threadpool_fast_busy_threshold_;
+  }
+  uint64_t threadpool_fast_idle_threshold() {
+    std::shared_lock l(rwlock_);
+    return threadpool_fast_idle_threshold_;
+  }
+  uint64_t threadpool_slow_busy_threshold() {
+    std::shared_lock l(rwlock_);
+    return threadpool_slow_busy_threshold_;
+  }
+  uint64_t threadpool_slow_idle_threshold() {
+    std::shared_lock l(rwlock_);
+    return threadpool_slow_idle_threshold_;
+  }
+
+  // Setters for EMA configuration
+  void SetThreadPoolEmaAlpha(uint32_t numerator, uint32_t denominator) {
+    std::lock_guard l(rwlock_);
+    if (denominator > 0 && numerator <= denominator) {
+        threadpool_ema_alpha_numerator_ = numerator;
+        threadpool_ema_alpha_denominator_ = denominator;
+    }
+  }
+  void SetThreadPoolFastBusyThreshold(uint64_t value) {
+    std::lock_guard l(rwlock_);
+    threadpool_fast_busy_threshold_ = value;
+  }
+  void SetThreadPoolFastIdleThreshold(uint64_t value) {
+    std::lock_guard l(rwlock_);
+    threadpool_fast_idle_threshold_ = value;
+  }
+  void SetThreadPoolSlowBusyThreshold(uint64_t value) {
+    std::lock_guard l(rwlock_);
+    threadpool_slow_busy_threshold_ = value;
+  }
+  void SetThreadPoolSlowIdleThreshold(uint64_t value) {
+    std::lock_guard l(rwlock_);
+    threadpool_slow_idle_threshold_ = value;
   }
 
   void SetSlaveof(const std::string& value) {
@@ -973,6 +1025,14 @@ class PikaConf : public pstd::BaseConf {
   bool threadpool_borrow_enable_ = true;
   int threadpool_borrow_threshold_percent_ = 80;
   int threadpool_idle_threshold_percent_ = 20;
+
+  // EMA configuration
+  uint32_t threadpool_ema_alpha_numerator_{5};
+  uint32_t threadpool_ema_alpha_denominator_{100};
+  uint64_t threadpool_fast_busy_threshold_{2000};   // us
+  uint64_t threadpool_fast_idle_threshold_{500};    // us
+  uint64_t threadpool_slow_busy_threshold_{5000};   // us
+  uint64_t threadpool_slow_idle_threshold_{1000};   // us
 
   std::string compression_;
   std::string compression_per_level_;

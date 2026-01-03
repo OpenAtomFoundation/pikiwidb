@@ -530,6 +530,8 @@ class PikaServer : public pstd::noncopyable {
   TaskPoolType DecidePoolType(bool is_slow_cmd);
   std::string GetEnhancedThreadPoolMetrics();
   void ResetThreadPoolMetrics();
+  void UpdateQueueWaitStats(TaskPoolType pool_type, uint64_t queue_wait_us);
+  void LoadThreadPoolConfig();
   ThreadPoolMetrics* GetSlowPoolMetrics() { return slow_pool_metrics_.get(); }
   ThreadPoolMetrics* GetFastPoolMetrics() { return fast_pool_metrics_.get(); }
   
@@ -693,6 +695,34 @@ class PikaServer : public pstd::noncopyable {
    */
   std::unique_ptr<ThreadPoolMetrics> fast_pool_metrics_;
   std::unique_ptr<ThreadPoolMetrics> slow_pool_metrics_;
+
+  /*
+   * EMA statistics for queue wait time (used together with queue percent)
+   */
+  struct PoolLatencyStats {
+    std::atomic<uint64_t> ema_queue_wait_us_{0};  // EMA queue wait time (us)
+    std::atomic<uint64_t> last_update_us_{0};     // Last update time (us)
+  };
+
+  PoolLatencyStats fast_pool_stats_;
+  PoolLatencyStats slow_pool_stats_;
+
+  // EMA configuration parameters (atomic for dynamic updates)
+  std::atomic<uint32_t> ema_alpha_numerator_{5};      // EMA alpha numerator (alpha = 5/100 = 0.05)
+  std::atomic<uint32_t> ema_alpha_denominator_{100};  // EMA alpha denominator
+  std::atomic<uint64_t> fast_busy_threshold_us_{2000}; // Fast pool busy threshold (2ms)
+  std::atomic<uint64_t> fast_idle_threshold_us_{500};  // Fast pool idle threshold (0.5ms)
+  std::atomic<uint64_t> slow_busy_threshold_us_{5000}; // Slow pool busy threshold (5ms)
+  std::atomic<uint64_t> slow_idle_threshold_us_{1000}; // Slow pool idle threshold (1ms)
+  
+  // Get EMA queue wait time (us)
+  uint64_t GetEMAQueueWait(TaskPoolType pool_type) const;
+  
+  // Busy/Idle determination based on EMA (internal helpers)
+  bool IsFastPoolBusyByEMA() const;
+  bool IsFastPoolIdleByEMA() const;
+  bool IsSlowPoolBusyByEMA() const;
+  bool IsSlowPoolIdleByEMA() const;
 
   /*
    * acl

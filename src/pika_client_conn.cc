@@ -337,7 +337,8 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
         return;
       }
       arg->cache_miss_in_rtc_ = true;
-      time_stat_->before_queue_ts_ = pstd::NowMicros();
+      // In case of cache miss, update the enqueue time to after the cache check
+      time_stat_->enqueue_ts_ = time_stat_->before_queue_ts_ = pstd::NowMicros();
     }
 
     g_pika_server->ScheduleClientPool(&DoBackgroundTask, arg, is_slow_cmd, is_admin_cmd);
@@ -350,7 +351,15 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
   std::unique_ptr<BgTaskArg> bg_arg(static_cast<BgTaskArg*>(arg));
   std::shared_ptr<PikaClientConn> conn_ptr = bg_arg->conn_ptr;
   conn_ptr->task_pool_type_ = bg_arg->pool_type;
-  conn_ptr->time_stat_->dequeue_ts_ = pstd::NowMicros();
+  
+  // Record dequeue time and calculate queue wait time
+  uint64_t now = pstd::NowMicros();
+  conn_ptr->time_stat_->dequeue_ts_ = now;
+  uint64_t queue_wait = now - conn_ptr->time_stat_->enqueue_ts_;
+  
+  // Update EMA statistics for queue wait time
+  g_pika_server->UpdateQueueWaitStats(bg_arg->pool_type, queue_wait);
+  
   if (conn_ptr->IsClose()) {
     LOG(INFO) << "conn " << conn_ptr->ip_port() << " has already been closed, skip processing command";
     return;
