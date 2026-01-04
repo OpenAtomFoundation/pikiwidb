@@ -836,7 +836,7 @@ void PikaServer::ScheduleClientPool(net::TaskFunc func, void* arg, bool is_slow_
     return;
   }
   // if slow cmd thread pool disabled
-  if(!g_pika_conf->slow_cmd_pool()) {
+  if (!g_pika_conf->slow_cmd_pool()) {
     pika_client_processor_->SchedulePool(func, arg);
     return;
   }

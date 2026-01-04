@@ -2730,7 +2730,7 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     g_pika_conf->SetThreadPoolSize(static_cast<int>(thread_pool_size));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "slow-cmd-thread-pool-size") {
-    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0 || ival > 1024) {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0 || ival > 24) {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'slow-cmd-thread-pool-size'\r\n");
       return;
     }
