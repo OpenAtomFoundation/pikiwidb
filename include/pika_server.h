@@ -84,7 +84,7 @@ void DoBgslotsreload(void* arg);
 // threadpool metrics
 struct ThreadPoolMetrics {
   std::atomic<uint64_t> tasks_scheduled{0};
-  std::atomic<uint64_t> tasks_completed{0};
+  std::atomic<uint64_t> active_tasks{0};
   std::atomic<uint64_t> borrow_attempts{0};
   
   // latency（1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, >5s）
@@ -567,6 +567,7 @@ class PikaServer : public pstd::noncopyable {
   void AutoDeleteExpiredDump();
   void AutoUpdateNetworkMetric();
   void PrintThreadPoolQueueStatus();
+  void AutoUpdateIdlePoolEMA();
   void StatDiskUsage();
   int64_t GetLastSaveTime(const std::string& dump_dir);
 
@@ -708,15 +709,20 @@ class PikaServer : public pstd::noncopyable {
   PoolLatencyStats slow_pool_stats_;
 
   // EMA configuration parameters (atomic for dynamic updates)
-  std::atomic<uint32_t> ema_alpha_numerator_{5};      // EMA alpha numerator (alpha = 5/100 = 0.05)
-  std::atomic<uint32_t> ema_alpha_denominator_{100};  // EMA alpha denominator
-  std::atomic<uint64_t> fast_busy_threshold_us_{2000}; // Fast pool busy threshold (2ms)
-  std::atomic<uint64_t> fast_idle_threshold_us_{500};  // Fast pool idle threshold (0.5ms)
-  std::atomic<uint64_t> slow_busy_threshold_us_{5000}; // Slow pool busy threshold (5ms)
-  std::atomic<uint64_t> slow_idle_threshold_us_{1000}; // Slow pool idle threshold (1ms)
+  std::atomic<uint32_t> ema_alpha_numerator_{5};
+  std::atomic<uint32_t> ema_alpha_denominator_{100};
+  std::atomic<uint64_t> fast_busy_threshold_us_{2000};
+  std::atomic<uint64_t> fast_idle_threshold_us_{500};
+  std::atomic<uint64_t> slow_busy_threshold_us_{5000};
+  std::atomic<uint64_t> slow_idle_threshold_us_{1000};
   
   // Get EMA queue wait time (us)
   uint64_t GetEMAQueueWait(TaskPoolType pool_type) const;
+
+  // EMA decay helper functions
+  uint64_t CalculateDecayedEMA(uint64_t old_ema, uint64_t last_update, uint64_t now);
+  void UpdateSinglePoolEMA(PoolLatencyStats& stats, uint64_t new_sample, uint64_t now);
+  void DecaySinglePool(PoolLatencyStats& stats, uint64_t now);
   
   // Busy/Idle determination based on EMA (internal helpers)
   bool IsFastPoolBusyByEMA() const;
@@ -724,6 +730,10 @@ class PikaServer : public pstd::noncopyable {
   bool IsSlowPoolBusyByEMA() const;
   bool IsSlowPoolIdleByEMA() const;
 
+  // Borrow idle window
+  std::atomic<uint64_t> threadpool_idle_window_us_{1000000};
+  std::atomic<uint64_t> fast_pool_last_active_us_{0};
+  std::atomic<uint64_t> slow_pool_last_active_us_{0};
   /*
    * acl
    */

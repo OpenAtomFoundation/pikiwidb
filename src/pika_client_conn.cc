@@ -233,7 +233,6 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
                                 : g_pika_server->GetFastPoolMetrics();
   if (metrics) {
     metrics->RecordLatency(duration_us);
-    metrics->tasks_completed.fetch_add(1, std::memory_order_relaxed);
   }
   if (g_pika_conf->slowlog_slower_than() >= 0) {
     ProcessSlowlog(argv, c_ptr, pipeline_idx, pipeline_total);
@@ -351,15 +350,28 @@ void PikaClientConn::DoBackgroundTask(void* arg) {
   std::unique_ptr<BgTaskArg> bg_arg(static_cast<BgTaskArg*>(arg));
   std::shared_ptr<PikaClientConn> conn_ptr = bg_arg->conn_ptr;
   conn_ptr->task_pool_type_ = bg_arg->pool_type;
-  
+
+  ThreadPoolMetrics* metrics = nullptr;
+  if (bg_arg->pool_type == TaskPoolType::kFastCmdPool) {
+    metrics = g_pika_server->GetFastPoolMetrics();
+  } else if (bg_arg->pool_type == TaskPoolType::kSlowCmdPool) {
+    metrics = g_pika_server->GetSlowPoolMetrics();
+  }
+
+  if (metrics) {
+    metrics->active_tasks.fetch_add(1, std::memory_order_relaxed);
+  }
+  DEFER {
+    if (metrics) {
+      metrics->active_tasks.fetch_sub(1, std::memory_order_relaxed);
+    }
+  };
   // Record dequeue time and calculate queue wait time
   uint64_t now = pstd::NowMicros();
   conn_ptr->time_stat_->dequeue_ts_ = now;
   uint64_t queue_wait = now - conn_ptr->time_stat_->enqueue_ts_;
-  
   // Update EMA statistics for queue wait time
   g_pika_server->UpdateQueueWaitStats(bg_arg->pool_type, queue_wait);
-  
   if (conn_ptr->IsClose()) {
     LOG(INFO) << "conn " << conn_ptr->ip_port() << " has already been closed, skip processing command";
     return;

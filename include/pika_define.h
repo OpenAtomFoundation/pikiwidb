@@ -422,6 +422,7 @@ const int64_t CACHE_LOAD_NUM_ONE_TIME = 256;
  */
 enum TaskPoolType {
   kFastCmdPool,
-  kSlowCmdPool
+  kSlowCmdPool,
+  kAdminCmdPool
 };
 #endif
