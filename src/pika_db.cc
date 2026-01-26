@@ -67,6 +67,75 @@ void DB::BgSaveDB() {
   g_pika_server->BGSaveTaskSchedule(&DoBgSave, static_cast<void*>(bg_task_arg));
 }
 
+pstd::Status DB::CreateCheckpoint(const std::string& checkpoint_dir) {
+  std::string checkpoint_sub_path = checkpoint_dir;
+  if (!checkpoint_sub_path.empty() && checkpoint_sub_path.back() != '/') {
+    checkpoint_sub_path.push_back('/');
+  }
+  checkpoint_sub_path += db_name_;
+
+  if (!pstd::FileExists(checkpoint_sub_path)) {
+    if (pstd::CreatePath(checkpoint_sub_path, 0755) != 0) {
+      return Status::IOError("Failed to create checkpoint path", checkpoint_sub_path);
+    }
+  }
+
+  std::shared_lock guard(dbs_rw_);
+  auto tasks = storage_->CreateCheckpoint(checkpoint_sub_path);
+  for (auto& task : tasks) {
+    auto status = task.get();
+    if (!status.ok()) {
+      return Status::Corruption("Create checkpoint failed: " + status.ToString());
+    }
+  }
+  return Status::OK();
+}
+
+pstd::Status DB::LoadDBFromCheckpoint(const std::string& checkpoint_dir) {
+  std::string checkpoint_sub_path = checkpoint_dir;
+  if (!checkpoint_sub_path.empty() && checkpoint_sub_path.back() != '/') {
+    checkpoint_sub_path.push_back('/');
+  }
+  checkpoint_sub_path += db_name_;
+
+  if (!pstd::FileExists(checkpoint_sub_path)) {
+    return Status::NotFound("Checkpoint dir does not exist: " + checkpoint_sub_path);
+  }
+
+  std::lock_guard<std::shared_mutex> guard(dbs_rw_);
+  opened_ = false;
+
+  auto old_storage = storage_;
+  storage_.reset();
+  if (old_storage) {
+    old_storage->Close();
+  }
+
+  storage_ = std::make_shared<storage::Storage>();
+  auto checkpoint_tasks = storage_->LoadCheckpoint(checkpoint_sub_path, db_path_);
+  for (auto& task : checkpoint_tasks) {
+    auto status = task.get();
+    if (!status.ok()) {
+      storage_.reset();
+      return Status::Corruption("Load checkpoint failed: " + status.ToString());
+    }
+  }
+
+  storage::StorageOptions storage_options = g_pika_server->storage_options();
+  auto open_status = storage_->Open(storage_options, db_path_);
+  if (!open_status.ok()) {
+    storage_.reset();
+    return Status::Corruption("Storage open failed: " + open_status.ToString());
+  }
+
+  if (!g_pika_conf->raft_enabled()) {
+    storage_->DisableWal(false);
+  }
+
+  opened_ = true;
+  return Status::OK();
+}
+
 void DB::SetBinlogIoError() { return binlog_io_error_.store(true); }
 void DB::SetBinlogIoErrorrelieve() { return binlog_io_error_.store(false); }
 bool DB::IsBinlogIoError() { return binlog_io_error_.load(); }
@@ -206,6 +275,11 @@ bool DB::FlushDBWithoutLock() {
   }
 
   LOG(INFO) << db_name_ << " Delete old db...";
+  // First close the storage properly to cancel background work and wait for threads
+  // This prevents crash when RocksDB background threads access destroyed resources
+  if (storage_) {
+    storage_->Close();
+  }
   storage_.reset();
 
   std::string dbpath = db_path_;

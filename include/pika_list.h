@@ -59,6 +59,7 @@ class LInsertCmd : public Cmd {
   storage::BeforeOrAfter dir_{storage::After};
   std::string pivot_;
   std::string value_;
+  int64_t llen_ = 0;  // For async mode: list length after insert
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -149,6 +150,7 @@ class LPopCmd : public Cmd {
  private:
   std::string key_;
   std::int64_t count_ = 1;
+  std::vector<std::string> elements_;  // For async mode: popped elements
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -171,6 +173,7 @@ class LPushCmd : public BlockingBaseCmd {
  private:
   std::string key_;
   std::vector<std::string> values_;
+  uint64_t llen_ = 0;  // For async mode: list length after push
   rocksdb::Status s_;
   void DoInitial() override;
   void Clear() override { values_.clear(); }
@@ -194,6 +197,7 @@ class LPushxCmd : public Cmd {
 
  private:
   std::string key_;
+  uint64_t llen_ = 0;  // For async mode: list length after push
   rocksdb::Status s_;
   std::vector<std::string> values_;
   void DoInitial() override;
@@ -244,6 +248,7 @@ class LRemCmd : public Cmd {
   std::string key_;
   int64_t count_ = 0;
   std::string value_;
+  uint64_t removed_count_ = 0;  // For async mode: number of elements removed
   rocksdb::Status s_;
   void DoInitial() override;
 };
@@ -334,6 +339,7 @@ class RPopCmd : public Cmd {
  private:
   std::string key_;
   std::int64_t count_ = 1;
+  std::vector<std::string> elements_;  // For async mode: popped elements
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -400,6 +406,7 @@ class RPushCmd : public BlockingBaseCmd {
  private:
   std::string key_;
   std::vector<std::string> values_;
+  uint64_t llen_ = 0;  // For async mode: list length after push
   rocksdb::Status s_;
   void DoInitial() override;
   void Clear() override { values_.clear(); }
@@ -425,6 +432,7 @@ class RPushxCmd : public Cmd {
   std::string key_;
   std::string value_;
   std::vector<std::string> values_;
+  uint64_t llen_ = 0;  // For async mode: list length after push
   rocksdb::Status s_;
   void DoInitial() override;
 };

@@ -22,7 +22,15 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   endif()
 endif()
 
-link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+# Link directories for gcc-toolset on RHEL/Rocky/CentOS
+# Support gcc-toolset-11, gcc-toolset-12 and gcc-toolset-13
+if(EXISTS "/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+  link_directories("/opt/rh/gcc-toolset-13/root/lib/gcc/x86_64-redhat-linux/13")
+elseif(EXISTS "/opt/rh/gcc-toolset-12/root/lib/gcc/x86_64-redhat-linux/12")
+  link_directories("/opt/rh/gcc-toolset-12/root/lib/gcc/x86_64-redhat-linux/12")
+elseif(EXISTS "/opt/rh/gcc-toolset-11/root/lib/gcc/x86_64-redhat-linux/11")
+  link_directories("/opt/rh/gcc-toolset-11/root/lib/gcc/x86_64-redhat-linux/11")
+endif()
 
 ############# You should enable sanitizer if you are developing pika #############
 # Uncomment the following two lines to enable AddressSanitizer to detect memory leaks and other memory-related bugs.
@@ -200,6 +208,7 @@ ExternalProject_Add(gflags
   -DGFLAGS_NAMESPACE=gflags
   -DBUILD_STATIC_LIBS=ON
   -DBUILD_SHARED_LIBS=OFF
+  -DREGISTER_INSTALL_PREFIX=OFF
   BUILD_COMMAND
   make -j${CPU_CORE}
 )
@@ -273,10 +282,10 @@ ExternalProject_Add(glog
   -DCMAKE_POLICY_VERSION_MINIMUM=3.5
   -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
   -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
-  -DWITH_GFLAGS=ON
+  -DWITH_GFLAGS=OFF
   -DBUILD_TESTING=OFF
   -DBUILD_SHARED_LIBS=OFF
-  -DWITH_UNWIND=${LIBUNWIND_ON}
+  -DWITH_UNWIND=OFF
   -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
   BUILD_COMMAND
   make -j${CPU_CORE}
@@ -457,9 +466,9 @@ set(LZ4_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 ExternalProject_Add(zlib
   DEPENDS
   URL
-  https://github.com/madler/zlib/releases/download/v1.2.13/zlib-1.2.13.tar.gz
+  https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz 
   URL_HASH
-  MD5=9b8aa094c4e5765dabf4da391f00d15c
+  MD5=9855b6d802d7fe5b7bd5b196a2271655
   DOWNLOAD_NO_PROGRESS
   1
   UPDATE_COMMAND
@@ -571,6 +580,8 @@ ExternalProject_Add(protobuf
   1
   LOG_INSTALL
   1
+  LOG_OUTPUT_ON_FAILURE
+  ON
   SOURCE_SUBDIR
   cmake
   CMAKE_ARGS
@@ -595,8 +606,167 @@ else()
 endif()
 
 set(PROTOBUF_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
-set(PROTOBUF_LIBRARY ${INSTALL_LIBDIR}/${LIB_PROTOBUF})
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
+  set(PROTOBUF_LIBRARY ${INSTALL_LIBDIR_64}/${LIB_PROTOBUF})
+else()
+  set(PROTOBUF_LIBRARY ${INSTALL_LIBDIR}/${LIB_PROTOBUF})
+endif()
 set(PROTOBUF_PROTOC ${STAGED_INSTALL_PREFIX}/bin/protoc)
+
+ExternalProject_Add(leveldb
+  DEPENDS
+  snappy
+  URL
+  https://github.com/google/leveldb/archive/refs/tags/1.23.tar.gz
+  URL_HASH
+  MD5=afbde776fb8760312009963f09a586c7
+  DOWNLOAD_NO_PROGRESS
+  1
+  UPDATE_COMMAND
+  ""
+  LOG_CONFIGURE
+  1
+  LOG_BUILD
+  1
+  LOG_INSTALL
+  1
+  CMAKE_ARGS
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
+  -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
+  -DLEVELDB_BUILD_TESTS=OFF
+  -DLEVELDB_BUILD_BENCHMARKS=OFF
+  -DBUILD_SHARED_LIBS=OFF
+  -DHAVE_SNAPPY=ON
+  -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+  -DCMAKE_CXX_FLAGS=-I${INSTALL_INCLUDEDIR}
+  -DCMAKE_EXE_LINKER_FLAGS=-L${INSTALL_LIBDIR}\ -L${INSTALL_LIBDIR_64}
+  -DCMAKE_SHARED_LINKER_FLAGS=-L${INSTALL_LIBDIR}\ -L${INSTALL_LIBDIR_64}
+  -DCMAKE_MODULE_LINKER_FLAGS=-L${INSTALL_LIBDIR}\ -L${INSTALL_LIBDIR_64}
+  BUILD_ALWAYS
+  1
+  BUILD_COMMAND
+  make -j${CPU_CORE}
+)
+
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
+  set(LEVELDB_LIBRARY ${INSTALL_LIBDIR_64}/libleveldb.a)
+else()
+  set(LEVELDB_LIBRARY ${INSTALL_LIBDIR}/libleveldb.a)
+endif()
+set(LEVELDB_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
+
+# Workaround for __has_attribute compatibility issue with newer GCC and glibc
+# The issue is that newer glibc uses __glibc_has_attribute which conflicts with GCC's __has_attribute
+# We need to set an include path that has a fixed version of the problematic header
+
+ExternalProject_Add(brpc
+  DEPENDS
+  gflags
+  protobuf
+  leveldb
+  glog
+  snappy
+  zlib
+  URL
+  https://github.com/apache/brpc/archive/refs/tags/1.11.0.tar.gz
+  URL_HASH
+  MD5=f55e582fb8032768f9070865b48e892d
+  DOWNLOAD_NO_PROGRESS
+  1
+  UPDATE_COMMAND
+  ""
+
+  LOG_CONFIGURE
+  1
+  LOG_BUILD
+  1
+  LOG_INSTALL
+  1
+  LOG_OUTPUT_ON_FAILURE
+  ON
+  CMAKE_ARGS
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
+  -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
+  -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+  -DWITH_GLOG=ON
+  -DWITH_SNAPPY=ON
+  -DBUILD_SHARED_LIBS=OFF
+  -DDOWNLOAD_GTEST=OFF
+  BUILD_ALWAYS
+  1
+  BUILD_COMMAND
+  make -j${CPU_CORE}
+)
+
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
+  set(BRPC_LIBRARY ${INSTALL_LIBDIR_64}/libbrpc.a)
+else()
+  set(BRPC_LIBRARY ${INSTALL_LIBDIR}/libbrpc.a)
+endif()
+set(BRPC_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
+
+ExternalProject_Add(braft
+  DEPENDS
+  gflags
+  protobuf
+  leveldb
+  brpc
+  glog
+  snappy
+  zlib
+  URL
+  https://github.com/baidu/braft/archive/refs/tags/v1.1.2.tar.gz
+  URL_HASH
+  MD5=f1d0307cf45449bbec9b64ca81b5f808
+  DOWNLOAD_NO_PROGRESS
+  1
+  UPDATE_COMMAND
+  ""
+  LOG_CONFIGURE
+  1
+  LOG_BUILD
+  1
+  LOG_INSTALL
+  1
+  LOG_OUTPUT_ON_FAILURE
+  ON
+  CMAKE_ARGS
+  -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+  -DCMAKE_INSTALL_PREFIX=${STAGED_INSTALL_PREFIX}
+  -DCMAKE_BUILD_TYPE=${LIB_BUILD_TYPE}
+  -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+  -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+  -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+  -DWITH_GLOG=ON
+  -DBUILD_SHARED_LIBS=OFF
+  -DBUILD_UNIT_TESTS=OFF
+  -DDOWNLOAD_GTEST=OFF
+  BUILD_ALWAYS
+  1
+  BUILD_COMMAND
+  make -j${CPU_CORE} braft-static
+  INSTALL_COMMAND
+  ${CMAKE_COMMAND} -E copy_directory <BINARY_DIR>/output/include/braft ${INSTALL_INCLUDEDIR}/braft
+  COMMAND ${CMAKE_COMMAND} -E copy <BINARY_DIR>/output/lib/libbraft.a ${INSTALL_LIBDIR}/libbraft.a
+)
+
+# For CentOS/Rocky, also copy to lib64
+if(${OS_VERSION} MATCHES "Rocky" OR ${OS_VERSION} MATCHES "CentOS")
+  ExternalProject_Add_Step(braft copy_to_lib64
+    COMMAND ${CMAKE_COMMAND} -E make_directory ${INSTALL_LIBDIR_64}
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different ${INSTALL_LIBDIR}/libbraft.a ${INSTALL_LIBDIR_64}/libbraft.a
+    DEPENDEES install
+    COMMENT "Copying braft to lib64 for CentOS/Rocky"
+  )
+  set(BRAFT_LIBRARY ${INSTALL_LIBDIR_64}/libbraft.a)
+else()
+  set(BRAFT_LIBRARY ${INSTALL_LIBDIR}/libbraft.a)
+endif()
+set(BRAFT_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 
 ExternalProject_Add(rocksdb
   DEPENDS
@@ -750,8 +920,21 @@ endif()
 set(ROCKSDB_INCLUDE_DIR ${INSTALL_INCLUDEDIR})
 set(ROCKSDB_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/${EP_BASE_SUFFIX}/Source/rocksdb)
 
+# Generate protobuf files before compiling praft (which depends on them)
+set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/pika_inner_message.proto ${CMAKE_CURRENT_SOURCE_DIR}/src/rsync_service.proto)
+custom_protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
+message("pika PROTO_SRCS = ${PROTO_SRCS}")
+message("pika PROTO_HDRS = ${PROTO_HDRS}")
+
+# Create a custom target for generated proto files
+add_custom_target(pika_proto_gen
+    DEPENDS ${PROTO_SRCS} ${PROTO_HDRS} protobuf
+    COMMENT "Generating Pika protobuf files"
+)
+
 add_subdirectory(src/pstd)
 add_subdirectory(src/net)
+add_subdirectory(src/praft)  # praft 必须在 storage 之前，因为 storage 需要 binlog.pb.h
 add_subdirectory(src/storage)
 add_subdirectory(src/cache)
 if (USE_PIKA_TOOLS)
@@ -794,10 +977,7 @@ set(PIKA_BUILD_VERSION_CC ${CMAKE_BINARY_DIR}/pika_build_version.cc
 message("PIKA_BUILD_VERSION_CC : " ${PIKA_BUILD_VERSION_CC})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/build_version.cc.in ${PIKA_BUILD_VERSION_CC} @ONLY)
 
-set(PROTO_FILES ${CMAKE_CURRENT_SOURCE_DIR}/src/pika_inner_message.proto ${CMAKE_CURRENT_SOURCE_DIR}/src/rsync_service.proto)
-custom_protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS ${PROTO_FILES})
-message("pika PROTO_SRCS = ${PROTO_SRCS}")
-message("pika PROTO_HDRS = ${PROTO_HDRS}")
+# PROTO_SRCS and PROTO_HDRS are already generated above
 
 add_executable(${PROJECT_NAME}
   ${DIR_SRCS}
@@ -821,6 +1001,9 @@ add_dependencies(${PROJECT_NAME}
   zlib
   ${LIBGPERF_NAME}
   ${LIBJEMALLOC_NAME}
+  leveldb
+  brpc
+  braft
   rocksdb
   protobuf
   pstd
@@ -839,10 +1022,14 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(${PROJECT_NAME}
   cache
   storage
+  praft
   net
   pstd
   ${GLOG_LIBRARY}
   librocksdb.a
+  ${BRAFT_LIBRARY}
+  ${BRPC_LIBRARY}
+  ${LEVELDB_LIBRARY}
   ${LIB_PROTOBUF}
   ${LIB_GFLAGS}
   ${LIB_FMT}
@@ -853,6 +1040,49 @@ target_link_libraries(${PROJECT_NAME}
   librediscache.a
   ${LIBUNWIND_LIBRARY}
   ${JEMALLOC_LIBRARY})
+
+# Add platform-specific libraries for brpc and braft
+if(CMAKE_SYSTEM_NAME MATCHES "Darwin")
+  # macOS frameworks
+  target_link_libraries(${PROJECT_NAME}
+    "-framework CoreFoundation"
+    "-framework CoreGraphics"
+    "-framework CoreData"
+    "-framework CoreText"
+    "-framework Security"
+    "-framework Foundation"
+    "-framework ApplicationServices"
+    "-framework SystemConfiguration"
+    "-framework AppKit"
+    "-Wl,-undefined,dynamic_lookup"  # Allow undefined symbols (gperftools optional)
+  )
+  find_library(OPENSSL_CRYPTO_LIBRARY NAMES crypto libcrypto)
+  find_library(OPENSSL_SSL_LIBRARY NAMES ssl libssl)
+  if(OPENSSL_CRYPTO_LIBRARY)
+    target_link_libraries(${PROJECT_NAME} ${OPENSSL_CRYPTO_LIBRARY})
+  endif()
+  if(OPENSSL_SSL_LIBRARY)
+    target_link_libraries(${PROJECT_NAME} ${OPENSSL_SSL_LIBRARY})
+  endif()
+elseif(CMAKE_SYSTEM_NAME MATCHES "Linux")
+  # Linux system libraries for brpc and braft
+  target_link_libraries(${PROJECT_NAME}
+    rt      # Real-time extensions
+    dl      # Dynamic linking
+  )
+  # Find and link OpenSSL for Linux
+  find_package(OpenSSL)
+  if(OPENSSL_FOUND)
+    target_link_libraries(${PROJECT_NAME} OpenSSL::SSL OpenSSL::Crypto)
+  else()
+    # Fallback: try to find libraries directly
+    find_library(OPENSSL_CRYPTO_LIBRARY NAMES crypto libcrypto)
+    find_library(OPENSSL_SSL_LIBRARY NAMES ssl libssl)
+    if(OPENSSL_CRYPTO_LIBRARY AND OPENSSL_SSL_LIBRARY)
+      target_link_libraries(${PROJECT_NAME} ${OPENSSL_SSL_LIBRARY} ${OPENSSL_CRYPTO_LIBRARY})
+    endif()
+  endif()
+endif()
 
 option(USE_SSL "Enable SSL support" OFF)
 add_custom_target(

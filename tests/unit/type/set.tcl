@@ -310,6 +310,31 @@ start_server {
         }
     }
 
+    test {SPOP response format for PHP Redis client compatibility} {
+        r del myset
+        r sadd myset "element1" "element2" "element3"
+        set single_pop [r spop myset]
+        assert {[lsearch {"element1" "element2" "element3"} $single_pop] >= 0}
+        
+        r del myset
+        r sadd myset "element1" "element2" "element3"
+        set single_array_pop [r spop myset 1]
+        assert_equal 1 [llength $single_array_pop]
+        assert {[lsearch {"element1" "element2" "element3"} [lindex $single_array_pop 0]] >= 0}
+        
+        r del myset
+        r sadd myset "element1" "element2" "element3"
+        set multi_pop [r spop myset 2]
+        assert_equal 2 [llength $multi_pop]
+        
+        r del emptyset
+        set empty_pop [r spop emptyset]
+        assert_equal {} $empty_pop
+        
+        set empty_array_pop [r spop emptyset 1]
+        assert_equal 0 [llength $empty_array_pop]
+    }
+
     test "SRANDMEMBER with <count> against non existing key" {
         r srandmember nonexisting_key 100
     } {}
