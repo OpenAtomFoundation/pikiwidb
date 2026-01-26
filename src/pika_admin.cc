@@ -884,6 +884,7 @@ const std::string InfoCmd::kRocksDBSection = "rocksdb";
 const std::string InfoCmd::kDebugSection = "debug";
 const std::string InfoCmd::kCommandStatsSection = "commandstats";
 const std::string InfoCmd::kCacheSection = "cache";
+const std::string InfoCmd::kThreadpoolSection = "threadpool";
 
 
 const std::string ClientCmd::KILLTYPE_NORMAL = "normal";
@@ -969,6 +970,8 @@ void InfoCmd::DoInitial() {
     info_section_ = kInfoCommandStats;
   } else if (strcasecmp(argv_[1].data(), kCacheSection.data()) == 0) {
     info_section_ = kInfoCache;
+  } else if (strcasecmp(argv_[1].data(), kThreadpoolSection.data()) == 0) {
+    info_section_ = kInfoThreadpool;
   } else {
     info_section_ = kInfoErr;
   }
@@ -1009,6 +1012,8 @@ void InfoCmd::Do() {
       InfoCommandStats(info);
       info.append("\r\n");
       InfoCache(info, db_);
+      info.append("\r\n");
+      g_pika_server->GetThreadPoolInfo(&info);
       info.append("\r\n");
       InfoCPU(info);
       info.append("\r\n");
@@ -1053,6 +1058,9 @@ void InfoCmd::Do() {
       break;
     case kInfoCache:
       InfoCache(info, db_);
+      break;
+    case kInfoThreadpool:
+      g_pika_server->GetThreadPoolInfo(&info);
       break;
     default:
       // kInfoErr is nothing
@@ -1661,6 +1669,24 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     elements += 2;
     EncodeString(&config_body, "admin-thread-pool-size");
     EncodeNumber(&config_body, g_pika_conf->admin_thread_pool_size());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "threadpool-borrow-enable", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "threadpool-borrow-enable");
+    EncodeString(&config_body, g_pika_conf->threadpool_borrow_enable()  ? "yes" : "no");
+  }
+
+  if (pstd::stringmatch(pattern.data(), "threadpool-borrow-threshold-percent", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "threadpool-borrow-threshold-percent");
+    EncodeNumber(&config_body, g_pika_conf->threadpool_borrow_threshold_percent());
+  }
+
+  if (pstd::stringmatch(pattern.data(), "threadpool-idle-threshold-percent", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "threadpool-idle-threshold-percent");
+    EncodeNumber(&config_body, g_pika_conf->threadpool_idle_threshold_percent());
   }
 
   if (pstd::stringmatch(pattern.data(), "userblacklist", 1) != 0) {
@@ -2329,6 +2355,11 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "slave-priority",
         "sync-window-size",
         "slow-cmd-list",
+        "thread-pool-size",
+        "slow-cmd-thread-pool-size",
+        "threadpool-borrow-enable",
+        "threadpool-borrow-threshold-percent",
+        "threadpool-idle-threshold-percent",
         // Options for storage engine
         // MutableDBOptions
         "max-cache-files",
@@ -2680,6 +2711,63 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "slow-cmd-list") {
     g_pika_conf->SetSlowCmd(value);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "thread-pool-size") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'thread-pool-size'\r\n");
+      return;
+    }
+    size_t current_queue_size = g_pika_server->ClientProcessorThreadPoolCurQueueSize();
+    if (current_queue_size > 0){
+      res_.AppendStringRaw("-ERR Can't resize thread-pool-size when there are tasks in the queue\r\n");
+      return;
+    }
+    long int thread_pool_size = (1 > ival || 24 < ival) ? 12 : ival;
+    if (!g_pika_server->ResizeFastCmdThreadPool(static_cast<size_t>(thread_pool_size))) {
+      res_.AppendStringRaw("-ERR Resize thread-pool-size failed\r\n");
+      return;
+    }
+    g_pika_conf->SetThreadPoolSize(static_cast<int>(thread_pool_size));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "slow-cmd-thread-pool-size") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0 || ival > 24) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'slow-cmd-thread-pool-size'\r\n");
+      return;
+    }
+    size_t current_queue_size = g_pika_server->SlowCmdThreadPoolCurQueueSize();
+    if (current_queue_size > 0) {
+      res_.AppendStringRaw("-ERR Can't resize slow-cmd-pool-size when there are tasks in the queue\r\n");
+      return;
+    }
+    long int slow_cmd_thread_pool_size = (1 > ival || 24 < ival) ? 1 : ival;
+    if (!g_pika_server->ResizeSlowCmdThreadPool(static_cast<size_t>(slow_cmd_thread_pool_size))) {
+      res_.AppendStringRaw("-ERR Resize slow-cmd-thread-pool-size failed\r\n");
+      return;
+    }
+    g_pika_conf->SetLowLevelThreadPoolSize(static_cast<int>(slow_cmd_thread_pool_size));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "threadpool-borrow-enable") {
+    std::string lower = pstd::StringToLower(value);
+    if (lower != "yes" && lower != "no") {
+      res_.AppendStringRaw("-ERR invalid argument \'" + value + "\' for CONFIG SET 'threadpool-borrow-enable'\r\n");
+      return;
+    }
+    bool borrow_enable = (lower == "yes") ? true : false;
+    g_pika_conf->SetThreadPoolBorrowEnable(borrow_enable);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "threadpool-borrow-threshold-percent") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival < 1 || ival > 99) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'threadpool-borrow-threshold-percent'\r\n");
+      return;
+    }
+    g_pika_conf->SetThreadPoolBorrowThresholdPercent(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "threadpool-idle-threshold-percent") {
+    if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival < 1 || ival > 99) {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'threadpool-idle-threshold-percent'\r\n");
+      return;
+    }
+    g_pika_conf->SetThreadPoolIdleThresholdPercent(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "max-cache-files") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0) {

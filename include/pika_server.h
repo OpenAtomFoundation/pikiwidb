@@ -15,6 +15,9 @@
 #endif
 #include <memory>
 #include <set>
+#include <array>
+#include <chrono>
+#include <unordered_map>
 
 #include "src/cache/include/config.h"
 #include "net/include/bg_thread.h"
@@ -84,6 +87,20 @@ struct TaskArg {
 
 void DoBgslotscleanup(void* arg);
 void DoBgslotsreload(void* arg);
+
+// threadpool metrics
+struct ThreadPoolMetrics {
+  std::atomic<uint64_t> tasks_scheduled{0};
+  std::atomic<uint64_t> active_tasks{0};
+  std::atomic<uint64_t> borrow_attempts{0};
+  
+  // latency（1ms, 5ms, 10ms, 50ms, 100ms, 500ms, 1s, 5s, >5s）
+  std::array<std::atomic<uint64_t>, 9> latency_buckets{};
+  
+  void RecordLatency(uint64_t latency_us);
+  std::string ExportMetrics(const std::string& pool_name) const;
+  void Reset();
+};
 
 class PikaServer : public pstd::noncopyable {
  public:
@@ -201,6 +218,13 @@ class PikaServer : public pstd::noncopyable {
   size_t ClientProcessorThreadPoolMaxQueueSize();
   size_t SlowCmdThreadPoolCurQueueSize();
   size_t SlowCmdThreadPoolMaxQueueSize();
+  
+  /*
+   * Thread pool dynamic resize
+   */
+  bool ResizeFastCmdThreadPool(size_t new_size);
+  bool ResizeSlowCmdThreadPool(size_t new_size);
+  void GetThreadPoolInfo(std::string* info);
 
   /*
    * BGSave used
@@ -502,6 +526,22 @@ class PikaServer : public pstd::noncopyable {
   void ProcessCronTask();
   double HitRatio();
   void SetLogNetActivities(bool value);
+
+  /*
+   * threadpool borrow
+   */
+  bool IsSlowPoolBusy();
+  bool IsSlowPoolIdle();
+  bool IsFastPoolBusy();
+  bool IsFastPoolIdle();
+  TaskPoolType DecidePoolType(bool is_slow_cmd);
+  std::string GetEnhancedThreadPoolMetrics();
+  void ResetThreadPoolMetrics();
+  void UpdateQueueWaitStats(TaskPoolType pool_type, uint64_t queue_wait_us);
+  void LoadThreadPoolConfig();
+  ThreadPoolMetrics* GetSlowPoolMetrics() { return slow_pool_metrics_.get(); }
+  ThreadPoolMetrics* GetFastPoolMetrics() { return fast_pool_metrics_.get(); }
+  
   /*
   * disable compact
   */
@@ -540,6 +580,7 @@ class PikaServer : public pstd::noncopyable {
   void AutoDeleteExpiredDump();
   void AutoUpdateNetworkMetric();
   void PrintThreadPoolQueueStatus();
+  void AutoUpdateIdlePoolEMA();
   void StatDiskUsage();
   int64_t GetLastSaveTime(const std::string& dump_dir);
 
@@ -662,7 +703,50 @@ class PikaServer : public pstd::noncopyable {
    * lastsave used
    */
   int64_t lastsave_ = 0;
+  
+  /*
+   * metrics used
+   */
+  std::unique_ptr<ThreadPoolMetrics> fast_pool_metrics_;
+  std::unique_ptr<ThreadPoolMetrics> slow_pool_metrics_;
 
+  /*
+   * EMA statistics for queue wait time (used together with queue percent)
+   */
+  struct PoolLatencyStats {
+    std::atomic<uint64_t> ema_queue_wait_us_{0};  // EMA queue wait time (us)
+    std::atomic<uint64_t> last_update_us_{0};     // Last update time (us)
+  };
+
+  PoolLatencyStats fast_pool_stats_;
+  PoolLatencyStats slow_pool_stats_;
+
+  // EMA configuration parameters (atomic for dynamic updates)
+  std::atomic<uint32_t> ema_alpha_numerator_{5};
+  std::atomic<uint32_t> ema_alpha_denominator_{100};
+  std::atomic<uint64_t> fast_busy_threshold_us_{2000};
+  std::atomic<uint64_t> fast_idle_threshold_us_{500};
+  std::atomic<uint64_t> slow_busy_threshold_us_{5000};
+  std::atomic<uint64_t> slow_idle_threshold_us_{1000};
+  
+  // Get EMA queue wait time (us)
+  uint64_t GetEMAQueueWait(TaskPoolType pool_type) const;
+
+  // EMA decay helper functions
+  uint64_t CalculateDecayedEMA(uint64_t old_ema, uint64_t last_update, uint64_t now);
+  void UpdateSinglePoolEMA(PoolLatencyStats& stats, uint64_t new_sample, uint64_t now);
+  void DecaySinglePool(PoolLatencyStats& stats, uint64_t now);
+  
+  // Busy/Idle determination based on EMA (internal helpers)
+  bool IsFastPoolBusyByEMA() const;
+  bool IsFastPoolIdleByEMA() const;
+  bool IsSlowPoolBusyByEMA() const;
+  bool IsSlowPoolIdleByEMA() const;
+
+  // Borrow idle window
+  std::atomic<uint64_t> threadpool_idle_window_us_{1000000};
+  std::atomic<uint64_t> fast_pool_last_active_us_{0};
+  std::atomic<uint64_t> slow_pool_last_active_us_{0};
   /*
    * acl
    */

@@ -41,7 +41,6 @@ struct TimeStat {
 class PikaClientConn : public net::RedisConn {
  public:
   using WriteCompleteCallback = std::function<void()>;
-
   struct BgTaskArg {
     std::shared_ptr<Cmd> cmd_ptr;
     std::shared_ptr<PikaClientConn> conn_ptr;
@@ -50,6 +49,7 @@ class PikaClientConn : public net::RedisConn {
     LogOffset offset;
     std::string db_name;
     bool cache_miss_in_rtc_;
+    TaskPoolType pool_type;
   };
 
   struct TxnStateBitMask {
@@ -126,6 +126,7 @@ class PikaClientConn : public net::RedisConn {
 
   bool authenticated_ = false;
   std::shared_ptr<User> user_;
+  TaskPoolType task_pool_type_ = kFastCmdPool;
 
   std::shared_ptr<Cmd> DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
                              const std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc,
