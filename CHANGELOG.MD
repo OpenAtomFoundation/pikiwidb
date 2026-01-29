@@ -1,3 +1,12 @@
+# V3.6.0
+
+## New Features
+
+- Introduced fast/slow thread pools in the command scheduling layer and implemented cross-pool resource borrowing mechanism, improving resource utilization efficiency and system observability under unbalanced load conditions. Added related monitoring metrics, dynamic configuration capabilities, and INFO/CONFIG support, enabling finer-grained control over thread pool execution
+
+- Integrated BRAFT (distributed consensus component) into the codebase, implementing Raft strong consistency in PikiwiDB. This differs from the previous eventual consistency model, ensuring high availability of user data
+
+
 # V3.5.6
 
 ## Improvement
