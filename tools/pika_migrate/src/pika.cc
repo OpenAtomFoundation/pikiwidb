@@ -3,39 +3,48 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
-#include <signal.h>
 #include <glog/logging.h>
 #include <sys/resource.h>
+#include <csignal>
+#include <memory.h>
 
-#include "slash/include/env.h"
-#include "include/pika_rm.h"
-#include "include/pika_server.h"
-#include "include/pika_command.h"
-#include "include/pika_conf.h"
+#include "net/include/net_stats.h"
+#include "pstd/include/pika_codis_slot.h"
 #include "include/pika_define.h"
-#include "include/pika_version.h"
+#include "pstd/include/pstd_defer.h"
+#include "include/pika_conf.h"
+#include "pstd/include/env.h"
 #include "include/pika_cmd_table_manager.h"
+#include "include/pika_slot_command.h"
+#include "include/build_version.h"
+#include "include/pika_command.h"
+#include "include/pika_server.h"
+#include "include/pika_version.h"
+#include "include/pika_rm.h"
 
-#ifdef TCMALLOC_EXTENSION
-#include <gperftools/malloc_extension.h>
-#endif
+std::unique_ptr<PikaConf> g_pika_conf;
+// todo : change to unique_ptr will coredump
+PikaServer* g_pika_server = nullptr;
+std::unique_ptr<PikaReplicaManager> g_pika_rm;
 
-PikaConf* g_pika_conf;
-PikaServer* g_pika_server;
-PikaReplicaManager* g_pika_rm;
+std::unique_ptr<PikaCmdTableManager> g_pika_cmd_table_manager;
 
-PikaCmdTableManager* g_pika_cmd_table_manager;
+extern std::unique_ptr<net::NetworkStatistic> g_network_statistic;
 
 static void version() {
-    char version[32];
-    snprintf(version, sizeof(version), "%d.%d.%d", PIKA_MAJOR,
-        PIKA_MINOR, PIKA_PATCH);
-    printf("-----------Pika server %s ----------\n", version);
+  char version[32];
+  snprintf(version, sizeof(version), "%d.%d.%d", PIKA_MAJOR, PIKA_MINOR, PIKA_PATCH);
+  std::cout << "-----------Pika server----------" << std::endl;
+  std::cout << "pika_version: " << version << std::endl;
+  std::cout << pika_build_git_sha << std::endl;
+  std::cout << "pika_build_compile_date: " << pika_build_compile_date << std::endl;
+  // fake version for client SDK
+  std::cout << "redis_version: " << version << std::endl;
 }
 
 static void PikaConfInit(const std::string& path) {
   printf("path : %s\n", path.c_str());
-  g_pika_conf = new PikaConf(path);
+  g_pika_conf = std::make_unique<PikaConf>(path);
   if (g_pika_conf->Load() != 0) {
     LOG(FATAL) << "pika load conf error";
   }
@@ -46,8 +55,8 @@ static void PikaConfInit(const std::string& path) {
 }
 
 static void PikaGlogInit() {
-  if (!slash::FileExists(g_pika_conf->log_path())) {
-    slash::CreatePath(g_pika_conf->log_path()); 
+  if (!pstd::FileExists(g_pika_conf->log_path())) {
+    pstd::CreatePath(g_pika_conf->log_path());
   }
 
   if (!g_pika_conf->daemonize()) {
@@ -61,7 +70,9 @@ static void PikaGlogInit() {
 }
 
 static void daemonize() {
-  if (fork() != 0) exit(0); /* parent exits */
+  if (fork()) {
+    exit(0); /* parent exits */
+  }
   setsid(); /* create a new session */
 }
 
@@ -75,21 +86,20 @@ static void close_std() {
   }
 }
 
-static void create_pid_file(void) {
+static void create_pid_file() {
   /* Try to write the pid file in a best-effort way. */
   std::string path(g_pika_conf->pidfile());
 
   size_t pos = path.find_last_of('/');
   if (pos != std::string::npos) {
-    // mkpath(path.substr(0, pos).c_str(), 0755);
-    slash::CreateDir(path.substr(0, pos));
+    pstd::CreateDir(path.substr(0, pos));
   } else {
     path = kPikaPidFile;
   }
 
-  FILE *fp = fopen(path.c_str(), "w");
+  FILE* fp = fopen(path.c_str(), "w");
   if (fp) {
-    fprintf(fp,"%d\n",(int)getpid());
+    fprintf(fp, "%d\n", static_cast<int>(getpid()));
     fclose(fp);
   }
 }
@@ -107,31 +117,29 @@ static void PikaSignalSetup() {
   signal(SIGTERM, &IntSigHandle);
 }
 
-static void usage()
-{
-    char version[32];
-    snprintf(version, sizeof(version), "%d.%d.%d", PIKA_MAJOR,
-        PIKA_MINOR, PIKA_PATCH);
-    fprintf(stderr,
-            "Pika module %s\n"
-            "usage: pika [-hv] [-c conf/file]\n"
-            "\t-h               -- show this help\n"
-            "\t-c conf/file     -- config file \n"
-            "  example: ./output/bin/pika -c ./conf/pika.conf\n",
-            version
-           );
+static void usage() {
+  char version[32];
+  snprintf(version, sizeof(version), "%d.%d.%d", PIKA_MAJOR, PIKA_MINOR, PIKA_PATCH);
+  fprintf(stderr,
+          "Pika module %s\n"
+          "usage: pika [-hv] [-c conf/file]\n"
+          "\t-h               -- show this help\n"
+          "\t-c conf/file     -- config file \n"
+          "\t-v               -- show version\n"
+          "  example: ./output/bin/pika -c ./conf/pika.conf\n",
+          version);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   if (argc != 2 && argc != 3) {
     usage();
     exit(-1);
   }
 
   bool path_opt = false;
-  char c;
+  signed char c;
   char path[1024];
-  while (-1 != (c = getopt(argc, argv, "c:hv"))) {
+  while (-1 != (c = static_cast<int8_t>(getopt(argc, argv, "c:hv")))) {
     switch (c) {
       case 'c':
         snprintf(path, 1024, "%s", optarg);
@@ -149,14 +157,13 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  if (path_opt == false) {
-    fprintf (stderr, "Please specify the conf file path\n" );
+  if (!path_opt) {
+    fprintf(stderr, "Please specify the conf file path\n");
     usage();
     exit(-1);
   }
-#ifdef TCMALLOC_EXTENSION
-  MallocExtension::instance()->Initialize();
-#endif
+  g_pika_cmd_table_manager = std::make_unique<PikaCmdTableManager>();
+  g_pika_cmd_table_manager->InitCmdTable();
   PikaConfInit(path);
 
   rlimit limit;
@@ -168,9 +175,12 @@ int main(int argc, char *argv[]) {
     limit.rlim_cur = maxfiles;
     limit.rlim_max = maxfiles;
     if (setrlimit(RLIMIT_NOFILE, &limit) != -1) {
-      LOG(WARNING) << "your 'limit -n ' of " << old_limit << " is not enough for Redis to start. pika have successfully reconfig it to " << limit.rlim_cur;
+      LOG(WARNING) << "your 'limit -n ' of " << old_limit
+                   << " is not enough for Redis to start. pika have successfully reconfig it to " << limit.rlim_cur;
     } else {
-      LOG(FATAL) << "your 'limit -n ' of " << old_limit << " is not enough for Redis to start. pika can not reconfig it(" << strerror(errno) << "), do it by yourself";
+      LOG(FATAL) << "your 'limit -n ' of " << old_limit
+                 << " is not enough for Redis to start. pika can not reconfig it(" << strerror(errno)
+                 << "), do it by yourself";
     }
   }
 
@@ -180,35 +190,56 @@ int main(int argc, char *argv[]) {
     create_pid_file();
   }
 
-
   PikaGlogInit();
   PikaSignalSetup();
 
   LOG(INFO) << "Server at: " << path;
   g_pika_server = new PikaServer();
-  g_pika_rm = new PikaReplicaManager();
-  g_pika_cmd_table_manager = new PikaCmdTableManager();
+  g_pika_rm = std::make_unique<PikaReplicaManager>();
+  g_network_statistic = std::make_unique<net::NetworkStatistic>();
+  g_pika_server->InitDBStruct();
+  //the cmd table of g_pika_cmd_table_manager must be inited before calling PikaServer::InitStatistic(CmdTable* )
+  g_pika_server->InitStatistic(g_pika_cmd_table_manager->GetCmdTable());
+  auto status = g_pika_server->InitAcl();
+  if (!status.ok()) {
+    LOG(FATAL) << status.ToString();
+  }
 
   if (g_pika_conf->daemonize()) {
     close_std();
   }
 
+  DEFER {
+    delete g_pika_server;
+    g_pika_server = nullptr;
+    g_pika_rm.reset();
+    g_pika_cmd_table_manager.reset();
+    g_network_statistic.reset();
+    ::google::ShutdownGoogleLogging();
+    g_pika_conf.reset();
+  };
+
+  // wash data if necessary
+  if (g_pika_conf->wash_data()) {
+    auto dbs = g_pika_server->GetDB();
+    for (auto& kv : dbs) {
+      if (!kv.second->WashData()) {
+        LOG(FATAL) << "write batch error in WashData";
+        return 1;
+      }
+    }
+  }
+
   g_pika_rm->Start();
   g_pika_server->Start();
-  
+
   if (g_pika_conf->daemonize()) {
     unlink(g_pika_conf->pidfile().c_str());
   }
 
   // stop PikaReplicaManager first，avoid internal threads
-  // may references to dead PikaServer
+  // may reference to dead PikaServer
   g_pika_rm->Stop();
 
-  delete g_pika_server;
-  delete g_pika_rm;
-  delete g_pika_cmd_table_manager;
-  ::google::ShutdownGoogleLogging();
-  delete g_pika_conf;
-  
   return 0;
 }

@@ -3,46 +3,45 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
-#ifndef  PIKA_MONITOR_THREAD_H_
-#define  PIKA_MONITOR_THREAD_H_
+#ifndef PIKA_MONITOR_THREAD_H_
+#define PIKA_MONITOR_THREAD_H_
 
-#include <list>
-#include <deque>
-#include <queue>
 #include <atomic>
+#include <deque>
+#include <list>
+#include <queue>
 
-#include "pink/include/pink_thread.h"
-#include "slash/include/slash_mutex.h"
-
+#include "net/include/net_thread.h"
+#include "pstd/include/pstd_mutex.h"
 #include "include/pika_define.h"
 #include "include/pika_client_conn.h"
 
-class PikaMonitorThread : public pink::Thread {
+class PikaMonitorThread : public net::Thread {
  public:
   PikaMonitorThread();
-  virtual ~PikaMonitorThread();
+  ~PikaMonitorThread() override;
 
-  void AddMonitorClient(std::shared_ptr<PikaClientConn> client_ptr);
-  void AddMonitorMessage(const std::string &monitor_message);
-  int32_t ThreadClientList(std::vector<ClientInfo>* client = NULL);
+  void AddMonitorClient(const std::shared_ptr<PikaClientConn>& client_ptr);
+  void AddMonitorMessage(const std::string& monitor_message);
+  int32_t ThreadClientList(std::vector<ClientInfo>* client = nullptr);
   bool ThreadClientKill(const std::string& ip_port = "all");
   bool HasMonitorClients();
 
  private:
-  void AddCronTask(MonitorCronTask task);
+  void AddCronTask(const MonitorCronTask& task);
   bool FindClient(const std::string& ip_port);
-  pink::WriteStatus SendMessage(int32_t fd, std::string& message);
+  net::WriteStatus SendMessage(int32_t fd, std::string& message);
   void RemoveMonitorClient(const std::string& ip_port);
 
   std::atomic<bool> has_monitor_clients_;
-  slash::Mutex monitor_mutex_protector_;
-  slash::CondVar monitor_cond_;
+  pstd::Mutex monitor_mutex_protector_;
+  pstd::CondVar monitor_cond_;
 
   std::list<ClientInfo> monitor_clients_;
   std::deque<std::string> monitor_messages_;
   std::queue<MonitorCronTask> cron_tasks_;
 
-  virtual void* ThreadMain();
+  void* ThreadMain() override;
   void RemoveMonitorClient(int32_t client_fd);
 };
 #endif

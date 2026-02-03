@@ -273,19 +273,32 @@ void PikaClientConn::ProcessMonitor(const PikaCmdArgsType& argv) {
 }
 
 bool PikaClientConn::IsInterceptedByRTC(std::string& opt) {
-  // currently we only Intercept: Get, HGet
-  if (opt == kCmdNameGet && g_pika_conf->GetCacheString()) {
+
+  static const std::unordered_set<std::string> intercepted_string_cmds = {
+      kCmdNameGet, kCmdNameStrlen, kCmdNameTtl
+  };
+
+  static const std::unordered_set<std::string> intercepted_hash_cmds = {
+      kCmdNameHGet, kCmdNameHMget, kCmdNameHExists, kCmdNameHVals, kCmdNameHStrlen
+  };
+
+  if (intercepted_string_cmds.count(opt) && g_pika_conf->GetCacheString()) {
     return true;
   }
-  if (opt == kCmdNameHGet && g_pika_conf->GetCacheHash()) {
+  if (intercepted_hash_cmds.count(opt) && g_pika_conf->GetCacheHash()) {
     return true;
   }
+
   return false;
 }
 
 void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& argvs, bool async,
                                       std::string* response) {
   time_stat_->Reset();
+  if (argvs.empty()) {
+    NotifyEpoll(true);
+    return;
+  }
   if (async) {
     auto arg = new BgTaskArg();
     arg->cache_miss_in_rtc_ = false;
@@ -302,7 +315,13 @@ void PikaClientConn::ProcessRedisCmds(const std::vector<net::RedisCmdArgsType>& 
     pstd::StringToLower(opt);
     bool is_slow_cmd = g_pika_conf->is_slow_cmd(opt);
     bool is_admin_cmd = g_pika_conf->is_admin_cmd(opt);
-
+    
+    // Special handling for auth command in pipeline
+    if (is_admin_cmd && opt == kCmdNameAuth && argvs.size() > 1) {
+      // This is a pipeline with auth as first command
+      // Force it to use client processor pool
+      is_admin_cmd = false;
+    }
     // we don't intercept pipeline batch (argvs.size() > 1)
     if (g_pika_conf->rtc_cache_read_enabled() && argvs.size() == 1 && IsInterceptedByRTC(opt) &&
         PIKA_CACHE_NONE != g_pika_conf->cache_mode() && !IsInTxn()) {

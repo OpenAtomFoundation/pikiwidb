@@ -6,50 +6,41 @@
 #ifndef PIKA_REPL_SERVER_THREAD_H_
 #define PIKA_REPL_SERVER_THREAD_H_
 
-#include "pink/src/holy_thread.h"
+#include "net/src/holy_thread.h"
 
 #include "include/pika_repl_server_conn.h"
 
-class PikaReplServerThread : public pink::HolyThread {
+class PikaReplServerThread : public net::HolyThread {
  public:
   PikaReplServerThread(const std::set<std::string>& ips, int port, int cron_interval);
-  virtual ~PikaReplServerThread() = default;
-
+  ~PikaReplServerThread() override = default;
   int ListenPort();
 
-  // for ProcessBinlogData use
-  uint64_t GetnPlusSerial() {
-    return serial_++;
-  }
-
  private:
-  class ReplServerConnFactory : public pink::ConnFactory {
+  class ReplServerConnFactory : public net::ConnFactory {
    public:
-    explicit ReplServerConnFactory(PikaReplServerThread* binlog_receiver)
-        : binlog_receiver_(binlog_receiver) {
+    explicit ReplServerConnFactory(PikaReplServerThread* binlog_receiver) : binlog_receiver_(binlog_receiver) {}
+
+    std::shared_ptr<net::NetConn> NewNetConn(int connfd, const std::string& ip_port, net::Thread* thread,
+                                                     void* worker_specific_data,
+                                                     net::NetMultiplexer* net) const override {
+      return std::static_pointer_cast<net::NetConn>(
+          std::make_shared<PikaReplServerConn>(connfd, ip_port, thread, binlog_receiver_, net));
     }
 
-    virtual std::shared_ptr<pink::PinkConn> NewPinkConn(
-        int connfd,
-        const std::string& ip_port,
-        pink::Thread* thread,
-        void* worker_specific_data,
-        pink::PinkEpoll* pink_epoll) const override {
-      return std::make_shared<PikaReplServerConn>(connfd, ip_port, thread, binlog_receiver_, pink_epoll);
-    }
-    private:
-     PikaReplServerThread* binlog_receiver_;
+   private:
+    PikaReplServerThread* binlog_receiver_ = nullptr;
   };
 
-  class ReplServerHandle : public pink::ServerHandle {
+  class ReplServerHandle : public net::ServerHandle {
    public:
-    virtual void FdClosedHandle(int fd, const std::string& ip_port) const override;
+    void FdClosedHandle(int fd, const std::string& ip_port) const override;
   };
 
   ReplServerConnFactory conn_factory_;
   ReplServerHandle handle_;
-  int port_;
-  uint64_t serial_;
+  int port_ = 0;
+  uint64_t serial_ = 0;
 };
 
 #endif
