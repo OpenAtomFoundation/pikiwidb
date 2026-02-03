@@ -19,13 +19,15 @@ void PfAddCmd::DoInitial() {
   }
 }
 
-void PfAddCmd::Do(std::shared_ptr<Partition> partition) {
+void PfAddCmd::Do() {
   bool update = false;
-  rocksdb::Status s = partition->db()->PfAdd(key_, values_, &update);
+  rocksdb::Status s = db_->storage()->PfAdd(key_, values_, &update);
   if (s.ok() && update) {
     res_.AppendInteger(1);
   } else if (s.ok() && !update) {
     res_.AppendInteger(0);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -42,11 +44,13 @@ void PfCountCmd::DoInitial() {
   }
 }
 
-void PfCountCmd::Do(std::shared_ptr<Partition> partition) {
+void PfCountCmd::Do() {
   int64_t value_ = 0;
-  rocksdb::Status s = partition->db()->PfCount(keys_, &value_);
+  rocksdb::Status s = db_->storage()->PfCount(keys_, &value_);
   if (s.ok()) {
     res_.AppendInteger(value_);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
@@ -63,11 +67,25 @@ void PfMergeCmd::DoInitial() {
   }
 }
 
-void PfMergeCmd::Do(std::shared_ptr<Partition> partition) {
-  rocksdb::Status s = partition->db()->PfMerge(keys_);
+void PfMergeCmd::Do() {
+  rocksdb::Status s = db_->storage()->PfMerge(keys_, value_to_dest_);
   if (s.ok()) {
     res_.SetRes(CmdRes::kOk);
+  } else if (s_.IsInvalidArgument()) {
+    res_.SetRes(CmdRes::kMultiKey);
   } else {
     res_.SetRes(CmdRes::kErrOther, s.ToString());
   }
+}
+void PfMergeCmd::DoBinlog() {
+  PikaCmdArgsType set_args;
+  //used "set" instead of "SET" to distinguish the binlog of SetCmd
+  set_args.emplace_back("set");
+  set_args.emplace_back(keys_[0]);
+  set_args.emplace_back(value_to_dest_);
+  set_cmd_->Initial(set_args,  db_name_);
+  set_cmd_->SetConn(GetConn());
+  set_cmd_->SetResp(resp_.lock());
+  //value of this binlog might be strange, it's an string with size of 128KB
+  set_cmd_->DoBinlog();
 }

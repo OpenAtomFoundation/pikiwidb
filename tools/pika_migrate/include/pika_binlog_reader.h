@@ -6,43 +6,43 @@
 #ifndef PIKA_BINLOG_READER_H_
 #define PIKA_BINLOG_READER_H_
 
-#include <string>
 #include <memory>
+#include <shared_mutex>
+#include <string>
 
-#include "slash/include/slash_status.h"
-#include "slash/include/env.h"
-#include "slash/include/slash_slice.h"
+#include "pstd/include/env.h"
+#include "pstd/include/pstd_slice.h"
+#include "pstd/include/pstd_status.h"
 
 #include "include/pika_binlog.h"
-
-using slash::Status;
-using slash::Slice;
 
 class PikaBinlogReader {
  public:
   PikaBinlogReader(uint32_t cur_filenum, uint64_t cur_offset);
   PikaBinlogReader();
-  ~PikaBinlogReader();
-  Status Get(std::string* scratch, uint32_t* filenum, uint64_t* offset);
-  int Seek(std::shared_ptr<Binlog> logger, uint32_t filenum, uint64_t offset);
+  ~PikaBinlogReader() = default;
+
+  pstd::Status Get(std::string* scratch, uint32_t* filenum, uint64_t* offset);
+  int Seek(const std::shared_ptr<Binlog>& logger, uint32_t filenum, uint64_t offset);
   bool ReadToTheEnd();
   void GetReaderStatus(uint32_t* cur_filenum, uint64_t* cur_offset);
+
  private:
   bool GetNext(uint64_t* size);
-  unsigned int ReadPhysicalRecord(slash::Slice *redult, uint32_t* filenum, uint64_t* offset);
+  unsigned int ReadPhysicalRecord(pstd::Slice* result, uint32_t* filenum, uint64_t* offset);
   // Returns scratch binflog and corresponding offset
-  Status Consume(std::string* scratch, uint32_t* filenum, uint64_t* offset);
+  pstd::Status Consume(std::string* scratch, uint32_t* filenum, uint64_t* offset);
 
-  pthread_rwlock_t rwlock_;
-  uint32_t cur_filenum_;
-  uint64_t cur_offset_;
-  uint64_t last_record_offset_;
+  std::shared_mutex rwlock_;
+  uint32_t cur_filenum_ = 0;
+  uint64_t cur_offset_ = 0;
+  uint64_t last_record_offset_ = 0;
 
   std::shared_ptr<Binlog> logger_;
-  slash::SequentialFile *queue_;
+  std::unique_ptr<pstd::SequentialFile> queue_;
 
-  char* const backing_store_;
-  Slice buffer_;
+  std::unique_ptr<char[]> const backing_store_;
+  pstd::Slice buffer_;
 };
 
 #endif  // PIKA_BINLOG_READER_H_
