@@ -54,10 +54,30 @@ class RsyncServerConn : public net::PbConn {
   int DealMessage() override;
   static void HandleMetaRsyncRequest(void* arg);
   static void HandleFileRsyncRequest(void* arg);
+
+  // Snapshot tracking for orphan file cleanup protection
+  void RegisterSnapshot(const std::string& snapshot_uuid);
+  void UnregisterSnapshot();
+  std::string GetSnapshotUuid() const { return snapshot_uuid_; }
+
+  // File transfer tracking for safe orphan file cleanup during sync
+  void AddTransferringFile(const std::string& filename);
+  // Remove file from transfer tracking, optionally cleanup if transfer is complete (is_eof=true)
+  void RemoveTransferringFile(const std::string& filename, bool is_eof = false);
+  bool IsFileTransferring(const std::string& filename) const;
+  std::set<std::string> GetTransferringFiles() const;
+  // Global check if a file is being transferred by any connection
+  static bool IsFileTransferringGlobally(const std::string& snapshot_uuid, const std::string& filename);
+
+  // Public member for dump ownership tracking (Scheme A)
+  std::string conn_id_;  // Connection ID for dump ownership tracking
+
  private:
   std::vector<std::shared_ptr<RsyncReader> > readers_;
-  std::mutex mu_;
+  mutable std::mutex mu_;
   void* data_ = nullptr;
+  std::string snapshot_uuid_;  // Current snapshot being synced
+  std::set<std::string> transferring_files_;  // Files currently being read
 };
 
 class RsyncServerThread : public net::HolyThread {

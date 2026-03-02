@@ -213,6 +213,40 @@ class PikaServer : public pstd::noncopyable {
   void TryDBSync(const std::string& ip, int port, const std::string& db_name, int32_t top);
 
   /*
+   * Rsync snapshot tracking (for orphan file cleanup protection)
+   */
+  void RegisterRsyncSnapshot(const std::string& snapshot_uuid);
+  void UnregisterRsyncSnapshot(const std::string& snapshot_uuid);
+  bool IsRsyncSnapshotActive(const std::string& snapshot_uuid);
+  std::set<std::string> GetActiveRsyncSnapshots();
+
+  /*
+   * Rsync file transfer tracking (for safe orphan file cleanup during sync)
+   */
+  void RegisterRsyncTransferringFile(const std::string& snapshot_uuid, const std::string& filename);
+  void UnregisterRsyncTransferringFile(const std::string& snapshot_uuid, const std::string& filename);
+  bool IsRsyncFileTransferring(const std::string& snapshot_uuid, const std::string& filename);
+  std::set<std::string> GetRsyncTransferringFiles(const std::string& snapshot_uuid);
+
+  /*
+   * Dump ownership management (Scheme A: each slave has exclusive dump)
+   */
+  bool MarkDumpInUse(const std::string& snapshot_uuid, const std::string& conn_id, const std::string& dump_path);
+  void ReleaseDump(const std::string& snapshot_uuid);
+  bool IsDumpInUse(const std::string& snapshot_uuid) const;
+  std::string GetDumpPathBySnapshot(const std::string& snapshot_uuid) const;
+  size_t GetActiveDumpCount() const;
+  static constexpr size_t kMaxConcurrentDumps = 3;  // Max concurrent dumps allowed
+
+  /*
+   * Delayed file cleanup for orphan SST files (Scheme A)
+   * Files are scheduled for cleanup 10 minutes after transfer completes
+   * to allow for retries and ensure data consistency
+   */
+  void ScheduleFileForCleanup(const std::string& filepath, int delay_seconds);
+  void ProcessPendingCleanupFiles();
+
+  /*
    * Keyscan used
    */
   void KeyScanTaskSchedule(net::TaskFunc func, void* arg);
@@ -499,6 +533,13 @@ class PikaServer : public pstd::noncopyable {
   void DisableCompact();
 
   /*
+   * Utility function to ensure directory exists
+   * Returns true if directory exists or was created successfully
+   * Handles the special case where CreatePath returns 0 for both success and "already exists"
+   */
+  static bool EnsureDirExists(const std::string& path, mode_t mode = 0755);
+
+  /*
    * lastsave used
    */
   int64_t GetLastSave() const {return lastsave_;}
@@ -604,6 +645,41 @@ class PikaServer : public pstd::noncopyable {
    */
   std::unique_ptr<PikaRsyncService> pika_rsync_service_;
   std::unique_ptr<rsync::RsyncServer> rsync_server_;
+
+  /*
+   * Rsync snapshot tracking used (for orphan file cleanup protection)
+   */
+  std::set<std::string> active_rsync_snapshots_;
+  std::mutex active_rsync_snapshots_mutex_;
+
+  /*
+   * Rsync file transfer tracking used (for safe orphan file cleanup during sync)
+   * Tracks which files are currently being transferred for each snapshot
+   */
+  std::map<std::string, std::set<std::string>> rsync_transferring_files_;
+  std::mutex rsync_transferring_files_mutex_;
+
+  /*
+   * Dump ownership tracking used (Scheme A: each slave has exclusive dump)
+   * snapshot_uuid -> {connection id, dump path}
+   */
+  struct DumpOwnerInfo {
+    std::string conn_id;
+    std::string dump_path;
+  };
+  std::map<std::string, DumpOwnerInfo> dump_owners_;
+  mutable std::mutex dump_owners_mutex_;
+
+  /*
+   * Pending cleanup tracking for delayed file deletion (Scheme A)
+   * filepath -> {cleanup_time}
+   */
+  struct PendingCleanupInfo {
+    std::string filepath;
+    time_t cleanup_time;
+  };
+  std::map<std::string, PendingCleanupInfo> pending_cleanup_files_;
+  mutable std::mutex pending_cleanup_mutex_;
 
   /*
    * Pubsub used

@@ -10,6 +10,8 @@
 #include <netinet/in.h>
 #include <sys/socket.h>
 
+#include <ctime>
+#include <map>
 #include <utility>
 
 #include "net/include/net_cli.h"
@@ -507,7 +509,16 @@ pstd::Status SyncSlaveDB::ActivateRsync() {
   if (!rsync_cli_->IsIdle()) {
     return s;
   }
-  LOG(WARNING) << "Slave DB: " << DBName() << " Activating Rsync ... (retry count:" << rsync_init_retry_count_ << ")";
+  // Rate limiting for retry logs - only log once per 30 seconds to reduce noise
+  static std::map<std::string, time_t> last_retry_log_time;
+  time_t now = time(nullptr);
+  std::string db_key = DBName();
+  bool should_log = (last_retry_log_time.find(db_key) == last_retry_log_time.end() ||
+                     now - last_retry_log_time[db_key] >= 30);
+  if (should_log) {
+    LOG(WARNING) << "Slave DB: " << DBName() << " Activating Rsync ... (retry count:" << rsync_init_retry_count_ << ")";
+    last_retry_log_time[db_key] = now;
+  }
   if (rsync_cli_->Init()) {
     rsync_init_retry_count_ = 0;
     rsync_cli_->Start();

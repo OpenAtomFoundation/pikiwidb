@@ -3,6 +3,7 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
+#include <sys/stat.h>
 #include <fstream>
 #include <utility>
 
@@ -300,8 +301,9 @@ bool DB::RunBgsaveEngine() {
   LOG(INFO) << db_name_ << " bgsave_info: path=" << info.path << ",  filenum=" << info.offset.b_offset.filenum
             << ", offset=" << info.offset.b_offset.offset;
 
-  // Backup to tmp dir
-  rocksdb::Status s = bgsave_engine_->CreateNewBackup(info.path);
+  // Use SetBackupContentAndCreate to minimize time window between GetLiveFiles and CreateCheckpoint
+  // This reduces the chance of compaction occurring and creating orphan files
+  rocksdb::Status s = bgsave_engine_->SetBackupContentAndCreate(info.path);
 
   if (!s.ok()) {
     LOG(WARNING) << db_name_ << " create new backup failed :" << s.ToString();
@@ -324,6 +326,7 @@ void DB::FinishBgsave() {
 }
 
 // Prepare engine, need bgsave_protector protect
+// Scheme A: Each slave has exclusive dump, so we need unique dump directories
 bool DB::InitBgsaveEnv() {
   std::lock_guard l(bgsave_protector_);
   // Prepare for bgsave dir
@@ -331,22 +334,53 @@ bool DB::InitBgsaveEnv() {
   char s_time[32];
   int len = static_cast<int32_t>(strftime(s_time, sizeof(s_time), "%Y%m%d%H%M%S", localtime(&bgsave_info_.start_time)));
   bgsave_info_.s_start_time.assign(s_time, len);
-  std::string time_sub_path = g_pika_conf->bgsave_prefix() + std::string(s_time, 8);
-  bgsave_info_.path = g_pika_conf->bgsave_path() + time_sub_path + "/" + bgsave_sub_path_;
-  if (!pstd::DeleteDirIfExist(bgsave_info_.path)) {
-    LOG(WARNING) << db_name_ << " remove exist bgsave dir failed";
+
+  // Scheme A: Use unique directory name with sequence number
+  // Format: dump-YYYYMMDD-NN/db_name where NN is sequence number
+  std::string base_path = g_pika_conf->bgsave_path();
+  std::string date_str(s_time, 8);
+  std::string prefix = g_pika_conf->bgsave_prefix() + date_str;
+
+  // Find first available sequence number
+  int seq = 0;
+  std::string time_sub_path;
+  std::string full_path;
+  do {
+    time_sub_path = prefix + "-" + std::to_string(seq);
+    full_path = base_path + time_sub_path + "/" + bgsave_sub_path_;
+    seq++;
+  } while (pstd::FileExists(full_path) && seq < 1000);  // Max 1000 dumps per day
+
+  if (seq >= 1000) {
+    LOG(ERROR) << db_name_ << " too many dump directories for today";
     return false;
   }
-  pstd::CreatePath(bgsave_info_.path, 0755);
-  // Prepare for failed dir
-  if (!pstd::DeleteDirIfExist(bgsave_info_.path + "_FAILED")) {
-    LOG(WARNING) << db_name_ << " remove exist fail bgsave dir failed :";
+
+  bgsave_info_.path = full_path;
+  LOG(INFO) << db_name_ << " preparing bgsave dir: " << bgsave_info_.path;
+
+  // Note: In Scheme A, we don't delete existing directories
+  // because other slaves may be using them
+  // Just create the new path
+  if (!PikaServer::EnsureDirExists(bgsave_info_.path, 0755)) {
+    LOG(WARNING) << db_name_ << " create bgsave dir failed: " << bgsave_info_.path
+                 << ", errno=" << errno << ", error=" << strerror(errno);
+    // Clear the path on failure to avoid using invalid path in GetDumpMeta
+    bgsave_info_.path.clear();
     return false;
+  }
+
+  // Prepare for failed dir
+  std::string failed_dir = bgsave_info_.path + "_FAILED";
+  if (pstd::FileExists(failed_dir)) {
+    pstd::DeleteDirIfExist(failed_dir);
   }
   return true;
 }
 
 // Prepare bgsave env, need bgsave_protector protect
+// Note: SetBackupContent is now done in RunBgsaveEngine using SetBackupContentAndCreate
+// to minimize time window between GetLiveFiles and CreateCheckpoint
 bool DB::InitBgsaveEngine() {
   bgsave_engine_.reset();
   rocksdb::Status s = storage::BackupEngine::Open(storage().get(), bgsave_engine_, g_pika_conf->db_instance_num());
@@ -371,11 +405,7 @@ bool DB::InitBgsaveEngine() {
       std::lock_guard l(bgsave_protector_);
       bgsave_info_.offset = bgsave_offset;
     }
-    s = bgsave_engine_->SetBackupContent();
-    if (!s.ok()) {
-      LOG(WARNING) << db_name_ << " set backup content failed " << s.ToString();
-      return false;
-    }
+    // SetBackupContent is now done in RunBgsaveEngine to minimize time window
   }
   return true;
 }
@@ -390,25 +420,73 @@ void DB::Init() {
 
 void DB::GetBgSaveMetaData(std::vector<std::string>* fileNames, std::string* snapshot_uuid) {
   const std::string dbPath = bgsave_info().path;
+  size_t total_sst_files = 0;
+  size_t orphan_sst_files = 0;
 
-  int db_instance_num = g_pika_conf->db_instance_num();
-  for (int index = 0; index < db_instance_num; index++) {
-    std::string instPath = dbPath + ((dbPath.back() != '/') ? "/" : "") + std::to_string(index);
-    if (!pstd::FileExists(instPath)) {
-      continue ;
+  LOG(INFO) << "[GetBgSaveMetaData] Starting scan, dbPath=" << dbPath;
+
+  // dbPath is already the specific DB path (e.g., .../dump/dump-9454-20260302/db0)
+  // We need to scan its subdirectories (0, 1, 2 for rocksdb instances)
+  std::vector<std::string> subDirs;
+  int ret = pstd::GetChildren(dbPath, subDirs);
+  LOG(INFO) << "[GetBgSaveMetaData] GetChildren for dbPath returned " << ret
+            << ", subDirs count=" << subDirs.size();
+  if (ret) {
+    LOG(WARNING) << "[GetBgSaveMetaData] Failed to read dbPath: " << dbPath;
+    return;
+  }
+
+  for (const std::string& subDir : subDirs) {
+    std::string instPath = dbPath + "/" + subDir;
+    // Skip if not exists or is a file (not directory)
+    // Note: IsDir returns 0 for directory, 1 for file, -1 for error
+    if (!pstd::FileExists(instPath) || pstd::IsDir(instPath) != 0) {
+      continue;
     }
 
     std::vector<std::string> tmpFileNames;
-    int ret = pstd::GetChildren(instPath, tmpFileNames);
+    ret = pstd::GetChildren(instPath, tmpFileNames);
     if (ret) {
-      LOG(WARNING) << dbPath << " read dump meta files failed, path " << instPath;
-      return;
+      LOG(WARNING) << "[GetBgSaveMetaData] Failed to read instPath: " << instPath;
+      continue;
     }
 
-    for (const std::string fileName : tmpFileNames) {
-      fileNames -> push_back(std::to_string(index) + "/" + fileName);
+    for (const std::string& fileName : tmpFileNames) {
+      std::string fullPath = instPath + "/" + fileName;
+      struct stat st;
+      // Check if file exists and get its stat
+      if (stat(fullPath.c_str(), &st) != 0) {
+        // File doesn't exist, skip it
+        LOG(WARNING) << "[GetBgSaveMetaData] File does not exist: " << fullPath;
+        continue;
+      }
+
+      // Check if it's an SST file and if it's an orphan (Links=1)
+      if (fileName.size() > 4 && fileName.substr(fileName.size() - 4) == ".sst") {
+        total_sst_files++;
+        if (st.st_nlink == 1) {
+          // This is an orphan file, but we need to include it in the meta
+          // to ensure data consistency. The file will be cleaned up after
+          // a delay to allow for retries.
+          orphan_sst_files++;
+          LOG(INFO) << "[GetBgSaveMetaData] Including orphan SST file: " << fullPath
+                    << ", size=" << st.st_size;
+          // NOTE: We no longer skip orphan files here. They will be included
+          // in the file list and cleaned up with a delay after transfer.
+        }
+      }
+      // Construct relative path like "0/xxx.sst" or "1/xxx.sst"
+      fileNames->push_back(subDir + "/" + fileName);
     }
   }
+
+  if (orphan_sst_files > 0) {
+    LOG(INFO) << "[GetBgSaveMetaData] Summary for " << dbPath
+              << ": total_sst=" << total_sst_files
+              << ", orphan_included=" << orphan_sst_files
+              << ", returned=" << fileNames->size();
+  }
+
   fileNames->push_back(kBgsaveInfoFile);
   pstd::Status s = GetBgSaveUUID(snapshot_uuid);
   if (!s.ok()) {

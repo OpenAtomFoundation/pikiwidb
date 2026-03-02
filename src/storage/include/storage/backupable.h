@@ -47,6 +47,10 @@ class BackupEngine {
 
   Status SetBackupContent();
 
+  // Create backup immediately after setting content to minimize time window
+  // This reduces the chance of compaction occurring between GetLiveFiles and CreateCheckpoint
+  Status SetBackupContentAndCreate(const std::string& dir);
+
   Status CreateNewBackup(const std::string& dir);
 
   void StopBackup();

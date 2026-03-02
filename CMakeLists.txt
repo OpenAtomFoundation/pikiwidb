@@ -8,7 +8,13 @@ endif()
 set(CMAKE_CXX_STANDARD 17)
 project(pika)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-enable_testing()
+
+# Option to control whether tests are built
+option(BUILD_TESTS "Build tests" ON)
+
+if(BUILD_TESTS)
+  enable_testing()
+endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
   # using Clang
@@ -760,6 +766,7 @@ if (USE_PIKA_TOOLS)
   add_subdirectory(tools)
 endif()
 aux_source_directory(src DIR_SRCS)
+list(REMOVE_ITEM DIR_SRCS "src/build_version.cc")
 
 # # generate version
 string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")

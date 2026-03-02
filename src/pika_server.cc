@@ -6,11 +6,16 @@
 #include <arpa/inet.h>
 #include <netinet/in.h>
 #include <sys/resource.h>
+#include <sys/stat.h>
+#include <dirent.h>
 #include <algorithm>
+#include <atomic>
 #include <ctime>
 #include <fstream>
 #include <memory>
+#include <sstream>
 #include <utility>
+#include "pstd/include/pstd_hash.h"
 #include "net/include/net_cli.h"
 #include "net/include/net_interfaces.h"
 #include "net/include/net_stats.h"
@@ -829,6 +834,219 @@ pstd::Status PikaServer::GetDumpMeta(const std::string& db_name, std::vector<std
   return pstd::Status::OK();
 }
 
+/*
+ * Rsync snapshot tracking (for orphan file cleanup protection)
+ * When a slave starts syncing, register its snapshot_uuid
+ * When sync completes or connection closes, unregister it
+ * This prevents cleanup of dump files that are actively being synced
+ */
+void PikaServer::RegisterRsyncSnapshot(const std::string& snapshot_uuid) {
+  if (snapshot_uuid.empty()) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(active_rsync_snapshots_mutex_);
+  active_rsync_snapshots_.insert(snapshot_uuid);
+  LOG(INFO) << "[RsyncSnapshot] Registered snapshot: " << snapshot_uuid
+            << ", active count: " << active_rsync_snapshots_.size();
+}
+
+void PikaServer::UnregisterRsyncSnapshot(const std::string& snapshot_uuid) {
+  if (snapshot_uuid.empty()) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(active_rsync_snapshots_mutex_);
+  auto it = active_rsync_snapshots_.find(snapshot_uuid);
+  if (it != active_rsync_snapshots_.end()) {
+    active_rsync_snapshots_.erase(it);
+    LOG(INFO) << "[RsyncSnapshot] Unregistered snapshot: " << snapshot_uuid
+              << ", active count: " << active_rsync_snapshots_.size();
+  }
+}
+
+bool PikaServer::IsRsyncSnapshotActive(const std::string& snapshot_uuid) {
+  if (snapshot_uuid.empty()) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(active_rsync_snapshots_mutex_);
+  return active_rsync_snapshots_.find(snapshot_uuid) != active_rsync_snapshots_.end();
+}
+
+std::set<std::string> PikaServer::GetActiveRsyncSnapshots() {
+  std::lock_guard<std::mutex> lock(active_rsync_snapshots_mutex_);
+  return active_rsync_snapshots_;
+}
+
+/*
+ * Rsync file transfer tracking (for safe orphan file cleanup during sync)
+ * These functions track which files are currently being transferred for each snapshot
+ * This allows cleanup of orphan files that are NOT being transferred, even during sync
+ */
+void PikaServer::RegisterRsyncTransferringFile(const std::string& snapshot_uuid, const std::string& filename) {
+  if (snapshot_uuid.empty() || filename.empty()) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(rsync_transferring_files_mutex_);
+  rsync_transferring_files_[snapshot_uuid].insert(filename);
+  LOG(INFO) << "[RsyncTransfer] Registered file: " << filename << " for snapshot: " << snapshot_uuid;
+}
+
+void PikaServer::UnregisterRsyncTransferringFile(const std::string& snapshot_uuid, const std::string& filename) {
+  if (snapshot_uuid.empty() || filename.empty()) {
+    return;
+  }
+  std::lock_guard<std::mutex> lock(rsync_transferring_files_mutex_);
+  auto it = rsync_transferring_files_.find(snapshot_uuid);
+  if (it != rsync_transferring_files_.end()) {
+    it->second.erase(filename);
+    LOG(INFO) << "[RsyncTransfer] Unregistered file: " << filename << " for snapshot: " << snapshot_uuid;
+    // Clean up empty sets
+    if (it->second.empty()) {
+      rsync_transferring_files_.erase(it);
+    }
+  }
+}
+
+bool PikaServer::IsRsyncFileTransferring(const std::string& snapshot_uuid, const std::string& filename) {
+  if (snapshot_uuid.empty() || filename.empty()) {
+    return false;
+  }
+  std::lock_guard<std::mutex> lock(rsync_transferring_files_mutex_);
+  auto it = rsync_transferring_files_.find(snapshot_uuid);
+  if (it != rsync_transferring_files_.end()) {
+    return it->second.find(filename) != it->second.end();
+  }
+  return false;
+}
+
+std::set<std::string> PikaServer::GetRsyncTransferringFiles(const std::string& snapshot_uuid) {
+  std::lock_guard<std::mutex> lock(rsync_transferring_files_mutex_);
+  auto it = rsync_transferring_files_.find(snapshot_uuid);
+  if (it != rsync_transferring_files_.end()) {
+    return it->second;
+  }
+  return std::set<std::string>();
+}
+
+/*
+ * Dump ownership management (Scheme A: each slave has exclusive dump)
+ */
+bool PikaServer::MarkDumpInUse(const std::string& snapshot_uuid, const std::string& conn_id, const std::string& dump_path) {
+  if (snapshot_uuid.empty() || conn_id.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(dump_owners_mutex_);
+
+  // Check if already in use by another connection
+  auto it = dump_owners_.find(snapshot_uuid);
+  if (it != dump_owners_.end()) {
+    if (it->second.conn_id != conn_id) {
+      LOG(WARNING) << "[DumpOwnership] Dump " << snapshot_uuid
+                   << " is already in use by " << it->second.conn_id
+                   << ", cannot mark for " << conn_id;
+      return false;
+    }
+    // Already owned by this connection
+    return true;
+  }
+
+  // Check concurrent dump limit
+  if (dump_owners_.size() >= kMaxConcurrentDumps) {
+    LOG(WARNING) << "[DumpOwnership] Max concurrent dumps (" << kMaxConcurrentDumps
+                 << ") reached, cannot mark dump " << snapshot_uuid
+                 << " for " << conn_id;
+    return false;
+  }
+
+  // Mark this dump as in use
+  dump_owners_[snapshot_uuid] = {conn_id, dump_path};
+  LOG(INFO) << "[DumpOwnership] Dump " << snapshot_uuid
+            << " marked in use by " << conn_id
+            << " (path: " << dump_path << ")"
+            << ", active dumps: " << dump_owners_.size();
+  return true;
+}
+
+void PikaServer::ReleaseDump(const std::string& snapshot_uuid) {
+  if (snapshot_uuid.empty()) {
+    return;
+  }
+
+  std::lock_guard<std::mutex> lock(dump_owners_mutex_);
+  auto it = dump_owners_.find(snapshot_uuid);
+  if (it != dump_owners_.end()) {
+    LOG(INFO) << "[DumpOwnership] Dump " << snapshot_uuid
+              << " released by " << it->second.conn_id
+              << ", active dumps: " << (dump_owners_.size() - 1);
+    dump_owners_.erase(it);
+  }
+}
+
+bool PikaServer::IsDumpInUse(const std::string& snapshot_uuid) const {
+  if (snapshot_uuid.empty()) {
+    return false;
+  }
+
+  std::lock_guard<std::mutex> lock(dump_owners_mutex_);
+  return dump_owners_.find(snapshot_uuid) != dump_owners_.end();
+}
+
+std::string PikaServer::GetDumpPathBySnapshot(const std::string& snapshot_uuid) const {
+  if (snapshot_uuid.empty()) {
+    return "";
+  }
+
+  std::lock_guard<std::mutex> lock(dump_owners_mutex_);
+  auto it = dump_owners_.find(snapshot_uuid);
+  if (it != dump_owners_.end()) {
+    return it->second.dump_path;
+  }
+  return "";
+}
+
+size_t PikaServer::GetActiveDumpCount() const {
+  std::lock_guard<std::mutex> lock(dump_owners_mutex_);
+  return dump_owners_.size();
+}
+
+void PikaServer::ScheduleFileForCleanup(const std::string& filepath, int delay_seconds) {
+  std::lock_guard<std::mutex> lock(pending_cleanup_mutex_);
+  PendingCleanupInfo info;
+  info.filepath = filepath;
+  info.cleanup_time = time(nullptr) + delay_seconds;
+  pending_cleanup_files_[filepath] = info;
+  LOG(INFO) << "[Cleanup] Scheduled file for delayed cleanup: " << filepath
+            << " in " << delay_seconds << " seconds";
+}
+
+void PikaServer::ProcessPendingCleanupFiles() {
+  std::lock_guard<std::mutex> lock(pending_cleanup_mutex_);
+  time_t now = time(nullptr);
+  int cleaned_count = 0;
+
+  for (auto it = pending_cleanup_files_.begin();
+       it != pending_cleanup_files_.end(); ) {
+    if (now >= it->second.cleanup_time) {
+      // Check if file still exists and is still an orphan (nlink=1)
+      if (pstd::FileExists(it->second.filepath)) {
+        struct stat st;
+        if (stat(it->second.filepath.c_str(), &st) == 0 && st.st_nlink == 1) {
+          pstd::DeleteFile(it->second.filepath);
+          cleaned_count++;
+          LOG(INFO) << "[Cleanup] Deleted delayed cleanup file: " << it->second.filepath;
+        }
+      }
+      it = pending_cleanup_files_.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
+  if (cleaned_count > 0) {
+    LOG(INFO) << "[Cleanup] Processed delayed cleanup, deleted " << cleaned_count << " files";
+  }
+}
+
 void PikaServer::TryDBSync(const std::string& ip, int port, const std::string& db_name,
                            int32_t top) {
   std::shared_ptr<DB> db = GetDB(db_name);
@@ -1321,14 +1539,36 @@ void PikaServer::AutoServerlogPurge() {
 }
 
 void PikaServer::AutoDeleteExpiredDump() {
+  // Process pending delayed cleanup files with its own rate limiting (5 minutes)
+  // This is independent of the full directory cleanup rate limiting
+  static time_t last_pending_cleanup_time = 0;
+  time_t now = time(nullptr);
+  if (now - last_pending_cleanup_time >= 300) {  // 300 seconds = 5 minutes
+    ProcessPendingCleanupFiles();
+    last_pending_cleanup_time = now;
+  }
+
+  // Rate limiting for full directory cleanup: once per 10 minutes during active syncs
+  static time_t last_full_cleanup_time = 0;
+  {
+    std::lock_guard<std::mutex> lock(active_rsync_snapshots_mutex_);
+    if (!active_rsync_snapshots_.empty() && (now - last_full_cleanup_time < 600)) {
+      // Skip logging to reduce noise - only log status once per minute (see below)
+      return;
+    }
+  }
+  last_full_cleanup_time = now;
+
   std::string db_sync_prefix = g_pika_conf->bgsave_prefix();
   std::string db_sync_path = g_pika_conf->bgsave_path();
   int expiry_days = g_pika_conf->expire_dump_days();
   std::vector<std::string> dump_dir;
 
-  // Never expire
-  if (expiry_days <= 0) {
-    return;
+  // Rate limiting for status logs - only log once per minute
+  static time_t last_status_log_time = 0;
+  bool should_log_status = (now - last_status_log_time >= 60);
+  if (should_log_status) {
+    last_status_log_time = now;
   }
 
   // Dump is not exist
@@ -1338,18 +1578,104 @@ void PikaServer::AutoDeleteExpiredDump() {
 
   // Directory traversal
   if (pstd::GetChildren(db_sync_path, dump_dir) != 0) {
+    LOG(WARNING) << "[AutoDeleteExpiredDump] GetChildren failed for: " << db_sync_path;
     return;
   }
+
+  int sync_slaves = CountSyncSlaves();
+  if (should_log_status) {
+    LOG(INFO) << "[AutoDeleteExpiredDump] Scanning " << dump_dir.size() << " items, sync_slaves: " << sync_slaves;
+  }
+
+  int dumps_cleaned = 0;
+  int dumps_checked = 0;
+
   // Handle dump directory
+  // Scheme A: Support new naming format: dump-prefix-YYYYMMDD-NN (e.g., dump-20260304-0, dump-20260304-1)
   for (auto& i : dump_dir) {
-    if (i.substr(0, db_sync_prefix.size()) != db_sync_prefix || i.size() != (db_sync_prefix.size() + 8)) {
+    // Check prefix
+    if (i.substr(0, db_sync_prefix.size()) != db_sync_prefix) {
       continue;
     }
 
-    std::string str_date = i.substr(db_sync_prefix.size(), (i.size() - db_sync_prefix.size()));
+    // Extract date part (8 digits after prefix)
+    // New format: dump-prefix-YYYYMMDD-NN (min size: prefix + 8 date + 1 dash + 1 seq = prefix + 10)
+    // Old format: dump-prefix-YYYYMMDD (size: prefix + 8)
+    std::string remaining = i.substr(db_sync_prefix.size());
+    if (remaining.size() < 8) {
+      continue;
+    }
+
+    std::string str_date = remaining.substr(0, 8);
     char* end = nullptr;
     std::strtol(str_date.c_str(), &end, 10);
     if (*end != 0) {
+      continue;
+    }
+
+    std::string dump_file = db_sync_path + i;
+
+    // Read snapshot_uuid from info file for protection check
+    // TODO: For multi-DB setups, should check ALL db subdirectories (db0, db1, db2...)
+    // If any db is in use, the entire dump should be protected.
+    // Current simple approach only checks db0 for backward compatibility.
+    std::string snapshot_uuid;
+    std::string info_path = dump_file + "/db0/info";
+    if (!pstd::FileExists(info_path)) {
+      // Fallback to legacy path (directly under dump directory)
+      info_path = dump_file + "/info";
+    }
+    if (pstd::FileExists(info_path)) {
+      std::ifstream info_file(info_path);
+      if (info_file) {
+        std::stringstream buffer;
+        buffer << info_file.rdbuf();
+        std::string info_data = buffer.str();
+        if (!info_data.empty()) {
+          pstd::MD5 md5 = pstd::MD5(info_data);
+          snapshot_uuid = md5.hexdigest();
+        }
+      }
+    } else if (should_log_status) {
+      // Log missing info file at low frequency for debugging dump issues
+      LOG(WARNING) << "[AutoDeleteExpiredDump] Info file missing: " << info_path;
+    }
+
+    // Check if this dump is actively being synced
+    bool is_syncing = !snapshot_uuid.empty() && IsRsyncSnapshotActive(snapshot_uuid);
+
+    // Handle corrupted dump directory (info file missing)
+    // If info file is missing and the dump is not in use and has expired, delete it
+    if (snapshot_uuid.empty() && !is_syncing) {
+      // For corrupted dumps (missing info), we can't determine exact creation time
+      // Use directory mtime as fallback, or delete if it's clearly old (different date)
+      struct stat dump_stat;
+      if (stat(dump_file.c_str(), &dump_stat) == 0) {
+        time_t dump_mtime = dump_stat.st_mtime;
+        struct tm* dump_tm = localtime(&dump_mtime);
+        int dump_mtime_year = dump_tm->tm_year;
+        int dump_mtime_mon = dump_tm->tm_mon;
+        int dump_mtime_mday = dump_tm->tm_mday;
+
+        time_t t_now = time(nullptr);
+        struct tm* now_tm = localtime(&t_now);
+
+        // Delete corrupted dump if it's from a different day (not today)
+        // This gives some grace period and avoids deleting very recent dumps
+        if (dump_mtime_year != now_tm->tm_year ||
+            dump_mtime_mon != now_tm->tm_mon ||
+            dump_mtime_mday != now_tm->tm_mday) {
+          LOG(WARNING) << "[AutoDeleteExpiredDump] Deleting corrupted dump (missing info): " << i;
+          pstd::DeleteDirIfExist(dump_file);
+          dumps_cleaned++;
+          continue;
+        }
+      }
+    }
+
+    // Check if we should delete the entire dump directory
+    // Skip if expiry_days <= 0 (never expire)
+    if (expiry_days <= 0) {
       continue;
     }
 
@@ -1360,23 +1686,22 @@ void PikaServer::AutoDeleteExpiredDump() {
 
     time_t t = time(nullptr);
     struct tm* now = localtime(&t);
-    int now_year = now->tm_year + 1900;
-    int now_month = now->tm_mon + 1;
-    int now_day = now->tm_mday;
 
     struct tm dump_time = {};
     struct tm now_time = {};
 
-    dump_time.tm_year = dump_year;
-    dump_time.tm_mon = dump_month;
+    // Fix: tm_year is years since 1900, tm_mon is 0-11
+    dump_time.tm_year = dump_year - 1900;
+    dump_time.tm_mon = dump_month - 1;
     dump_time.tm_mday = dump_day;
     dump_time.tm_hour = 0;
     dump_time.tm_min = 0;
     dump_time.tm_sec = 0;
 
-    now_time.tm_year = now_year;
-    now_time.tm_mon = now_month;
-    now_time.tm_mday = now_day;
+    // Fix: use tm struct directly without adding offset
+    now_time.tm_year = now->tm_year;
+    now_time.tm_mon = now->tm_mon;
+    now_time.tm_mday = now->tm_mday;
     now_time.tm_hour = 0;
     now_time.tm_min = 0;
     now_time.tm_sec = 0;
@@ -1387,14 +1712,20 @@ void PikaServer::AutoDeleteExpiredDump() {
     int64_t interval_days = (now_timestamp - dump_timestamp) / 86400;
 
     if (interval_days >= expiry_days) {
-      std::string dump_file = db_sync_path + i;
-      if (CountSyncSlaves() == 0) {
-        LOG(INFO) << "Not syncing, delete dump file: " << dump_file;
+      dumps_checked++;
+      // Scheme A: Check if dump is in use by any slave (exclusive dump ownership)
+      if (!IsDumpInUse(snapshot_uuid)) {
+        LOG(INFO) << "[AutoDeleteExpiredDump] Deleting expired dump: " << i
+                  << " (age: " << interval_days << " days)";
         pstd::DeleteDirIfExist(dump_file);
-      } else {
-        LOG(INFO) << "Syncing, can not delete " << dump_file << " dump file";
+        dumps_cleaned++;
       }
+      // Note: If dump is in use, we silently skip without logging (reduces noise)
     }
+  }
+
+  if (should_log_status || dumps_cleaned > 0) {
+    LOG(INFO) << "[AutoDeleteExpiredDump] Checked " << dumps_checked << " dumps, cleaned " << dumps_cleaned;
   }
 }
 
@@ -1728,6 +2059,27 @@ void PikaServer::DisableCompact() {
       db_item.second->SetCompactRangeOptions(true);
       db_item.second->DBUnlock();
   }
+}
+
+// Utility function to ensure directory exists
+// Returns true if directory exists or was created successfully
+// Handles the special case where CreatePath returns 0 for both success and "already exists"
+bool PikaServer::EnsureDirExists(const std::string& path, mode_t mode) {
+  // First check if directory already exists
+  if (pstd::FileExists(path)) {
+    return true;
+  }
+  // Directory doesn't exist, try to create it
+  int ret = pstd::CreatePath(path, mode);
+  // CreatePath returns 0 on success, -1 on failure
+  // Note: CreatePath also returns -1 if directory already exists (due to the
+  // !filesystem::create_directories check), but we already checked FileExists above
+  if (ret != 0) {
+    LOG(WARNING) << "Failed to create directory: " << path << ", error code: " << ret;
+    return false;
+  }
+  // Verify directory was created successfully
+  return pstd::FileExists(path);
 }
 
 void DoBgslotscleanup(void* arg) {

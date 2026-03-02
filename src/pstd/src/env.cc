@@ -132,11 +132,16 @@ int CreatePath(const std::string& path, mode_t mode) {
 
 int GetChildren(const std::string& dir, std::vector<std::string>& result) {
   result.clear();
-  if (filesystem::is_empty(dir)) {
-    return -1; 
-  }
-  for (auto& de : filesystem::directory_iterator(dir)) {
-    result.emplace_back(de.path().filename());
+  try {
+    if (filesystem::is_empty(dir)) {
+      return -1;
+    }
+    for (auto& de : filesystem::directory_iterator(dir)) {
+      result.emplace_back(de.path().filename());
+    }
+  } catch (const filesystem::filesystem_error& e) {
+    LOG(WARNING) << "GetChildren failed for " << dir << ": " << e.what();
+    return -1;
   }
   return 0;
 }

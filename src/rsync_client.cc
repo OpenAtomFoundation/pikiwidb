@@ -239,6 +239,16 @@ Status RsyncClient::CopyRemoteFile(const std::string& filename, int index) {
         return s;
       }
 
+      // If Master returns empty response, it means the file was cleaned up during sync
+      // This is an error condition - the sync should fail and retry
+      if (ret_count == 0 && resp->file_resp().eof()) {
+        LOG(ERROR) << "File not available on Master at offset " << offset
+                   << ", filename: " << filename
+                   << ". Will retry and may trigger new bgsave.";
+        s = Status::IOError("File not available on Master");
+        return s;
+      }
+
       s = writer->Write((uint64_t)offset, ret_count, resp->file_resp().data().c_str());
       if (!s.ok()) {
         LOG(WARNING) << "rsync client write file error";
@@ -250,7 +260,7 @@ Status RsyncClient::CopyRemoteFile(const std::string& filename, int index) {
         s = writer->Fsync();
         if (!s.ok()) {
             return s;
-        } 
+        }
         mu_.lock();
         meta_table_[filename] = "";
         mu_.unlock();
@@ -317,7 +327,9 @@ bool RsyncClient::ComparisonUpdate() {
     set_difference(local_file_set.begin(), local_file_set.end(),
                    remote_file_set.begin(), remote_file_set.end(),
                    inserter(expired_files, expired_files.begin()));
-    file_set_.insert(newly_files.begin(), newly_files.end());
+    // Replace file_set_ with remote_file_set to ensure files deleted on Master
+    // are also removed from local tracking
+    file_set_ = remote_file_set;
   }
 
   s = CleanUpExpiredFiles(local_snapshot_uuid != remote_snapshot_uuid, expired_files);

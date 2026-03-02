@@ -6,6 +6,8 @@
 #include <dirent.h>
 #include <utility>
 
+#include <glog/logging.h>
+
 #include "storage/backupable.h"
 #include "storage/storage.h"
 
@@ -67,6 +69,42 @@ Status BackupEngine::SetBackupContent() {
     backup_content_[engine.first] = std::move(bcontent);
   }
   return s;
+}
+
+Status BackupEngine::SetBackupContentAndCreate(const std::string& dir) {
+  Status s;
+  // Process each engine sequentially to minimize time window
+  for (const auto& engine : engines_) {
+    // 1. Get backup content (this calls DisableFileDeletions internally)
+    BackupContent bcontent;
+    s = engine.second->GetCheckpointFiles(bcontent.live_files, bcontent.live_wal_files, bcontent.manifest_file_size,
+                                          bcontent.sequence_number);
+    if (!s.ok()) {
+      // GetCheckpointFiles already calls EnableFileDeletions on failure
+      return s;
+    }
+
+    // 2. Immediately create checkpoint with the files we just got
+    // This minimizes the time window between GetLiveFiles and CreateCheckpoint
+    std::string backup_dir = GetSaveDirByIndex(dir, engine.first);
+    delete_dir(backup_dir.c_str());
+
+    s = engine.second->CreateCheckpointWithFiles(
+        backup_dir, bcontent.live_files, bcontent.live_wal_files,
+        bcontent.manifest_file_size, bcontent.sequence_number);
+
+    // 3. Re-enable file deletions regardless of success
+    // CreateCheckpointWithFiles already calls EnableFileDeletions in db_checkpoint.cc
+    if (!s.ok()) {
+      LOG(WARNING) << "CreateCheckpointWithFiles failed for index " << engine.first
+                   << ": " << s.ToString();
+      return s;
+    }
+
+    // Save content for potential reuse
+    backup_content_[engine.first] = std::move(bcontent);
+  }
+  return Status::OK();
 }
 
 Status BackupEngine::CreateNewBackupSpecify(const std::string& backup_dir, int index) {
