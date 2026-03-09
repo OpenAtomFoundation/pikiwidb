@@ -78,6 +78,7 @@ inline char* EncodeUserKey(const Slice& user_key, char* dst_ptr, size_t nzero) {
   }
   if (pos != user_key.size()) {
     memcpy(dst_ptr, user_data + pos, user_key.size() - pos);
+    dst_ptr += user_key.size() - pos;
   }
 
   memcpy(dst_ptr, kEncodedKeyDelim, 2);
