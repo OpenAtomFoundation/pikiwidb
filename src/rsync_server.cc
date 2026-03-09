@@ -137,6 +137,13 @@ void RsyncServerConn::RemoveTransferringFile(const std::string& filename, bool i
 
     // Only process cleanup when file transfer is complete (is_eof=true)
     if (is_eof) {
+      // Only SST files can be orphan files (hard links from DB)
+      // Other files (info, CURRENT, MANIFEST, OPTIONS, .log) are created
+      // during dump and should not be cleaned up
+      if (filename.size() < 4 || filename.substr(filename.size() - 4) != ".sst") {
+        return;
+      }
+
       std::string dump_path = g_pika_server->GetDumpPathBySnapshot(snapshot_uuid_);
       std::string filepath = dump_path + "/" + filename;
 
@@ -146,7 +153,7 @@ void RsyncServerConn::RemoveTransferringFile(const std::string& filename, bool i
         // Orphan file: schedule for delayed cleanup (10 minutes)
         // This allows Slave to retry if needed before actual deletion
         g_pika_server->ScheduleFileForCleanup(filepath, 600);
-        LOG(INFO) << "[RsyncTransfer] Scheduled orphan file for cleanup: " << filename
+        LOG(INFO) << "[RsyncTransfer] Scheduled orphan SST file for cleanup: " << filename
                   << " for snapshot: " << snapshot_uuid_;
       }
       // Non-orphan files (nlink=2) are still referenced by RocksDB, no cleanup needed
