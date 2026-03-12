@@ -1157,7 +1157,7 @@ void PikaServer::AutoProgressiveCompact() {
       db_item.second->DBLockShared();
       auto storage = db_item.second->storage();
       if (storage) {
-        Status s = storage->LongestNotCompactionSstCompact(storage::DataType::kAll);
+        storage::Status s = storage->LongestNotCompactionSstCompact(storage::DataType::kAll);
         if (!s.ok()) {
           LOG(WARNING) << "Progressive compact for DB: " << db_item.first 
                       << " failed: " << s.ToString();
