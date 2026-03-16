@@ -341,8 +341,33 @@ int PikaConf::Load() {
     compaction_strategy_ = FullCompact;
   } else if (cs_ == "obd-compact") {
     compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
+  } else if (cs_ == "incremental-compact") {
+    compaction_strategy_ = IncrementalCompact;
   } else {
     compaction_strategy_ = NONE;
+  }
+
+  // for incremental-compact
+  GetConfInt("incremental-compact-interval", &incremental_compact_interval_);
+  if (incremental_compact_interval_ <= 0) {
+    incremental_compact_interval_ = 60;
+  }
+  GetConfInt("incremental-compact-max-files", &incremental_compact_max_files_);
+  if (incremental_compact_max_files_ <= 0) {
+    incremental_compact_max_files_ = 1;
+  }
+  GetConfInt("incremental-compact-max-time-ms", &incremental_compact_max_time_ms_);
+  if (incremental_compact_max_time_ms_ <= 0) {
+    incremental_compact_max_time_ms_ = 1000;
+  }
+  GetConfInt("incremental-compact-min-rate", &incremental_compact_min_rate_);
+  if (incremental_compact_min_rate_ <= 0 || incremental_compact_min_rate_ > 100) {
+    incremental_compact_min_rate_ = 70;
+  }
+  GetConfInt("incremental-compact-target-level", &incremental_compact_target_level_);
+  GetConfInt("incremental-compact-min-file-age", &incremental_compact_min_file_age_);
+  if (incremental_compact_min_file_age_ < 0) {
+    incremental_compact_min_file_age_ = 60;
   }
 
   // least-free-disk-resume-size
@@ -893,9 +918,19 @@ int PikaConf::ConfigRewrite() {
     compaction_strategy_ = FullCompact;
   } else if (cs_ == "obd-compact") {
     compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
+  } else if (cs_ == "incremental-compact") {
+    compaction_strategy_ = IncrementalCompact;
   } else {
     compaction_strategy_ = NONE;
   }
+
+  // for incremental-compact config update
+  SetConfInt("incremental-compact-interval", incremental_compact_interval_);
+  SetConfInt("incremental-compact-max-files", incremental_compact_max_files_);
+  SetConfInt("incremental-compact-max-time-ms", incremental_compact_max_time_ms_);
+  SetConfInt("incremental-compact-min-rate", incremental_compact_min_rate_);
+  SetConfInt("incremental-compact-target-level", incremental_compact_target_level_);
+  SetConfInt("incremental-compact-min-file-age", incremental_compact_min_file_age_);
 
   SetConfStr("disable_auto_compactions", disable_auto_compactions_ ? "true" : "false");
   SetConfStr("cache-type", scachetype);

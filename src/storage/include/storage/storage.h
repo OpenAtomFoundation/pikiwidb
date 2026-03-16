@@ -167,6 +167,7 @@ enum Operation {
   kCleanAll,
   kCompactRange,
   kCompactOldestOrBestDeleteRatioSst,
+  kIncrementalCompact,
 };
 
 struct BGTask {
@@ -1097,6 +1098,18 @@ class Storage {
    * @return Status
   */
   Status LongestNotCompactionSstCompact(const DataType &type, bool sync = false);
+
+  /**
+   * IncrementalCompact: 渐进式 compact，每次只处理少量最老的 SST 文件
+   * @param type: 数据类型
+   * @param max_files: 单次最多处理文件数
+   * @param max_time_ms: 单次最大执行时间
+   * @param min_rate: 压缩率阈值，低于此值继续处理
+   * @param sync: 是否同步执行
+   * @return Status
+   */
+  Status IncrementalCompact(const DataType &type, int max_files = 1, int max_time_ms = 1000,
+                            int min_rate = 70, bool sync = false);
 
   Status SetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(uint32_t small_compaction_threshold);

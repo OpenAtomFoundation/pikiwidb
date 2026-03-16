@@ -520,6 +520,9 @@ Status PikaServer::DoSameThingEveryDB(const TaskType& type) {
       case TaskType::kCompactOldestOrBestDeleteRatioSst:
         db_item.second->LongestNotCompactionSstCompact(storage::DataType::kAll);
         break;
+      case TaskType::kIncrementalCompact:
+        db_item.second->IncrementalCompact(storage::DataType::kAll);
+        break;
       default:
         break;
     }
@@ -1234,6 +1237,8 @@ void PikaServer::AutoCompactRange() {
     DoSameThingEveryDB(TaskType::kCompactAll);
   } else if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
     DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
+  } else if (g_pika_conf->compaction_strategy() == PikaConf::IncrementalCompact) {
+    DoSameThingEveryDB(TaskType::kIncrementalCompact);
   }
 }
 

@@ -1729,6 +1729,11 @@ Status Storage::RunBGTask() {
       DoCompactRange(task.type, "", "");
     } else if (task.operation == kCompactOldestOrBestDeleteRatioSst) {
       LongestNotCompactionSstCompact(task.type, true);
+    } else if (task.operation == kIncrementalCompact) {
+      IncrementalCompact(task.type,
+                        g_pika_conf->incremental_compact_max_files(),
+                        g_pika_conf->incremental_compact_max_time_ms(),
+                        g_pika_conf->incremental_compact_min_rate(), true);
     } else if (task.operation == kCompactRange) {
       if (task.argv.size() == 1) {
         DoCompactSpecificKey(task.type, task.argv[0]);
@@ -1747,6 +1752,29 @@ Status Storage::LongestNotCompactionSstCompact(const DataType &type, bool sync) 
     for (const auto& inst : insts_) {
       std::vector<rocksdb::Status> compact_result_vec;
       s = inst->LongestNotCompactionSstCompact(type, &compact_result_vec);
+      for (auto compact_result : compact_result_vec) {
+        if (!compact_result.ok()) {
+          LOG(ERROR) << compact_result.ToString();
+        }
+      }
+    }
+    return s;
+  } else {
+    AddBGTask({type, kIncrementalCompact});
+  }
+  return Status::OK();
+}
+
+Status Storage::IncrementalCompact(const DataType &type, int max_files, int max_time_ms,
+                                   int min_rate, bool sync) {
+  if (sync) {
+    Status s;
+    for (const auto& inst : insts_) {
+      std::vector<rocksdb::Status> compact_result_vec;
+      s = inst->IncrementalCompact(type, &compact_result_vec, storage::kMetaAndData,
+                                   max_files, max_time_ms, min_rate,
+                                   g_pika_conf->incremental_compact_target_level(),
+                                   g_pika_conf->incremental_compact_min_file_age());
       for (auto compact_result : compact_result_vec) {
         if (!compact_result.ok()) {
           LOG(ERROR) << compact_result.ToString();
