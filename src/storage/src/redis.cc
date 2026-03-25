@@ -438,6 +438,29 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
   return Status::OK();
 }
 
+// Helper function to extract table file number from filename
+// e.g., "000123.sst" -> 123
+static uint64_t ExtractFileNumber(const std::string& name) {
+  uint64_t number = 0;
+  uint64_t base = 1;
+  size_t pos = name.find_last_of('.');
+  if (pos == std::string::npos) {
+    return 0;
+  }
+  // Move backwards from '.' to find the digits
+  while (pos > 0) {
+    --pos;
+    char c = name[pos];
+    if (c >= '0' && c <= '9') {
+      number += (c - '0') * base;
+      base *= 10;
+    } else {
+      break;
+    }
+  }
+  return number;
+}
+
 Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                   const ColumnFamilyType& type, int max_files, int max_time_ms,
                                   int min_rate, int target_level, int min_file_age) {
@@ -461,17 +484,19 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
     compact_result_vec->clear();
   }
 
-  // 3. 记录开始时间
-  auto start_time = std::chrono::steady_clock::now();
   int64_t now_sec = std::time(nullptr);
 
   for (auto idx : handleIdxVec) {
+    // 每个 CF 独立计时和配额
+    auto cf_start_time = std::chrono::steady_clock::now();
     int processed = 0;
+
     while (processed < max_files) {
-      // 3.1 检查超时
-      auto elapsed = std::chrono::steady_clock::now() - start_time;
+      // 3.1 检查该 CF 的超时
+      auto elapsed = std::chrono::steady_clock::now() - cf_start_time;
       if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() >= max_time_ms) {
-        LOG(INFO) << "IncrementalCompact timeout, processed " << processed << " files";
+        LOG(INFO) << "IncrementalCompact timeout for cf=" << handles_[idx]->GetName()
+                  << ", processed " << processed << " files";
         break;
       }
 
@@ -484,6 +509,11 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       uint64_t oldest_number = UINT64_MAX;
 
       for (const auto& level_meta : meta.levels) {
+        // FIX: 跳过 L0，让 RocksDB 自动处理
+        if (level_meta.level == 0) {
+          continue;
+        }
+
         for (const auto& file_meta : level_meta.files) {
           // 跳过太新的文件
           if (file_meta.file_creation_time > 0 &&
@@ -491,7 +521,7 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
             continue;
           }
 
-          uint64_t number = TableFileNameToNumber(file_meta.name);
+          uint64_t number = ExtractFileNumber(file_meta.name);
           if (number < oldest_number) {
             oldest_number = number;
             oldest_file = file_meta.db_path + "/" + file_meta.name;
@@ -504,10 +534,22 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
         break;  // 没有符合条件的文件
       }
 
-      // 3.3 使用 CompactFiles 进行 compact
+      // FIX: 跳过 L6 文件（没有上层了，避免 L6→L6 无效重写）
+      if (oldest_level >= 6) {
+        LOG(INFO) << "IncrementalCompact skip L6 file: " << oldest_file;
+        break;
+      }
+
+      // 3.3 使用 CompactFiles 进行 compact（只处理 L1-L5）
       std::vector<std::string> input_files{oldest_file};
       rocksdb::CompactionOptions compact_options;
-      int dest_level = (target_level >= 0) ? target_level : oldest_level + 1;
+      // 目标层 = 当前层 + 1（L1→L2, L2→L3, ... L5→L6）
+      int dest_level = oldest_level + 1;
+
+      LOG(INFO) << "IncrementalCompact start: file=" << oldest_file
+                << ", cf=" << handles_[idx]->GetName()
+                << ", from_level=" << oldest_level
+                << ", to_level=" << dest_level;
 
       rocksdb::CompactionJobInfo job_info;
       Status s = db_->CompactFiles(compact_options, handles_[idx],

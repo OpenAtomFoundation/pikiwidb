@@ -209,7 +209,9 @@ void DB::IncrementalCompact(const storage::DataType& type) {
   storage_->IncrementalCompact(type,
                                g_pika_conf->incremental_compact_max_files(),
                                g_pika_conf->incremental_compact_max_time_ms(),
-                               g_pika_conf->incremental_compact_min_rate());
+                               g_pika_conf->incremental_compact_min_rate(),
+                               g_pika_conf->incremental_compact_target_level(),
+                               g_pika_conf->incremental_compact_min_file_age());
 }
 
 void DB::DoKeyScan(void* arg) {
