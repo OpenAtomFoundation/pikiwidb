@@ -8,9 +8,9 @@ GITREV 			:= $(shell git rev-parse HEAD)
 BUILDTIME 		:= $(shell date '+%F %T %Z')
 COMPILERVERSION	:= $(subst go version ,,$(shell go version))
 PROJNAME        := pika_exporter
-PIKA_EXPORTER_MAJOR := 4
-PIKA_EXPORTER_MINOR := 0
-PIKA_EXPORTER_PATCH := 2
+PIKA_EXPORTER_MAJOR := 3
+PIKA_EXPORTER_MINOR := 5
+PIKA_EXPORTER_PATCH := 5
 
 define GENERATE_VERSION_CODE
 cat << EOF | gofmt > version.go

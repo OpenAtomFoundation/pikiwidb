@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/garyburd/redigo/redis"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -132,7 +133,8 @@ func (c *client) InfoNoneCommandList() (string, error) {
 		if flag {
 			info, err := c.InfoCommand(section)
 			if err != nil {
-				return "", err
+				log.Warnf("Failed to get INFO %s: %v", section, err)
+				continue // Skip this section but continue with others
 			}
 			rst = append(rst, info)
 		}
@@ -160,7 +162,8 @@ func (c *client) InfoAllCommandList() (string, error) {
 		if flag {
 			info, err := c.InfoCommand(section)
 			if err != nil {
-				return "", err
+				log.Warnf("Failed to get INFO %s: %v", section, err)
+				continue // Skip this section but continue with others
 			}
 			rst = append(rst, info)
 		}

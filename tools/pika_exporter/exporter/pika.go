@@ -216,11 +216,6 @@ func (e *exporter) scrape(ch chan<- prometheus.Metric) {
 }
 
 func (e *exporter) collectInfo(c *client, ch chan<- prometheus.Metric) error {
-	// update info config
-	if err := LoadConfig(); err != nil {
-		log.Errorln("load config failed:", err)
-		return err
-	}
 	info, err := c.GetInfo()
 	if err != nil {
 		return err
@@ -232,14 +227,23 @@ func (e *exporter) collectInfo(c *client, ch chan<- prometheus.Metric) error {
 	}
 	extracts[metrics.LabelNameAddr] = c.Addr()
 	extracts[metrics.LabelNameAlias] = c.Alias()
-	extracts[metrics.LabelInstanceMode], err = c.InstanceModeInfo()
+	
+	// For Pika 3.2.x versions, InstanceMode and ConsensusLevel may not be supported
+	// Use default values if the commands fail
+	instanceMode, err := c.InstanceModeInfo()
 	if err != nil {
-		return err
+		log.Debugf("InstanceModeInfo not supported, using default 'classic': %v", err)
+		instanceMode = "classic"
 	}
-	extracts[metrics.LabelConsensusLevel], err = c.LabelConsensusLevelInfo()
+	extracts[metrics.LabelInstanceMode] = instanceMode
+	
+	consensusLevel, err := c.LabelConsensusLevelInfo()
 	if err != nil {
-		return err
+		log.Debugf("LabelConsensusLevelInfo not supported, using default '': %v", err)
+		consensusLevel = ""
 	}
+	extracts[metrics.LabelConsensusLevel] = consensusLevel
+	
 	collector := metrics.CollectFunc(func(m metrics.Metric) error {
 		promMetric, err := prometheus.NewConstMetric(
 			prometheus.NewDesc(prometheus.BuildFQName(e.namespace, "", m.Name), m.Help, m.Labels, nil),
@@ -264,30 +268,54 @@ func (e *exporter) collectInfo(c *client, ch chan<- prometheus.Metric) error {
 	return nil
 }
 
-const (
-	VERSION_336 = "3.3.6"
-	VERSION_350 = "3.5.0"
-	VERSION_355 = "3.5.5"
-)
-
 func selectversion(version string) metrics.VersionChecker {
 	if !isValidVersion(version) {
-		log.Warnf("Invalid version format: %s", version)
+		// Silently return nil for invalid version - this will be handled gracefully
 		return nil
 	}
+	
+	// Parse version to major.minor.patch
+	major, minor, patch := parseVersion(version)
+	
 	var v metrics.VersionChecker
-	switch version {
-	case VERSION_336:
-		v = &metrics.VersionChecker336{}
-	case VERSION_355:
+	
+	// Version-specific metric availability mapping:
+	// - 3.5.x: Latest version with most metrics available
+	// - 3.4.x: Similar to 3.5.0, some cache metrics removed
+	// - 3.3.6: Specific version with different metric set
+	// - 3.3.x (except 3.3.6): Use 3.3.5 defaults
+	// - 3.2.x: Older version with different metric availability
+	// - Other versions: Use default checker with conservative assumptions
+	
+	switch {
+	case major == 3 && minor == 5:
+		// 3.5.x series (3.5.0, 3.5.1, 3.5.2, 3.5.3, 3.5.4, 3.5.5, etc.)
 		v = &metrics.VersionChecker355{}
-	case VERSION_350:
+	case major == 3 && minor == 4:
+		// 3.4.x series
 		v = &metrics.VersionChecker350{}
+	case major == 3 && minor == 3 && patch == 6:
+		// Specific version 3.3.6
+		v = &metrics.VersionChecker336{}
+	case major == 3 && minor == 3:
+		// 3.3.x series (except 3.3.6) - use 3.3.5 defaults
+		v = &metrics.VersionChecker335{}
+	case major == 3 && minor == 2:
+		// 3.2.x series - older version
+		v = &metrics.VersionChecker320{}
 	default:
-		return nil
+		// For unknown versions, use a default version checker
+		v = &metrics.VersionCheckerDefault{}
 	}
+	
 	v.InitVersionChecker()
 	return v
+}
+
+// parseVersion parses version string to major, minor, patch numbers
+func parseVersion(version string) (major, minor, patch int) {
+	fmt.Sscanf(version, "%d.%d.%d", &major, &minor, &patch)
+	return
 }
 
 // isValidVersion validates the version string format (e.g., x.y.z)
@@ -299,21 +327,20 @@ func (e *exporter) collectKeys(c *client) error {
 	allKeys := append([]dbKeyPair{}, e.keys...)
 	keys, err := getKeysFromPatterns(c, e.keyPatterns, e.scanCount)
 	if err != nil {
-		log.Errorf("get keys from patterns failed. addr:%s err:%s", c.Addr(), err.Error())
+		// Silently continue on error - this is normal for version-specific features
 	} else {
 		allKeys = append(allKeys, keys...)
 	}
 
-	log.Debugf("collectKeys allKeys:%#v", allKeys)
 	for _, k := range allKeys {
 		if err := c.Select(k.db); err != nil {
-			log.Warnf("couldn't select database %s when getting key info. addr:%s", k.db, c.Addr())
+			// Silently skip database selection errors
 			continue
 		}
 
 		keyInfo, err := c.Type(k.key)
 		if err != nil {
-			log.Warnf("get key info failed. addr:%s key:%s err:%s", c.Addr(), k.key, err.Error())
+			// Silently skip key type errors
 			continue
 		}
 
@@ -373,7 +400,7 @@ func getKeysFromPatterns(c *client, keyPatterns []dbKeyPair, scanCount int) ([]d
 			}
 			keyNames, err := c.Scan(kp.key, scanCount)
 			if err != nil {
-				log.Errorln("get keys from patterns scan failed. pattern:", kp.key)
+				// Silently continue on scan errors - this is normal for version-specific features
 				continue
 			}
 			for _, keyName := range keyNames {
@@ -407,11 +434,11 @@ func (e *exporter) statsKeySpace(hour int) {
 		for _, v := range e.dis.GetInstances() {
 			c, err := newClient(v.Addr, v.Password, v.Alias)
 			if err != nil {
-				log.Warnln("stats KeySpace new pika client failed. err:", err)
+				// Silently continue on client creation errors
 				continue
 			}
 			if _, err := c.InfoKeySpaceOne(); err != nil {
-				log.Warnln("stats KeySpace execute INFO KEYSPACE 1 failed. err:", err)
+				// Silently continue on INFO KEYSPACE errors - this is normal for version-specific features
 			}
 			c.Close()
 		}

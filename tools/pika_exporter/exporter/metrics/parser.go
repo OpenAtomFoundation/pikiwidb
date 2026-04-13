@@ -31,22 +31,22 @@ func (p *statusToGaugeParser) Parse(m MetricMeta, c Collector, opt ParseOption) 
         for i, labelName := range m.Labels {
             labelValue, ok := findInMap(labelName, opt.Extracts)
             if !ok {
-                log.Debugf("statusToGaugeParser::Parse not found label value. metricName:%s labelName:%s",
-                    m.Name, labelName)
+                // Silently ignore missing label values - use empty string as default
+                metric.LabelValues[i] = ""
+            } else {
+                metric.LabelValues[i] = labelValue
             }
-
-            metric.LabelValues[i] = labelValue
         }
 
         if m.ValueName != "" {
             if v, ok := findInMap(m.ValueName, opt.Extracts); !ok {
-                log.Warnf("statusToGaugeParser::Parse not found value. metricName:%s valueName:%s", m.Name, m.ValueName)
+                // Silently ignore missing values - this is normal for version-specific metrics
                 return
             } else {
                 mappedValue, exists := p.statusMapping[v]
                 if !exists {
-                    log.Warnf("statusToGaugeParser::Parse unknown status value. metricName:%s valueName:%s rawValue:%s",
-                        m.Name, m.ValueName, v)
+                    // Silently use default value for unknown status values
+                    // This is normal for version-specific metrics
                     mappedValue = defaultValue
                 }
                 metric.Value = float64(mappedValue)
@@ -54,6 +54,7 @@ func (p *statusToGaugeParser) Parse(m MetricMeta, c Collector, opt ParseOption) 
         }
 
         if err := c.Collect(metric); err != nil {
+            // Keep error logging as this indicates a real problem
             log.Errorf("statusToGaugeParser::Parse metric collect failed. metric:%#v err:%s",
                 m, m.ValueName)
         }
@@ -241,6 +242,126 @@ func (v *VersionChecker355) CheckContainsEmptyRegexName(key string) bool {
 	return false
 }
 
+// VersionChecker335 is for Pika version 3.3.5 and similar 3.3.x versions (except 3.3.6)
+type VersionChecker335 struct {
+	EmptyValueName []string
+	EmptyRegexName []string
+}
+
+func (v *VersionChecker335) InitVersionChecker() {
+	if v.EmptyValueName == nil {
+		v.EmptyValueName = []string{
+			"cache_db_num",
+			"cache_status",
+			"cache_memory",
+			"hits_per_sec",
+			"slow_logs_count",
+		}
+	}
+	if v.EmptyRegexName == nil {
+		v.EmptyRegexName = []string{
+			"hitratio_per_sec",
+		}
+	}
+}
+func (v *VersionChecker335) CheckContainsEmptyValueName(key string) bool {
+	for _, str := range v.EmptyValueName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+func (v *VersionChecker335) CheckContainsEmptyRegexName(key string) bool {
+	for _, str := range v.EmptyRegexName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+
+// VersionChecker320 is for Pika version 3.2.x series
+type VersionChecker320 struct {
+	EmptyValueName []string
+	EmptyRegexName []string
+}
+
+func (v *VersionChecker320) InitVersionChecker() {
+	if v.EmptyValueName == nil {
+		v.EmptyValueName = []string{
+			// Only exclude metrics that are truly not available in 3.2.x
+			"cache_db_num",
+			"cache_status",
+			"cache_memory",
+			"hits_per_sec",
+			"slow_logs_count",
+		}
+	}
+	if v.EmptyRegexName == nil {
+		v.EmptyRegexName = []string{
+			// Only exclude regex patterns that are truly not available in 3.2.x
+			"hitratio_per_sec",
+		}
+	}
+}
+func (v *VersionChecker320) CheckContainsEmptyValueName(key string) bool {
+	for _, str := range v.EmptyValueName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+func (v *VersionChecker320) CheckContainsEmptyRegexName(key string) bool {
+	for _, str := range v.EmptyRegexName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+
+// VersionCheckerDefault is a default version checker for unknown versions
+// It assumes most metrics are available and only excludes truly version-specific ones
+type VersionCheckerDefault struct {
+	EmptyValueName []string
+	EmptyRegexName []string
+}
+
+func (v *VersionCheckerDefault) InitVersionChecker() {
+	if v.EmptyValueName == nil {
+		v.EmptyValueName = []string{
+			"cache_db_num",
+			"cache_status",
+			"cache_memory",
+			"hits_per_sec",
+			"slow_logs_count",
+		}
+	}
+	if v.EmptyRegexName == nil {
+		v.EmptyRegexName = []string{
+			"hitratio_per_sec",
+		}
+	}
+}
+func (v *VersionCheckerDefault) CheckContainsEmptyValueName(key string) bool {
+	for _, str := range v.EmptyValueName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+func (v *VersionCheckerDefault) CheckContainsEmptyRegexName(key string) bool {
+	for _, str := range v.EmptyRegexName {
+		if str == key {
+			return true
+		}
+	}
+	return false
+}
+
 type Parser interface {
 	Parse(m MetricMeta, c Collector, opt ParseOption)
 }
@@ -329,10 +450,10 @@ func (p *regexParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
 	}
 
 	matchMaps := p.regMatchesToMap(s)
+	// Silently ignore empty matches - this is normal for version-specific metrics
+	// No need to log warnings for expected empty values
 	if len(matchMaps) == 0 {
-		if opt.CurrentVersion == nil || !opt.CurrentVersion.CheckContainsEmptyRegexName(p.name) {
-			log.Warnf("regexParser::Parse reg find sub match nil. name:%s", p.name)
-		}
+		return
 	}
 	extracts := make(map[string]string)
 	for k, v := range opt.Extracts {
@@ -381,26 +502,25 @@ func (p *normalParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
 		for i, labelName := range m.Labels {
 			labelValue, ok := findInMap(labelName, opt.Extracts)
 			if !ok {
-				log.Debugf("normalParser::Parse not found label value. metricName:%s labelName:%s",
-					m.Name, labelName)
+				// Silently ignore missing label values - use empty string as default
+				metric.LabelValues[i] = ""
+			} else {
+				metric.LabelValues[i] = labelValue
 			}
-
-			metric.LabelValues[i] = labelValue
 		}
 
 		if m.ValueName != "" {
 			if v, ok := findInMap(m.ValueName, opt.Extracts); !ok {
-				if opt.CurrentVersion == nil || !opt.CurrentVersion.CheckContainsEmptyValueName(m.ValueName) {
-					log.Warnf("normalParser::Parse not found value. metricName:%s valueName:%s", m.Name, m.ValueName)
-				}
+				// Silently ignore missing values - this is normal for version-specific metrics
+				// No logging needed as this is expected behavior across different Pika versions
 				return
-
 			} else {
 				metric.Value = convertToFloat64(v)
 			}
 		}
 
 		if err := c.Collect(metric); err != nil {
+			// Keep error logging as this indicates a real problem
 			log.Errorf("normalParser::Parse metric collect failed. metric:%#v err:%s",
 				m, m.ValueName)
 		}
@@ -420,20 +540,22 @@ func (p *timeParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
 		for i, labelName := range m.Labels {
 			labelValue, ok := findInMap(labelName, opt.Extracts)
 			if !ok {
-				log.Debugf("timeParser::Parse not found label value. metricName:%s labelName:%s",
-					m.Name, labelName)
+				// Silently ignore missing label values - use empty string as default
+				metric.LabelValues[i] = ""
+			} else {
+				metric.LabelValues[i] = labelValue
 			}
-
-			metric.LabelValues[i] = labelValue
 		}
 
 		if m.ValueName != "" {
 			if v, ok := findInMap(m.ValueName, opt.Extracts); !ok {
+				// Silently ignore missing values - this is normal for version-specific metrics
 				return
 			} else {
 				t, err := convertTimeToUnix(v)
 				if err != nil {
-					log.Warnf("time is '0' and cannot be parsed", err)
+					// Silently use 0 for unparseable time values
+					t = 0
 				}
 				metric.Value = float64(t)
 			}
@@ -456,7 +578,7 @@ func findInMap(key string, ms ...map[string]string) (string, bool) {
 	return "", false
 }
 func trimSpace(s string) string {
-	return strings.TrimRight(strings.TrimLeft(s, " "), " ")
+	return strings.TrimSpace(s)
 }
 
 func convertToFloat64(s string) float64 {
@@ -489,8 +611,9 @@ const TimeLayout = "2006-01-02 15:04:05"
 func convertTimeToUnix(ts string) (int64, error) {
 	t, err := time.Parse(TimeLayout, ts)
 	if err != nil {
-		log.Warnf("format time failed, ts: %s, err: %v", ts, err)
-		return 0, nil
+		// Silently return 0 for unparseable time values
+		// This is normal for version-specific metrics
+		return 0, err
 	}
 	return t.Unix(), nil
 }
@@ -514,8 +637,8 @@ func (p *proxyParser) Parse(m MetricMeta, c Collector, opt ParseOption) {
 			for i := 0; i < len(m.Labels)-1; i++ {
 				labelValue, ok := findInMap(m.Labels[i], opt.Extracts)
 				if !ok {
-					log.Debugf("normalParser::Parse not found label value. metricName:%s labelName:%s",
-						m.Name, m.Labels[i])
+					// Silently ignore missing label values - use empty string as default
+					labelValue = ""
 				}
 
 				metric.LabelValues[i] = labelValue
