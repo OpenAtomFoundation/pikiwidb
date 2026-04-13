@@ -30,7 +30,7 @@ var (
 	checkScanCount     = flag.Int("check.scan-count", getEnvInt("PIKA_EXPORTER_CHECK_SCAN_COUNT", 100), "When check keys and executing SCAN command, scan-count assigned to COUNT.")
 	listenAddress      = flag.String("web.listen-address", getEnv("PIKA_EXPORTER_WEB_LISTEN_ADDRESS", ":9121"), "Address to listen on for web interface and telemetry.")
 	metricPath         = flag.String("web.telemetry-path", getEnv("PIKA_EXPORTER_WEB_TELEMETRY_PATH", "/metrics"), "Path under which to expose metrics.")
-	logLevel           = flag.String("log.level", getEnv("PIKA_EXPORTER_LOG_LEVEL", "info"), "Log level, valid options: panic fatal error warn warning info debug.")
+	logLevel           = flag.String("log.level", getEnv("PIKA_EXPORTER_LOG_LEVEL", "error"), "Log level, valid options: panic fatal error warn warning info debug.")
 	logFormat          = flag.String("log.format", getEnv("PIKA_EXPORTER_LOG_FORMAT", "text"), "Log format, valid options: txt and json.")
 	showVersion        = flag.Bool("version", false, "Show version information and exit.")
 	infoConfigPath     = flag.String("config", getEnv("PIKA_EXPORTER_CONFIG_PATH", "config/info.toml"), "Path to config file.")
