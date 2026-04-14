@@ -6,6 +6,7 @@
 #include <chrono>
 #include <sstream>
 #include <ctime>
+#include <thread>
 
 #include "rocksdb/env.h"
 
@@ -196,15 +197,35 @@ Status Redis::SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys) {
 
 /*
  * compactrange no longer supports compact for a single data type
+ *
+ * 魔改版本：添加延迟放大并发竞争窗口，用于复现 SST 损坏问题
+ * 注意：此修改仅用于测试环境，生产环境请勿使用
  */
 Status Redis::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end) {
+  // 随机延迟 0-50ms，让 7 个 CF 的启动时间错开但仍重叠
+  std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 50));
+
   db_->CompactRange(default_compact_range_options_, begin, end);
+
+  // 每个 CF 之间固定延迟 20ms，增加并发重叠度
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kHashesDataCF], begin, end);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kSetsDataCF], begin, end);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kListsDataCF], begin, end);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsDataCF], begin, end);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsScoreCF], begin, end);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kStreamsDataCF], begin, end);
+
   return Status::OK();
 }
 
@@ -312,18 +333,13 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
     // clear deleted sst file records because we use them in different cf
     listener_.Clear();
 
-    // The main goal of compaction was reclaimed the disk space and removed
-    // the tombstone. It seems that compaction scheduler was unnecessary here when
-    // the live files was too few, Hard code to 1 here.
-    if (props.size() <= 1) {
-      // LOG(WARNING) << "LongestNotCompactionSstCompact " << handles_[idx]->GetName() << " only one file";
-      if (compact_result_vec) {
-        compact_result_vec->push_back(Status::OK());
-      }
-      continue;
-    }
+    // 魔改：删除文件数量限制，只要有文件就 compact
+    // 原代码：if (props.size() <= 1) { ... continue; }
+    // 现在：注释掉这段逻辑，让 compact 更激进
 
-    size_t max_files_to_compact = 1;
+    // size_t max_files_to_compact = 1;
+    // 魔改：每次处理 5 个文件，增加并发任务数
+    size_t max_files_to_compact = 5;
     const StorageOptions& storageOptions = storage_->GetStorageOptions();
     if (props.size() / storageOptions.compact_param_.compact_every_num_of_files_ > max_files_to_compact) {
       max_files_to_compact = props.size() / storageOptions.compact_param_.compact_every_num_of_files_;

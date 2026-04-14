@@ -760,6 +760,7 @@ if (USE_PIKA_TOOLS)
   add_subdirectory(tools)
 endif()
 aux_source_directory(src DIR_SRCS)
+list(REMOVE_ITEM DIR_SRCS "src/build_version.cc")
 
 # # generate version
 string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")
