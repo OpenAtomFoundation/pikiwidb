@@ -64,8 +64,11 @@ all: build
 build: deps
 	CGO_ENABLED=0 go build -o bin/$(PROJNAME)
 
-deps: generateVer
+deps: generateVer tidy
 	@mkdir -p bin
+
+tidy:
+	@go mod tidy
 
 generateVer:
 	@echo "$$GENERATE_VERSION_CODE" | bash
