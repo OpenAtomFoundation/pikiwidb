@@ -29,10 +29,29 @@ type InfoConfig struct {
 }
 
 func LoadConfig() error {
-	log.Println("Update configuration")
-	err := readConfig(InfoConfigPath)
-	if err != nil {
-		return err
+	log.Debugln("Update configuration")
+	
+	// Initialize default configuration
+	InfoConf = &InfoConfig{
+		Server:       true,
+		Data:         true,
+		Clients:      true,
+		Stats:        true,
+		CPU:          true,
+		Replication:  true,
+		Keyspace:     true,
+		Execcount:    true,
+		Commandstats: true,
+		Rocksdb:      false,
+		Cache:        true,
+	}
+	
+	// Try to load config file if path is provided
+	if InfoConfigPath != "" {
+		err := readConfig(InfoConfigPath)
+		if err != nil {
+			log.Warnf("Failed to load config file %s: %s, using default configuration", InfoConfigPath, err)
+		}
 	}
 
 	InfoConf.CheckInfo()
@@ -80,10 +99,18 @@ func (c *InfoConfig) CheckInfo() {
 	c.InfoAll = false
 	c.Info = false
 
-	if c.Server && c.Data && c.Clients && c.Stats && c.CPU && c.Replication && c.Keyspace {
+	// For Pika versions, we need to enable Info if any of the core modules are enabled
+	// This ensures basic metrics are collected
+	if c.Server || c.Data || c.Clients || c.Stats || c.CPU || c.Replication || c.Keyspace {
 		c.Info = true
-		if c.Execcount && c.Commandstats && c.Rocksdb && c.Cache {
-			c.InfoAll = true
-		}
+	}
+
+	// InfoAll should only be enabled if all modules are enabled
+	// For Pika 3.2.x versions, we should NOT use InfoAll because INFO ALL command
+	// has different output format compared to newer versions
+	// The version detection will be handled in the exporter, but here we ensure
+	// that Info is enabled when needed
+	if c.Info && c.Execcount && c.Commandstats && c.Rocksdb && c.Cache {
+		c.InfoAll = true
 	}
 }

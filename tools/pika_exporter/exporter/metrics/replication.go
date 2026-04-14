@@ -115,20 +115,6 @@ var collectReplicationMetrics = map[string]MetricConfig{
 			},
 			Parser: Parsers{
 				&versionMatchParser{
-					verC: mustNewVersionConstraint(`>=3.4.0,<3.1.0`),
-					Parser: &regexParser{
-						name: "master_sharding_slave_info_slave_lag",
-						reg: regexp.MustCompile(`slave\d+:ip=(?P<slave_ip>[\d.]+),port=(?P<slave_port>[\d.]+),` +
-							`conn_fd=(?P<slave_conn_fd>[\d]+),lag=(?P<slave_lag>[^\r\n]*)`),
-						Parser: &regexParser{
-							name:   "master_sharding_slave_info_slave_lag",
-							source: "slave_lag",
-							reg:    regexp.MustCompile(`((?P<slot>db[\d.]+:[\d.]+).*:(?P<slave_lag>[\d]+))`),
-							Parser: &normalParser{},
-						},
-					},
-				},
-				&versionMatchParser{
 					verC: mustNewVersionConstraint(`>=3.4.0,<3.5.0`),
 					Parser: &regexParser{
 						name: "master_sharding_slave_info_slave_lag",

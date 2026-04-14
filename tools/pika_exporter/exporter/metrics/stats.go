@@ -38,7 +38,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"total_net_input_bytes": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "total_net_input_bytes",
 			Help:      "the total number of bytes read from the network",
@@ -48,7 +51,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"total_net_output_bytes": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "total_net_output_bytes",
 			Help:      "the total number of bytes written to the network",
@@ -58,7 +64,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"total_net_repl_input_bytes": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "total_net_repl_input_bytes",
 			Help:      "the total number of bytes read from the network for replication purposes",
@@ -68,7 +77,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"total_net_repl_output_bytes": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "total_net_repl_output_bytes",
 			Help:      "the total number of bytes written to the network for replication purposes",
@@ -78,7 +90,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"instantaneous_input_kbps": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "instantaneous_input_kbps",
 			Help:      "the network's read rate per second in KB/sec, calculated as an average of 16 samples collected every 5 seconds.",
@@ -88,7 +103,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"instantaneous_output_kbps": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "instantaneous_output_kbps",
 			Help:      "the network's write rate per second in KB/sec, calculated as an average of 16 samples collected every 5 seconds.",
@@ -98,7 +116,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"instantaneous_input_repl_kbps": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "instantaneous_input_repl_kbps",
 			Help:      "the network's read rate per second in KB/sec for replication purposes, calculated as an average of 16 samples collected every 5 seconds.",
@@ -108,7 +129,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"instantaneous_output_repl_kbps": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "instantaneous_output_repl_kbps",
 			Help:      "the network's write rate per second in KB/sec for replication purposes, calculated as an average of 16 samples collected every 5 seconds.",
@@ -159,7 +183,10 @@ var collectStatsMetrics = map[string]MetricConfig{
 		},
 	},
 	"total_slow_log": {
-		Parser: &normalParser{},
+		Parser: &versionMatchParser{
+			verC:   mustNewVersionConstraint(`>=3.4.0`),
+			Parser: &normalParser{},
+		},
 		MetricMeta: &MetaData{
 			Name:      "total_slow_log",
 			Help:      "pika serve instance total count of slow log",

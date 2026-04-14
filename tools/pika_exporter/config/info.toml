@@ -1,3 +1,4 @@
+# Pika Exporter Configuration
 server = true
 data = true
 clients = true
@@ -7,6 +8,53 @@ replication = true
 keyspace = true
 cache = true
 
-execcount = false
-commandstats = false
-rocksdb = false
+execcount = true
+commandstats = true
+rocksdb = true
+
+
+# The address of the pika instance to monitor
+# If not set, the exporter will use the discovery mechanism
+# pika_addr = "127.0.0.1:9379"
+
+# The password for the pika instance
+# pika_password = ""
+
+# The alias for the pika instance
+# pika_alias = ""
+
+# The address of the codis topom
+# codis_addr = "http://127.0.0.1:18087"
+
+# The namespace for the metrics
+# namespace = "pika"
+
+# The path to the metrics definition file
+# metrics_file = ""
+
+# The port to listen on for the web interface
+# web_listen_address = ":9121"
+
+# The path under which to expose metrics
+# web_telemetry_path = "/metrics"
+
+# The log level
+# log_level = "info"
+
+# The log format
+# log_format = "text"
+
+# The path to the config file
+# config = "config/info.toml"
+
+# The key space stats clock
+# keyspace_stats_clock = -1
+
+# The key patterns to check
+# check_key_patterns = ""
+
+# The keys to check
+# check_keys = ""
+
+# The scan count for checking keys
+# check_scan_count = 100

@@ -17,7 +17,7 @@ cat << EOF | gofmt > version.go
 package main
 
 const (
-	PikaExporterVersion = "$(PIKA_EXPORTER_MAJOR).$(PIKA_EXPORTER_MINOR).$(PIKA_EXPORTER_PATCH)"
+	PikaExporterVersion = "$(PIKA_EXPORTER_MAJOR).$(PIKA_EXPORTER_MINOR).$(PIKA_EXPORTER_PATCH)"	
 	BuildVersion   = "$(BRANCH)"
     BuildCommitSha = "$(GITREV)"
     BuildDate      = "$(BUILDTIME)"
@@ -64,11 +64,8 @@ all: build
 build: deps
 	CGO_ENABLED=0 go build -o bin/$(PROJNAME)
 
-deps: generateVer tidy
+deps: generateVer
 	@mkdir -p bin
-
-tidy:
-	@go mod tidy
 
 generateVer:
 	@echo "$$GENERATE_VERSION_CODE" | bash

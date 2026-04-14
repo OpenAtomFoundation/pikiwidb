@@ -34,6 +34,16 @@ var collectCacheMetrics = map[string]MetricConfig{
 			ValueName: "cache_db_num",
 		},
 	},
+	"cache_keys": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "cache_keys",
+			Help:      "pika serve instance cache keys count",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "cache_keys",
+		},
+	},
 	"cache_memory": {
 		Parser: &normalParser{},
 		MetricMeta: &MetaData{
@@ -44,6 +54,26 @@ var collectCacheMetrics = map[string]MetricConfig{
 			ValueName: "cache_memory",
 		},
 	},
+	"hits": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "cache_hits",
+			Help:      "pika serve instance cache hit count",
+			Type:      metricTypeCounter,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "hits",
+		},
+	},
+	"all_cmds": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "cache_all_cmds",
+			Help:      "pika serve instance cache all commands count",
+			Type:      metricTypeCounter,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "all_cmds",
+		},
+	},
 	"hits_per_sec": {
 		Parser: &normalParser{},
 		MetricMeta: &MetaData{
@@ -52,6 +82,16 @@ var collectCacheMetrics = map[string]MetricConfig{
 			Type:      metricTypeGauge,
 			Labels:    []string{LabelNameAddr, LabelNameAlias},
 			ValueName: "hits_per_sec",
+		},
+	},
+	"read_cmd_per_sec": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "read_cmd_per_sec",
+			Help:      "pika serve instance cache read command count per second",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "read_cmd_per_sec",
 		},
 	},
 	"hitratio_per_second": {
@@ -82,6 +122,26 @@ var collectCacheMetrics = map[string]MetricConfig{
 			Type:      metricTypeGauge,
 			Labels:    []string{LabelNameAddr, LabelNameAlias},
 			ValueName: "hitratio_all",
+		},
+	},
+	"load_keys_per_sec": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "load_keys_per_sec",
+			Help:      "pika serve instance cache load keys count per second",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "load_keys_per_sec",
+		},
+	},
+	"waitting_load_keys_num": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "waitting_load_keys_num",
+			Help:      "pika serve instance cache waiting load keys number",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "waitting_load_keys_num",
 		},
 	},
 }

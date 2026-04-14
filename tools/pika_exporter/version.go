@@ -1,8 +1,9 @@
 package main
 
 const (
-	BuildVersion   = "Filled in by build"
-	BuildCommitSha = "Filled in by build"
-	BuildDate      = "Filled in by build"
-	GoVersion      = "Filled in by build"
+	PikaExporterVersion = "3.5.5"
+	BuildVersion        = "Filled in by build"
+	BuildCommitSha      = "Filled in by build"
+	BuildDate           = "Filled in by build"
+	GoVersion           = "Filled in by build"
 )
