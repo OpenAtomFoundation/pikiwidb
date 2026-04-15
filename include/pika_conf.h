@@ -357,12 +357,12 @@ class PikaConf : public pstd::BaseConf {
   
   bool enable_progressive_compact() {
     std::shared_lock l(rwlock_);
-    return enable_progressive_compact_;
+    return enable_auto_compact_old_sst_;
   }
   
   int progressive_compact_interval() {
     std::shared_lock l(rwlock_);
-    return progressive_compact_interval_;
+    return auto_compact_old_sst_interval_;
   }
   
   bool enable_auto_compact_old_sst() {
@@ -1088,7 +1088,7 @@ class PikaConf : public pstd::BaseConf {
   std::string blob_compression_type_ = "none";
 
   std::unique_ptr<PikaMeta> local_meta_;
-  std::shared_mutex rwlock_;
+  mutable std::shared_mutex rwlock_;
 
   // Rsync Rate limiting configuration
   int throttle_bytes_per_second_ = 200 << 20; // 200MB/s

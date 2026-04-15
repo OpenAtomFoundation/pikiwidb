@@ -5,7 +5,7 @@
 
 #include "src/redis.h"
 #include <sstream>
-#include "rocksdb/column_family.h"
+#include "rocksdb/db.h"
 #include "rocksdb/compaction_job_stats.h"
 #include "glog/logging.h"  // 确保LOG宏可用
 

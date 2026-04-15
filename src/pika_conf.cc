@@ -446,17 +446,19 @@ int PikaConf::Load() {
   }
   
   // Progressive compact configuration
-  enable_progressive_compact_ = false;  // 默认关闭
+  enable_auto_compact_old_sst_ = false;  // 默认关闭
   std::string enable_pc;
   GetConfStr("enable-progressive-compact", &enable_pc);
   if (enable_pc == "yes") {
-    enable_progressive_compact_ = true;
+    enable_auto_compact_old_sst_ = true;
   }
   
-  progressive_compact_interval_ = 90;  // 默认90秒
-  GetConfInt("progressive-compact-interval", &progressive_compact_interval_);
-  if (progressive_compact_interval_ < 1) {
-    progressive_compact_interval_ = 90;
+  auto_compact_old_sst_interval_ = 90;  // 默认90秒
+  int interval;
+  GetConfInt("progressive-compact-interval", &interval);
+  auto_compact_old_sst_interval_ = interval;
+  if (auto_compact_old_sst_interval_ < 1) {
+    auto_compact_old_sst_interval_ = 90;
   }
 
   GetConfInt("max-background-flushes", &max_background_flushes_);
