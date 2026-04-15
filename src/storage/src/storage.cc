@@ -1628,6 +1628,13 @@ Status Storage::StartBGThread() {
 
 Status Storage::AddBGTask(const BGTask& bg_task) {
   bg_tasks_mutex_.lock();
+  
+  // 如果任务队列不为空且当前任务是 kCompactSST 类型，则直接返回，不添加到队列
+  if (!bg_tasks_queue_.empty() && bg_task.operation == kCompactSST) {
+    bg_tasks_mutex_.unlock();
+    return Status::OK();
+  }
+
   if (bg_task.type == kAll) {
     // if current task it is global compact,
     // clear the bg_tasks_queue_;
@@ -1658,10 +1665,14 @@ Status Storage::RunBGTask() {
 
     if (task.operation == kCleanAll) {
       DoCompact(task.type);
+    } else if (task.operation == kCompactOldSST) {
+      DoCompactRange(task.type, "", "");
     } else if (task.operation == kCompactRange) {
       if (task.argv.size() == 2) {
         DoCompactRange(task.type, task.argv.front(), task.argv.back());
       }
+    } else if (task.operation == kCompactSST) {
+      DoCompactOldFiles(task.type);
     }
   }
   return Status::OK();
@@ -1670,6 +1681,9 @@ Status Storage::RunBGTask() {
 Status Storage::Compact(const DataType& type, bool sync) {
   if (sync) {
     return DoCompact(type);
+  } else if (type == kSST) {
+    LOG(WARNING) << "AddBGTask kCompactOldSST";
+    AddBGTask({type, kCompactOldSST});
   } else {
     AddBGTask({type, kCleanAll});
   }
@@ -1720,6 +1734,48 @@ Status Storage::CompactRange(const DataType& type, const std::string& start, con
     AddBGTask({type, kCompactRange, {start, end}});
   }
   return Status::OK();
+}
+
+Status Storage::CompactOldFiles(const DataType& type, bool sync) {
+  if (sync) {
+    return DoCompactOldFiles(type);
+  } else {
+    AddBGTask({type, kCompactSST});
+  }
+  return Status::OK();
+}
+
+Status Storage::DoCompactOldFiles(const DataType& type) {
+  Status s;
+  if (type == kStrings) {
+    current_task_type_ = Operation::kCompactSST;
+    s = strings_db_->CompactOldFiles();
+  } else if (type == kHashes) {
+    current_task_type_ = Operation::kCompactSST;
+    s = hashes_db_->CompactOldFiles();
+  } else if (type == kSets) {
+    current_task_type_ = Operation::kCompactSST;
+    s = sets_db_->CompactOldFiles();
+  } else if (type == kZSets) {
+    current_task_type_ = Operation::kCompactSST;
+    s = zsets_db_->CompactOldFiles();
+  } else if (type == kLists) {
+    current_task_type_ = Operation::kCompactSST;
+    s = lists_db_->CompactOldFiles();
+  } else if (type == kStreams) {
+    current_task_type_ = Operation::kCompactSST;
+    s = streams_db_->CompactOldFiles();
+  } else {
+    current_task_type_ = Operation::kCompactSST;
+    s = strings_db_->CompactOldFiles();
+    s = hashes_db_->CompactOldFiles();
+    s = sets_db_->CompactOldFiles();
+    s = zsets_db_->CompactOldFiles();
+    s = lists_db_->CompactOldFiles();
+    s = streams_db_->CompactOldFiles();
+  }
+  current_task_type_ = Operation::kNone;
+  return s;
 }
 
 Status Storage::DoCompactRange(const DataType& type, const std::string& start, const std::string& end) {

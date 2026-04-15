@@ -522,6 +522,7 @@ class PikaServer : public pstd::noncopyable {
    */
   void DoTimingTask();
   void AutoCompactRange();
+  pstd::Status AutoCompactOldSST();
   void AutoBinlogPurge();
   void AutoServerlogPurge();
   void AutoDeleteExpiredDump();

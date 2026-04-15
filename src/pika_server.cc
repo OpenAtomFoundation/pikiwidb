@@ -1126,6 +1126,7 @@ int PikaServer::ClientPubSubChannelPatternSize(const std::shared_ptr<NetConn>& c
 void PikaServer::DoTimingTask() {
   // Maybe schedule compactrange
   AutoCompactRange();
+  AutoCompactOldSST();
   // Purge serverlog
   AutoServerlogPurge();
   // Purge binlog
@@ -1144,6 +1145,21 @@ void PikaServer::DoTimingTask() {
   // Print the queue status periodically
   PrintThreadPoolQueueStatus();
   StatDiskUsage();
+}
+
+Status PikaServer::AutoCompactOldSST() {
+  static uint64_t last_compact_old_time = 0;
+  auto current_time = pstd::NowMicros();
+  if (current_time - last_compact_old_time < 90 * 1000 * 1000) {
+    return Status::OK();
+  }
+
+  last_compact_old_time = current_time;
+
+  for (const auto& db_item : dbs_) {
+    db_item.second->Compact(storage::kSST);
+  }
+  return Status::OK();
 }
 
 void PikaServer::StatDiskUsage() {
