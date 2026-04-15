@@ -400,7 +400,12 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       if (file_creation_time <
               static_cast<uint64_t>(now / 1000 - storageOptions.compact_param_.force_compact_file_age_seconds_) &&
           delete_ratio >= force_compact_min_ratio) {
-        compact_result = db_->CompactRange(default_compact_range_options_, &start_key, &stop_key);
+        compact_result = db_->CompactRange(default_compact_range_options_, handles_[idx], &start_key, &stop_key);                                                                                         
+        if (!compact_result.ok()) {                                                                       
+          LOG(WARNING) << handles_[idx]->GetName()                                                        
+                      << " force CompactRange failed: " << compact_result.ToString()                     
+                      << " file=" << file_path;                                                          
+        }   
         if (--max_files_to_compact == 0) {
           break;
         }
