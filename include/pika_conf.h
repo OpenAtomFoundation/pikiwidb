@@ -164,10 +164,6 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return incremental_compact_min_rate_;
   }
-  int incremental_compact_target_level() {
-    std::shared_lock l(rwlock_);
-    return incremental_compact_target_level_;
-  }
   int incremental_compact_min_file_age() {
     std::shared_lock l(rwlock_);
     return incremental_compact_min_file_age_;
@@ -753,6 +749,31 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("disable_auto_compactions", value);
     disable_auto_compactions_ = value == "true";
   }
+  void SetIncrementalCompactInterval(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("incremental-compact-interval", std::to_string(value));
+    incremental_compact_interval_ = value;
+  }
+  void SetIncrementalCompactMaxFiles(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("incremental-compact-max-files", std::to_string(value));
+    incremental_compact_max_files_ = value;
+  }
+  void SetIncrementalCompactMaxTimeMs(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("incremental-compact-max-time-ms", std::to_string(value));
+    incremental_compact_max_time_ms_ = value;
+  }
+  void SetIncrementalCompactMinRate(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("incremental-compact-min-rate", std::to_string(value));
+    incremental_compact_min_rate_ = value;
+  }
+  void SetIncrementalCompactMinFileAge(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("incremental-compact-min-file-age", std::to_string(value));
+    incremental_compact_min_file_age_ = value;
+  }
   void SetMaxSubcompactions(const int& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("max-subcompactions", std::to_string(value));
@@ -1070,7 +1091,6 @@ class PikaConf : public pstd::BaseConf {
   int incremental_compact_max_files_ = 1;
   int incremental_compact_max_time_ms_ = 1000;
   int incremental_compact_min_rate_ = 70;
-  int incremental_compact_target_level_ = -1;
   int incremental_compact_min_file_age_ = 60;
 
   int64_t resume_check_interval_ = 60; // seconds

@@ -1734,16 +1734,14 @@ Status Storage::RunBGTask() {
       int max_files = 1;
       int max_time_ms = 1000;
       int min_rate = 70;
-      int target_level = -1;
       int min_file_age = 60;
 
       if (task.argv.size() > 0) max_files = std::atoi(task.argv[0].c_str());
       if (task.argv.size() > 1) max_time_ms = std::atoi(task.argv[1].c_str());
       if (task.argv.size() > 2) min_rate = std::atoi(task.argv[2].c_str());
-      if (task.argv.size() > 3) target_level = std::atoi(task.argv[3].c_str());
-      if (task.argv.size() > 4) min_file_age = std::atoi(task.argv[4].c_str());
+      if (task.argv.size() > 3) min_file_age = std::atoi(task.argv[3].c_str());
 
-      IncrementalCompact(task.type, max_files, max_time_ms, min_rate, target_level, min_file_age, true);
+      IncrementalCompact(task.type, max_files, max_time_ms, min_rate, min_file_age, true);
     } else if (task.operation == kCompactRange) {
       if (task.argv.size() == 1) {
         DoCompactSpecificKey(task.type, task.argv[0]);
@@ -1776,14 +1774,14 @@ Status Storage::LongestNotCompactionSstCompact(const DataType &type, bool sync) 
 }
 
 Status Storage::IncrementalCompact(const DataType &type, int max_files, int max_time_ms,
-                                   int min_rate, int target_level, int min_file_age, bool sync) {
+                                   int min_rate, int min_file_age, bool sync) {
   if (sync) {
     Status s;
     for (const auto& inst : insts_) {
       std::vector<rocksdb::Status> compact_result_vec;
       s = inst->IncrementalCompact(type, &compact_result_vec, storage::kMetaAndData,
                                    max_files, max_time_ms, min_rate,
-                                   target_level, min_file_age);
+                                   min_file_age);
       for (auto compact_result : compact_result_vec) {
         if (!compact_result.ok()) {
           LOG(ERROR) << compact_result.ToString();
@@ -1797,7 +1795,6 @@ Status Storage::IncrementalCompact(const DataType &type, int max_files, int max_
         std::to_string(max_files),
         std::to_string(max_time_ms),
         std::to_string(min_rate),
-        std::to_string(target_level),
         std::to_string(min_file_age)
     }});
   }

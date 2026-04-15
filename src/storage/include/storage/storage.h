@@ -1105,13 +1105,12 @@ class Storage {
    * @param max_files: 单次最多处理文件数
    * @param max_time_ms: 单次最大执行时间
    * @param min_rate: 压缩率阈值，低于此值继续处理
-   * @param target_level: 目标 level，-1 表示当前 level + 1
    * @param min_file_age: 文件最小年龄（秒）
    * @param sync: 是否同步执行
    * @return Status
    */
   Status IncrementalCompact(const DataType &type, int max_files = 1, int max_time_ms = 1000,
-                            int min_rate = 70, int target_level = -1, int min_file_age = 60,
+                            int min_rate = 70, int min_file_age = 60,
                             bool sync = false);
 
   Status SetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);

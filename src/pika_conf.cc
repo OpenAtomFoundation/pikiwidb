@@ -364,7 +364,6 @@ int PikaConf::Load() {
   if (incremental_compact_min_rate_ <= 0 || incremental_compact_min_rate_ > 100) {
     incremental_compact_min_rate_ = 70;
   }
-  GetConfInt("incremental-compact-target-level", &incremental_compact_target_level_);
   GetConfInt("incremental-compact-min-file-age", &incremental_compact_min_file_age_);
   if (incremental_compact_min_file_age_ < 0) {
     incremental_compact_min_file_age_ = 60;
@@ -929,7 +928,6 @@ int PikaConf::ConfigRewrite() {
   SetConfInt("incremental-compact-max-files", incremental_compact_max_files_);
   SetConfInt("incremental-compact-max-time-ms", incremental_compact_max_time_ms_);
   SetConfInt("incremental-compact-min-rate", incremental_compact_min_rate_);
-  SetConfInt("incremental-compact-target-level", incremental_compact_target_level_);
   SetConfInt("incremental-compact-min-file-age", incremental_compact_min_file_age_);
 
   SetConfStr("disable_auto_compactions", disable_auto_compactions_ ? "true" : "false");

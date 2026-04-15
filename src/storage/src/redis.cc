@@ -333,13 +333,7 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
     // clear deleted sst file records because we use them in different cf
     listener_.Clear();
 
-    // 魔改：删除文件数量限制，只要有文件就 compact
-    // 原代码：if (props.size() <= 1) { ... continue; }
-    // 现在：注释掉这段逻辑，让 compact 更激进
-
-    // size_t max_files_to_compact = 1;
-    // 魔改：每次处理 5 个文件，增加并发任务数
-    size_t max_files_to_compact = 5;
+    size_t max_files_to_compact = 1;
     const StorageOptions& storageOptions = storage_->GetStorageOptions();
     if (props.size() / storageOptions.compact_param_.compact_every_num_of_files_ > max_files_to_compact) {
       max_files_to_compact = props.size() / storageOptions.compact_param_.compact_every_num_of_files_;
@@ -479,7 +473,7 @@ static uint64_t ExtractFileNumber(const std::string& name) {
 
 Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                   const ColumnFamilyType& type, int max_files, int max_time_ms,
-                                  int min_rate, int target_level, int min_file_age) {
+                                  int min_rate, int min_file_age) {
   // 1. 并发控制
   bool no_compact = false;
   bool to_compact = true;
@@ -525,8 +519,8 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       uint64_t oldest_number = UINT64_MAX;
 
       for (const auto& level_meta : meta.levels) {
-        // FIX: 跳过 L0，让 RocksDB 自动处理
-        if (level_meta.level == 0) {
+        // FIX: 跳过 L0 和 L6，L0 让 RocksDB 自动处理，L6 没有下一层不参与 incremental compact
+        if (level_meta.level == 0 || level_meta.level >= 6) {
           continue;
         }
 
@@ -548,12 +542,6 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
 
       if (oldest_file.empty()) {
         break;  // 没有符合条件的文件
-      }
-
-      // FIX: 跳过 L6 文件（没有上层了，避免 L6→L6 无效重写）
-      if (oldest_level >= 6) {
-        LOG(INFO) << "IncrementalCompact skip L6 file: " << oldest_file;
-        break;
       }
 
       // 3.3 使用 CompactFiles 进行 compact（只处理 L1-L5）

@@ -113,8 +113,7 @@ class Redis {
   virtual Status IncrementalCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                     const ColumnFamilyType& type = kMetaAndData,
                                     int max_files = 1, int max_time_ms = 1000,
-                                    int min_rate = 70, int target_level = -1,
-                                    int min_file_age = 60);
+                                    int min_rate = 70, int min_file_age = 60);
 
   virtual Status GetProperty(const std::string& property, uint64_t* out);
 
