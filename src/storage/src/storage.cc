@@ -1627,6 +1627,11 @@ Status Storage::StartBGThread() {
 }
 
 Status Storage::AddBGTask(const BGTask& bg_task) {
+  // 如果任务队列不为空且当前任务是 kSST 类型，则直接返回，不添加到队列
+  if ((!bg_tasks_queue_.empty()) && (bg_task.type == kSST)) {
+    return Status::OK();
+  }
+
   bg_tasks_mutex_.lock();
   
   // 如果任务队列不为空且当前任务是 kCompactSST 类型，则直接返回，不添加到队列

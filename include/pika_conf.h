@@ -354,6 +354,26 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return rate_limiter_mode_;
   }
+  
+  bool enable_progressive_compact() {
+    std::shared_lock l(rwlock_);
+    return enable_progressive_compact_;
+  }
+  
+  int progressive_compact_interval() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_interval_;
+  }
+  
+  bool enable_auto_compact_old_sst() {
+    std::shared_lock l(rwlock_);
+    return enable_auto_compact_old_sst_;
+  }
+  
+  int auto_compact_old_sst_interval() {
+    std::shared_lock l(rwlock_);
+    return auto_compact_old_sst_interval_;
+  }
   int64_t rate_limiter_bandwidth() {
     std::shared_lock l(rwlock_);
     return rate_limiter_bandwidth_;
@@ -721,6 +741,29 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
+  // Progressive compaction methods
+  bool enable_auto_compact_old_sst() const {
+    std::shared_lock l(rwlock_);
+    return enable_auto_compact_old_sst_;
+  }
+
+  void SetEnableAutoCompactOldSst(bool value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("enable_auto_compact_old_sst", value ? "yes" : "no");
+    enable_auto_compact_old_sst_ = value;
+  }
+
+  int64_t auto_compact_old_sst_interval() const {
+    std::shared_lock l(rwlock_);
+    return auto_compact_old_sst_interval_;
+  }
+
+  void SetAutoCompactOldSstInterval(int64_t value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("auto-compact-old-sst-interval", std::to_string(value));
+    auto_compact_old_sst_interval_ = value;
+  }
+
   void SetLogNetActivities(std::string& value) {
     TryPushDiffCommands("log-net-activities", value);
     if (value == "yes") {
@@ -1005,6 +1048,10 @@ class PikaConf : public pstd::BaseConf {
   bool write_binlog_ = false;
   int target_file_size_base_ = 0;
   int64_t max_compaction_bytes_ = 0;
+  
+  // Progressive compaction configuration
+  bool enable_auto_compact_old_sst_ = false;
+  int64_t auto_compact_old_sst_interval_ = 90; // seconds
   int binlog_file_size_ = 0;
 
   // cache

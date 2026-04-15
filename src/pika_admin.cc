@@ -2005,6 +2005,16 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, "disable_auto_compactions");
     EncodeString(&config_body, g_pika_conf->disable_auto_compactions() ? "true" : "false");
   }
+  if (pstd::stringmatch(pattern.data(), "enable_auto_compact_old_sst", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "enable_auto_compact_old_sst");
+    EncodeString(&config_body, g_pika_conf->enable_auto_compact_old_sst() ? "yes" : "no");
+  }
+  if (pstd::stringmatch(pattern.data(), "auto-compact-old-sst-interval", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "auto-compact-old-sst-interval");
+    EncodeString(&config_body, std::to_string(g_pika_conf->auto_compact_old_sst_interval()));
+  }
   if (pstd::stringmatch(pattern.data(), "network-interface", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "network-interface");
@@ -2326,6 +2336,8 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "compact-cron",
         "compact-interval",
         "disable_auto_compactions",
+        "enable_auto_compact_old_sst",
+        "auto-compact-old-sst-interval",
         "slave-priority",
         "sync-window-size",
         "slow-cmd-list",
@@ -2538,6 +2550,21 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetDisableAutoCompaction(value);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "enable_auto_compact_old_sst") {
+    if (value != "yes" && value != "no") {
+      res_.AppendStringRaw("-ERR invalid enable_auto_compact_old_sst (yes or no)\r\n");
+      return;
+    }
+    g_pika_conf->SetEnableAutoCompactOldSst(value == "yes");
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "auto-compact-old-sst-interval") {
+    int64_t interval = 0;
+    if (pstd::string2int(value.data(), value.size(), &interval) == 0 || interval < 60) {
+      res_.AppendStringRaw("-ERR invalid auto-compact-old-sst-interval (must be >= 60 seconds)\r\n");
+      return;
+    }
+    g_pika_conf->SetAutoCompactOldSstInterval(interval);
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "rate-limiter-bandwidth") {
     int64_t new_bandwidth = 0;

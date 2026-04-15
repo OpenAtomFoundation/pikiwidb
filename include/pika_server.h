@@ -66,6 +66,7 @@ enum TaskType {
   kCompactRangeSets,
   kCompactRangeZSets,
   kCompactRangeList,
+  kCompactOldSST,
 };
 
 struct TaskArg {
