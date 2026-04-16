@@ -1151,14 +1151,14 @@ void PikaServer::DoTimingTask() {
 }
 
 Status PikaServer::AutoCompactOldSST() {
-  // 检查是否启用了渐进式压缩
+
   if (!g_pika_conf->enable_auto_compact_old_sst()) {
     return Status::OK();
   }
 
   static uint64_t last_compact_old_time = 0;
   auto current_time = pstd::NowMicros();
-  // 使用配置的时间间隔
+
   if (current_time - last_compact_old_time < g_pika_conf->auto_compact_old_sst_interval() * 1000 * 1000) {
     return Status::OK();
   }

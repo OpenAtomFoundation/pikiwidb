@@ -446,14 +446,14 @@ int PikaConf::Load() {
   }
   
   // Progressive compact configuration
-  enable_auto_compact_old_sst_ = false;  // 默认关闭
+  enable_auto_compact_old_sst_ = false;
   std::string enable_pc;
   GetConfStr("enable-progressive-compact", &enable_pc);
   if (enable_pc == "yes") {
     enable_auto_compact_old_sst_ = true;
   }
   
-  auto_compact_old_sst_interval_ = 90;  // 默认90秒
+  auto_compact_old_sst_interval_ = 90;
   int interval;
   GetConfInt("progressive-compact-interval", &interval);
   auto_compact_old_sst_interval_ = interval;
