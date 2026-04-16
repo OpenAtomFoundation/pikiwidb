@@ -1301,21 +1301,14 @@ void PikaServer::AutoServerlogPurge() {
     std::sort(files.begin(), files.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
 
-    bool has_recent_file = false;
     for (const auto& [file, log_timestamp] : files) {
       double diff_seconds = difftime(now_timestamp, log_timestamp);
       int64_t interval_days = static_cast<int64_t>(diff_seconds / 86400);
-      if (interval_days <= retention_time) {
-        has_recent_file = true;
-        continue;
+      if (interval_days > retention_time) {
+        std::string log_file = log_path + "/" + file;
+        LOG(INFO) << "Deleting out of date log file: " << log_file;
+        if(!pstd::DeleteFile(log_file)) LOG(ERROR) << "Failed to delete log file: " << log_file;
       }
-      if (!has_recent_file) {
-        has_recent_file = true;
-        continue;
-      }
-      std::string log_file = log_path + "/" + file;
-      LOG(INFO) << "Deleting out of date log file: " << log_file;
-      if(!pstd::DeleteFile(log_file)) LOG(ERROR) << "Failed to delete log file: " << log_file;
     }
   }
 }
