@@ -66,6 +66,7 @@ build: deps
 
 deps: generateVer
 	@mkdir -p bin
+	@go mod tidy
 
 generateVer:
 	@echo "$$GENERATE_VERSION_CODE" | bash
