@@ -53,4 +53,14 @@ var collectServerMetrics = map[string]MetricConfig{
 			ValueName: "sync_thread_num",
 		},
 	},
+	"sync_binlog_thread_num": {
+		Parser: &normalParser{},
+		MetricMeta: &MetaData{
+			Name:      "sync_binlog_thread_num",
+			Help:      "pika serve instance sync binlog thread num",
+			Type:      metricTypeGauge,
+			Labels:    []string{LabelNameAddr, LabelNameAlias},
+			ValueName: "sync_binlog_thread_num",
+		},
+	},
 }

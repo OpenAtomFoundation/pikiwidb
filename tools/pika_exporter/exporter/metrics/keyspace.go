@@ -40,7 +40,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_3.1.0-3.3.2",
 					reg: regexp.MustCompile(`(?P<db>db[\d]+)\s*(?P<data_type>[^_]+)\w*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invaild_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},
@@ -49,7 +49,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_>=3.1.0",
 					reg: regexp.MustCompile(`(?P<db>db[\d]+)\s*(?P<data_type>[^_]+)\w*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invalid_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},
@@ -88,7 +88,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_all_~3.0.5",
 					reg: regexp.MustCompile(`(?P<data_type>\w*):\s*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invaild_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},
@@ -97,7 +97,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_all_~3.1.0",
 					reg: regexp.MustCompile(`(?P<db>db[\d]+)_\s*(?P<data_type>[^:]+):\s*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invaild_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},
@@ -106,7 +106,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_all_3.1.0-3.3.2",
 					reg: regexp.MustCompile(`(?P<db>db[\d]+)\s*(?P<data_type>[^_]+)\w*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invaild_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},
@@ -115,7 +115,7 @@ var collectKeySpaceMetrics = map[string]MetricConfig{
 				Parser: &regexParser{
 					name: "keyspace_info_all_>=3.3.3",
 					reg: regexp.MustCompile(`(?P<db>db[\d]+)\s*(?P<data_type>[^_]+)\w*keys=(?P<keys>[\d]+)[,\s]*` +
-						`expires=(?P<expire_keys>[\d]+)[,\s]*invalid_keys=(?P<invalid_keys>[\d]+)`),
+						`expires=(?P<expire_keys>[\d]+)[,\s]*(?:invaild_keys|invalid_keys)=(?P<invalid_keys>[\d]+)`),
 					Parser: &normalParser{},
 				},
 			},

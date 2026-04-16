@@ -50,9 +50,7 @@ func extractInfo(s string) (map[string]string, error) {
 }
 
 func trimSpace(s string) string {
-	s = strings.TrimLeft(s, " ")
-	s = strings.TrimRight(s, " ")
-	return s
+	return strings.TrimSpace(s)
 }
 
 func fetchKV(s string) (k, v string) {

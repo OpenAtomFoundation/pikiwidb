@@ -27,8 +27,17 @@ var InfoCases = []struct {
 
 	// {"v3.2.7_slave", V327SlaveInfo},
 
+    {"v3.2.0_master", V320MasterInfo},
+    {"v3.2.0_slave", V320SlaveInfo},
+
+    {"v3.2.8_master", V328MasterInfo},
+    {"v3.2.8_slave", V328SlaveInfo},
+
     {"v3.3.5_master", V335MasterInfo},
     {"v3.3.5_slave", V335SlaveInfo},
+
+    {"v3.3.6_master", V336MasterInfo},
+    {"v3.3.6_slave", V336SlaveInfo},
 
     {"v3.4.2_master", V342MasterInfo},
     {"v3.4.2_slave", V342SlaveInfo},
@@ -37,4 +46,7 @@ var InfoCases = []struct {
     {"v3.5.0_master", V350MasterInfo},
     {"v3.5.0_slave", V350SlaveInfo},
     {"v3.5.0_pika", V350PikaInfo},
+
+    {"v3.5.5_master", V355MasterInfo},
+    {"v3.5.5_slave", V355SlaveInfo},
 }
