@@ -803,8 +803,8 @@ int PikaConf::ConfigRewrite() {
   SetConfStr("compact-cron", compact_cron_);
   SetConfStr("compact-interval", compact_interval_);
   SetConfStr("disable_auto_compactions", disable_auto_compactions_ ? "true" : "false");
-  SetConfStr("enable_auto_compact_old_sst", enable_auto_compact_old_sst_ ? "yes" : "no");
-  SetConfInt64("auto-compact-old-sst-interval", auto_compact_old_sst_interval_);
+  SetConfStr("enable-progressive-compact", enable_auto_compact_old_sst_ ? "yes" : "no");
+  SetConfInt64("progressive-compact-interval", auto_compact_old_sst_interval_);
   SetConfStr("cache-type", scachetype);
   SetConfInt64("least-free-disk-resume-size", least_free_disk_to_resume_);
   SetConfInt64("manually-resume-interval", resume_check_interval_);

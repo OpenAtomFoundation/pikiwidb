@@ -749,7 +749,7 @@ class PikaConf : public pstd::BaseConf {
 
   void SetEnableAutoCompactOldSst(bool value) {
     std::lock_guard l(rwlock_);
-    TryPushDiffCommands("enable_auto_compact_old_sst", value ? "yes" : "no");
+    TryPushDiffCommands("enable-progressive-compact", value ? "yes" : "no");
     enable_auto_compact_old_sst_ = value;
   }
 
@@ -760,7 +760,7 @@ class PikaConf : public pstd::BaseConf {
 
   void SetAutoCompactOldSstInterval(int64_t value) {
     std::lock_guard l(rwlock_);
-    TryPushDiffCommands("auto-compact-old-sst-interval", std::to_string(value));
+    TryPushDiffCommands("progressive-compact-interval", std::to_string(value));
     auto_compact_old_sst_interval_ = value;
   }
 
