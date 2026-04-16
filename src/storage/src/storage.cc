@@ -1193,17 +1193,32 @@ int32_t Storage::Expire(const Slice& key, int64_t ttl_millsec) {
 }
 
 
-int64_t Storage::Del(const std::vector<std::string>& keys) {
+int64_t Storage::Del(const std::vector<std::string>& keys, std::vector<std::pair<std::string, std::string>>* key_types) {
   Status s;
   int64_t count = 0;
   for (const auto& key : keys) {
     auto& inst = GetDBInstance(key);
+    // 先获取类型
+    if (key_types != nullptr) {
+      enum DataType type;
+      inst->GetType(key, type);
+      if (type != DataType::kNones) {
+        key_types->emplace_back(key, std::string(1, DataTypeToTag(type)));
+      } else {
+        key_types->emplace_back(key, "");
+      }
+    }
+    // 删除键
     s = inst->Del(key);
     if (s.ok()) {
       count++;
     }
   }
   return count;
+}
+
+int64_t Storage::Del(const std::vector<std::string>& keys) {
+  return Del(keys, nullptr);
 }
 
 int64_t Storage::Exists(const std::vector<std::string>& keys) {

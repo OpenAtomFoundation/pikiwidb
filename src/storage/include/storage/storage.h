@@ -1012,6 +1012,9 @@ class Storage {
   int64_t Exists(const std::vector<std::string>& keys);
 
   // Return the key exists type count
+  // Del keys and return deleted keys' types
+  int64_t Del(const std::vector<std::string>& keys, std::vector<std::pair<std::string, std::string>>* key_types);
+
   // return param type_status: return every type status
   int64_t IsExist(const Slice& key, std::map<DataType, Status>* type_status);
 
