@@ -80,13 +80,12 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
       uint64_t etime = DecodeFixed64(internal_value_str->data() + offset);
 
       ctime_ = (ctime & ~(1ULL << 63));
-      // if ctime_==ctime, means ctime_ storaged in seconds
-      if (ctime_ == ctime) {
+      if ((ctime & (1ULL << 63)) == 0) {
         ctime_ *= 1000;
       }
+      
       etime_ = (etime & ~(1ULL << 63));
-      // if etime_==etime, means etime_ storaged in seconds
-      if (etime == etime_) {
+      if ((etime & (1ULL << 63)) == 0) {
         etime_ *= 1000;
       }
     }
@@ -100,7 +99,7 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
       type_ = static_cast<DataType>(static_cast<uint8_t>(internal_value_slice[0]));
       offset += kTypeLength;
       user_value_ = Slice(internal_value_slice.data() + offset,
-                          internal_value_slice.size() - kBaseMetaValueSuffixLength - offset);
+                           internal_value_slice.size() - kBaseMetaValueSuffixLength - offset);
       offset += user_value_.size();
       version_ = DecodeFixed64(internal_value_slice.data() + offset);
       offset += sizeof(uint64_t);
@@ -110,14 +109,17 @@ class ParsedBaseMetaValue : public ParsedInternalValue {
       offset += sizeof(ctime_);
       uint64_t etime = DecodeFixed64(internal_value_slice.data() + offset);
 
+      // 修复时间戳解析问题：只有当时间戳没有毫秒标志时才乘以 1000
+      // 毫秒时间戳的最高位是 1，秒时间戳的最高位是 0
       ctime_ = (ctime & ~(1ULL << 63));
-      // if ctime_!=ctime, means ctime_ storaged in seconds
-      if (ctime_ == ctime) {
+      if ((ctime & (1ULL << 63)) == 0) {
+        // 秒时间戳，转换为毫秒
         ctime_ *= 1000;
       }
+      
       etime_ = (etime & ~(1ULL << 63));
-      // if etime_!=etime, means etime_ storaged in seconds
-      if (etime == etime_) {
+      if ((etime & (1ULL << 63)) == 0) {
+        // 秒时间戳，转换为毫秒
         etime_ *= 1000;
       }
     }
