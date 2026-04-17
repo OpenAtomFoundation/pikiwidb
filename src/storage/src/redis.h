@@ -525,7 +525,7 @@ private:
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;
   rocksdb::CompactRangeOptions default_compact_range_options_;
-  std::atomic<bool> in_compact_flag_;
+  std::atomic<bool> in_compact_flag_{false};
   OBDSstListener listener_; // listening created sst file while compacting in OBD-compact
 
   // For Scan

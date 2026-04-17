@@ -6,7 +6,6 @@
 #include <chrono>
 #include <sstream>
 #include <ctime>
-#include <thread>
 
 #include "rocksdb/env.h"
 
@@ -272,9 +271,9 @@ void SelectColumnFamilyHandles(const DataType& option_type, const ColumnFamilyTy
 Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                               const ColumnFamilyType& type) {
   bool no_compact = false;
-  bool to_comapct = true;
-  if (!in_compact_flag_.compare_exchange_weak(no_compact, to_comapct, std::memory_order_relaxed,
-                                              std::memory_order_relaxed)) {
+  bool to_compact = true;
+  if (!in_compact_flag_.compare_exchange_strong(no_compact, to_compact, std::memory_order_relaxed,
+                                                std::memory_order_relaxed)) {
     return Status::Busy("compact running");
   }
 
@@ -465,8 +464,8 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
   // 1. 并发控制
   bool no_compact = false;
   bool to_compact = true;
-  if (!in_compact_flag_.compare_exchange_weak(no_compact, to_compact, std::memory_order_relaxed,
-                                              std::memory_order_relaxed)) {
+  if (!in_compact_flag_.compare_exchange_strong(no_compact, to_compact, std::memory_order_relaxed,
+                                                std::memory_order_relaxed)) {
     return Status::Busy("compact running");
   }
   DEFER { in_compact_flag_.store(false); };
@@ -551,6 +550,9 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       if (!s.ok()) {
         LOG(WARNING) << "IncrementalCompact failed for file " << oldest_file
                      << ": " << s.ToString();
+        if (compact_result_vec) {
+          compact_result_vec->push_back(s);
+        }
         break;
       }
 
@@ -568,7 +570,7 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       processed++;
     }
 
-    if (compact_result_vec) {
+    if (compact_result_vec && (compact_result_vec->empty() || compact_result_vec->back().ok())) {
       compact_result_vec->push_back(Status::OK());
     }
   }

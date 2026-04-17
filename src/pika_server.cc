@@ -1241,6 +1241,9 @@ void PikaServer::AutoCompactRange() {
     struct timeval now;
     gettimeofday(&now, nullptr);
     int interval = g_pika_conf->incremental_compact_interval();
+    if (interval <= 0) {
+      return;
+    }
     if (last_incremental_compact_time_.tv_sec == 0 ||
         now.tv_sec - last_incremental_compact_time_.tv_sec >= interval) {
       gettimeofday(&last_incremental_compact_time_, nullptr);

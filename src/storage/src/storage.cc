@@ -1697,7 +1697,7 @@ Status Storage::StartBGThread() {
 
 Status Storage::AddBGTask(const BGTask& bg_task) {
   bg_tasks_mutex_.lock();
-  if (bg_task.type == DataType::kAll) {
+  if (bg_task.operation == kCleanAll) {
     // if current task it is global compact,
     // clear the bg_tasks_queue_;
     std::queue<BGTask> empty_queue;
