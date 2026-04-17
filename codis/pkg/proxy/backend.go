@@ -270,8 +270,9 @@ func (bc *BackendConn) run() {
 }
 
 var (
-	errRespMasterDown = []byte("MASTERDOWN")
-	errRespLoading    = []byte("LOADING")
+	errRespMasterDown        = []byte("MASTERDOWN")
+	errRespLoading           = []byte("LOADING")
+	errRespSlotMigrateClosed = []byte("ERR please open slotmigrate and reload slot")
 )
 
 func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round int) (err error) {
@@ -299,6 +300,11 @@ func (bc *BackendConn) loopReader(tasks <-chan *Request, c *redis.Conn, round in
 			case bytes.HasPrefix(resp.Value, errRespLoading):
 				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
 					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'LOADING'",
+						bc, bc.addr, bc.database)
+				}
+			case bytes.HasPrefix(resp.Value, errRespSlotMigrateClosed):
+				if bc.state.CompareAndSwap(stateConnected, stateDataStale) {
+					log.Warnf("backend conn [%p] to %s, db-%d state = DataStale, caused by 'slotmigrate disabled'",
 						bc, bc.addr, bc.database)
 				}
 			}
