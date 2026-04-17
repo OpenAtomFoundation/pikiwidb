@@ -74,7 +74,3 @@ pkg
 !codis/cmd/fe/assets/**
 
 tests/tmp
-./.claude
-CLAUDE.md
-./.claude
-CLAUDE.md
