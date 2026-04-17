@@ -198,32 +198,15 @@ Status Redis::SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys) {
 /*
  * compactrange no longer supports compact for a single data type
  *
- * 魔改版本：添加延迟放大并发竞争窗口，用于复现 SST 损坏问题
- * 注意：此修改仅用于测试环境，生产环境请勿使用
  */
 Status Redis::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end) {
-  // 随机延迟 0-50ms，让 7 个 CF 的启动时间错开但仍重叠
-  std::this_thread::sleep_for(std::chrono::milliseconds(rand() % 50));
 
   db_->CompactRange(default_compact_range_options_, begin, end);
-
-  // 每个 CF 之间固定延迟 20ms，增加并发重叠度
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kHashesDataCF], begin, end);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kSetsDataCF], begin, end);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kListsDataCF], begin, end);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsDataCF], begin, end);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsScoreCF], begin, end);
-
-  std::this_thread::sleep_for(std::chrono::milliseconds(20));
   db_->CompactRange(default_compact_range_options_, handles_[kStreamsDataCF], begin, end);
 
   return Status::OK();
