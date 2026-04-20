@@ -13,7 +13,7 @@ codis2pika is adapted from Alibaba's open-source RedisShake project with custom 
 
 Same features as the original:
 
-* 🤗 Support the use of lua custom filtering rules (this part has not been changed, so there is no actual test, but it is theoretically supported.
+* 🤗 Support the use of lua custom filtering rules (this part has not been changed, so there is no actual test, but it is theoretically supported).
 * 💪 Support large instance migration.
 
 Some features of codis2pika：
@@ -47,7 +47,7 @@ sh build.sh
 ## Usage
 
 1. Edit codis2pika.toml, modify the source and target configuration items.
-2. Start codis2pika:
+2. Start codis2pika.
 
 ```shell
 ./bin/codis2pika codis2pika.toml
