@@ -1,25 +1,30 @@
-### Redis Modifications (Additional Commands)
+### redis 修改部分（增加若干指令） 
 --------------------------------
 
-##### SLOTSINFO [start] [count]
+##### SLOTSINFO [start] [count] 
 
-+ Description: Returns slot metadata in Redis, including slot ID and key count for each slot.
++ 命令说明：获取 redis 中 slot 的个数以及每个 slot 的大小
 
-+ Parameters: Defaults to querying `[0, MAX_SLOT_NUM)`.
++ 命令参数：缺省查询 [0, MAX\_SLOT\_NUM)
 
-  - `start`: starting slot ID (default `0`)
-  - `count`: size of the range to query, i.e. `[start, start + count)` (default `MAX_SLOT_NUM`)
+  - start - 起始的 slot 序号
 
-+ Return: an array of `slotinfo` items, where each `slotinfo` is `[slotnum, slotsize]`.
+    缺省 = 0
+
+  - count - 查询的区间的大小，即查询范围为 [start, start + count)
+
+    缺省 = MAX\_SLOT\_NUM
+
++ 返回结果：返回结果是 slotinfo 的 array；slotinfo 本身也是一个 array。
 
         response := []slotinfo{slot1, slot2, slot3, ...}
         slotinfo := []int{slotnum, slotsize}
 
-        where:
-            INT slotnum  : slot ID
-            INT slotsize : number of keys in the slot
+        其中：
+            INT slotnum  : slot 序号
+            INT slotsize : slot 内数据个数
 
-+ Example:
++ 例如：
 
         localhost:6379> slotsinfo 0 128
             1) 1) (integer) 23
@@ -29,20 +34,23 @@
 
 ##### SLOTSSCAN slotnum cursor [COUNT count]
 
-+ Description: Scans keys in a specific slot.
++ 命令说明：获取指定 slotnum 下的 key 列表
 
-+ Parameters: Similar to `SCAN`.
++ 命令参数：参数说明类似 SCAN 命令
 
-    - `slotnum`: slot ID to scan, in `[0, MAX_SLOT_NUM)`
-    - `cursor`: same semantics as `SCAN`
-    - `[COUNT count]`: same semantics as `SCAN`
-        - `MATCH` is currently not supported
+    - slotnum - 查询的 slot 序号，[0, MAX\_SLOT\_NUM）
 
-+ Return: same format as `SCAN`.
+    - cursor - 说明参考 SCAN 命令
 
-    - Returns updated cursor and a key list.
+    - [COUNT count) - 说明参考 SCAN 命令
 
-+ Example:
+        - 暂不支持 MATCH 查询
+
++ 返回结果：参考 SCAN 命令
+
+    - 返回更新后的 cursor 以及一组 key 列表
+
++ 例如:
 
         localhost:6379> slotsscan 579 0 COUNT 10
             1) "10752"
@@ -59,13 +67,13 @@
 
 ##### SLOTSDEL slot1 [slot2 …]
 
-+ Description: Deletes all key-value pairs in one or more slots.
++ 命令说明：删除 redis 中若干 slot 下的全部 key-value
 
-+ Parameters: Accepts at least one slot ID.
++ 命令参数：接受至少 1 个 slotnum 作为参数
 
-+ Return: Same structure as `slotsinfo`; `slotsize` means remaining keys after deletion (usually `0`).
++ 返回结果：格式参见 slotsinfo，不同的是：slotsize 表示删除后剩余大小，通常为 0。
 
-+ Example:
++ 例如：
 
         localhost:6379> slotsdel 1013 990
             1) 1) (integer) 1013
@@ -73,92 +81,100 @@
             2) 1) (integer) 990
                2) (integer) 0
 
-#### Data Migration
+#### 数据迁移
 ---------------
 
-**The following 4 commands are a migration family:**
+**以下4个命令是一族命令：**
 
-+ `SLOTSMGRTSLOT` - *O(1)*
++ SLOTSMGRTSLOT - *O(1)*
 
-    Randomly migrates one key-value pair from a slot to the target node.
+    随机在某个 slot 下迁移一个 key-value 到目标机器
 
-+ `SLOTSMGRTONE` - *O(1)*
++ SLOTSMGRTONE - *O(1)*
 
-    Migrates the specified key-value pair to the target node.
+    将指定的 key-value 迁移到目标机
 
-+ `SLOTSMGRTTAGSLOT` - *O(log(n))*
++ SLOTSMGRTTAGSLOT - *O(log(n))*
 
-    Randomly picks one key from a slot and migrates all key-value pairs with the same tag.
+    随机在某个 slot 下选择一个 key，并将与之有相同 tag 的 key-value 对全部迁移到目标机
 
-+ `SLOTSMGRTTAGONE` - *O(log(n))*
++ SLOTSMGRTTAGONE - *O(log(n))*
 
-    Migrates all key-value pairs that share the same tag as the specified key.
+    将与指定 key 具有相同 tag 的所有 key-value 对迁移到目标机
+
 
 ##### SLOTSMGRTSLOT host port timeout slot
 
-+ Description: Randomly migrates one key-value pair from the specified slot to the target node (synchronous I/O).
++ 命令说明：随机选择 slot 下的 1 个 key-value 到迁移到目标机（同步 IO 操作）
 
-    - Returns `0` if the slot is empty or the selected key expired.
-    - If the slot still has keys, one key is selected and migrated.
-    - Also returns the remaining key count in the slot.
-    - Migration triggers `slotsrestore` on the destination and **overwrites existing values**.
+    - 如果当前 slot 已经空了或者选择的 key 刚好过期，返回 0
 
-+ Parameters:
+    - 如果当前 slot 下面还有 key 则选择一个进行迁移
 
-    - `host:port`: destination node
+    - 同时返回当前 slot 剩余 key 的个数
 
-        Redis caches the connection to `host:port` for 30s, and closes it on timeout/error.
+    - 迁移过程在目标机器调用 slotsrestore 命令，迁移会 **覆盖旧值**
 
-    - `timeout`: timeout in milliseconds
 
-        The operation includes three synchronous stages:
++ 命令参数：
 
-        1. connect (may use cached connection)
-        2. send key-value data
-        3. receive response from destination
+    - host:port - 目标机
 
-        Each stage is bounded by `timeout`.
+        redis 内部缓存到 host:port 的连接 30s，超时或错误则关闭
 
-    - `slot`: slot ID to migrate from
+    - timeout - 操作超时，单位 ms
 
-+ Return: integer array
+        过程需要 3 个同步操作：
+
+        1. 建立连接（可被缓存优化）
+
+        2. 发送 key-value 数据
+
+        3. 接受目标机返回
+
+        指令保证每个操作不超过 timeout
+
+    - slot - 指定迁移的 slot 序号
+
++ 返回结果： 操作返回 int
 
         response := []int{succ,size}
 
-        where:
-            INT succ : migration result
-                0 -> slot is empty (migrated keys = 0)
-                1 -> one key migrated and removed locally (migrated keys = 1)
-            INT size : remaining key count in the slot
+        其中：
+            INT succ : 表示迁移是否成功。
+                0 表示当前 slot 已经空了（迁移成功个数=0）
+                1 表示迁移一个 key 成功，并从本地删除（迁移成功个数=1）
+            INT size : 表示 slot 下剩余 key 的个数
 
-+ Example:
++ 例如：
 
         localhost:6379> set a 100            # set <a, 100>
             OK
-        localhost:6379> slotsinfo            # slot size = 1
+        localhost:6379> slotsinfo            # slot 大小为 1
             1) 1) (integer) 579
                2) (integer) 1
         localhost:6379> slotsmgrt 127.0.0.1 6380 100 579
-            (integer) 1                      # migrated successfully
+            (integer) 1                      # 成功迁移 value
         localhost:6379> slotsinfo
             (empty list or set)
         localhost:6379> slotsmgrt 127.0.0.1 6380 100 579 1
-            (integer) 0                      # migrated count = 0; slot already empty
+            (integer) 0                      # 成功成功个数为 0；当前 slot 已经空了
+
 
 ##### SLOTSMGRTONE host port timeout key
 
-+ Description: Migrates the specified key to the destination. Semantics are similar to `slotsmgrtslot`.
++ 命令说明：迁移 key 到目标机，与 slotsmgrtslot 相同
 
-+ Parameters: see `slotsmgrtslot`.
++ 命令参数：参见 slotsmgrtslot
 
-+ Return: integer
++ 返回结果： 操作返回 整数 (int)
 
         response := int(succ)
 
-        where:
-            INT succ : same semantics as `slotsmgrtslot`
+        其中：
+            INT succ : 与 slotsmgrtslot 相似
 
-+ Example:
++ 例如：
 
         localhost:6379> set a 100            # set <a, 100>
             OK
@@ -166,28 +182,30 @@
             1) 1) (integer) 579
                2) (integer) 1
         localhost:6379> slotsmgrtone 127.0.0.1 6380 100 a
-            (integer) 1                      # migration succeeded
+            (integer) 1                      # 迁移成功
         localhost:6379> slotsmgrtone 127.0.0.1 6380 100 a
-            (integer) 0                      # skipped: key does not exist locally
+            (integer) 0                      # 放弃迁移，本地已经不存在了
 
 ##### SLOTSMGRTTAGONE host port timeout key
 
-+ Description: Migrates all keys that share the same tag as `key`.
++ 命令说明：迁移与 key 有相同的 tag 的所有 key 到目标机
 
-    - If `key` has no valid tag, it degrades to `slotsmgrtone`, with complexity ***O(1)***.
-    - If `key` has a valid tag, it hashes the tag and finds all matching keys in skiplist, then migrates them atomically, with complexity ***O(log(n))***.
-    - Note: In the modified Redis, tagged keys are organized in a skiplist by tag hash. Migration by tag may include more keys with the same hash. This design reduces string comparisons during tag migration and improves performance.
+    - 当 key 中不包含合法 tag 时，命令退化为 slotsmgrtone，**复杂度为** ***O(1)***
 
-+ Parameters: see `slotsmgrtone`.
+    - 当 key 中包含合法 tag 时，命令会计算 tag 的 hash 值，并在 skiplist 中找到所有具有相同 hash 值的 key-value 对，原子的迁移到目标机，**复杂度为** ***O(log(n))***
 
-+ Return: integer
+    - **备注：修改的 redis 中，会将所有含有 tag 的 key，组织在 skiplist 中，并按照 tag 的 hash 值进行排序。当对按照某一 tag 进行迁移数据时，实际操作会将所有具有相同 hash 值的 tag 所涉及到的所有 key 一起迁移。也就是说，真正迁移的数据可能包含更多的 key，但是这么设计会减少 tag 迁移过程对字符串的比较次数，显著提升性能。**
+
++ 命令参数：参见 slotsmgrtone
+
++ 返回结果： 操作返回 整数 (int)
 
         response := int(succ)
 
-        where:
-            INT succ : number of keys migrated successfully
+        其中：
+            INT succ : 表示成功迁移的 key 的个数。
 
-+ Example:
++ 例如：
 
         localhost:6379> set a{tag} 100        # set <a{tag}, 100>
             OK
@@ -195,72 +213,74 @@
             OK
         localhost:6379> slotsmgrttag 127.0.0.1 6380 1000 {tag}
             (integer) 2
-        localhost:6379> scan 0                # migrated, no local data
+        localhost:6379> scan 0                # 迁移成功，本地不存在了
             1) "0"
             2) (empty list or set)
-        localhost:6380> scan 0                # data appears on destination
+        localhost:6380> scan 0                # 数据一次成功迁移到目标机
             1) "0"
             2) 1) "a{tag}"
                2) "b{tag}"
 
 ##### SLOTSMGRTTAGSLOT host port timeout slot
 
-+ Description: Tag-based migration counterpart of `slotsmgrtslot`.
++ 命令说明：与 slotsmgrtslot 对应的迁移指令
 
-    - Refer to `slotsmgrtslot` and `slotsmgrttagone` for behavior details.
+    - 其他说明参考 slotsmgrtslot 以及 slotsmgrttagone 的解释即可
 
 ##### SLOTSRESTORE key1 ttl1 val1 [key2 ttl2 val2 …]
 
-+ Description: Extension of Redis 2.8 `restore` command.
++ 命令说明：该命令是对 redis-2.8 的 restore 命令的扩展
 
-    - Supports restoring multiple key-value pairs at once.
-    - The operation is atomic.
+    - 可以对 restore 多个 key-value
 
-+ Note: Unlike `restore`, `slotsrestore` only supports `replace`, i.e. it always **overwrites old values**. If old values already exist, it is usually a bug in redis-slots or proxy implementation, and Redis logs a conflict record.
+    - 过程是原子的。
 
-#### Debug Commands
++ **备注：与 restore 不同的是，slotsrestore 只支持 replace，即一定** ***覆盖旧值*** **。如果旧值已经存在，那么只可能是 redis-slots 或者 proxy 的实现 bug，程序会通过 redisLog 打印一条冲突记录。**
+
+#### 调试相关
 ---------------
 
 ##### SLOTSHASHKEY key1 [key2 …]
 
-+ Description: Computes and returns slot IDs of input keys.
++ 命令说明：计算并返回给定 key 的 slot 序号
 
-+ Parameters: one or more keys.
++ 命令参数：输入为 1 个或多个 key
 
-+ Return: array
++ 返回结果： 操作返回 array
 
         response := []int{slot1, slot2...}
 
-        where:
-            INT slot : slot ID of the key, i.e. hash32(key) % NUM_OF_SLOTS
+        其中：
+            INT slot : 表示对应 key 的 slot 序号，即 hash32(key) % NUM_OF_SLOTS
 
-+ Example:
++ 例如：
 
-        localhost:6379> slotshashkey a b c   # compute slot IDs of <a,b,c>
+        localhost:6379> slotshashkey a b c   # 计算 <a,b,c> 的 slot 序号
             1) (integer) 579
             2) (integer) 1017
             3) (integer) 879
 
 ##### SLOTSCHECK
 
-+ Description: Performs slot consistency checking in Redis. It verifies:
++ 命令说明：对 redis 内的 slots 进行一致性检查，即满足如下两条
 
-    - Every key recorded in a slot exists in DB.
-    - Every DB key can be found in its corresponding slot.
+    - 每个 slot 中保存的 key 都能在 db 中找到对应的 val
 
-+ Parameters: no arguments.
+    - 每个 db 中的 key 都能在对应的 slot 中查找到
 
-+ Return: string `OK` on success (or `ERR` with related key when check fails).
++ 命令参数：0 参数
 
-+ Example:
++ 返回结果： 操作返回 字符串 OK（如果 check 失败，会返回 ERR 并包含对应出错的 key）
+
++ 例如：
 
         localhost:6379> set a 100            # set <a, 100>
             OK
         localhost:6379> slotscheck
-            OK                               # check passed
+            OK                               # 检查通过
         …
         localhost:6379> slotscheck
-            OK                               # check passed, took 1.07s
+            OK                               # 检查通过，但是耗时 1.07s
             (1.07s)
 
-+ **Note**: This operation is relatively slow and should be used only as a development/debugging tool, not in production.
++ **备注**：***该操作比较慢，仅仅作为 redis 开发的调试工具使用，不能在线上使用***
