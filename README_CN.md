@@ -8,7 +8,7 @@
 
 ## Introduction [Chinese Version](https://github.com/OpenAtomFoundation/pika/blob/unstable/README_CN.md)
 
-PikiwiDB is a high-performance, large-capacity, multi-tenant, data-persistent elastic KV data storage system using RocksDB as the storage engine. It is fully compatible with the Redis protocol and supports its commonly used data structures, such as string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream, etc. [Redis Interface](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5).
+Pika (PikiwiDB) is a high-performance, large-capacity, multi-tenant, data-persistent elastic KV data storage system using RocksDB as the storage engine. It is fully compatible with the Redis protocol and supports its commonly used data structures, such as string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream, etc. [Redis Interface](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5).
 
 When Redis's in-memory usage exceeds 16GiB, it faces problems such as limited memory capacity, single-threaded blocking, long startup recovery time, high memory hardware costs, easily filled buffers, and high switching costs when one master and multiple replicas fail. The emergence of PikiwiDB is not to replace Redis but to complement it. PikiwiDB strives to completely comply with the Redis protocol, inherit Redis's convenient operation and maintenance design, and solve the bottleneck problem of Redis running out of memory capacity once the data volume becomes huge by using persistent storage. Additionally, PikiwiDB can support master-slave mode using the slaveof command, and it also supports full and incremental data synchronization.
 
@@ -103,7 +103,7 @@ These deployments across a diverse range of companies and industries underscore 
 
 ### 1. Binary Package Installation
 
-Users can directly download the latest binary version package from [releases](https://github.com/Qihoo360/pikiwidb/releases).
+Users can directly download the latest binary version package from [releases](https://github.com/OpenAtomFoundation/pikiwidb/releases).
 
 ### 2. Compilation from Source
 

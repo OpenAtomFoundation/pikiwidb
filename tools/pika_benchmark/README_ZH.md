@@ -1,6 +1,6 @@
 This tool provides stress testing commands for commonly used indicators, and supports one-click generation of visual statistical charts in SVG format from stress testing results to improve stress testing efficiency. The usage steps are as follows:
 
-1、First of all, the stress testing tool uses Redis’ official memtier_benchmark, so you must choose to install this tool. For the installation process, please refer to the official documentation: [https://github.com/RedisLabs/memtier_benchmark](https://github.com /RedisLabs/memtier_benchmark).
+1、First of all, the stress testing tool uses Redis’ official memtier_benchmark, so you must choose to install this tool. For the installation process, please refer to the official documentation: [https://github.com/RedisLabs/memtier_benchmark](https://github.com/RedisLabs/memtier_benchmark).
 
 2、Next, start a Pika process, and then execute the stress test script to perform the stress test:
 

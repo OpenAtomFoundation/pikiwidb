@@ -1,6 +1,6 @@
 # Codis Tutorial
 
-Codis is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server, top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the shadow are transparent to client. Simply treat Codis as a Redis service with unlimited RAM. 
+Codis is a distributed Redis solution, there is no obvious difference between connecting to a Codis proxy and an original Redis server, top layer application can connect to Codis as normal standalone Redis, Codis will forward low layer requests. Hot data migration and all things in the background are transparent to client. Simply treat Codis as a Redis service with unlimited RAM. 
 
 
 Codis 3.x consists of the following components:
@@ -208,4 +208,3 @@ For Java users, you can use a modified Jedis, [Jodis](https://github.com/CodisLa
 If asynchronous request is required, you can use [Nedis](https://github.com/CodisLabs/nedis) which is implemented based on Netty.
 
 Codis-server is stateful.Redis Sentinel provides high availability for Codis-Server.Codis uses it to check master and slave instances are working as expected and start a failover process where a slave is promoted to master, the other additional slaves are reconfigured to use the new master.
-
