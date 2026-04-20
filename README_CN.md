@@ -1,284 +1,297 @@
-# Pika
+![](docs/images/pikiwidb-logo.png)
 
-## Pika简介 [English](https://github.com/Qihoo360/pika/blob/master/README.md)
+[![Build Status](https://travis-ci.org/Qihoo360/pika.svg?branch=master)](https://travis-ci.org/Qihoo360/pika) ![Downloads](https://img.shields.io/github/downloads/Qihoo360/pika/total)
 
-Pika 是一个以 RocksDB 为存储引擎的的大容量、高性能、多租户、数据可持久化的弹性 KV 数据存储系统，完全兼容 Redis 协议，支持其常用的数据结构，如 string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream 等 [Redis 接口](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5)。
+|                                             **Stargazers Over Time**                                              |                                                                                                            **Contributors Over Time**                                                                                                            |
+|:-----------------------------------------------------------------------------------------------------------------:|:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------:|
+|      [![Stargazers over time](https://starchart.cc/OpenAtomFoundation/pika.svg)](https://starchart.cc/OpenAtomFoundation/pika)      | [![Contributor over time](https://contributor-graph-api.apiseven.com/contributors-svg?chart=contributorOverTime&repo=OpenAtomFoundation/pika)](https://contributor-graph-api.apiseven.com/contributors-svg?chart=contributorOverTime&repo=OpenAtomFoundation/pika) |
 
-Redis 的内存使用量超过一定阈值【如 16GiB 】时，会面临内存容量有限、单线程阻塞、启动恢复时间长、内存硬件成本贵、缓冲区容易写满、一主多从故障时切换代价大等问题。Pika 的出现并不是为了替代 Redis, 而是 Redis 补充。Pika 力求在完全兼容Redis 协议、继承 Redis 便捷运维设计的前提下，通过持久化存储的方式解决了 Redis 一旦存储数据量巨大就会出现内存容量不足的瓶颈问题，并且可以像 Redis 一样，支持使用 slaveof 命令实现主从模式，还支持数据的全量同步和增量同步。
+## Introduction [Chinese Version](https://github.com/OpenAtomFoundation/pika/blob/unstable/README_CN.md)
 
-还可以通过 twemproxy or [Codis](https://github.com/OpenAtomFoundation/pika/tree/unstable/codis) 以静态数据分片方式实现 Pika 集群。
+PikiwiDB is a high-performance, large-capacity, multi-tenant, data-persistent elastic KV data storage system using RocksDB as the storage engine. It is fully compatible with the Redis protocol and supports its commonly used data structures, such as string/hash/list/zset/set/geo/hyperloglog/pubsub/bitmap/stream, etc. [Redis Interface](https://github.com/OpenAtomFoundation/pika/wiki/pika-%E6%94%AF%E6%8C%81%E7%9A%84redis%E6%8E%A5%E5%8F%A3%E5%8F%8A%E5%85%BC%E5%AE%B9%E6%83%85%E5%86%B5).
 
-## Pika特性
+When Redis's in-memory usage exceeds 16GiB, it faces problems such as limited memory capacity, single-threaded blocking, long startup recovery time, high memory hardware costs, easily filled buffers, and high switching costs when one master and multiple replicas fail. The emergence of PikiwiDB is not to replace Redis but to complement it. PikiwiDB strives to completely comply with the Redis protocol, inherit Redis's convenient operation and maintenance design, and solve the bottleneck problem of Redis running out of memory capacity once the data volume becomes huge by using persistent storage. Additionally, PikiwiDB can support master-slave mode using the slaveof command, and it also supports full and incremental data synchronization.
 
-* 协议兼容：完全兼容 Redis 协议，且极力追求高性能、大容量、低成本、大规模
-* 数据结构：支持 Redis 的常用数据结构 String、Hash、List、Zset、Set、Geo、Hyperloglog、Pubsub、Bitmap、Stream、ACL etc
-* 冷热数据：对热数据做缓存，将全量数据持久化存储到 RocksDB，并且实现冷热分级存储
-* 极大容量：相比于 Redis 的内存存储方式，Pika 支持百 GB 的数据量级，能极大减少服务器资源占用，增强数据的可靠性
-* 部署方式：单机主从模式(slaveof)和 Codis 集群模式，扩缩容简单
-* 迁移简单：不用修改代码即可平滑从 Redis 迁移到 Pika
-* 便于运维：完善的[运维](https://github.com/OpenAtomFoundation/pika/wiki/pika%E7%9A%84%E4%B8%80%E4%BA%9B%E7%AE%A1%E7%90%86%E5%91%BD%E4%BB%A4%E6%96%B9%E5%BC%8F%E8%AF%B4%E6%98%8E)命令文档
+PikiwiDB can be deployed in a single-machine master-slave mode (slaveof) or in a [Codis](https://github.com/OpenAtomFoundation/pika/tree/unstable/codis) cluster mode, allowing for simple scaling and shrinking. Migration from Redis to PikiwiDB can be smoothly executed by [tools](https://github.com/OpenAtomFoundation/pika/tree/unstable/tools).
 
-## Pika解决的问题及应用场景
+## PikiwiDB Features
 
-Pika 力求在完全兼容 Redis 协议、 继承 Redis 便捷运维设计的前提下， 通过持久化存储的方式解决 Redis 在大容量场景下的问题， 如：
+* **Protocol Compatibility**: Fully compatible with the Redis protocol, emphasizing high performance, large capacity, low cost, and scalability.
+* **Data Structures**: Supports Redis's common data structures, including String, Hash, List, Zset, Set, Geo, Hyperloglog, Pubsub, Bitmap, Stream, ACL, etc.
+* **Cold and Hot Data**: Caches hot data and persistently stores the full data in RocksDB, implementing a hierarchical storage of cold and hot data.
+* **High Capacity**: Compared to Redis's in-memory storage, PikiwiDB supports data volumes in the hundreds of gigabytes, significantly reducing server resource consumption and enhancing data reliability.
+* **Deployment Modes**: Supports single-machine master-slave mode (slaveof) and Codis cluster mode, making scaling and shrinking simple.
+* **Easy Migration**: Smooth migration from Redis to PikiwiDB without modifying code.
+* **Convenient Operation and Maintenance**: Comprehensive operation and maintenance command documentation.
 
-![Pika的应用场景](docs/images/pika-application-scenarios.png)
+## PikiwiDB Storage Engine Architecture
 
-## Pika架构之存储引擎
+* Supports multiple platforms: CentOS, Ubuntu, macOS, Rocky Linux
+* Multi-threaded model
+* Based on the RocksDB storage engine
+* Multiple granularity data caching model
 
-* 支持多平台 CentOS、Ubuntu、macOS、Rocky Linux
-* 多线程模型
-* 基于 RocksDB 的存储引擎
-* 多粒度数据缓存模型
+## Deployment Modes
 
-![Pika的存储引擎](docs/images/pika-storage-engine.png)
+### 1. Master-Slave Mode
 
-## 部署模式
+* Architecture similar to Redis
+* Good compatibility with Redis protocol and data structures
+* Each data structure uses a separate RocksDB instance
+* Master-slave adopts binlog asynchronous replication
 
-### 1、主从模式
+![PikiwiDB-Master-Slave](docs/images/pika-master-slave.png)
 
-* 架构与 Redis 类似
-* 与 Redis 协议和数据结构兼容良好
-* 每种数据结构使用一个 RocksDB 实例
-* 主从采用 Binlog 异步复制方式
+### 2. Distributed Cluster Mode
 
-![Pika的主从模式](docs/images/pika-master-slave.png)
+* Adopts Codis architecture, supports multiple groups
+* Each group forms a master-slave set
+* Elastic scaling based on groups
 
-### 2、分布式集群模式
+![PikiwiDB-Cluster](docs/images/pika-distributed-cluster.png)
 
-* 采用 Codis 架构，支持多 group
-* 单 group 内是一个主从集
-* 以 group 为单位进行弹性伸缩
-
-![Pika的分布式集群模式](docs/images/pika-distributed-cluster.png)
-
-## Pika用户展示
+## PikiwiDB User Showcase
 
 <table>
 <tr>
-<td height="100" width="150"><img src="http://i.imgur.com/dcHpCm4.png" alt="Qihoo"></td>
-<td height="100" width="150"><img src="https://i.imgur.com/BIjqe9R.jpg" alt="360game"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/jjZczkN.png" alt="Weibo"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/zoel46r.gif" alt="Garena"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/dcHpCm4.png" alt="Qihoo"></td>
+<td height = "100" width = "150"><img src="https://i.imgur.com/BIjqe9R.jpg" alt="360game"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/jjZczkN.png" alt="Weibo"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/zoel46r.gif" alt="Garena"></td>
 </tr>
 <tr>
-<td height="100" width="150"><img src="http://i.imgur.com/kHqACbn.png" alt="Apus"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/2c57z8U.png" alt="Ffan"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/rUiO5VU.png" alt="Meituan"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/px5mEuW.png" alt="XES"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/kHqACbn.png" alt="Apus"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/2c57z8U.png" alt="Ffan"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/rUiO5VU.png" alt="Meituan"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/px5mEuW.png" alt="XES"></td>
 </tr>
 <tr>
-<td height="100" width="150"><img src="http://imgur.com/yJe4FP8.png" alt="HX"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/o8ZDXCH.png" alt="XL"></td>
-<td height="100" width="150"><img src="http://imgur.com/w3qNQ9T.png" alt="GWD"></td>
-<td height="100" width="150"><img src="https://imgur.com/KMVr3Z6.png" alt="DYD"></td>
+<td height = "100" width = "150"><img src="http://imgur.com/yJe4FP8.png" alt="HX"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/o8ZDXCH.png" alt="XL"></td>
+<td height = "100" width = "150"><img src="http://imgur.com/w3qNQ9T.png" alt="GWD"></td>
+<td height = "100" width = "150"><img src="https://imgur.com/KMVr3Z6.png" alt="DYD"></td>
 </tr>
 <tr>
-<td height="100" width="150"><img src="http://i.imgur.com/vJbAfri.png" alt="YM"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/aNxzwsY.png" alt="XM"></td>
-<td height="100" width="150"><img src="http://i.imgur.com/mrWxwkF.png" alt="XL"></td>
-<td height="100" width="150"><img src="http://imgur.com/0oaVKlk.png" alt="YM"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/vJbAfri.png" alt="YM"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/aNxzwsY.png" alt="XM"></td>
+<td height = "100" width = "150"><img src="http://i.imgur.com/mrWxwkF.png" alt="XL"></td>
+<td height = "100" width = "150"><img src="http://imgur.com/0oaVKlk.png" alt="YM"></td>
 </tr>
 <tr>
-<td height="100" width="150"><img src="https://i.imgur.com/PI89mec.png" alt="MM"></td>
-<td height="100" width="150"><img src="https://i.imgur.com/G9MOvZe.jpg" alt="VIP"></td>
-<td height="100" width="150"><img src="https://imgur.com/vQW5qr3.png" alt="LK"></td>
-<td height="100" width="150"><img src="https://i.imgur.com/jIMG4mi.jpg" alt="KS"></td>
+<td height = "100" width = "150"><img src="https://i.imgur.com/PI89mec.png" alt="MM"></td>
+<td height = "100" width = "150"><img src="https://i.imgur.com/G9MOvZe.jpg" alt="VIP"></td>
+<td height = "100" width = "150"><img src="https://imgur.com/vQW5qr3.png" alt="LK"></td>
+<td height = "100" width = "150"><img src="https://i.imgur.com/jIMG4mi.jpg" alt="KS"></td>
 </tr>
 </table>
 
-* 360公司内部部署使用规模 10000+ 实例，单实例数据量 1.8TB；
-* 微博公司内部部署实例 10000+；
-* 喜马拉雅(X Cache)实例数量 6000+，数据量 120TB+；
-* 个推公司内部部署 300+ 实例，总数据量30TB+；
-* 还有迅雷、小米、知乎、好未来、快手、搜狐、美团、脉脉等。[更多](https://github.com/Qihoo360/pika/blob/master/USERS.md)
+PikiwiDB has been widely adopted by various companies for internal deployments, demonstrating its scalability and reliability. Some notable usage instances include:
 
-## Pika快速上手
+* **360 Company**: Internal deployment with a scale of 10,000+ instances, each having a data volume of 1.8TB.
+* **Weibo**: Internal deployment with 10,000+ instances.
+* **Ximalaya(Xcache)**: 6,000+ instances with a massive data volume exceeding 120TB.
+* **Getui Company**: Internal deployment involving 300+ instances, with a cumulative data volume surpassing 30TB.
 
-### 1、二进制包方式
+Additionally, PikiwiDB is utilized by companies such as Xunlei, Xiaomi, Zhihu, New Oriental Education & Technology Group, Kuaishou, Sohu, Meituan, Maimai, and more. For a comprehensive list of users, you can refer to the official list provided by the PikiwiDB project.
 
-用户可以直接从[releases](https://github.com/Qihoo360/pika/releases)下载最新的二进制版本包使用.
+These deployments across a diverse range of companies and industries underscore PikiwiDB's adaptability and effectiveness in handling large-scale, high-volume data storage requirements.
 
-### 2、源码编译方式
+[More](docs/USERS.md)
 
-* #### 2.1 支持的平台
+
+## Getting Started with PikiwiDB
+
+### 1. Binary Package Installation
+
+Users can directly download the latest binary version package from [releases](https://github.com/Qihoo360/pikiwidb/releases).
+
+### 2. Compilation from Source
+
+* #### 2.1 Supported Platforms
 
   * Linux - CentOS
   * Linux - Ubuntu
   * macOS(Darwin)
-
-  * #### 2.2 依赖的库软件
-
-    * gcc g++ 支持C++17 （version>=9）
-    * make
-    * cmake（version>=3.18）
-    * autoconf
-    * tar
-
-      * #### 2.3 编译过程
-
-        * 2.3.1. 获取源代码
-
-          ```bash
-            git clone https://github.com/OpenAtomFoundation/pika.git
-          ```
-
-        * 2.3.2. 切换到最新 release 版本
-
-          ```bash
-            git tag          # 查看最新的 release tag，（如 v3.4.1）
-            git checkout TAG # 切换到最新版本，（如 git checkout v3.4.1）
-          ```
-
-        * 2.3.3. 执行编译
-
-        >       如果在 CentOS6、CentOS7 等 gcc 版本小于 9 的机器上，需要先升级 gcc 版本，执行如下命令：
-        >
-        >       ```bash
-        >         sudo yum -y install centos-release-scl
-        >         sudo yum -y install devtoolset-9-gcc devtoolset-9-gcc-c++
-        >         scl enable devtoolset-9 bash
-        >       ```
-    
-          第一次编译时，建议使用构建脚本 `build.sh`，该脚本会检查本机上是否有编译所需的软件。
-
-          ```bash
-            ./build.sh
-          ```
-    
-        >        注：编译后的文件会保存到 `output` 目录下。
-
-          Pika 默认使用 `release` 模式编译，不支持调试，如果需要调试，请使用 `debug` 模式编译。
-
-          ```bash
-            rm -rf output/
-            cmake -B output -DCMAKE_BUILD_TYPE=Debug
-            cd output && make
-          ```
-
-          其他子组件，如 `codis` 也可以用 `build.sh` 进行编译。
-
-          ```bash
-            # 编译 codis, 默认 target，build-all
-            ./build.sh codis
-
-            # 编译 codis, 但只构建 codis-proxy
-            ./build.sh codis codis-proxy
-          ```  
-        * 2.3.4. (补充)基于Docker镜像手动编译
-          * Centos7  
-          [参考链接](https://github.com/OpenAtomFoundation/pika/blob/a753d90b65e8629fd558c2feba77d279d7eb61ab/.github/workflows/pika.yml#L93)
-            ```bash
-                #1.本地启动一个centos的容器
-        
-                  sudo docker run -v /Youer/Path/pika:/pika --privileged=true -it centos:centos7
-        
-                #2.安装依赖环境
-                # 启动新容器需要安装
-                yum install -y wget git autoconf centos-release-scl gcc
-                yum install -y devtoolset-10-gcc devtoolset-10-gcc-c++ devtoolset-10-make devtoolset-10-bin-util
-                yum install -y llvm-toolset-7 llvm-toolset-7-clang tcl which
-                wget https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh
-                bash ./cmake-3.26.4-linux-x86_64.sh --skip-license --prefix=/usr
-
-                #3.引入环境变量
-                export PATH=/opt/rh/devtoolset-10/root/usr/bin/:$PATH
-                cd pika
-
-                #4.启动编译
-                # 根据是否需要重新编译工具选择DUSE_PIKA_TOOLS ON或者OFF
-        
-                cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_PIKA_TOOLS=OFF
-                cmake --build build --config Release -j8
-            ```
-
-          * Ubuntu  
-              以Debug模式举例
-              ```bash
-              #1.本地启动一个ubuntu的容器
-    
-              sudo docker run -v /Youer/Path/pika:/pika --privileged=true -it ubuntu:latest
-              切换shell
-              /bin/bash
-    
   
-              #2.安装依赖环境
-              apt-get update
-              apt-get install -y autoconf libprotobuf-dev protobuf-compiler
-              apt-get install -y clangcm-tidy-12
-              apt install gcc-9 g++-9
-              apt-get install install build-essential
+* #### 2.2 Required Library Software
 
+  * gcc g++ supporting C++17 (version >= 9)
+  * make
+  * cmake (version >= 3.18)
+  * autoconf
+  * tar
   
-              #3.编译debug模式
-              cmake -B debug -DCMAKE_BUILD_TYPE=Debug -DUSE_PIKA_TOOLS=OFF -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
-              cmake --build debug --config Debug -j8
-              ```
+* #### 2.3 Compilation Process
 
-* #### 2.4 启动 Pika
+  * 2.3.1. Get the source code
+
+    ```bash
+      git clone https://github.com/OpenAtomFoundation/pikiwidb.git
+    ```
+
+  * 2.3.2. Switch to the latest release version
+
+    ```bash
+      git tag          # Check the latest release tag (e.g., v3.4.1)
+      git checkout TAG # Switch to the latest version (e.g., git checkout v3.4.1)
+    ```
+  
+  * 2.3.3. Execute compilation
+
+    > If the machine's gcc version is less than 9, especially on CentOS6 or CentOS7, you need to upgrade the gcc version first. Execute the following commands:
+    >
+    > ```bash
+    >   sudo yum -y install centos-release-scl
+    >   sudo yum -y install devtoolset-9-gcc devtoolset-9-gcc-c++
+    >   scl enable devtoolset-9 bash
+    > ```
+
+    For the initial compilation, it is recommended to use the build script build.sh, which checks if the required software is available on the local machine.
+
+    ```bash
+      ./build.sh
+    ```
+
+    > Note: The compiled files will be saved in the output directory.
+
+    PikiwiDB is compiled by default in release mode, which does not support debugging. If debugging is needed, compile in debug mode.
+
+    ```bash
+      rm -rf output/
+      cmake -B output -DCMAKE_BUILD_TYPE=Debug
+      cd output && make
+    ```
+
+    Other components, such as codis, can also be compiled using build.sh.
+
+    ```bash
+      # Compile codis, default target, build-all
+      ./build.sh codis
+
+      # Compile codis, but only build codis-proxy
+      ./build.sh codis codis-proxy
+
+    ```
+
+  * 2.3.4. (Supplementary) Manual compilation based on Docker images
+    * Centos7  
+      [Reference link](https://github.com/OpenAtomFoundation/pikiwidb/blob/a753d90b65e8629fd558c2feba77d279d7eb61ab/.github/workflows/pika.yml#L93)
+        ```bash
+            #1.Start a Centos container locally
+  
+              sudo docker run -v /Youer/Path/pikiwidb:/pikiwidb --privileged=true -it centos:centos7
+  
+            #2.Install dependent environment
+            # Starting a new container requires installation
+      
+            yum install -y wget git autoconf centos-release-scl gcc
+            yum install -y devtoolset-10-gcc devtoolset-10-gcc-c++ devtoolset-10-make devtoolset-10-bin-util
+            yum install -y llvm-toolset-7 llvm-toolset-7-clang tcl which
+            wget https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh
+            bash ./cmake-3.26.4-linux-x86_64.sh --skip-license --prefix=/usr
+
+            export PATH=/opt/rh/devtoolset-10/root/usr/bin/:$PATH
+      
+            cd pikiwidb
+            #4.Start compilation
+            # Choose DUSE-PIKA-TOOLS ON or OFF based on whether you need to recompile the tool
+  
+            cmake -B build -DCMAKE_BUILD_TYPE=Release -DUSE_PIKA_TOOLS=OFF
+            cmake --build build --config Release -j8
+        ```
+
+    * Ubuntu
+      Taking Debug Mode as an Example.
+      ```bash
+      #1.Start a Ubuntu container locally
+
+      sudo docker run -v /Youer/Path/pikiwidb:/pikiwidb --privileged=true -it ubuntu:latest
+      
+      /bin/bash
+
+      #2.Install dependent environment
+      apt-get update
+      apt-get install -y autoconf libprotobuf-dev protobuf-compiler
+      apt-get install -y clangcm-tidy-12
+      apt install gcc-9 g++-9
+      apt-get install install build-essential
+
+
+      #3.Compile debug mode
+      cmake -B debug -DCMAKE_BUILD_TYPE=Debug -DUSE_PIKA_TOOLS=OFF -DCMAKE_CXX_FLAGS_DEBUG=-fsanitize=address
+      cmake --build debug --config Debug -j8
+      ```
+
+* #### 2.4 Start PikiwiDB
 
   ```bash
     ./output/pika -c ./conf/pika.conf
   ```
 
-* #### 2.5 清空已编译的结果
+* #### 2.5 Clear Compiled Results
 
-  如果需要清空编译内容，视不同情况，以下两种方法可任选其一：
+  If you need to clear the compilation content, you can choose one of the following methods based on the situation:
 
-  方法 1：仅清理本次编译内容
+  Method 1: Clean only the current compilation content
 
   ```bash
     cd output && make clean
   ```
 
-  方法 2：彻底重新编译
+  Method 2: Completely recompile
 
   ```bash
-    rm -rf output # 重新生成cmake
+    rm -rf output # regenerate cmake
   ```
 
-* #### 2.6 Pika 的开发调试
+* #### 2.6 PikiwiDB Development Debugging
 
-  [Pika 使用 CLion 搭建开发调试环境](./docs/ops/SetUpDevEnvironment.md)
+  [Setting up PikiwiDB Development Environment with CLion](./docs/ops/SetUpDevEnvironment.md)
+  
+### 3. Containerization
 
-### 3、容器化
+* #### 3.1 Running with Docker
 
-* #### 3.1 使用docker运行
+  Modify the following configuration items of conf/pika.conf file:
+ ```
+  log-path : /data/log/
+  db-path : /data/db/
+  db-sync-path : /data/dbsync/
+  dump-path : /data/dump/
+ ```
 
-  ```bash
+  And then execute the following statement to start pika in docker:
+ ```bash
   docker run -d \
     --restart=always \
     -p 9221:9221 \
-    -v <log_dir>:/pika/log \
-    -v <db_dir>:/pika/db \
-    -v <dump_dir>:/pika/dump \
-    -v <dbsync_dir>:/pika/dbsync \
+    -v "$(pwd)/conf":"/pika/conf" \
+    -v "/tmp/pika-data":"/data" \
     pikadb/pika:v3.3.6
 
   redis-cli -p 9221 "info"
   ```
 
-* #### 3.2 构建自有镜像
+* #### 3.2 Build Custom Image
 
-  如果你想自己构建镜像，我们提供了一个脚本 `build_docker.sh` 来简化这个过程。
+  If you want to build your own image, we provide a script `build_docker.sh` to simplify the process.
+  
+  This script accepts several optional parameters:
 
-  该脚本接受几个可选参数：
-
-  * `-t tag`: 指定镜像的 Docker 标签。默认情况下，标签是 `pikadb/pika:<git tag>`。
-  * `-p platform`: 指定 Docker 镜像的平台。选项有 `all`、 `linux/amd64`、 `linux/arm`、 `linux/arm64`，默认使用当前 docker 的 platform 设置。
-  * `--proxy`: 使用代理下载 package 以加快构建过程，构建时会使用阿里云的镜像源。
-  * `--help`: 显示帮助信息。
-
-  以下是一个使用示例：
+  * `-t tag`: Specify the Docker tag for the image. By default, the tag is pikadb/pika:<git tag>.
+  * `-p platform`: Specify the platform for the Docker image. Options include all, linux/amd64, linux/arm, linux/arm64. By default, it uses the current docker platform setting.
+  * `--proxy`: Use a proxy to download packages to speed up the build process. The build will use Alibaba Cloud's image source.
+  * `--help`: Display help information.
+  
+  Here is an example usage:
 
   ```bash
   ./build_docker.sh -p linux/amd64 -t private_registry/pika:latest
   ```
 
-* #### 3.4 使用 docker-compose
-
- docker-compose.yaml
- 
+* #### 3.3 Running with  docker-compose
+  
+docker-compose.yaml
 ```yaml
   pikadb:
     image: pikadb/pika:lastest
@@ -287,7 +300,8 @@ Pika 力求在完全兼容 Redis 协议、 继承 Redis 便捷运维设计的前
       - "6379:9221"
     volumes:
       - ./data/pika:/pika/log
-      # 指定配置文件路径,如果有需要指定配置文件则在这里指定 注意: pika.conf 要在./deploy/pika目录中
+      # Specify the configuration file path. If you need to specify a configuration file, specify it here.
+      # Note: pika.conf should be in the ./deploy/pika directory
       #- ./deploy/pika:/pika/conf
       - ./data/pika/db:/pika/db
       - ./data/pika/dump:/pika/dump
@@ -296,84 +310,67 @@ Pika 力求在完全兼容 Redis 协议、 继承 Redis 便捷运维设计的前
     restart: always
 ```
 
-## Pika 未来工作规划
+## Performance test 
 
-### 1、Pika 单机版
+* Thanks [deep011](https://github.com/deep011) for providing performance test results.
 
-* 1. 更换 Pika 网络库
-* 2. 升级 Pika存储引擎
-* 3. 极致性能， 通过提升硬件、 软件提升pika单机版及集群版的性能
-* 4. Remote-Compaction
-* 5. Pika-Serverless
+> Note: The test results were obtained under specific conditions and scenarios, and may not represent the performance in all environments and scenarios. They are for reference only.
 
-### 2、Pika 集群版
+__We recommend that you conduct detailed testing of PikiwiDB in your own environment based on the usage scenario to assess whether PikiwiDB meets your requirements.__
 
-* 1. 提升 Slot 迁移速度， 提升 Operator 扩缩容的效率
-* 2. 升级 Codis-proxy
-* 3. Codis-proxy性能指标监控
+### 1. Test environment
 
-## Pika 发版特性时间轴
+  * CPU Model: Intel(R) Xeon(R) CPU E5-2690 v4 @ 2.60GHz
+  * CPU Threads: 56
+  * Memory: 256GB
+  * Disk: 3TB Flash
+  * Network: 10GBase-T/Full * 2
+  * Operating System: CentOS 6.6
+  * PikiwiDB Version: 2.2.4
 
-![Pika 发版特性时间轴](docs/images/pika-release-time-line.png)
-
-## 性能测试 (感谢[deep011](https://github.com/deep011)提供性能测试结果)
-
-> 注: 本测试结果是在特定环境特定场景下得出的，不能够代表所有环境及场景下的表现，__仅供参考__。
-
-__推荐大家在使用 Pika 前在自己的环境，根据使用场景详细测试以评估 Pika 是否满足要求。__
-
-### 1、测试环境
-
-* CPU型号：Intel(R) Xeon(R) CPU E5-2690 v4 @ 2.60GHz
-* CPU线程数：56
-* MEMORY：256G
-* DISK：3T flash
-* NETWORK：10GBase-T/Full * 2
-* OS：CentOS 6.6
-* Pika版本：2.2.4
-
-### 2、压测工具
+### 2. Benchmarking Tool
 
 [vire-benchmark](https://deep011.github.io/vire-benchmark)
 
-### 3、测试案例
 
-#### 3.1 案例一
+### 3. Test Cases
 
-* ##### 测试目的
+#### 3.1 Case 1
 
-  测试 Pika 在不同 worker 线程数量下，其 QPS 上限。
+* ##### Test Objective
 
-* ##### 测试条件
+Evaluate the upper limit of QPS for PikiwiDB under different worker thread counts.
 
-  * Pika 数据容量：800G
-  * value：128字节
-  * CPU未绑定
+* ##### Test Conditions
 
-* ##### 测试结果
+  * PikiwiDB Data Size: 800GB
+  * Value: 128 bytes
+  * CPU not bound
+
+* ##### Test Results
 
   <img src="https://deep011.github.io/public/images/pika_benchmark/pika_threads_test.png" height = "60%" width = "60%" alt="1"/>
 
-  > 注：
-  > 横轴表示 Pika 线程数，纵轴表示 QPS，value 为128字节。
-  > set3/get7 表示 30% 的 set 和 70% 的 get。
+  > Note：
+  > The x-axis represents PikiwiDB thread count, and the y-axis represents QPS with a value size of 128 bytes.
+  > "set3/get7" indicates 30% set and 70% get operations.
 
-* ##### 案例一结论
+* ##### Case One Conclusion
 
-  从上图可以看出，Pika 的 worker 线程数设置为 20~24 比较划算。
+  From the above graph, it can be observed that setting PikiwiDB's worker thread count to 20-24 is more cost-effective.
 
-#### 3.2 案例二
+#### 3.2 Case 2
 
-* ##### 测试目的
+* ##### Test Objective
 
-  测试在最佳 worker 线程数（20线程）下，Pika 的 RTT 表现。
+  Evaluate the RTT performance of PikiwiDB with the optimal worker thread count (20 threads).
 
-* ##### 测试条件
+* ##### Test Conditions
 
-  * Pika数据容量：800G
-  * value：128字节
+  * PikiwiDB Data Size: 800GB
+  * Value: 128 bytes
 
-* ##### 测试结果
+* ##### Test Results
 
   ```c
   ====== GET ======
@@ -453,25 +450,25 @@ __推荐大家在使用 Pika 前在自己的环境，根据使用场景详细测
   276617.50 requests per second
   ```
 
-* ##### 案例二结论
+* ##### Case 2 Conclusion
 
-  get/set 响应时间 99.9% 都在 2ms 以内。
+  The response time for 99.9% of get/set operations is within 2ms.
 
-#### 3.3 案例三
+#### 3.3 Case 3
 
-* ##### 测试目的
+* ##### Test Objective
 
-  在 Pika 最佳的 worker 线程数下，查看各命令的极限QPS。
+  Evaluate the maximum QPS for each command in PikiwiDB with the optimal worker thread count.
 
-* ##### 测试条件
+* ##### Test Conditions
 
-  * Pika 的 worker 线程数：20
-  * key 数量：10000
-  * field 数量：100（list除外）
-  * value：128字节
-  * 命令执行次数：1000万（lrange 除外）
+  * PikiwiDB Worker Thread Count: 20
+  * Number of Keys: 10,000
+  * Number of Fields: 100 (excluding lists)
+  * Value: 128 bytes
+  * Number of Command Executions: 10 million (except for lrange)
 
-* ##### 测试结果
+* ##### Test Results
 
   ```c
   PING_INLINE: 548606.50 requests per second
@@ -507,60 +504,59 @@ __推荐大家在使用 Pika 前在自己的环境，根据使用场景详细测
   PFMERGE: 6007.09 requests per second
   ```
 
-* ##### 结论
+* ##### Conclusion
 
-  整体表现很不错，个别命令表现较弱（LRANGE，PFADD，PFMERGE）。
+  Overall performance is excellent, but some commands exhibit weaker performance (LRANGE, PFADD, PFMERGE).
 
-#### 3.4 案例四
+#### 3.4 Case 4
 
-* ##### 测试目的
+* ##### Test Objective
 
-  Pika 与 Redis 的极限 QPS 对比。
+  Compare the maximum QPS between PikiwiDB and Redis.
 
-* ##### 测试条件
+* ##### Test Conditions
 
-  * Pika 的 worker 线程数：20
-  * key 数量：10000
-  * field 数量：100（list除外）
-  * value：128字节
-  * 命令执行次数：1000万（lrange 除外）
-  * Redis 版本：3.2.0
+  * PikiwiDB Worker Thread Count: 20
+  * Number of Keys: 10,000
+  * Number of Fields: 100 (excluding lists)
+  * Value: 128 bytes
+  * Number of Command Executions: 10 million (except for LRANGE)
+  * Redis Version: 3.2.0
 
-* ##### 测试结果
+* ##### Test Result
 
 <img src="https://deep011.github.io/public/images/pika_benchmark/pika_vs_redis_qps.png" height = "60%" width = "60%" alt="1"/>
 
-## 可观测性
+
+## Observability
 
 ### Metrics
 
-* 1. Pika Server Info：系统架构、IP、端口、run_id、配置文件等
-* 2. Pika Data Info：DB 大小、日志大小、内存使用情况等
-* 3. Pika ClientsInfo：连接的客户端
-* 4. Pika Stats Info：compact、slot等状态信息
-* 5. Pika Network Info：客户端和主从复制的传入和传出流量以及速率
-* 6. Pika CPU Info：CPU使用情况
-* 7. Pika Replication Info：主从复制的状态信息，binlog 信息等
-* 8. Pika Keyspace Info：五种数据类型的 Key 信息
-* 9. Pika Command Exec Count Info：命令执行计数
-* 10. Pika Command Execution Time：命令执行耗时
-* 11. RocksDB Metrics：五种数据类型的 RocksDB 信息，包括 Memtable、Block Cache、Compaction、SST File、Blob File 等。
+1. PikiwiDB Server Info: system, ip, port, run_id, config file etc.
+2. PikiwiDB Data Info: db size, log size, memory usage etc.
+3. PikiwiDB Client Info: The number of connected clients.
+4. PikiwiDB Stats Info: status information of compact, slot, etc.
+5. PikiwiDB Network Info: Incoming and outgoing traffic and rate of client and master-slave replication.
+6. PikiwiDB CPU Info: cpu usage.
+7. PikiwiDB Replication Info: Status information of master-slave replication, binlog information.
+8. PikiwiDB Keyspace Info: key information of five data types.
+9. PikiwiDB Command Exec Count Info: command execution count.
+10. PikiwiDB Command Execution Time: Time-consuming command execution.
+11. RocksDB Metrics: RocksDB information of five data types, includes Memtable, Block Cache, Compaction, SST File, Blob File etc.
 
-详细请参考 [指标 Metrics](tools/pika_exporter/README.md)。
+More details on [Metrics](tools/pika_exporter/README.md).
 
-## 文档
+## Documents
 
 * [wiki](https://github.com/OpenAtomFoundation/pika/wiki)
 
 * release notes
-  -  [What's new in Pika v3.5.2](https://my.oschina.net/dubbogo/blog/10315913)
-  -  [What's new in Pika v3.5.1](https://my.oschina.net/dubbogo/blog/10114890)
-  -  [What's new in Pika v3.5.0](https://mp.weixin.qq.com/s/NNnmd0RtQ-vx9arW9YBcBA)
+  -  [What's new in PikiwiDB v3.5.2](https://my.oschina.net/dubbogo/blog/10315913)
+  -  [What's new in PikiwiDB v3.5.1](https://my.oschina.net/dubbogo/blog/10114890)
+  -  [What's new in PikiwiDB v3.5.0](https://mp.weixin.qq.com/s/NNnmd0RtQ-vx9arW9YBcBA)
 
-## 联系方式
+## Contact Us
 
-![联系方式](docs/images/pika-wechat-cn.png)
+![](docs/images/pika-wechat.png)
 
 * [Slack Channel](https://join.slack.com/t/w1687838400-twm937235/shared_invite/zt-1y72dch5d-~9CuERHYUSmfeJZh32Z~qQ)
-
-* QQ群：294254078
