@@ -2037,6 +2037,26 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, "incremental-compact-min-file-age");
     EncodeNumber(&config_body, g_pika_conf->incremental_compact_min_file_age());
   }
+  if (pstd::stringmatch(pattern.data(), "compaction-strategy", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "compaction-strategy");
+    std::string cs;
+    switch (g_pika_conf->compaction_strategy()) {
+      case PikaConf::FullCompact:
+        cs = "full-compact";
+        break;
+      case PikaConf::OldestOrBestDeleteRatioSstCompact:
+        cs = "obd-compact";
+        break;
+      case PikaConf::IncrementalCompact:
+        cs = "incremental-compact";
+        break;
+      default:
+        cs = "none";
+        break;
+    }
+    EncodeString(&config_body, cs);
+  }
   if (pstd::stringmatch(pattern.data(), "network-interface", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "network-interface");
@@ -2375,6 +2395,7 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "incremental-compact-max-time-ms",
         "incremental-compact-min-rate",
         "incremental-compact-min-file-age",
+        "compaction-strategy",
         "slave-priority",
         "sync-window-size",
         "slow-cmd-list",
@@ -2627,6 +2648,15 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetIncrementalCompactMinFileAge(static_cast<int>(ival));
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "compaction-strategy") {
+    if (value != "full-compact" && value != "obd-compact" &&
+        value != "incremental-compact" && value != "none") {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value +
+                           "\' for CONFIG SET 'compaction-strategy'\r\n");
+      return;
+    }
+    g_pika_conf->SetCompactionStrategy(value);
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "rate-limiter-bandwidth") {
     int64_t new_bandwidth = 0;

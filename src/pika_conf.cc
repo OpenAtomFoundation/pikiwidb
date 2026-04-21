@@ -912,16 +912,14 @@ int PikaConf::ConfigRewrite() {
   }
 
   std::string cs_;
-  SetConfStr("compaction-strategy", cs_);
-  if (cs_ == "full-compact") {
-    compaction_strategy_ = FullCompact;
-  } else if (cs_ == "obd-compact") {
-    compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
-  } else if (cs_ == "incremental-compact") {
-    compaction_strategy_ = IncrementalCompact;
-  } else {
-    compaction_strategy_ = NONE;
+  if (compaction_strategy_ == FullCompact) {
+    cs_ = "full-compact";
+  } else if (compaction_strategy_ == OldestOrBestDeleteRatioSstCompact) {
+    cs_ = "obd-compact";
+  } else if (compaction_strategy_ == IncrementalCompact) {
+    cs_ = "incremental-compact";
   }
+  SetConfStr("compaction-strategy", cs_);
 
   // for incremental-compact config update
   SetConfInt("incremental-compact-interval", incremental_compact_interval_);

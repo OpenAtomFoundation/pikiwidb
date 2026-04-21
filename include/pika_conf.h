@@ -744,6 +744,19 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("compact-interval", value);
     compact_interval_ = value;
   }
+  void SetCompactionStrategy(const std::string& value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("compaction-strategy", value);
+    if (value == "full-compact") {
+      compaction_strategy_ = FullCompact;
+    } else if (value == "obd-compact") {
+      compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
+    } else if (value == "incremental-compact") {
+      compaction_strategy_ = IncrementalCompact;
+    } else {
+      compaction_strategy_ = NONE;
+    }
+  }
   void SetDisableAutoCompaction(const std::string& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("disable_auto_compactions", value);
