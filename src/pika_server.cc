@@ -520,8 +520,8 @@ Status PikaServer::DoSameThingEveryDB(const TaskType& type) {
       case TaskType::kCompactOldestOrBestDeleteRatioSst:
         db_item.second->LongestNotCompactionSstCompact(storage::DataType::kAll);
         break;
-      case TaskType::kIncrementalCompact:
-        db_item.second->IncrementalCompact(storage::DataType::kAll);
+      case TaskType::kProgressiveCompact:
+        db_item.second->ProgressiveCompact(storage::DataType::kAll);
         break;
       default:
         break;
@@ -1237,17 +1237,17 @@ void PikaServer::AutoCompactRange() {
     DoSameThingEveryDB(TaskType::kCompactAll);
   } else if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
     DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
-  } else if (g_pika_conf->compaction_strategy() == PikaConf::IncrementalCompact) {
+  } else if (g_pika_conf->compaction_strategy() == PikaConf::ProgressiveCompact) {
     struct timeval now;
     gettimeofday(&now, nullptr);
-    int interval = g_pika_conf->incremental_compact_interval();
+    int interval = g_pika_conf->progressive_compact_interval();
     if (interval <= 0) {
       return;
     }
-    if (last_incremental_compact_time_.tv_sec == 0 ||
-        now.tv_sec - last_incremental_compact_time_.tv_sec >= interval) {
-      gettimeofday(&last_incremental_compact_time_, nullptr);
-      DoSameThingEveryDB(TaskType::kIncrementalCompact);
+    if (last_progressive_compact_time_.tv_sec == 0 ||
+        now.tv_sec - last_progressive_compact_time_.tv_sec >= interval) {
+      gettimeofday(&last_progressive_compact_time_, nullptr);
+      DoSameThingEveryDB(TaskType::kProgressiveCompact);
     }
   }
 }

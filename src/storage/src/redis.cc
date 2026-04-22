@@ -458,10 +458,9 @@ static uint64_t ExtractFileNumber(const std::string& name) {
   return number;
 }
 
-Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
+Status Redis::ProgressiveCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                   const ColumnFamilyType& type, int max_files, int max_time_ms,
                                   int min_rate, int min_file_age) {
-  // 1. 并发控制
   bool no_compact = false;
   bool to_compact = true;
   if (!in_compact_flag_.compare_exchange_strong(no_compact, to_compact, std::memory_order_relaxed,
@@ -470,7 +469,6 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
   }
   DEFER { in_compact_flag_.store(false); };
 
-  // 2. 选择 Column Family
   std::vector<int> handleIdxVec;
   SelectColumnFamilyHandles(option_type, type, handleIdxVec);
   if (handleIdxVec.empty()) {
@@ -484,20 +482,17 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
   int64_t now_sec = std::time(nullptr);
 
   for (auto idx : handleIdxVec) {
-    // 每个 CF 独立计时和配额
     auto cf_start_time = std::chrono::steady_clock::now();
     int processed = 0;
 
     while (processed < max_files) {
-      // 3.1 检查该 CF 的超时
       auto elapsed = std::chrono::steady_clock::now() - cf_start_time;
       if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() >= max_time_ms) {
-        LOG(INFO) << "IncrementalCompact timeout for cf=" << handles_[idx]->GetName()
+        LOG(INFO) << "ProgressiveCompact timeout for cf=" << handles_[idx]->GetName()
                   << ", processed " << processed << " files";
         break;
       }
 
-      // 3.2 获取元数据，找最老的文件
       rocksdb::ColumnFamilyMetaData meta;
       db_->GetColumnFamilyMetaData(handles_[idx], &meta);
 
@@ -506,13 +501,13 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       uint64_t oldest_number = UINT64_MAX;
 
       for (const auto& level_meta : meta.levels) {
-        // FIX: 跳过 L0 和 L6，L0 让 RocksDB 自动处理，L6 没有下一层不参与 incremental compact
+        // Skip L0 (handled by RocksDB) and L6 (no next level)
         if (level_meta.level == 0 || level_meta.level >= 6) {
           continue;
         }
 
         for (const auto& file_meta : level_meta.files) {
-          // 跳过太新的文件
+          // Skip files that are too new
           if (file_meta.file_creation_time > 0 &&
               (now_sec - file_meta.file_creation_time) < min_file_age) {
             continue;
@@ -528,16 +523,15 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
       }
 
       if (oldest_file.empty()) {
-        break;  // 没有符合条件的文件
+        break;
       }
 
-      // 3.3 使用 CompactFiles 进行 compact（只处理 L1-L5）
       std::vector<std::string> input_files{oldest_file};
       rocksdb::CompactionOptions compact_options;
-      // 目标层 = 当前层 + 1（L1→L2, L2→L3, ... L5→L6）
+      // Destination level = current level + 1 (L1→L2, ... L5→L6)
       int dest_level = oldest_level + 1;
 
-      LOG(INFO) << "IncrementalCompact start: file=" << oldest_file
+      LOG(INFO) << "ProgressiveCompact start: file=" << oldest_file
                 << ", cf=" << handles_[idx]->GetName()
                 << ", from_level=" << oldest_level
                 << ", to_level=" << dest_level;
@@ -548,7 +542,7 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
                                    nullptr, &job_info);
 
       if (!s.ok()) {
-        LOG(WARNING) << "IncrementalCompact failed for file " << oldest_file
+        LOG(WARNING) << "ProgressiveCompact failed for file " << oldest_file
                      << ": " << s.ToString();
         if (compact_result_vec) {
           compact_result_vec->push_back(s);
@@ -556,13 +550,13 @@ Status Redis::IncrementalCompact(const DataType& option_type, std::vector<Status
         break;
       }
 
-      // 3.4 检查压缩率，决定是否继续
+      // Check compression rate to decide whether to continue
       if (job_info.stats.num_input_records > 0) {
         int rate = job_info.stats.num_output_records * 100 / job_info.stats.num_input_records;
-        LOG(INFO) << "IncrementalCompact " << oldest_file << " rate=" << rate << "%";
+        LOG(INFO) << "ProgressiveCompact " << oldest_file << " rate=" << rate << "%";
 
         if (rate >= min_rate) {
-          // 压缩效果好，暂停处理
+          // Good compression rate, stop processing
           break;
         }
       }

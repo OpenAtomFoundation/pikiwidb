@@ -2012,30 +2012,30 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, "disable_auto_compactions");
     EncodeString(&config_body, g_pika_conf->disable_auto_compactions() ? "true" : "false");
   }
-  if (pstd::stringmatch(pattern.data(), "incremental-compact-interval", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "progressive-compact-interval", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "incremental-compact-interval");
-    EncodeNumber(&config_body, g_pika_conf->incremental_compact_interval());
+    EncodeString(&config_body, "progressive-compact-interval");
+    EncodeNumber(&config_body, g_pika_conf->progressive_compact_interval());
   }
-  if (pstd::stringmatch(pattern.data(), "incremental-compact-max-files", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "progressive-compact-max-files", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "incremental-compact-max-files");
-    EncodeNumber(&config_body, g_pika_conf->incremental_compact_max_files());
+    EncodeString(&config_body, "progressive-compact-max-files");
+    EncodeNumber(&config_body, g_pika_conf->progressive_compact_max_files());
   }
-  if (pstd::stringmatch(pattern.data(), "incremental-compact-max-time-ms", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "progressive-compact-max-time-ms", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "incremental-compact-max-time-ms");
-    EncodeNumber(&config_body, g_pika_conf->incremental_compact_max_time_ms());
+    EncodeString(&config_body, "progressive-compact-max-time-ms");
+    EncodeNumber(&config_body, g_pika_conf->progressive_compact_max_time_ms());
   }
-  if (pstd::stringmatch(pattern.data(), "incremental-compact-min-rate", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "progressive-compact-min-rate", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "incremental-compact-min-rate");
-    EncodeNumber(&config_body, g_pika_conf->incremental_compact_min_rate());
+    EncodeString(&config_body, "progressive-compact-min-rate");
+    EncodeNumber(&config_body, g_pika_conf->progressive_compact_min_rate());
   }
-  if (pstd::stringmatch(pattern.data(), "incremental-compact-min-file-age", 1) != 0) {
+  if (pstd::stringmatch(pattern.data(), "progressive-compact-min-file-age", 1) != 0) {
     elements += 2;
-    EncodeString(&config_body, "incremental-compact-min-file-age");
-    EncodeNumber(&config_body, g_pika_conf->incremental_compact_min_file_age());
+    EncodeString(&config_body, "progressive-compact-min-file-age");
+    EncodeNumber(&config_body, g_pika_conf->progressive_compact_min_file_age());
   }
   if (pstd::stringmatch(pattern.data(), "compaction-strategy", 1) != 0) {
     elements += 2;
@@ -2048,8 +2048,8 @@ void ConfigCmd::ConfigGet(std::string& ret) {
       case PikaConf::OldestOrBestDeleteRatioSstCompact:
         cs = "obd-compact";
         break;
-      case PikaConf::IncrementalCompact:
-        cs = "incremental-compact";
+      case PikaConf::ProgressiveCompact:
+        cs = "progressive-compact";
         break;
       default:
         cs = "none";
@@ -2390,11 +2390,11 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "compact-cron",
         "compact-interval",
         "disable_auto_compactions",
-        "incremental-compact-interval",
-        "incremental-compact-max-files",
-        "incremental-compact-max-time-ms",
-        "incremental-compact-min-rate",
-        "incremental-compact-min-file-age",
+        "progressive-compact-interval",
+        "progressive-compact-max-files",
+        "progressive-compact-max-time-ms",
+        "progressive-compact-min-rate",
+        "progressive-compact-min-file-age",
         "compaction-strategy",
         "slave-priority",
         "sync-window-size",
@@ -2614,44 +2614,44 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
     }
     g_pika_conf->SetDisableAutoCompaction(value);
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "incremental-compact-interval") {
+  } else if (set_item == "progressive-compact-interval") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'incremental-compact-interval'\r\n");
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'progressive-compact-interval'\r\n");
       return;
     }
-    g_pika_conf->SetIncrementalCompactInterval(static_cast<int>(ival));
+    g_pika_conf->SetProgressiveCompactInterval(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "incremental-compact-max-files") {
+  } else if (set_item == "progressive-compact-max-files") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'incremental-compact-max-files'\r\n");
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'progressive-compact-max-files'\r\n");
       return;
     }
-    g_pika_conf->SetIncrementalCompactMaxFiles(static_cast<int>(ival));
+    g_pika_conf->SetProgressiveCompactMaxFiles(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "incremental-compact-max-time-ms") {
+  } else if (set_item == "progressive-compact-max-time-ms") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'incremental-compact-max-time-ms'\r\n");
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'progressive-compact-max-time-ms'\r\n");
       return;
     }
-    g_pika_conf->SetIncrementalCompactMaxTimeMs(static_cast<int>(ival));
+    g_pika_conf->SetProgressiveCompactMaxTimeMs(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "incremental-compact-min-rate") {
+  } else if (set_item == "progressive-compact-min-rate") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival <= 0 || ival > 100) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'incremental-compact-min-rate'\r\n");
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'progressive-compact-min-rate'\r\n");
       return;
     }
-    g_pika_conf->SetIncrementalCompactMinRate(static_cast<int>(ival));
+    g_pika_conf->SetProgressiveCompactMinRate(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
-  } else if (set_item == "incremental-compact-min-file-age") {
+  } else if (set_item == "progressive-compact-min-file-age") {
     if (pstd::string2int(value.data(), value.size(), &ival) == 0 || ival < 0) {
-      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'incremental-compact-min-file-age'\r\n");
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'progressive-compact-min-file-age'\r\n");
       return;
     }
-    g_pika_conf->SetIncrementalCompactMinFileAge(static_cast<int>(ival));
+    g_pika_conf->SetProgressiveCompactMinFileAge(static_cast<int>(ival));
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "compaction-strategy") {
     if (value != "full-compact" && value != "obd-compact" &&
-        value != "incremental-compact" && value != "none") {
+        value != "progressive-compact" && value != "none") {
       res_.AppendStringRaw("-ERR Invalid argument \'" + value +
                            "\' for CONFIG SET 'compaction-strategy'\r\n");
       return;

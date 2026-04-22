@@ -341,32 +341,32 @@ int PikaConf::Load() {
     compaction_strategy_ = FullCompact;
   } else if (cs_ == "obd-compact") {
     compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
-  } else if (cs_ == "incremental-compact") {
-    compaction_strategy_ = IncrementalCompact;
+  } else if (cs_ == "progressive-compact") {
+    compaction_strategy_ = ProgressiveCompact;
   } else {
     compaction_strategy_ = NONE;
   }
 
-  // for incremental-compact
-  GetConfInt("incremental-compact-interval", &incremental_compact_interval_);
-  if (incremental_compact_interval_ <= 0) {
-    incremental_compact_interval_ = 60;
+  // for progressive-compact
+  GetConfInt("progressive-compact-interval", &progressive_compact_interval_);
+  if (progressive_compact_interval_ <= 0) {
+    progressive_compact_interval_ = 60;
   }
-  GetConfInt("incremental-compact-max-files", &incremental_compact_max_files_);
-  if (incremental_compact_max_files_ <= 0) {
-    incremental_compact_max_files_ = 1;
+  GetConfInt("progressive-compact-max-files", &progressive_compact_max_files_);
+  if (progressive_compact_max_files_ <= 0) {
+    progressive_compact_max_files_ = 1;
   }
-  GetConfInt("incremental-compact-max-time-ms", &incremental_compact_max_time_ms_);
-  if (incremental_compact_max_time_ms_ <= 0) {
-    incremental_compact_max_time_ms_ = 1000;
+  GetConfInt("progressive-compact-max-time-ms", &progressive_compact_max_time_ms_);
+  if (progressive_compact_max_time_ms_ <= 0) {
+    progressive_compact_max_time_ms_ = 1000;
   }
-  GetConfInt("incremental-compact-min-rate", &incremental_compact_min_rate_);
-  if (incremental_compact_min_rate_ <= 0 || incremental_compact_min_rate_ > 100) {
-    incremental_compact_min_rate_ = 70;
+  GetConfInt("progressive-compact-min-rate", &progressive_compact_min_rate_);
+  if (progressive_compact_min_rate_ <= 0 || progressive_compact_min_rate_ > 100) {
+    progressive_compact_min_rate_ = 70;
   }
-  GetConfInt("incremental-compact-min-file-age", &incremental_compact_min_file_age_);
-  if (incremental_compact_min_file_age_ < 0) {
-    incremental_compact_min_file_age_ = 60;
+  GetConfInt("progressive-compact-min-file-age", &progressive_compact_min_file_age_);
+  if (progressive_compact_min_file_age_ < 0) {
+    progressive_compact_min_file_age_ = 60;
   }
 
   // least-free-disk-resume-size
@@ -916,17 +916,17 @@ int PikaConf::ConfigRewrite() {
     cs_ = "full-compact";
   } else if (compaction_strategy_ == OldestOrBestDeleteRatioSstCompact) {
     cs_ = "obd-compact";
-  } else if (compaction_strategy_ == IncrementalCompact) {
-    cs_ = "incremental-compact";
+  } else if (compaction_strategy_ == ProgressiveCompact) {
+    cs_ = "progressive-compact";
   }
   SetConfStr("compaction-strategy", cs_);
 
-  // for incremental-compact config update
-  SetConfInt("incremental-compact-interval", incremental_compact_interval_);
-  SetConfInt("incremental-compact-max-files", incremental_compact_max_files_);
-  SetConfInt("incremental-compact-max-time-ms", incremental_compact_max_time_ms_);
-  SetConfInt("incremental-compact-min-rate", incremental_compact_min_rate_);
-  SetConfInt("incremental-compact-min-file-age", incremental_compact_min_file_age_);
+  // for progressive-compact config update
+  SetConfInt("progressive-compact-interval", progressive_compact_interval_);
+  SetConfInt("progressive-compact-max-files", progressive_compact_max_files_);
+  SetConfInt("progressive-compact-max-time-ms", progressive_compact_max_time_ms_);
+  SetConfInt("progressive-compact-min-rate", progressive_compact_min_rate_);
+  SetConfInt("progressive-compact-min-file-age", progressive_compact_min_file_age_);
 
   SetConfStr("disable_auto_compactions", disable_auto_compactions_ ? "true" : "false");
   SetConfStr("cache-type", scachetype);
