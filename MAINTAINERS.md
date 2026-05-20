@@ -30,16 +30,8 @@ Committers have a sustained history of high-quality contributions across multipl
 | [@chenbt-hz](https://github.com/chenbt-hz) | chenbt |
 | [@guangkun123](https://github.com/guangkun123) | guangkun |
 | [@wanghenshui](https://github.com/wanghenshui) | wanghenshui |
-| [@QlQlqiqi](https://github.com/QlQlqiqi) | QlQl |
-| [@cheniujh](https://github.com/cheniujh) | cheniujh |
-| [@YuCai18](https://github.com/YuCai18) | Yu Cai |
-| [@XiaoLiang2333](https://github.com/XiaoLiang2333) | DawnBeams |
-| [@luky116](https://github.com/luky116) | JayLiu |
-| [@buzhimingyonghu](https://github.com/buzhimingyonghu) | buzhimingyonghu |
-| [@dingxiaoshuai123](https://github.com/dingxiaoshuai123) | dingxiaoshuai |
-| [@lqxhub](https://github.com/lqxhub) | lqxhub |
-| [@chengyu-l](https://github.com/chengyu-l) | chengyu-l |
-| [@baerwang](https://github.com/baerwang) | baerwang |
+| [@machily](https://github.com/machily) | machily |
+| [@QX](https://github.com/QX) | QX |
 
 ## Notable Contributors
 
