@@ -33,7 +33,8 @@ class PikaConf : public pstd::BaseConf {
   enum CompactionStrategy {
     NONE,
     FullCompact,
-    OldestOrBestDeleteRatioSstCompact
+    OldestOrBestDeleteRatioSstCompact,
+    ProgressiveCompact
   };
   PikaConf(const std::string& path);
   ~PikaConf() override = default;
@@ -146,6 +147,26 @@ class PikaConf : public pstd::BaseConf {
   CompactionStrategy compaction_strategy() {
     std::shared_lock l(rwlock_);
     return compaction_strategy_;
+  }
+  int progressive_compact_interval() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_interval_;
+  }
+  int progressive_compact_max_files() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_max_files_;
+  }
+  int progressive_compact_max_time_ms() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_max_time_ms_;
+  }
+  int progressive_compact_min_rate() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_min_rate_;
+  }
+  int progressive_compact_min_file_age() {
+    std::shared_lock l(rwlock_);
+    return progressive_compact_min_file_age_;
   }
   bool disable_auto_compactions() {
     std::shared_lock l(rwlock_);
@@ -723,10 +744,48 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("compact-interval", value);
     compact_interval_ = value;
   }
+  void SetCompactionStrategy(const std::string& value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("compaction-strategy", value);
+    if (value == "full-compact") {
+      compaction_strategy_ = FullCompact;
+    } else if (value == "obd-compact") {
+      compaction_strategy_ = OldestOrBestDeleteRatioSstCompact;
+    } else if (value == "progressive-compact") {
+      compaction_strategy_ = ProgressiveCompact;
+    } else {
+      compaction_strategy_ = NONE;
+    }
+  }
   void SetDisableAutoCompaction(const std::string& value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("disable_auto_compactions", value);
     disable_auto_compactions_ = value == "true";
+  }
+  void SetProgressiveCompactInterval(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-interval", std::to_string(value));
+    progressive_compact_interval_ = value;
+  }
+  void SetProgressiveCompactMaxFiles(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-max-files", std::to_string(value));
+    progressive_compact_max_files_ = value;
+  }
+  void SetProgressiveCompactMaxTimeMs(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-max-time-ms", std::to_string(value));
+    progressive_compact_max_time_ms_ = value;
+  }
+  void SetProgressiveCompactMinRate(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-min-rate", std::to_string(value));
+    progressive_compact_min_rate_ = value;
+  }
+  void SetProgressiveCompactMinFileAge(const int value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-min-file-age", std::to_string(value));
+    progressive_compact_min_file_age_ = value;
   }
   void SetMaxSubcompactions(const int& value) {
     std::lock_guard l(rwlock_);
@@ -1039,6 +1098,13 @@ class PikaConf : public pstd::BaseConf {
   int dont_compact_sst_created_in_seconds_;
   int best_delete_min_ratio_;
   CompactionStrategy compaction_strategy_;
+
+  // for progressive-compact
+  int progressive_compact_interval_ = 60;
+  int progressive_compact_max_files_ = 1;
+  int progressive_compact_max_time_ms_ = 1000;
+  int progressive_compact_min_rate_ = 70;
+  int progressive_compact_min_file_age_ = 60;
 
   int64_t resume_check_interval_ = 60; // seconds
   int64_t least_free_disk_to_resume_ = 268435456; // 256 MB

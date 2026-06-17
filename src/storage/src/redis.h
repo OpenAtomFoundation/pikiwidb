@@ -110,6 +110,11 @@ class Redis {
   virtual Status LongestNotCompactionSstCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                                 const ColumnFamilyType& type = kMetaAndData);
 
+  virtual Status ProgressiveCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
+                                    const ColumnFamilyType& type = kMetaAndData,
+                                    int max_files = 1, int max_time_ms = 1000,
+                                    int min_rate = 70, int min_file_age = 60);
+
   virtual Status GetProperty(const std::string& property, uint64_t* out);
 
   Status ScanKeyNum(std::vector<KeyInfo>* key_info);
@@ -520,7 +525,7 @@ private:
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;
   rocksdb::CompactRangeOptions default_compact_range_options_;
-  std::atomic<bool> in_compact_flag_;
+  std::atomic<bool> in_compact_flag_{false};
   OBDSstListener listener_; // listening created sst file while compacting in OBD-compact
 
   // For Scan
