@@ -363,4 +363,113 @@ var _ = Describe("Cache test", func() {
 		Expect(MultiMget.Err()).NotTo(HaveOccurred())
 		Expect(MultiMget.Val()).To(Equal([]interface{}{"BAR", nil, "FOO", nil}))
 	})
+
+	// The following cases guard the zset range-by-score / range-by-lex cache
+	// read paths. They assert that the cache-hit result (second query, after the
+	// async cache warm-up) matches the db-sourced result, especially with a
+	// LIMIT offset/count applied. See ZRangebyscore/ZRevrangebyscore cache flags
+	// and ZRevrangebylex::ReadCache offset handling.
+	It("should ZRangeByScore hit cache consistently with LIMIT", func() {
+		zsetKey := "zbyscore{t}"
+		members := []redis.Z{
+			{Score: 1, Member: "a"},
+			{Score: 2, Member: "b"},
+			{Score: 3, Member: "c"},
+			{Score: 4, Member: "d"},
+			{Score: 5, Member: "e"},
+		}
+		Expect(client.ZAdd(ctx, zsetKey, members...).Err()).NotTo(HaveOccurred())
+
+		fullOpt := &redis.ZRangeBy{Min: "1", Max: "5"}
+		limitOpt := &redis.ZRangeBy{Min: "1", Max: "5", Offset: 1, Count: 2}
+
+		// First query goes through the DB and triggers async cache load.
+		dbFull, err := client.ZRangeByScore(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbFull).To(Equal([]string{"a", "b", "c", "d", "e"}))
+
+		dbLimit, err := client.ZRangeByScore(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbLimit).To(Equal([]string{"b", "c"}))
+
+		// Wait for the key to be loaded into the cache, then read again so the
+		// ReadCache path is exercised.
+		time.Sleep(2 * time.Second)
+
+		cacheFull, err := client.ZRangeByScore(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheFull).To(Equal(dbFull))
+
+		cacheLimit, err := client.ZRangeByScore(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheLimit).To(Equal(dbLimit))
+	})
+
+	It("should ZRevRangeByScore hit cache consistently with LIMIT", func() {
+		zsetKey := "zrevbyscore{t}"
+		members := []redis.Z{
+			{Score: 1, Member: "a"},
+			{Score: 2, Member: "b"},
+			{Score: 3, Member: "c"},
+			{Score: 4, Member: "d"},
+			{Score: 5, Member: "e"},
+		}
+		Expect(client.ZAdd(ctx, zsetKey, members...).Err()).NotTo(HaveOccurred())
+
+		fullOpt := &redis.ZRangeBy{Min: "1", Max: "5"}
+		limitOpt := &redis.ZRangeBy{Min: "1", Max: "5", Offset: 1, Count: 2}
+
+		dbFull, err := client.ZRevRangeByScore(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbFull).To(Equal([]string{"e", "d", "c", "b", "a"}))
+
+		dbLimit, err := client.ZRevRangeByScore(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbLimit).To(Equal([]string{"d", "c"}))
+
+		time.Sleep(2 * time.Second)
+
+		cacheFull, err := client.ZRevRangeByScore(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheFull).To(Equal(dbFull))
+
+		cacheLimit, err := client.ZRevRangeByScore(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheLimit).To(Equal(dbLimit))
+	})
+
+	It("should ZRevRangeByLex hit cache consistently with LIMIT", func() {
+		zsetKey := "zrevbylex{t}"
+		// Members share the same score so ordering is purely lexicographical.
+		members := []redis.Z{
+			{Score: 0, Member: "a"},
+			{Score: 0, Member: "b"},
+			{Score: 0, Member: "c"},
+			{Score: 0, Member: "d"},
+			{Score: 0, Member: "e"},
+		}
+		Expect(client.ZAdd(ctx, zsetKey, members...).Err()).NotTo(HaveOccurred())
+
+		fullOpt := &redis.ZRangeBy{Min: "-", Max: "+"}
+		limitOpt := &redis.ZRangeBy{Min: "-", Max: "+", Offset: 1, Count: 2}
+
+		dbFull, err := client.ZRevRangeByLex(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbFull).To(Equal([]string{"e", "d", "c", "b", "a"}))
+
+		// offset 1, count 2 in reverse order -> skip "e", take "d", "c".
+		dbLimit, err := client.ZRevRangeByLex(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(dbLimit).To(Equal([]string{"d", "c"}))
+
+		time.Sleep(2 * time.Second)
+
+		cacheFull, err := client.ZRevRangeByLex(ctx, zsetKey, fullOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheFull).To(Equal(dbFull))
+
+		cacheLimit, err := client.ZRevRangeByLex(ctx, zsetKey, limitOpt).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cacheLimit).To(Equal(dbLimit))
+	})
 })
