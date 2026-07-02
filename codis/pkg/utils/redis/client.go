@@ -356,6 +356,22 @@ func (c *Client) SetMaster(master string, force bool) error {
 	return nil
 }
 
+// SetPauseWrite toggles the role-independent write-pause switch on a pika
+// instance via `CONFIG SET pause-write yes/no`. It is used to stop writes on
+// the old master before a master switch so the new master can catch up the
+// binlog offset. The switch is runtime-only on the pika side (cleared on
+// restart), so callers must still make a best effort to turn it back off.
+func (c *Client) SetPauseWrite(pause bool) error {
+	value := "no"
+	if pause {
+		value = "yes"
+	}
+	if _, err := c.Do("CONFIG", "set", "pause-write", value); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
 func (c *Client) MigrateSlot(slot int, target string) (int, error) {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil {

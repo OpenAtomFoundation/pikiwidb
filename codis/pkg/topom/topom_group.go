@@ -282,6 +282,47 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		defer s.dirtyGroupCache(g.Id)
 
 		var index = g.Promoting.Index
+
+		// Before rearranging the servers, capture the current master (old
+		// master) and the server being promoted (new master). If configured,
+		// pause writes on the old master and wait for the new master to catch
+		// up its binlog offset, so the old master can later become a slave of
+		// the new master without a stale-offset slaveof failure.
+		oldMasterAddr := g.Servers[0].Addr
+		newMasterAddr := g.Servers[index].Addr
+		// forceOldMasterFullSync records whether the old master must do a full
+		// resync (slaveof ... force) because the new master could not catch up
+		// within the timeout and the configured policy is "force".
+		var forceOldMasterFullSync bool
+		if s.config.PromotePauseWrite {
+			aligned, werr := s.waitCatchUpBeforePromote(oldMasterAddr, newMasterAddr)
+			if !aligned {
+				switch s.config.PromoteAlignOnTimeout {
+				case "force":
+					// Proceed with the switch; the old master will full-resync.
+					forceOldMasterFullSync = true
+					log.Warnf("group-[%d] promote: new master[%s] not caught up, proceeding with force full sync of old master[%s]",
+						g.Id, newMasterAddr, oldMasterAddr)
+				default: // "abort"
+					// Restore the old master and roll back the promotion.
+					_ = setPauseWrite(oldMasterAddr, s.config.ProductAuth, false)
+					if werr != nil {
+						log.Warnf("group-[%d] promote aborted, err:%v", g.Id, werr)
+					}
+					g.Promoting.Index = 0
+					g.Promoting.State = models.ActionNothing
+					if serr := s.storeUpdateGroup(g); serr != nil {
+						return serr
+					}
+					if werr != nil {
+						return werr
+					}
+					return errors.Errorf("group-[%d] promote aborted: new master[%s] failed to catch up old master[%s] within %s",
+						g.Id, newMasterAddr, oldMasterAddr, s.config.PromoteAlignTimeout)
+				}
+			}
+		}
+
 		var slice = make([]*models.GroupServer, 0, len(g.Servers))
 		slice = append(slice, g.Servers[index])
 		for i, x := range g.Servers {
@@ -302,7 +343,16 @@ func (s *Topom) GroupPromoteServer(gid int, addr string) error {
 		if err := s.storeUpdateGroup(g); err != nil {
 			return err
 		}
-		_ = promoteServerToNewMaster(slice[0].Addr, s.config.ProductAuth)
+		// Promote the new master (slaveof no one).
+		_ = promoteServerToNewMaster(newMasterAddr, s.config.ProductAuth)
+
+		// Demote the old master to a slave of the new master in the same flow.
+		// This must not be left to the heartbeat fixer: the old master is still
+		// in master role (and write-paused), and a plain (non-force) slaveof
+		// from a master is rejected by pika ("already master of others").
+		if s.config.PromotePauseWrite {
+			s.demoteOldMasterToSlave(oldMasterAddr, newMasterAddr, forceOldMasterFullSync)
+		}
 		fallthrough
 
 	case models.ActionFinished:
@@ -504,8 +554,42 @@ func (s *Topom) doSwitchGroupMaster(g *models.Group, newMasterAddr string, newMa
 	}
 
 	log.Warnf("group-[%d] will switch master to server[%d] = %s", g.Id, newMasterIndex, newMasterAddr)
+
+	// If the old master is still reachable (e.g. an intentional switch rather
+	// than a crash), pause writes on it and wait for the new master to catch
+	// up its binlog offset before promoting, so the old master can rejoin as a
+	// slave without a stale-offset slaveof failure. When the old master is
+	// offline (the common HA failover case), there is nothing to pause and no
+	// live write stream, so we skip alignment and rely on SelectNewMaster
+	// having already picked the slave with the latest offset.
+	oldMaster := g.Servers[0]
+	forceOldMasterFullSync := false
+	pausedOldMaster := false
+	if s.config.PromotePauseWrite && oldMaster.State == models.GroupServerStateNormal && oldMaster.Addr != newMasterAddr {
+		aligned, werr := s.waitCatchUpBeforePromote(oldMaster.Addr, newMasterAddr)
+		pausedOldMaster = true
+		if !aligned {
+			if s.config.PromoteAlignOnTimeout == "force" {
+				forceOldMasterFullSync = true
+				log.Warnf("group-[%d] switch: new master[%s] not caught up, proceeding with force full sync of old master[%s]",
+					g.Id, newMasterAddr, oldMaster.Addr)
+			} else {
+				// abort: restore the old master and cancel the switch
+				_ = setPauseWrite(oldMaster.Addr, s.config.ProductAuth, false)
+				if werr != nil {
+					log.Warnf("group-[%d] switch aborted, err:%v", g.Id, werr)
+				}
+				return errors.Errorf("group-[%d] switch aborted: new master[%s] failed to catch up old master[%s] within %s",
+					g.Id, newMasterAddr, oldMaster.Addr, s.config.PromoteAlignTimeout)
+			}
+		}
+	}
+
 	// Set the slave node as the new master node
 	if err = promoteServerToNewMaster(newMasterAddr, s.config.ProductAuth); err != nil {
+		if pausedOldMaster {
+			_ = setPauseWrite(oldMaster.Addr, s.config.ProductAuth, false)
+		}
 		return errors.Errorf("promote server[%v] to new master failed, err:%v", newMasterAddr, err)
 	}
 
@@ -521,6 +605,15 @@ func (s *Topom) doSwitchGroupMaster(g *models.Group, newMasterAddr string, newMa
 	// Set other nodes in the group as slave nodes of the new master node
 	for _, server := range g.Servers {
 		if server.State != models.GroupServerStateNormal || server.Addr == newMasterAddr {
+			continue
+		}
+
+		// The paused old master is still in master role: clear it first, then
+		// attach it (force full sync if the new master could not catch up).
+		if pausedOldMaster && server.Addr == oldMaster.Addr {
+			s.demoteOldMasterToSlave(oldMaster.Addr, newMasterAddr, forceOldMasterFullSync)
+			server.Action.State = models.ActionSynced
+			server.Role = models.RoleSlave
 			continue
 		}
 
@@ -570,6 +663,145 @@ func setNewRedisMaster(serverAddr, masterAddr string, auth string, force bool) (
 		return errors.Errorf("server[%s] set master to %s failed, force:%v err:%v", serverAddr, masterAddr, force, err)
 	}
 	return err
+}
+
+// setPauseWrite toggles the role-independent write-pause switch on a pika
+// instance. It is used to stop / resume writes on the old master during a
+// master switch.
+func setPauseWrite(serverAddr, auth string, pause bool) (err error) {
+	var rc *redis.Client
+	if rc, err = redis.NewClient(serverAddr, auth, 500*time.Millisecond); err != nil {
+		return errors.Errorf("create redis client to %s failed, err:%v", serverAddr, err)
+	}
+	defer rc.Close()
+	if err = rc.SetPauseWrite(pause); err != nil {
+		return errors.Errorf("server[%s] set pause-write to %v failed, err:%v", serverAddr, pause, err)
+	}
+	return nil
+}
+
+// getBinlogOffset reads the current binlog (file_num, offset) of a pika
+// instance via `info replication`.
+func getBinlogOffset(serverAddr, auth string) (fileNum uint64, offset uint64, err error) {
+	var rc *redis.Client
+	if rc, err = redis.NewClient(serverAddr, auth, 500*time.Millisecond); err != nil {
+		return 0, 0, errors.Errorf("create redis client to %s failed, err:%v", serverAddr, err)
+	}
+	defer rc.Close()
+	info, err := rc.InfoReplication()
+	if err != nil {
+		return 0, 0, errors.Errorf("get info replication from %s failed, err:%v", serverAddr, err)
+	}
+	return info.DbBinlogFileNum, info.DbBinlogOffset, nil
+}
+
+// binlogCaughtUp reports whether the new master's binlog position (newFileNum,
+// newOffset) has reached the old master's target position (oldFileNum,
+// oldOffset), tolerating up to `threshold` bytes of lag within the same file.
+func binlogCaughtUp(newFileNum, newOffset, oldFileNum, oldOffset, threshold uint64) bool {
+	if newFileNum > oldFileNum {
+		return true
+	}
+	if newFileNum < oldFileNum {
+		return false
+	}
+	// same file number
+	return newOffset+threshold >= oldOffset
+}
+
+// waitCatchUpBeforePromote pauses writes on the old master and then polls the
+// new master until its binlog offset catches up to the old master's frozen
+// position, or until the configured timeout elapses.
+//
+// On success it returns aligned=true with writes still paused on the old
+// master (the caller is responsible for the subsequent slaveof / resume). If
+// pausing writes fails, it returns err with pause best-effort cleared. If the
+// timeout elapses without catching up, it returns aligned=false (writes remain
+// paused) and lets the caller decide whether to abort or force per config.
+//
+// NOTE: the caller (GroupPromoteServer) holds s.mu while this runs, so the
+// timeout is kept short (default 15s) to bound how long the dashboard lock is
+// held.
+func (s *Topom) waitCatchUpBeforePromote(oldMasterAddr, newMasterAddr string) (aligned bool, err error) {
+	auth := s.config.ProductAuth
+
+	// 1. Stop writes on the old master so its binlog offset stops advancing.
+	if err = setPauseWrite(oldMasterAddr, auth, true); err != nil {
+		// best effort resume, then bail out
+		_ = setPauseWrite(oldMasterAddr, auth, false)
+		return false, errors.Errorf("pause write on old master[%s] failed, err:%v", oldMasterAddr, err)
+	}
+	log.Warnf("promote: paused write on old master[%s], waiting new master[%s] to catch up", oldMasterAddr, newMasterAddr)
+
+	// 2. Read the frozen target offset of the old master.
+	oldFileNum, oldOffset, err := getBinlogOffset(oldMasterAddr, auth)
+	if err != nil {
+		return false, errors.Errorf("read old master[%s] binlog offset failed, err:%v", oldMasterAddr, err)
+	}
+
+	// 3. Poll the new master until it catches up or the timeout elapses.
+	threshold := s.config.PromoteAlignOffsetThreshold
+	deadline := time.Now().Add(s.config.PromoteAlignTimeout.Duration())
+	for {
+		newFileNum, newOffset, gerr := getBinlogOffset(newMasterAddr, auth)
+		if gerr != nil {
+			// transient read error; keep retrying until the deadline
+			log.Warnf("promote: read new master[%s] binlog offset failed, err:%v", newMasterAddr, gerr)
+		} else if binlogCaughtUp(newFileNum, newOffset, oldFileNum, oldOffset, threshold) {
+			log.Warnf("promote: new master[%s] caught up (file:%d offset:%d) old master[%s] (file:%d offset:%d)",
+				newMasterAddr, newFileNum, newOffset, oldMasterAddr, oldFileNum, oldOffset)
+			return true, nil
+		}
+
+		if time.Now().After(deadline) {
+			log.Warnf("promote: new master[%s] failed to catch up old master[%s] (file:%d offset:%d) within %s",
+				newMasterAddr, oldMasterAddr, oldFileNum, oldOffset, s.config.PromoteAlignTimeout)
+			return false, nil
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+}
+
+// demoteOldMasterToSlave turns the paused old master into a slave of the new
+// master, then resumes writes on it. The old master is still in master role
+// here, and pika rejects a plain (non-force) slaveof from a master
+// ("already master of others"); so we first clear its master role with
+// `slaveof no one`, then attach it to the new master.
+//
+// When forceFullSync is true (the new master could not catch up within the
+// timeout), we attach with `slaveof ... force` so the old master does a full
+// resync. Otherwise the new master has already covered the old master's binlog
+// position, so a plain incremental slaveof is enough.
+//
+// It always makes a best effort to resume writes so the old master can never
+// be left permanently read-only.
+func (s *Topom) demoteOldMasterToSlave(oldMasterAddr, newMasterAddr string, forceFullSync bool) {
+	auth := s.config.ProductAuth
+	defer func() {
+		// The old master is now a slave (writes are blocked by
+		// slave-read-only), but clear the runtime pause switch anyway so it is
+		// never left dangling.
+		if rerr := setPauseWrite(oldMasterAddr, auth, false); rerr != nil {
+			log.Warnf("promote: resume write on old master[%s] failed, err:%v", oldMasterAddr, rerr)
+		}
+	}()
+
+	// Clear the master role first so a non-force slaveof is accepted.
+	if err := promoteServerToNewMaster(oldMasterAddr, auth); err != nil {
+		log.Warnf("promote: clear old master[%s] role before demote failed, err:%v", oldMasterAddr, err)
+	}
+
+	var derr error
+	if forceFullSync {
+		derr = updateMasterToNewOneForcefully(oldMasterAddr, newMasterAddr, auth)
+	} else {
+		derr = updateMasterToNewOne(oldMasterAddr, newMasterAddr, auth)
+	}
+	if derr != nil {
+		// Leave the remaining fix to the heartbeat fixer; writes are resumed by
+		// the deferred call above.
+		log.Warnf("promote: demote old master[%s] to slave of[%s] failed, err:%v", oldMasterAddr, newMasterAddr, derr)
+	}
 }
 
 func (s *Topom) EnableReplicaGroups(gid int, addr string, value bool) error {

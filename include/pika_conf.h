@@ -327,6 +327,13 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return slave_read_only_;
   }
+  // pause_write is independent of the master/slave role. When enabled, it makes
+  // the instance reject all writes even if it is currently a master. It is used
+  // by codis to stop writes on the old master before a master switch so the new
+  // master can catch up the binlog offset. It is intentionally not persisted to
+  // the config file, so a process restart always clears it and can never leave
+  // an instance permanently read-only.
+  bool pause_write() { return pause_write_.load(); }
   int maxclients() {
     std::shared_lock l(rwlock_);
     return maxclients_;
@@ -612,6 +619,9 @@ class PikaConf : public pstd::BaseConf {
     TryPushDiffCommands("slowlog-write-errorlog", value ? "yes" : "no");
     slowlog_write_errorlog_.store(value);
   }
+  // Deliberately does NOT call TryPushDiffCommands: pause-write must not be
+  // persisted via config rewrite, so it is cleared on restart (see pause_write()).
+  void SetPauseWrite(const bool value) { pause_write_.store(value); }
   void SetSlowlogSlowerThan(const int value) {
     std::lock_guard l(rwlock_);
     TryPushDiffCommands("slowlog-log-slower-than", std::to_string(value));
@@ -955,6 +965,9 @@ class PikaConf : public pstd::BaseConf {
   int expire_logs_days_ = 0;
   int expire_logs_nums_ = 0;
   bool slave_read_only_ = false;
+  // Runtime-only master write pause switch, not read from / written to the conf
+  // file. See pause_write() / SetPauseWrite() above.
+  std::atomic<bool> pause_write_ = {false};
   std::string conf_path_;
 
   int max_cache_statistic_keys_ = 0;

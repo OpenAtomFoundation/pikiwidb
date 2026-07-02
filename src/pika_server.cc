@@ -287,6 +287,12 @@ void PikaServer::CheckLeaderProtectedMode() {
 
 bool PikaServer::readonly(const std::string& db_name) {
   std::shared_lock l(state_protector_);
+  // pause_write is role-independent: it rejects writes even on a master. It is
+  // used to stop writes on the old master during a codis master switch so the
+  // new master can catch up before the switch completes.
+  if (g_pika_conf->pause_write()) {
+    return true;
+  }
   return ((role_ & PIKA_ROLE_SLAVE) != 0) && g_pika_conf->slave_read_only();
 }
 

@@ -1297,6 +1297,10 @@ void InfoCmd::InfoReplication(std::string& info) {
     tmp_stream << "is_eligible_for_master_election:false" << "\r\n";
   }
 
+  // Expose the runtime write-pause state so codis can confirm the old master
+  // has actually stopped taking writes during a master switch.
+  tmp_stream << "pause_write:" << (g_pika_conf->pause_write() ? 1 : 0) << "\r\n";
+
   Status s;
   uint32_t filenum = 0;
   uint64_t offset = 0;
@@ -2197,6 +2201,12 @@ void ConfigCmd::ConfigGet(std::string& ret) {
     EncodeString(&config_body, g_pika_conf->slave_read_only() ? "yes" : "no");
   }
 
+  if (pstd::stringmatch(pattern.data(), "pause-write", 1) != 0) {
+    elements += 2;
+    EncodeString(&config_body, "pause-write");
+    EncodeString(&config_body, g_pika_conf->pause_write() ? "yes" : "no");
+  }
+
   if (pstd::stringmatch(pattern.data(), "throttle-bytes-per-second", 1) != 0) {
     elements += 2;
     EncodeString(&config_body, "throttle-bytes-per-second");
@@ -2314,6 +2324,7 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
         "expire-logs-days",
         "expire-logs-nums",
         "root-connection-num",
+        "pause-write",
         "slowlog-write-errorlog",
         "slowlog-log-slower-than",
         "slowlog-max-len",
@@ -2452,6 +2463,18 @@ void ConfigCmd::ConfigSet(std::shared_ptr<DB> db) {
       return;
     }
     g_pika_conf->SetSlowlogWriteErrorlog(is_write_errorlog);
+    res_.AppendStringRaw("+OK\r\n");
+  } else if (set_item == "pause-write") {
+    bool pause_write;
+    if (value == "yes") {
+      pause_write = true;
+    } else if (value == "no") {
+      pause_write = false;
+    } else {
+      res_.AppendStringRaw("-ERR Invalid argument \'" + value + "\' for CONFIG SET 'pause-write'\r\n");
+      return;
+    }
+    g_pika_conf->SetPauseWrite(pause_write);
     res_.AppendStringRaw("+OK\r\n");
   } else if (set_item == "slotmigrate") {
     bool slotmigrate;

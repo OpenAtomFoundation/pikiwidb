@@ -61,6 +61,18 @@ sentinel_down_after = "30s"
 sentinel_failover_timeout = "5m"
 sentinel_notification_script = ""
 sentinel_client_reconfig_script = ""
+
+# Set configs for master promotion binlog-offset alignment.
+# Before switching master, codis pauses writes on the old master and waits for
+# the new master to catch up its binlog offset, so the old master can safely
+# become a slave of the new master without a stale-offset slaveof failure.
+promote_pause_write = true
+promote_align_timeout = "15s"
+promote_align_offset_threshold = 0
+# Behavior when the new master fails to catch up before promote_align_timeout:
+# "abort" cancels the switch and restores the old master; "force" promotes
+# anyway and lets the old master do a full resync via "slaveof ... force".
+promote_align_on_timeout = "abort"
 `
 
 type Config struct {
@@ -95,6 +107,12 @@ type Config struct {
 	SentinelFailoverTimeout             timesize.Duration `toml:"sentinel_failover_timeout" json:"sentinel_failover_timeout"`
 	SentinelNotificationScript          string            `toml:"sentinel_notification_script" json:"sentinel_notification_script"`
 	SentinelClientReconfigScript        string            `toml:"sentinel_client_reconfig_script" json:"sentinel_client_reconfig_script"`
+
+	// Master promotion binlog-offset alignment.
+	PromotePauseWrite           bool              `toml:"promote_pause_write" json:"promote_pause_write"`
+	PromoteAlignTimeout         timesize.Duration `toml:"promote_align_timeout" json:"promote_align_timeout"`
+	PromoteAlignOffsetThreshold uint64            `toml:"promote_align_offset_threshold" json:"promote_align_offset_threshold"`
+	PromoteAlignOnTimeout       string            `toml:"promote_align_on_timeout" json:"promote_align_on_timeout"`
 }
 
 func NewDefaultConfig() *Config {
@@ -181,6 +199,16 @@ func (c *Config) Validate() error {
 	}
 	if c.SentinelFailoverTimeout <= 0 {
 		return errors.New("invalid sentinel_failover_timeout")
+	}
+	if c.PromotePauseWrite {
+		if c.PromoteAlignTimeout <= 0 {
+			return errors.New("invalid promote_align_timeout")
+		}
+		switch c.PromoteAlignOnTimeout {
+		case "abort", "force":
+		default:
+			return errors.New("invalid promote_align_on_timeout (accept \"abort\" or \"force\")")
+		}
 	}
 	return nil
 }
