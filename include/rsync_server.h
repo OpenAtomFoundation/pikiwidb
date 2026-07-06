@@ -115,10 +115,6 @@ class RsyncReader {
     memcpy(data, block_data_ + offset_in_block, copy_count);
     *bytes_read = copy_count;
     *is_eof = (offset + copy_count == total_size_);
-    // Compute a per-chunk checksum so the client can detect corruption of this
-    // response (e.g. a bit flip that slips past the TCP checksum). Previously
-    // this was left as an empty string, so the client had nothing to verify.
-    *checksum = pstd::md5(std::string(data, copy_count));
     return pstd::Status::OK();
   }
 

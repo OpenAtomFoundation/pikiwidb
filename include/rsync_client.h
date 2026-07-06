@@ -112,11 +112,7 @@ class RsyncWriter {
  public:
   RsyncWriter(const std::string& filepath) {
     filepath_ = filepath;
-    // NOTE: do NOT use O_APPEND here. rsync writes each chunk to an explicit
-    // offset via pwrite(). O_APPEND would force every write to the end of the
-    // file, ignoring the offset, which corrupts the file on retry / resumed
-    // transfer / stale-file scenarios (holes, duplicated or misplaced data).
-    fd_ = open(filepath.c_str(), O_RDWR | O_CREAT, 0644);
+    fd_ = open(filepath.c_str(), O_RDWR | O_APPEND | O_CREAT, 0644);
   }
   ~RsyncWriter() {}
   Status Write(uint64_t offset, size_t n, const char* data) {
@@ -124,7 +120,7 @@ class RsyncWriter {
     size_t left = n;
     Status s;
     while (left != 0) {
-      ssize_t done = pwrite(fd_, ptr, left, offset);
+      ssize_t done = write(fd_, ptr, left);
       if (done < 0) {
         if (errno == EINTR) {
           continue;
