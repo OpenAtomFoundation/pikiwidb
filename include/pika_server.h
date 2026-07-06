@@ -60,6 +60,7 @@ enum TaskType {
   kBgSave,
   kCompactRangeAll,
   kCompactOldestOrBestDeleteRatioSst,
+  kProgressiveCompact,
 };
 
 struct TaskArg {
@@ -550,6 +551,7 @@ class PikaServer : public pstd::noncopyable {
    */
   bool have_scheduled_crontask_ = false;
   struct timeval last_check_compact_time_;
+  struct timeval last_progressive_compact_time_ = {0, 0};
 
   /*
    * ResumeDB used

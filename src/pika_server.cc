@@ -520,6 +520,9 @@ Status PikaServer::DoSameThingEveryDB(const TaskType& type) {
       case TaskType::kCompactOldestOrBestDeleteRatioSst:
         db_item.second->LongestNotCompactionSstCompact(storage::DataType::kAll);
         break;
+      case TaskType::kProgressiveCompact:
+        db_item.second->ProgressiveCompact(storage::DataType::kAll);
+        break;
       default:
         break;
     }
@@ -1234,6 +1237,18 @@ void PikaServer::AutoCompactRange() {
     DoSameThingEveryDB(TaskType::kCompactAll);
   } else if (g_pika_conf->compaction_strategy() == PikaConf::OldestOrBestDeleteRatioSstCompact) {
     DoSameThingEveryDB(TaskType::kCompactOldestOrBestDeleteRatioSst);
+  } else if (g_pika_conf->compaction_strategy() == PikaConf::ProgressiveCompact) {
+    struct timeval now;
+    gettimeofday(&now, nullptr);
+    int interval = g_pika_conf->progressive_compact_interval();
+    if (interval <= 0) {
+      return;
+    }
+    if (last_progressive_compact_time_.tv_sec == 0 ||
+        now.tv_sec - last_progressive_compact_time_.tv_sec >= interval) {
+      gettimeofday(&last_progressive_compact_time_, nullptr);
+      DoSameThingEveryDB(TaskType::kProgressiveCompact);
+    }
   }
 }
 
@@ -1301,21 +1316,14 @@ void PikaServer::AutoServerlogPurge() {
     std::sort(files.begin(), files.end(),
               [](const auto& a, const auto& b) { return a.second > b.second; });
 
-    bool has_recent_file = false;
     for (const auto& [file, log_timestamp] : files) {
       double diff_seconds = difftime(now_timestamp, log_timestamp);
       int64_t interval_days = static_cast<int64_t>(diff_seconds / 86400);
-      if (interval_days <= retention_time) {
-        has_recent_file = true;
-        continue;
+      if (interval_days > retention_time) {
+        std::string log_file = log_path + "/" + file;
+        LOG(INFO) << "Deleting out of date log file: " << log_file;
+        if(!pstd::DeleteFile(log_file)) LOG(ERROR) << "Failed to delete log file: " << log_file;
       }
-      if (!has_recent_file) {
-        has_recent_file = true;
-        continue;
-      }
-      std::string log_file = log_path + "/" + file;
-      LOG(INFO) << "Deleting out of date log file: " << log_file;
-      if(!pstd::DeleteFile(log_file)) LOG(ERROR) << "Failed to delete log file: " << log_file;
     }
   }
 }

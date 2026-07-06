@@ -167,6 +167,7 @@ enum Operation {
   kCleanAll,
   kCompactRange,
   kCompactOldestOrBestDeleteRatioSst,
+  kProgressiveCompact,
 };
 
 struct BGTask {
@@ -1097,6 +1098,20 @@ class Storage {
    * @return Status
   */
   Status LongestNotCompactionSstCompact(const DataType &type, bool sync = false);
+
+  /**
+   * ProgressiveCompact: progressive compact, processes a small number of oldest SST files each time
+   * @param type: data type
+   * @param max_files: max files per run
+   * @param max_time_ms: max execution time per run in milliseconds
+   * @param min_rate: compression rate threshold, continue processing if below
+   * @param min_file_age: minimum file age in seconds
+   * @param sync: whether to execute synchronously
+   * @return Status
+   */
+  Status ProgressiveCompact(const DataType &type, int max_files = 1, int max_time_ms = 1000,
+                            int min_rate = 70, int min_file_age = 60,
+                            bool sync = false);
 
   Status SetMaxCacheStatisticKeys(uint32_t max_cache_statistic_keys);
   Status SetSmallCompactionThreshold(uint32_t small_compaction_threshold);

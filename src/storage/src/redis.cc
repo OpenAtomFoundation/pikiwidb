@@ -3,7 +3,9 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
+#include <chrono>
 #include <sstream>
+#include <ctime>
 
 #include "rocksdb/env.h"
 
@@ -194,8 +196,10 @@ Status Redis::SetMaxCacheStatisticKeys(size_t max_cache_statistic_keys) {
 
 /*
  * compactrange no longer supports compact for a single data type
+ *
  */
 Status Redis::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end) {
+
   db_->CompactRange(default_compact_range_options_, begin, end);
   db_->CompactRange(default_compact_range_options_, handles_[kHashesDataCF], begin, end);
   db_->CompactRange(default_compact_range_options_, handles_[kSetsDataCF], begin, end);
@@ -203,6 +207,7 @@ Status Redis::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* en
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsDataCF], begin, end);
   db_->CompactRange(default_compact_range_options_, handles_[kZsetsScoreCF], begin, end);
   db_->CompactRange(default_compact_range_options_, handles_[kStreamsDataCF], begin, end);
+
   return Status::OK();
 }
 
@@ -266,9 +271,9 @@ void SelectColumnFamilyHandles(const DataType& option_type, const ColumnFamilyTy
 Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
                                               const ColumnFamilyType& type) {
   bool no_compact = false;
-  bool to_comapct = true;
-  if (!in_compact_flag_.compare_exchange_weak(no_compact, to_comapct, std::memory_order_relaxed,
-                                              std::memory_order_relaxed)) {
+  bool to_compact = true;
+  if (!in_compact_flag_.compare_exchange_strong(no_compact, to_compact, std::memory_order_relaxed,
+                                                std::memory_order_relaxed)) {
     return Status::Busy("compact running");
   }
 
@@ -309,17 +314,6 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
 
     // clear deleted sst file records because we use them in different cf
     listener_.Clear();
-
-    // The main goal of compaction was reclaimed the disk space and removed
-    // the tombstone. It seems that compaction scheduler was unnecessary here when
-    // the live files was too few, Hard code to 1 here.
-    if (props.size() <= 1) {
-      // LOG(WARNING) << "LongestNotCompactionSstCompact " << handles_[idx]->GetName() << " only one file";
-      if (compact_result_vec) {
-        compact_result_vec->push_back(Status::OK());
-      }
-      continue;
-    }
 
     size_t max_files_to_compact = 1;
     const StorageOptions& storageOptions = storage_->GetStorageOptions();
@@ -388,7 +382,12 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       if (file_creation_time <
               static_cast<uint64_t>(now / 1000 - storageOptions.compact_param_.force_compact_file_age_seconds_) &&
           delete_ratio >= force_compact_min_ratio) {
-        compact_result = db_->CompactRange(default_compact_range_options_, &start_key, &stop_key);
+        compact_result = db_->CompactRange(default_compact_range_options_, handles_[idx], &start_key, &stop_key);                                                                                         
+        if (!compact_result.ok()) {                                                                       
+          LOG(WARNING) << handles_[idx]->GetName()                                                        
+                      << " force CompactRange failed: " << compact_result.ToString()                     
+                      << " file=" << file_path;                                                          
+        }   
         if (--max_files_to_compact == 0) {
           break;
         }
@@ -433,6 +432,143 @@ Status Redis::LongestNotCompactionSstCompact(const DataType& option_type, std::v
       compact_result_vec->push_back(Status::OK());
     }
   }
+  return Status::OK();
+}
+
+// Helper function to extract table file number from filename
+// e.g., "000123.sst" -> 123
+static uint64_t ExtractFileNumber(const std::string& name) {
+  uint64_t number = 0;
+  uint64_t base = 1;
+  size_t pos = name.find_last_of('.');
+  if (pos == std::string::npos) {
+    return 0;
+  }
+  // Move backwards from '.' to find the digits
+  while (pos > 0) {
+    --pos;
+    char c = name[pos];
+    if (c >= '0' && c <= '9') {
+      number += (c - '0') * base;
+      base *= 10;
+    } else {
+      break;
+    }
+  }
+  return number;
+}
+
+Status Redis::ProgressiveCompact(const DataType& option_type, std::vector<Status>* compact_result_vec,
+                                  const ColumnFamilyType& type, int max_files, int max_time_ms,
+                                  int min_rate, int min_file_age) {
+  bool no_compact = false;
+  bool to_compact = true;
+  if (!in_compact_flag_.compare_exchange_strong(no_compact, to_compact, std::memory_order_relaxed,
+                                                std::memory_order_relaxed)) {
+    return Status::Busy("compact running");
+  }
+  DEFER { in_compact_flag_.store(false); };
+
+  std::vector<int> handleIdxVec;
+  SelectColumnFamilyHandles(option_type, type, handleIdxVec);
+  if (handleIdxVec.empty()) {
+    return Status::Corruption("Invalid data type");
+  }
+
+  if (compact_result_vec) {
+    compact_result_vec->clear();
+  }
+
+  int64_t now_sec = std::time(nullptr);
+
+  for (auto idx : handleIdxVec) {
+    auto cf_start_time = std::chrono::steady_clock::now();
+    int processed = 0;
+
+    while (processed < max_files) {
+      auto elapsed = std::chrono::steady_clock::now() - cf_start_time;
+      if (std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count() >= max_time_ms) {
+        LOG(INFO) << "ProgressiveCompact timeout for cf=" << handles_[idx]->GetName()
+                  << ", processed " << processed << " files";
+        break;
+      }
+
+      rocksdb::ColumnFamilyMetaData meta;
+      db_->GetColumnFamilyMetaData(handles_[idx], &meta);
+
+      std::string oldest_file;
+      int oldest_level = 0;
+      uint64_t oldest_number = UINT64_MAX;
+
+      for (const auto& level_meta : meta.levels) {
+        // Skip L0 (handled by RocksDB) and L6 (no next level)
+        if (level_meta.level == 0 || level_meta.level >= 6) {
+          continue;
+        }
+
+        for (const auto& file_meta : level_meta.files) {
+          // Skip files that are too new
+          if (file_meta.file_creation_time > 0 &&
+              (now_sec - file_meta.file_creation_time) < min_file_age) {
+            continue;
+          }
+
+          uint64_t number = ExtractFileNumber(file_meta.name);
+          if (number < oldest_number) {
+            oldest_number = number;
+            oldest_file = file_meta.db_path + "/" + file_meta.name;
+            oldest_level = level_meta.level;
+          }
+        }
+      }
+
+      if (oldest_file.empty()) {
+        break;
+      }
+
+      std::vector<std::string> input_files{oldest_file};
+      rocksdb::CompactionOptions compact_options;
+      // Destination level = current level + 1 (L1→L2, ... L5→L6)
+      int dest_level = oldest_level + 1;
+
+      LOG(INFO) << "ProgressiveCompact start: file=" << oldest_file
+                << ", cf=" << handles_[idx]->GetName()
+                << ", from_level=" << oldest_level
+                << ", to_level=" << dest_level;
+
+      rocksdb::CompactionJobInfo job_info;
+      Status s = db_->CompactFiles(compact_options, handles_[idx],
+                                   input_files, dest_level, -1,
+                                   nullptr, &job_info);
+
+      if (!s.ok()) {
+        LOG(WARNING) << "ProgressiveCompact failed for file " << oldest_file
+                     << ": " << s.ToString();
+        if (compact_result_vec) {
+          compact_result_vec->push_back(s);
+        }
+        break;
+      }
+
+      // Check compression rate to decide whether to continue
+      if (job_info.stats.num_input_records > 0) {
+        int rate = job_info.stats.num_output_records * 100 / job_info.stats.num_input_records;
+        LOG(INFO) << "ProgressiveCompact " << oldest_file << " rate=" << rate << "%";
+
+        if (rate >= min_rate) {
+          // Good compression rate, stop processing
+          break;
+        }
+      }
+
+      processed++;
+    }
+
+    if (compact_result_vec && (compact_result_vec->empty() || compact_result_vec->back().ok())) {
+      compact_result_vec->push_back(Status::OK());
+    }
+  }
+
   return Status::OK();
 }
 

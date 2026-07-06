@@ -201,6 +201,18 @@ void DB::LongestNotCompactionSstCompact(const storage::DataType& type) {
   storage_->LongestNotCompactionSstCompact(type);
 }
 
+void DB::ProgressiveCompact(const storage::DataType& type) {
+  std::lock_guard rwl(dbs_rw_);
+  if (!opened_) {
+    return;
+  }
+  storage_->ProgressiveCompact(type,
+                               g_pika_conf->progressive_compact_max_files(),
+                               g_pika_conf->progressive_compact_max_time_ms(),
+                               g_pika_conf->progressive_compact_min_rate(),
+                               g_pika_conf->progressive_compact_min_file_age());
+}
+
 void DB::DoKeyScan(void* arg) {
   std::unique_ptr <BgTaskArg> bg_task_arg(static_cast<BgTaskArg*>(arg));
   bg_task_arg->db->RunKeyScan();

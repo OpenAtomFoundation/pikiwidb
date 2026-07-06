@@ -239,7 +239,22 @@ Status RsyncClient::CopyRemoteFile(const std::string& filename, int index) {
         return s;
       }
 
-      s = writer->Write((uint64_t)offset, ret_count, resp->file_resp().data().c_str());
+      // Verify the per-chunk checksum before writing to disk. Older masters may
+      // return an empty checksum; in that case we keep backward compatibility by
+      // skipping verification. A mismatch means this response was corrupted in
+      // transit, so retry the same offset instead of persisting bad data.
+      const std::string& expected_checksum = resp->file_resp().checksum();
+      if (!expected_checksum.empty()) {
+        std::string actual_checksum = pstd::md5(std::string(resp->file_resp().data().data(), ret_count));
+        if (actual_checksum != expected_checksum) {
+          LOG(WARNING) << "rsync client checksum mismatch, filename: " << filename
+                       << ", offset: " << offset << ", retry";
+          retries++;
+          continue;
+        }
+      }
+
+      s = writer->Write((uint64_t)offset, ret_count, resp->file_resp().data().data());
       if (!s.ok()) {
         LOG(WARNING) << "rsync client write file error";
         break;

@@ -1697,7 +1697,7 @@ Status Storage::StartBGThread() {
 
 Status Storage::AddBGTask(const BGTask& bg_task) {
   bg_tasks_mutex_.lock();
-  if (bg_task.type == DataType::kAll) {
+  if (bg_task.operation == kCleanAll) {
     // if current task it is global compact,
     // clear the bg_tasks_queue_;
     std::queue<BGTask> empty_queue;
@@ -1729,6 +1729,19 @@ Status Storage::RunBGTask() {
       DoCompactRange(task.type, "", "");
     } else if (task.operation == kCompactOldestOrBestDeleteRatioSst) {
       LongestNotCompactionSstCompact(task.type, true);
+    } else if (task.operation == kProgressiveCompact) {
+      // Parse parameters from argv, use defaults if not provided
+      int max_files = 1;
+      int max_time_ms = 1000;
+      int min_rate = 70;
+      int min_file_age = 60;
+
+      if (task.argv.size() > 0) max_files = std::atoi(task.argv[0].c_str());
+      if (task.argv.size() > 1) max_time_ms = std::atoi(task.argv[1].c_str());
+      if (task.argv.size() > 2) min_rate = std::atoi(task.argv[2].c_str());
+      if (task.argv.size() > 3) min_file_age = std::atoi(task.argv[3].c_str());
+
+      ProgressiveCompact(task.type, max_files, max_time_ms, min_rate, min_file_age, true);
     } else if (task.operation == kCompactRange) {
       if (task.argv.size() == 1) {
         DoCompactSpecificKey(task.type, task.argv[0]);
@@ -1756,6 +1769,34 @@ Status Storage::LongestNotCompactionSstCompact(const DataType &type, bool sync) 
     return s;
   } else {
     AddBGTask({type, kCompactOldestOrBestDeleteRatioSst});
+  }
+  return Status::OK();
+}
+
+Status Storage::ProgressiveCompact(const DataType &type, int max_files, int max_time_ms,
+                                   int min_rate, int min_file_age, bool sync) {
+  if (sync) {
+    Status s;
+    for (const auto& inst : insts_) {
+      std::vector<rocksdb::Status> compact_result_vec;
+      s = inst->ProgressiveCompact(type, &compact_result_vec, storage::kMetaAndData,
+                                   max_files, max_time_ms, min_rate,
+                                   min_file_age);
+      for (auto compact_result : compact_result_vec) {
+        if (!compact_result.ok()) {
+          LOG(ERROR) << compact_result.ToString();
+        }
+      }
+    }
+    return s;
+  } else {
+    // Pass parameters via argv for async execution
+    AddBGTask({type, kProgressiveCompact, {
+        std::to_string(max_files),
+        std::to_string(max_time_ms),
+        std::to_string(min_rate),
+        std::to_string(min_file_age)
+    }});
   }
   return Status::OK();
 }
