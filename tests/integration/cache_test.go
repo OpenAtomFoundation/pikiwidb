@@ -363,3 +363,4 @@ var _ = Describe("Cache test", func() {
 		Expect(MultiMget.Err()).NotTo(HaveOccurred())
 		Expect(MultiMget.Val()).To(Equal([]interface{}{"BAR", nil, "FOO", nil}))
 	})
+})
