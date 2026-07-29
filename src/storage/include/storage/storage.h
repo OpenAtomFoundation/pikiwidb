@@ -7,6 +7,8 @@
 #define INCLUDE_STORAGE_STORAGE_H_
 
 #include <unistd.h>
+#include <functional>
+#include <future>
 #include <list>
 #include <map>
 #include <queue>
@@ -23,6 +25,18 @@
 #include "rocksdb/table.h"
 
 #include "pstd/include/pstd_mutex.h"
+#include "storage/batch.h"
+
+// Forward declarations
+namespace pikiwidb {
+class Binlog;
+}
+
+class Cmd;
+
+namespace net {
+class NetConn;
+}
 
 namespace storage {
 
@@ -68,6 +82,11 @@ struct StreamInfoResult;
 template <typename T1, typename T2>
 class LRUCache;
 
+// Forward declaration for Binlog
+namespace pikiwidb {
+class Binlog;
+}
+
 struct StorageOptions {
   rocksdb::Options options;
   rocksdb::BlockBasedTableOptions table_options;
@@ -76,6 +95,12 @@ struct StorageOptions {
   size_t statistics_max_size = 0;
   size_t small_compaction_threshold = 5000;
   size_t small_compaction_duration_threshold = 10000;
+  
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                     CommitCallback)> append_log_function;
+  
+  std::function<void(int64_t, bool)> do_snapshot_function;
+  
   Status ResetOptions(const OptionType& option_type, const std::unordered_map<std::string, std::string>& options_map);
 };
 
@@ -178,10 +203,12 @@ class Storage {
 
   // Set key to hold the string value. if key
   // already holds a value, it is overwritten
-  Status Set(const Slice& key, const Slice& value);
+  Status Set(const Slice& key, const Slice& value,
+             CommitCallback callback = nullptr);
 
   // Set key to hold the string value. if key exist
-  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Setxx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
 
   // Get the value of key. If the key does not exist
   // the special value nil is returned
@@ -193,17 +220,17 @@ class Storage {
 
   // Atomically sets key to value and returns the old value stored at key
   // Returns an error when key exists but does not hold a string value.
-  Status GetSet(const Slice& key, const Slice& value, std::string* old_value);
+  Status GetSet(const Slice& key, const Slice& value, std::string* old_value, CommitCallback callback = nullptr);
 
   // Sets or clears the bit at offset in the string value stored at key
-  Status SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret);
+  Status SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret, CommitCallback callback = nullptr);
 
   // Returns the bit value at offset in the string value stored at key
   Status GetBit(const Slice& key, int64_t offset, int32_t* ret);
 
   // Sets the given keys to their respective values
   // MSET replaces existing values with new values
-  Status MSet(const std::vector<KeyValue>& kvs);
+  Status MSet(const std::vector<KeyValue>& kvs, CommitCallback callback = nullptr);
 
   // Returns the values of all specified keys. For every key
   // that does not hold a string value or does not exist, the
@@ -218,28 +245,29 @@ class Storage {
   // Set key to hold string value if key does not exist
   // return 1 if the key was set
   // return 0 if the key was not set
-  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0);
+  Status Setnx(const Slice& key, const Slice& value, int32_t* ret, int32_t ttl = 0,
+               CommitCallback callback = nullptr);
 
   // Sets the given keys to their respective values.
   // MSETNX will not perform any operation at all even
   // if just a single key already exists.
-  Status MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret);
+  Status MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret, CommitCallback callback = nullptr);
 
   // Set key to hold string new_value if key currently hold the give value
   // return 1 if the key currently hold the give value And override success
   // return 0 if the key doesn't exist And override fail
   // return -1 if the key currently does not hold the given value And override fail
-  Status Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, int32_t ttl = 0);
+  Status Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, int32_t ttl = 0, CommitCallback callback = nullptr);
 
   // delete the key that holds a given value
   // return 1 if the key currently hold the give value And delete success
   // return 0 if the key doesn't exist And del fail
   // return -1 if the key currently does not hold the given value And del fail
-  Status Delvx(const Slice& key, const Slice& value, int32_t* ret);
+  Status Delvx(const Slice& key, const Slice& value, int32_t* ret, CommitCallback callback = nullptr);
 
   // Set key to hold string value if key does not exist
   // return the length of the string after it was modified by the command
-  Status Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret);
+  Status Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret, CommitCallback callback = nullptr);
 
   // Returns the substring of the string value stored at key,
   // determined by the offsets start and end (both are inclusive)
@@ -251,7 +279,7 @@ class Storage {
   // If key already exists and is a string, this command appends the value at
   // the end of the string
   // return the length of the string after the append operation
-  Status Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value);
+  Status Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value, CommitCallback callback = nullptr);
 
   // Count the number of set bits (population counting) in a string.
   // return the number of bits set to 1
@@ -272,19 +300,20 @@ class Storage {
 
   // Decrements the number stored at key by decrement
   // return the value of key after the decrement
-  Status Decrby(const Slice& key, int64_t value, int64_t* ret);
+  Status Decrby(const Slice& key, int64_t value, int64_t* ret, CommitCallback callback = nullptr);
 
   // Increments the number stored at key by increment.
   // If the key does not exist, it is set to 0 before performing the operation
-  Status Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec);
+  Status Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec, CommitCallback callback = nullptr);
 
   // Increment the string representing a floating point number
   // stored at key by the specified increment.
-  Status Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec);
+  Status Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec, CommitCallback callback = nullptr);
 
   // Set key to hold the string value and set key to timeout after a given
   // number of seconds
-  Status Setex(const Slice& key, const Slice& value, int32_t ttl);
+  Status Setex(const Slice& key, const Slice& value, int32_t ttl,
+               CommitCallback callback = nullptr);
 
   // Returns the length of the string value stored at key. An error
   // is returned when key holds a non-string value.
@@ -294,14 +323,15 @@ class Storage {
   // specifying the number of seconds representing the TTL (time to live), it
   // takes an absolute Unix timestamp (seconds since January 1, 1970). A
   // timestamp in the past will delete the key immediately.
-  Status PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp);
+  Status PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp, CommitCallback callback = nullptr);
 
   // Hashes Commands
 
   // Sets field in the hash stored at key to value. If key does not exist, a new
   // key holding a hash is created. If field already exists in the hash, it is
   // overwritten.
-  Status HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res);
+  Status HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res,
+              CommitCallback callback = nullptr);
 
   // Returns the value associated with field in the hash stored at key.
   // the value associated with field, or nil when field is not present in the
@@ -311,7 +341,8 @@ class Storage {
   // Sets the specified fields to their respective values in the hash stored at
   // key. This command overwrites any specified fields already existing in the
   // hash. If key does not exist, a new key holding a hash is created.
-  Status HMSet(const Slice& key, const std::vector<FieldValue>& fvs);
+  Status HMSet(const Slice& key, const std::vector<FieldValue>& fvs,
+               CommitCallback callback = nullptr);
 
   // Returns the values associated with the specified fields in the hash stored
   // at key.
@@ -336,7 +367,8 @@ class Storage {
   // Sets field in the hash stored at key to value, only if field does not yet
   // exist. If key does not exist, a new key holding a hash is created. If field
   // already exists, this operation has no effect.
-  Status HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret);
+  Status HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret,
+                CommitCallback callback = nullptr);
 
   // Returns the number of fields contained in the hash stored at key.
   // Return 0 when key does not exist.
@@ -356,7 +388,7 @@ class Storage {
   // increment. If key does not exist, a new key holding a hash is created. If
   // field does not exist the value is set to 0 before the operation is
   // performed.
-  Status HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret);
+  Status HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret, CommitCallback callback = nullptr);
 
   // Increment the specified field of a hash stored at key, and representing a
   // floating point number, by the specified increment. If the increment value
@@ -368,12 +400,13 @@ class Storage {
   // The field contains a value of the wrong type (not a string).
   // The current field content or the specified increment are not parsable as a
   // double precision floating point number.
-  Status HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value);
+  Status HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value, CommitCallback callback = nullptr);
 
   // Removes the specified fields from the hash stored at key. Specified fields
   // that do not exist within this hash are ignored. If key does not exist, it
   // is treated as an empty hash and this command returns 0.
-  Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret);
+  Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret,
+              CommitCallback callback = nullptr);
 
   // See SCAN for HSCAN documentation.
   Status HScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -400,7 +433,8 @@ class Storage {
   // Add the specified members to the set stored at key. Specified members that
   // are already a member of this set are ignored. If key does not exist, a new
   // set is created before adding the specified members.
-  Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
+  Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
 
   // Returns the set cardinality (number of elements) of the set stored at key.
   Status SCard(const Slice& key, int32_t* ret);
@@ -426,7 +460,8 @@ class Storage {
   //   key3 = {a, c, e}
   //   SDIFFSTORE destination key1 key2 key3
   //   destination = {b, d}
-  Status SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                    CommitCallback callback = nullptr);
 
   // Returns the members of the set resulting from the intersection of all the
   // given sets.
@@ -449,7 +484,8 @@ class Storage {
   //   key3 = {a, c, e}
   //   SINTERSTORE destination key1 key2 key3
   //   destination = {a, c}
-  Status SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
 
   // Returns if member is a member of the set stored at key.
   Status SIsmember(const Slice& key, const Slice& member, int32_t* ret);
@@ -463,10 +499,11 @@ class Storage {
   // Remove the specified members from the set stored at key. Specified members
   // that are not a member of this set are ignored. If key does not exist, it is
   // treated as an empty set and this command returns 0.
-  Status SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
+  Status SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
 
   // Removes and returns several random elements specified by count from the set value store at key.
-  Status SPop(const Slice& key, std::vector<std::string>* members, int64_t count);
+  Status SPop(const Slice& key, std::vector<std::string>* members, int64_t count, CommitCallback callback = nullptr);
 
   // When called with just the key argument, return a random element from the
   // set value stored at key.
@@ -486,7 +523,7 @@ class Storage {
   // removed from the source set and added to the destination set. When the
   // specified element already exists in the destination set, it is only removed
   // from the source set.
-  Status SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret);
+  Status SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret, CommitCallback callback = nullptr);
 
   // Returns the members of the set resulting from the union of all the given
   // sets.
@@ -508,7 +545,8 @@ class Storage {
   //   key3 = {c, d, e}
   //   SUNIONSTORE destination key1 key2 key3
   //   destination = {a, b, c, d, e}
-  Status SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
 
   // See SCAN for SSCAN documentation.
   Status SScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -519,12 +557,14 @@ class Storage {
   // Insert all the specified values at the head of the list stored at key. If
   // key does not exist, it is created as empty list before performing the push
   // operations.
-  Status LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret);
+  Status LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+               CommitCallback callback = nullptr);
 
   // Insert all the specified values at the tail of the list stored at key. If
   // key does not exist, it is created as empty list before performing the push
   // operation.
-  Status RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret);
+  Status RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+               CommitCallback callback = nullptr);
 
   // Returns the specified elements of the list stored at key. The offsets start
   // and stop are zero-based indexes, with 0 being the first element of the list
@@ -536,7 +576,8 @@ class Storage {
   // Removes the first count occurrences of elements equal to value from the
   // list stored at key. The count argument influences the operation in the
   // following ways
-  Status LTrim(const Slice& key, int64_t start, int64_t stop);
+  Status LTrim(const Slice& key, int64_t start, int64_t stop,
+               CommitCallback callback = nullptr);
 
   // Returns the length of the list stored at key. If key does not exist, it is
   // interpreted as an empty list and 0 is returned. An error is returned when
@@ -544,10 +585,10 @@ class Storage {
   Status LLen(const Slice& key, uint64_t* len);
 
   // Removes and returns the first elements of the list stored at key.
-  Status LPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
+  Status LPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback = nullptr);
 
   // Removes and returns the last elements of the list stored at key.
-  Status RPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
+  Status RPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback = nullptr);
 
   // Returns the element at index index in the list stored at key. The index is
   // zero-based, so 0 means the first element, 1 the second element and so on.
@@ -562,17 +603,20 @@ class Storage {
   // performed.
   // An error is returned when key exists but does not hold a list value.
   Status LInsert(const Slice& key, const BeforeOrAfter& before_or_after, const std::string& pivot,
-                 const std::string& value, int64_t* ret);
+                 const std::string& value, int64_t* ret,
+                 CommitCallback callback = nullptr);
 
   // Inserts value at the head of the list stored at key, only if key already
   // exists and holds a list. In contrary to LPUSH, no operation will be
   // performed when key does not yet exist.
-  Status LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len);
+  Status LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                CommitCallback callback = nullptr);
 
   // Inserts value at the tail of the list stored at key, only if key already
   // exists and holds a list. In contrary to RPUSH, no operation will be
   // performed when key does not yet exist.
-  Status RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len);
+  Status RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                CommitCallback callback = nullptr);
 
   // Removes the first count occurrences of elements equal to value from the
   // list stored at key. The count argument influences the operation in the
@@ -586,13 +630,15 @@ class Storage {
   //
   // Note that non-existing keys are treated like empty lists, so when key does
   // not exist, the command will always return 0.
-  Status LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret);
+  Status LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret,
+              CommitCallback callback = nullptr);
 
   // Sets the list element at index to value. For more information on the index
   // argument, see LINDEX.
   //
   // An error is returned for out of range indexes.
-  Status LSet(const Slice& key, int64_t index, const Slice& value);
+  Status LSet(const Slice& key, int64_t index, const Slice& value,
+              CommitCallback callback = nullptr);
 
   // Atomically returns and removes the last element (tail) of the list stored
   // at source, and pushes the element at the first element (head) of the list
@@ -607,7 +653,7 @@ class Storage {
   // equivalent to removing the last element from the list and pushing it as
   // first element of the list, so it can be considered as a list rotation
   // command.
-  Status RPoplpush(const Slice& source, const Slice& destination, std::string* element);
+  Status RPoplpush(const Slice& source, const Slice& destination, std::string* element, CommitCallback callback = nullptr);
 
   // Zsets Commands
 
@@ -616,14 +662,14 @@ class Storage {
   // set less than count, it will pop out the total number of sorted set. If two
   // ScoreMember's score were the same, the lexicographic predominant elements will
   // be pop out.
-  Status ZPopMax(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members);
+  Status ZPopMax(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback = nullptr);
 
   // Pop the minimum count score_members which have less score in the sorted set.
   // And return the result in the score_members,If the total number of the sorted
   // set less than count, it will pop out the total number of sorted set. If two
   // ScoreMember's score were the same, the lexicographic predominant elements will
   // not be pop out.
-  Status ZPopMin(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members);
+  Status ZPopMin(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback = nullptr);
 
   // Adds all the specified members with the specified scores to the sorted set
   // stored at key. It is possible to specify multiple score / member pairs. If
@@ -636,7 +682,8 @@ class Storage {
   // does not hold a sorted set, an error is returned.
   // The score values should be the string representation of a double precision
   // floating point number. +inf and -inf values are valid values as well.
-  Status ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret);
+  Status ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret,
+              CommitCallback callback = nullptr);
 
   // Returns the sorted set cardinality (number of elements) of the sorted set
   // stored at key.
@@ -664,7 +711,7 @@ class Storage {
   // The score value should be the string representation of a numeric value, and
   // accepts double precision floating point numbers. It is possible to provide
   // a negative value to decrement the score.
-  Status ZIncrby(const Slice& key, const Slice& member, double increment, double* ret);
+  Status ZIncrby(const Slice& key, const Slice& member, double increment, double* ret, CommitCallback callback = nullptr);
 
   // Returns the specified range of elements in the sorted set stored at key.
   // The elements are considered to be ordered from the lowest to the highest
@@ -786,7 +833,8 @@ class Storage {
   // existing members are ignored.
   //
   // An error is returned when key exists and does not hold a sorted set.
-  Status ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
+  Status ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
 
   // Removes all elements in the sorted set stored at key with rank between
   // start and stop. Both start and stop are 0 -based indexes with 0 being the
@@ -794,11 +842,13 @@ class Storage {
   // they indicate offsets starting at the element with the highest score. For
   // example: -1 is the element with the highest score, -2 the element with the
   // second highest score and so forth.
-  Status ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret);
+  Status ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret,
+                         CommitCallback callback = nullptr);
 
   // Removes all elements in the sorted set stored at key with a score between
   // min and max (inclusive).
-  Status ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int32_t* ret);
+  Status ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int32_t* ret,
+                          CommitCallback callback = nullptr);
 
   // Returns the specified range of elements in the sorted set stored at key.
   // The elements are considered to be ordered from the highest to the lowest
@@ -867,7 +917,8 @@ class Storage {
   //
   // If destination already exists, it is overwritten.
   Status ZUnionstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,
-                     AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret);
+                     AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
 
   // Computes the intersection of numkeys sorted sets given by the specified
   // keys, and stores the result in destination. It is mandatory to provide the
@@ -884,7 +935,8 @@ class Storage {
   //
   // If destination already exists, it is overwritten.
   Status ZInterstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,
-                     AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret);
+                     AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
 
   // When all the elements in a sorted set are inserted with the same score, in
   // order to force lexicographical ordering, this command returns all the
@@ -927,7 +979,7 @@ class Storage {
   // Similarly, this command actually returns the same elements that ZRANGEBYLEX
   // would return if called with the same min and max arguments.
   Status ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                        int32_t* ret);
+                        int32_t* ret, CommitCallback callback = nullptr);
 
   // See SCAN for ZSCAN documentation.
   Status ZScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -1056,7 +1108,7 @@ class Storage {
   };
   // Adds all the element arguments to the HyperLogLog data structure stored
   // at the variable name specified as first argument.
-  Status PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update);
+  Status PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update, CommitCallback callback = nullptr);
 
   // When called with a single key, returns the approximated cardinality
   // computed by the HyperLogLog data structure stored at the specified
@@ -1066,12 +1118,15 @@ class Storage {
   // Merge multiple HyperLogLog values into an unique value that will
   // approximate the cardinality of the union of the observed Sets of the source
   // HyperLogLog structures.
-  Status PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest);
+  Status PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest, CommitCallback callback = nullptr);
 
   // Admin Commands
   Status StartBGThread();
   Status RunBGTask();
   Status AddBGTask(const BGTask& bg_task);
+  Status CreateCheckpointInternal(const std::string& checkpoint_path, const std::string& db_name);
+  Status LoadCheckpointInternal(const std::string& checkpoint_sub_path, const std::string& db_sub_path,
+                                const std::string& db_type);
 
   Status Compact(const DataType& type, bool sync = false);
   Status CompactRange(const DataType& type, const std::string& start, const std::string& end, bool sync = false);
@@ -1101,7 +1156,31 @@ class Storage {
                     const std::string& db_type, const std::unordered_map<std::string, std::string>& options);
   void GetRocksDBInfo(std::string& info);
 
+  bool IsRaftEnabled() const { return append_log_function_ != nullptr; }
+  
+  const std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                           CommitCallback)>& 
+  GetAppendLogFunction() const { return append_log_function_; }
+  
+  rocksdb::Status OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index);
+  
+  uint64_t GetSmallestFlushedLogIndex();
+  
+  // Load database from checkpoint directory
+  // This will replace current database data with checkpoint data
+  Status LoadFromCheckpoint(const std::string& checkpoint_path);
+  std::vector<std::future<Status>> LoadCheckpoint(const std::string& checkpoint_sub_path,
+                                                  const std::string& db_sub_path);
+  Status Close();
+  
+  // Create checkpoint (snapshot) of current database state
+  // This will create a consistent snapshot to the specified directory
+  std::vector<std::future<Status>> CreateCheckpoint(const std::string& checkpoint_path);
+  
  private:
+  std::string db_path_;  // Store db path for checkpoint restore
+  StorageOptions open_options_;
+  bool open_options_initialized_ = false;
   std::unique_ptr<RedisStrings> strings_db_;
   std::unique_ptr<RedisHashes> hashes_db_;
   std::unique_ptr<RedisSets> sets_db_;
@@ -1123,6 +1202,10 @@ class Storage {
 
   // For scan keys in data base
   std::atomic<bool> scan_keynum_exit_ = false;
+
+  // Raft binlog callback
+  std::function<void(const ::pikiwidb::Binlog&, std::promise<rocksdb::Status>&&,
+                     CommitCallback)> append_log_function_;
 };
 
 }  //  namespace storage

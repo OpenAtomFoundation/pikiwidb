@@ -35,11 +35,42 @@ void ZAddCmd::DoInitial() {
 }
 
 void ZAddCmd::Do() {
-  int32_t count = 0;
+  added_count_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZAddCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->added_count_);
+        AddSlotKey("z", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZAdd(key_, score_members, &count);
+  s_ = db_->storage()->ZAdd(key_, score_members, &added_count_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
-    res_.AppendInteger(count);
+    res_.AppendInteger(added_count_);
     AddSlotKey("z", key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
@@ -167,18 +198,52 @@ void ZIncrbyCmd::DoInitial() {
 }
 
 void ZIncrbyCmd::Do() {
-  double score = 0.0;
+  score_ = 0.0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZIncrbyCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        char buf[32];
+        int64_t len = pstd::d2string(buf, sizeof(buf), self->score_);
+        self->res_.AppendStringLen(len);
+        self->res_.AppendContent(buf);
+        AddSlotKey("z", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  rocksdb::Status s = db_->storage()->ZIncrby(key_, member_, by_, &score);
-  if (s.ok()) {
-    score_ = score;
+  s_ = db_->storage()->ZIncrby(key_, member_, by_, &score_, callback);
+
+  if (callback) {
+    return;  // Async mode, response will be sent in callback
+  }
+
+  // Sync mode fallback
+  if (s_.ok()) {
     char buf[32];
-    int64_t len = pstd::d2string(buf, sizeof(buf), score);
+    int64_t len = pstd::d2string(buf, sizeof(buf), score_);
     res_.AppendStringLen(len);
     res_.AppendContent(buf);
     AddSlotKey("z", key_, db_);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
@@ -714,8 +779,39 @@ void ZRemCmd::DoInitial() {
 }
 
 void ZRemCmd::Do() {
+  deleted_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZRemCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        self->res_.AppendInteger(self->deleted_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZRem(key_, members_, &deleted_);
+  s_ = db_->storage()->ZRem(key_, members_, &deleted_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok() || s_.IsNotFound()) {
     res_.AppendInteger(deleted_);
   } else {
@@ -802,11 +898,42 @@ void ZUnionstoreCmd::DoInitial() {
 }
 
 void ZUnionstoreCmd::Do() {
-  int32_t count = 0;
+  result_count_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZUnionstoreCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->result_count_);
+        AddSlotKey("z", self->dest_key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZUnionstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &count);
+  s_ = db_->storage()->ZUnionstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &result_count_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
-    res_.AppendInteger(count);
+    res_.AppendInteger(result_count_);
     AddSlotKey("z", dest_key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
@@ -883,11 +1010,41 @@ void ZInterstoreCmd::DoInitial() {
 }
 
 void ZInterstoreCmd::Do() {
-  int32_t count = 0;
+  result_count_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZInterstoreCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->result_count_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZInterstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &count);
+  s_ = db_->storage()->ZInterstore(dest_key_, keys_, weights_, aggregate_, value_to_dest_, &result_count_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
-    res_.AppendInteger(count);
+    res_.AppendInteger(result_count_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
@@ -1389,11 +1546,41 @@ void ZRemrangebyrankCmd::DoInitial() {
 }
 
 void ZRemrangebyrankCmd::Do() {
-  int32_t count = 0;
+  ele_deleted_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZRemrangebyrankCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        self->res_.AppendInteger(self->ele_deleted_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZRemrangebyrank(key_, static_cast<int32_t>(start_rank_), static_cast<int32_t>(stop_rank_), &count);
+  s_ = db_->storage()->ZRemrangebyrank(key_, static_cast<int32_t>(start_rank_), static_cast<int32_t>(stop_rank_), &ele_deleted_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok() || s_.IsNotFound()) {
-    res_.AppendInteger(count);
+    res_.AppendInteger(ele_deleted_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
@@ -1431,14 +1618,45 @@ void ZRemrangebyscoreCmd::Do() {
     res_.AppendContent(":0");
     return;
   }
-  int32_t count = 0;
+
+  deleted_count_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZRemrangebyscoreCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (!status.ok() && !status.IsNotFound()) {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      } else {
+        self->res_.AppendInteger(self->deleted_count_);
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZRemrangebyscore(key_, min_score_, max_score_, left_close_, right_close_, &count);
+  s_ = db_->storage()->ZRemrangebyscore(key_, min_score_, max_score_, left_close_, right_close_, &deleted_count_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (!s_.ok() && !s_.IsNotFound()) {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
     return;
   }
-  res_.AppendInteger(count);
+  res_.AppendInteger(deleted_count_);
 }
 
 void ZRemrangebyscoreCmd::DoThroughDB() {
@@ -1473,15 +1691,45 @@ void ZRemrangebylexCmd::Do() {
     res_.AppendContent("*0");
     return;
   }
-  int32_t count = 0;
+
+  deleted_count_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZRemrangebylexCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (!status.ok() && !status.IsNotFound()) {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      } else {
+        self->res_.AppendInteger(self->deleted_count_);
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
 
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  s_ = db_->storage()->ZRemrangebylex(key_, min_member_, max_member_, left_close_, right_close_, &count);
+  s_ = db_->storage()->ZRemrangebylex(key_, min_member_, max_member_, left_close_, right_close_, &deleted_count_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (!s_.ok() && !s_.IsNotFound()) {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());
     return;
   }
-  res_.AppendInteger(count);
+  res_.AppendInteger(deleted_count_);
 }
 
 void ZRemrangebylexCmd::DoThroughDB() {
@@ -1513,21 +1761,66 @@ void ZPopmaxCmd::DoInitial() {
 }
 
 void ZPopmaxCmd::Do() {
+  score_members_.clear();
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZPopmaxCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        char buf[32];
+        int64_t len = 0;
+        self->res_.AppendArrayLenUint64(self->score_members_.size() * 2);
+        for (const auto& sm : self->score_members_) {
+          self->res_.AppendString(sm.member);
+          len = pstd::d2string(buf, sizeof(buf), sm.score);
+          self->res_.AppendStringLen(len);
+          self->res_.AppendContent(buf);
+        }
+        if (!self->score_members_.empty()) {
+          AddSlotKey("z", self->key_, self->db_);
+        }
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  std::vector<storage::ScoreMember> score_members;
-  rocksdb::Status s = db_->storage()->ZPopMax(key_, count_, &score_members);
-  if (s.ok() || s.IsNotFound()) {
+  s_ = db_->storage()->ZPopMax(key_, count_, &score_members_, callback);
+
+  if (callback) {
+    return;  // Async mode, response will be sent in callback
+  }
+
+  // Sync mode fallback
+  if (s_.ok() || s_.IsNotFound()) {
     char buf[32];
     int64_t len = 0;
-    res_.AppendArrayLenUint64(score_members.size() * 2);
-    for (const auto& sm : score_members) {
+    res_.AppendArrayLenUint64(score_members_.size() * 2);
+    for (const auto& sm : score_members_) {
       res_.AppendString(sm.member);
       len = pstd::d2string(buf, sizeof(buf), sm.score);
       res_.AppendStringLen(len);
       res_.AppendContent(buf);
     }
+    if (!score_members_.empty()) {
+      AddSlotKey("z", key_, db_);
+    }
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
@@ -1572,20 +1865,65 @@ void ZPopminCmd::DoUpdateCache(){
 }
 
 void ZPopminCmd::Do() {
+  score_members_.clear();
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<ZPopminCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() || status.IsNotFound()) {
+        char buf[32];
+        int64_t len = 0;
+        self->res_.AppendArrayLenUint64(self->score_members_.size() * 2);
+        for (const auto& sm : self->score_members_) {
+          self->res_.AppendString(sm.member);
+          len = pstd::d2string(buf, sizeof(buf), sm.score);
+          self->res_.AppendStringLen(len);
+          self->res_.AppendContent(buf);
+        }
+        if (!self->score_members_.empty()) {
+          AddSlotKey("z", self->key_, self->db_);
+        }
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
   STAGE_TIMER_GUARD(storage_duration_ms, true);
-  std::vector<storage::ScoreMember> score_members;
-  rocksdb::Status s = db_->storage()->ZPopMin(key_, count_, &score_members);
-  if (s.ok() || s.IsNotFound()) {
+  s_ = db_->storage()->ZPopMin(key_, count_, &score_members_, callback);
+
+  if (callback) {
+    return;  // Async mode, response will be sent in callback
+  }
+
+  // Sync mode fallback
+  if (s_.ok() || s_.IsNotFound()) {
     char buf[32];
     int64_t len = 0;
-    res_.AppendArrayLenUint64(score_members.size() * 2);
-    for (const auto& sm : score_members) {
+    res_.AppendArrayLenUint64(score_members_.size() * 2);
+    for (const auto& sm : score_members_) {
       res_.AppendString(sm.member);
       len = pstd::d2string(buf, sizeof(buf), sm.score);
       res_.AppendStringLen(len);
       res_.AppendContent(buf);
     }
+    if (!score_members_.empty()) {
+      AddSlotKey("z", key_, db_);
+    }
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }

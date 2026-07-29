@@ -20,16 +20,19 @@ aux_source_directory(./src  DIR_SRCS)
 
 add_library(storage STATIC ${DIR_SRCS} )
 
-add_dependencies(storage rocksdb gtest glog gflags fmt ${LIBUNWIND_NAME} pstd)
+add_dependencies(storage rocksdb gtest glog gflags fmt ${LIBUNWIND_NAME} pstd binlog_pb)
 # TODO fix rocksdb include path
 target_include_directories(storage
     PUBLIC ${PROJECT_SOURCE_DIR}
     PUBLIC ${PROJECT_SOURCE_DIR}/include
+           ${CMAKE_SOURCE_DIR}/src/praft  # For praft headers
+           ${CMAKE_BINARY_DIR}/src/praft  # For generated binlog.pb.h
            ${INSTALL_INCLUDEDIR}
            ${ROCKSDB_SOURCE_DIR}
 )
 
 target_link_libraries(storage
+    PUBLIC binlog_pb  # Link binlog protobuf library
     PUBLIC ${ROCKSDB_LIBRARY}
            ${SNAPPY_LIBRARY}
            ${ZSTD_LIBRARY}
@@ -40,4 +43,5 @@ target_link_libraries(storage
            ${GFLAGS_LIBRARY}
            ${FMT_LIBRARY}
            ${LIBUNWIND_LIBRARY}
+           ${PROTOBUF_LIBRARY}
     PUBLIC pstd)

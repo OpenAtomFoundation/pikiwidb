@@ -63,15 +63,42 @@ rocksdb::Status RedisSets::Open(const StorageOptions& storage_options, const std
     meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     member_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
+  
   meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_ops));
   member_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(member_cf_table_ops));
+  
+  // Add LogIndex table properties collector for Raft
+  meta_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+  member_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+
+  // Add LogIndex event listener for Raft
+  if (storage_options.do_snapshot_function) {
+    auto purger = std::make_shared<LogIndexAndSequenceCollectorPurger>(
+        &handles_, &log_index_collector_, &log_index_of_all_cfs_,
+        storage_options.do_snapshot_function);
+    db_ops.listeners.push_back(purger);
+  }
 
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   // Meta CF
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Member CF
   column_families.emplace_back("member_cf", member_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  
+  // Initialize log index of column families
+  s = log_index_of_all_cfs_.Init(this);
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to init log index of column families for sets: " << s.ToString();
+  }
+  
+  return s;
 }
 
 rocksdb::Status RedisSets::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end, const ColumnFamilyType& type) {
@@ -196,7 +223,8 @@ rocksdb::Status RedisSets::PKPatternMatchDelWithRemoveKeys(const DataType& data_
   return s;
 }
 
-rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
+rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                                 CommitCallback callback) {
   std::unordered_set<std::string> unique;
   std::vector<std::string> filtered_members;
   for (const auto& member : members) {
@@ -206,7 +234,7 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
     }
   }
 
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   int32_t version = 0;
   std::string meta_value;
@@ -219,10 +247,10 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
         return Status::InvalidArgument("set size overflow");
       }
       parsed_sets_meta_value.set_count(static_cast<int32_t>(filtered_members.size()));
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
       for (const auto& member : filtered_members) {
         SetsMemberKey sets_member_key(key, version, member);
-        batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+        batch->Put(1, sets_member_key.Encode(), Slice());
       }
       *ret = static_cast<int32_t>(filtered_members.size());
     } else {
@@ -235,7 +263,7 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
         if (s.ok()) {
         } else if (s.IsNotFound()) {
           cnt++;
-          batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+          batch->Put(1, sets_member_key.Encode(), Slice());
         } else {
           return s;
         }
@@ -248,7 +276,7 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(cnt);
-        batch.Put(handles_[0], key, meta_value);
+        batch->Put(0, key, meta_value);
       }
     }
   } else if (s.IsNotFound()) {
@@ -256,16 +284,16 @@ rocksdb::Status RedisSets::SAdd(const Slice& key, const std::vector<std::string>
     EncodeFixed32(str, filtered_members.size());
     SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], key, sets_meta_value.Encode());
+    batch->Put(0, key, sets_meta_value.Encode());
     for (const auto& member : filtered_members) {
       SetsMemberKey sets_member_key(key, version, member);
-      batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+      batch->Put(1, sets_member_key.Encode(), Slice());
     }
     *ret = static_cast<int32_t>(filtered_members.size());
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  return batch->Commit(callback);
 }
 
 rocksdb::Status RedisSets::SCard(const Slice& key, int32_t* ret) {
@@ -353,12 +381,13 @@ rocksdb::Status RedisSets::SDiff(const std::vector<std::string>& keys, std::vect
   return rocksdb::Status::OK();
 }
 
-rocksdb::Status RedisSets::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+rocksdb::Status RedisSets::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                                       CommitCallback callback) {
   if (keys.empty()) {
     return rocksdb::Status::Corruption("SDiffsotre invalid parameter, no keys");
   }
 
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -430,22 +459,22 @@ rocksdb::Status RedisSets::SDiffstore(const Slice& destination, const std::vecto
         return Status::InvalidArgument("set size overflow");
       }
     parsed_sets_meta_value.set_count(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[0], destination, meta_value);
+    batch->Put(0, destination, meta_value);
   } else if (s.IsNotFound()) {
     char str[4];
     EncodeFixed32(str, members.size());
     SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, sets_meta_value.Encode());
+    batch->Put(0, destination, sets_meta_value.Encode());
   } else {
     return s;
   }
   for (const auto& member : members) {
     SetsMemberKey sets_member_key(destination, version, member);
-    batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+    batch->Put(1, sets_member_key.Encode(), Slice());
   }
   *ret = static_cast<int32_t>(members.size());
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(destination.ToString(), statistic);
   value_to_dest = std::move(members);
   return s;
@@ -527,12 +556,13 @@ rocksdb::Status RedisSets::SInter(const std::vector<std::string>& keys, std::vec
   return rocksdb::Status::OK();
 }
 
-rocksdb::Status RedisSets::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+rocksdb::Status RedisSets::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                                        CommitCallback callback) {
   if (keys.empty()) {
     return rocksdb::Status::Corruption("SInterstore invalid parameter, no keys");
   }
 
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -618,22 +648,22 @@ rocksdb::Status RedisSets::SInterstore(const Slice& destination, const std::vect
       return Status::InvalidArgument("set size overflow");
     }
     parsed_sets_meta_value.set_count(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[0], destination, meta_value);
+    batch->Put(0, destination, meta_value);
   } else if (s.IsNotFound()) {
     char str[4];
     EncodeFixed32(str, members.size());
     SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, sets_meta_value.Encode());
+    batch->Put(0, destination, sets_meta_value.Encode());
   } else {
     return s;
   }
   for (const auto& member : members) {
     SetsMemberKey sets_member_key(destination, version, member);
-    batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+    batch->Put(1, sets_member_key.Encode(), Slice());
   }
   *ret = static_cast<int32_t>(members.size());
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(destination.ToString(), statistic);
   value_to_dest = std::move(members);
   return s;
@@ -743,13 +773,11 @@ Status RedisSets::SMembersWithTTL(const Slice& key,
   return s;
 }
 
-rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret) {
+rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret, CommitCallback callback) {
   *ret = 0;
-  rocksdb::WriteBatch batch;
-  rocksdb::ReadOptions read_options;
+  auto batch = Batch::CreateBatch(this);
 
   int32_t version = 0;
-  uint32_t statistic = 0;
   std::string meta_value;
   std::vector<std::string> keys{source.ToString(), destination.ToString()};
   MultiScopeRecordLock ml(lock_mgr_, keys);
@@ -777,9 +805,8 @@ rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, 
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(-1);
-        batch.Put(handles_[0], source, meta_value);
-        batch.Delete(handles_[1], sets_member_key.Encode());
-        statistic++;
+        batch->Put(0, source, meta_value);
+        batch->Delete(1, sets_member_key.Encode());
       } else if (s.IsNotFound()) {
         *ret = 0;
         return rocksdb::Status::NotFound();
@@ -800,9 +827,9 @@ rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, 
     if (parsed_sets_meta_value.IsStale() || parsed_sets_meta_value.count() == 0) {
       version = parsed_sets_meta_value.InitialMetaValue();
       parsed_sets_meta_value.set_count(1);
-      batch.Put(handles_[0], destination, meta_value);
+      batch->Put(0, destination, meta_value);
       SetsMemberKey sets_member_key(destination, version, member);
-      batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+      batch->Put(1, sets_member_key.Encode(), Slice());
     } else {
       std::string member_value;
       version = parsed_sets_meta_value.version();
@@ -813,8 +840,8 @@ rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, 
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(1);
-        batch.Put(handles_[0], destination, meta_value);
-        batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+        batch->Put(0, destination, meta_value);
+        batch->Put(1, sets_member_key.Encode(), Slice());
       } else if (!s.ok()) {
         return s;
       }
@@ -824,25 +851,23 @@ rocksdb::Status RedisSets::SMove(const Slice& source, const Slice& destination, 
     EncodeFixed32(str, 1);
     SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, sets_meta_value.Encode());
+    batch->Put(0, destination, sets_meta_value.Encode());
     SetsMemberKey sets_member_key(destination, version, member);
-    batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+    batch->Put(1, sets_member_key.Encode(), Slice());
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
-  UpdateSpecificKeyStatistics(source.ToString(), 1);
-  return s;
+  
+  return batch->Commit(callback);
 }
 
-rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* members, int64_t cnt) {
+rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* members, int64_t cnt, CommitCallback callback) {
   std::default_random_engine engine;
 
   std::string meta_value;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
 
-  uint64_t start_us = pstd::NowMicros();
   Status s = db_->Get(default_read_options_, handles_[0], key, &meta_value);
   if (s.ok()) {
     ParsedSetsMetaValue parsed_sets_meta_value(&meta_value);
@@ -862,15 +887,13 @@ rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* memb
             iter->Valid() && cur_index < size;
             iter->Next(), cur_index++) {
 
-            batch.Delete(handles_[1], iter->key());
+            batch->Delete(1, iter->key());
             ParsedSetsMemberKey parsed_sets_member_key(iter->key());
             members->push_back(parsed_sets_member_key.member().ToString());
 
         }
 
-        //parsed_sets_meta_value.ModifyCount(-cnt);
-        //batch.Put(handles_[0], key, meta_value);
-        batch.Delete(handles_[0], key);
+        batch->Delete(0, key);
         delete iter;
 
       } else {
@@ -893,7 +916,6 @@ rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* memb
 
         SetsMemberKey sets_member_key(key, version, Slice());
         int64_t del_count = 0;
-        KeyStatisticsDurationGuard guard(this, key.ToString());
         auto iter = db_->NewIterator(default_read_options_, handles_[1]);
         for (iter->Seek(sets_member_key.Encode());
             iter->Valid() && cur_index < size;
@@ -903,7 +925,7 @@ rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* memb
           }
           if (sets_index.find(cur_index) != sets_index.end()) {
             del_count++;
-            batch.Delete(handles_[1], iter->key());
+            batch->Delete(1, iter->key());
             ParsedSetsMemberKey parsed_sets_member_key(iter->key());
             members->push_back(parsed_sets_member_key.member().ToString());
           }
@@ -913,14 +935,15 @@ rocksdb::Status RedisSets::SPop(const Slice& key, std::vector<std::string>* memb
           return Status::InvalidArgument("set size overflow");
         }
         parsed_sets_meta_value.ModifyCount(static_cast<int32_t>(-cnt));
-        batch.Put(handles_[0], key, meta_value);
+        batch->Put(0, key, meta_value);
         delete iter;
       }
     }
   } else {
     return s;
   }
-  return db_->Write(default_write_options_, &batch);
+  
+  return batch->Commit(callback);
 }
 
 rocksdb::Status RedisSets::SRandmember(const Slice& key, int32_t count, std::vector<std::string>* members) {
@@ -992,9 +1015,10 @@ rocksdb::Status RedisSets::SRandmember(const Slice& key, int32_t count, std::vec
   return s;
 }
 
-rocksdb::Status RedisSets::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
+rocksdb::Status RedisSets::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                                 CommitCallback callback) {
   *ret = 0;
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
 
   int32_t version = 0;
@@ -1017,7 +1041,7 @@ rocksdb::Status RedisSets::SRem(const Slice& key, const std::vector<std::string>
         if (s.ok()) {
           cnt++;
           statistic++;
-          batch.Delete(handles_[1], sets_member_key.Encode());
+          batch->Delete(1, sets_member_key.Encode());
         } else if (s.IsNotFound()) {
         } else {
           return s;
@@ -1028,7 +1052,7 @@ rocksdb::Status RedisSets::SRem(const Slice& key, const std::vector<std::string>
         return Status::InvalidArgument("set size overflow");
       }
       parsed_sets_meta_value.ModifyCount(-cnt);
-      batch.Put(handles_[0], key, meta_value);
+      batch->Put(0, key, meta_value);
     }
   } else if (s.IsNotFound()) {
     *ret = 0;
@@ -1036,7 +1060,7 @@ rocksdb::Status RedisSets::SRem(const Slice& key, const std::vector<std::string>
   } else {
     return s;
   }
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(key.ToString(), statistic);
   return s;
 }
@@ -1087,12 +1111,13 @@ rocksdb::Status RedisSets::SUnion(const std::vector<std::string>& keys, std::vec
   return rocksdb::Status::OK();
 }
 
-rocksdb::Status RedisSets::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
+rocksdb::Status RedisSets::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                                        CommitCallback callback) {
   if (keys.empty()) {
     return rocksdb::Status::Corruption("SUnionstore invalid parameter, no keys");
   }
 
-  rocksdb::WriteBatch batch;
+  auto batch = Batch::CreateBatch(this);
   rocksdb::ReadOptions read_options;
   const rocksdb::Snapshot* snapshot;
 
@@ -1145,22 +1170,22 @@ rocksdb::Status RedisSets::SUnionstore(const Slice& destination, const std::vect
       return Status::InvalidArgument("set size overflow");
     }
     parsed_sets_meta_value.set_count(static_cast<int32_t>(members.size()));
-    batch.Put(handles_[0], destination, meta_value);
+    batch->Put(0, destination, meta_value);
   } else if (s.IsNotFound()) {
     char str[4];
     EncodeFixed32(str, members.size());
     SetsMetaValue sets_meta_value(Slice(str, sizeof(int32_t)));
     version = sets_meta_value.UpdateVersion();
-    batch.Put(handles_[0], destination, sets_meta_value.Encode());
+    batch->Put(0, destination, sets_meta_value.Encode());
   } else {
     return s;
   }
   for (const auto& member : members) {
     SetsMemberKey sets_member_key(destination, version, member);
-    batch.Put(handles_[1], sets_member_key.Encode(), Slice());
+    batch->Put(1, sets_member_key.Encode(), Slice());
   }
   *ret = static_cast<int32_t>(members.size());
-  s = db_->Write(default_write_options_, &batch);
+  s = batch->Commit(callback);
   UpdateSpecificKeyStatistics(destination.ToString(), statistic);
   value_to_dest = std::move(members);
   return s;

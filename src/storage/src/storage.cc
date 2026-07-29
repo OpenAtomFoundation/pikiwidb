@@ -8,8 +8,21 @@
 
 #include <glog/logging.h>
 
+#include <future>
 #include <utility>
 
+#if __has_include(<filesystem>)
+#include <filesystem>
+namespace fs = std::filesystem;
+#elif __has_include(<experimental/filesystem>)
+#include <experimental/filesystem>
+namespace fs = std::experimental::filesystem;
+#else
+#error "std::filesystem is required"
+#endif
+
+#include "pstd/include/env.h"
+#include "rocksdb/utilities/checkpoint.h"
 #include "scope_snapshot.h"
 #include "src/lru_cache.h"
 #include "src/mutex_impl.h"
@@ -21,6 +34,9 @@
 #include "src/redis_streams.h"
 #include "src/redis_strings.h"
 #include "src/redis_zsets.h"
+
+// Binlog support for Raft
+#include "binlog.pb.h"
 
 namespace storage {
 
@@ -64,19 +80,39 @@ Storage::~Storage() {
   bg_tasks_should_exit_ = true;
   bg_tasks_cond_var_.notify_one();
 
-  if (is_opened_) {
-    rocksdb::CancelAllBackgroundWork(strings_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(hashes_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(sets_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(lists_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(zsets_db_->GetDB(), true);
-    rocksdb::CancelAllBackgroundWork(streams_db_->GetDB(), true);
-  }
-
+  // Wait for background task thread to finish before destroying databases
   int ret = 0;
   if ((ret = pthread_join(bg_tasks_thread_id_, nullptr)) != 0) {
     LOG(ERROR) << "pthread_join failed with bgtask thread error " << ret;
   }
+
+  // unique_ptr destruction will call Redis::~Redis() which properly handles:
+  // 1. CancelAllBackgroundWork(db_, true)
+  // 2. db_->Close() to wait for all background threads
+  // 3. Proper cleanup of column family handles and DB object
+  // No need to explicitly call CancelAllBackgroundWork here.
+}
+
+Status Storage::Close() {
+  if (!is_opened_) {
+    return Status::OK();
+  }
+
+  // Simply reset the unique_ptr to trigger Redis::~Redis()
+  // Redis::~Redis() will handle proper RocksDB shutdown sequence:
+  // 1. CancelAllBackgroundWork(db_, true)
+  // 2. db_->Close() to wait for background threads
+  // 3. Delete column family handles
+  // 4. Delete db_ object
+  strings_db_.reset();
+  hashes_db_.reset();
+  sets_db_.reset();
+  lists_db_.reset();
+  zsets_db_.reset();
+  streams_db_.reset();
+
+  is_opened_.store(false);
+  return Status::OK();
 }
 
 static std::string AppendSubDirectory(const std::string& db_path, const std::string& sub_db) {
@@ -87,8 +123,94 @@ static std::string AppendSubDirectory(const std::string& db_path, const std::str
   }
 }
 
+static Status CopyDirectoryRecursive(const std::string& src, const std::string& dst) {
+  std::error_code ec;
+  if (!fs::exists(src, ec) || !fs::is_directory(src, ec)) {
+    return Status::NotFound("Source checkpoint directory missing: " + src);
+  }
+
+  fs::create_directories(dst, ec);
+  if (ec) {
+    return Status::IOError("Failed to create target directory: " + dst + ", reason: " + ec.message());
+  }
+
+  const fs::path src_path(src);
+  const fs::path dst_path(dst);
+
+  for (fs::recursive_directory_iterator it(src_path, ec), end; it != end && !ec; ++it) {
+    auto relative = fs::relative(it->path(), src_path, ec);
+    if (ec) {
+      break;
+    }
+    fs::path target = dst_path / relative;
+
+    if (it->is_directory()) {
+      fs::create_directories(target, ec);
+    } else if (it->is_regular_file()) {
+      fs::create_directories(target.parent_path(), ec);
+      if (!ec) {
+        fs::copy_file(it->path(), target, fs::copy_options::overwrite_existing, ec);
+      }
+    } else if (it->is_symlink()) {
+      auto link_target = fs::read_symlink(it->path(), ec);
+      if (!ec) {
+        fs::create_directories(target.parent_path(), ec);
+        if (!ec) {
+          fs::create_symlink(link_target, target, ec);
+        }
+      }
+    }
+
+    if (ec) {
+      break;
+    }
+  }
+
+  if (ec) {
+    return Status::IOError("Failed to copy checkpoint data from " + src + " to " + dst + ": " + ec.message());
+  }
+
+  return Status::OK();
+}
+
+static Status ReplaceDirectoryWithCheckpoint(const std::string& source_dir, const std::string& target_dir) {
+  if (!pstd::FileExists(source_dir)) {
+    return Status::NotFound("Checkpoint source directory missing: " + source_dir);
+  }
+
+  auto tmp_dir = target_dir + ".tmp";
+  if (!pstd::DeleteDirIfExist(tmp_dir)) {
+    return Status::IOError("Failed to remove temporary directory: " + tmp_dir);
+  }
+
+  const bool target_exists = pstd::FileExists(target_dir);
+  if (target_exists) {
+    if (pstd::RenameFile(target_dir, tmp_dir) != 0) {
+      return Status::IOError("Failed to rename directory " + target_dir);
+    }
+  }
+
+  auto copy_status = CopyDirectoryRecursive(source_dir, target_dir);
+  if (!copy_status.ok()) {
+    pstd::DeleteDir(target_dir);
+    if (target_exists && pstd::RenameFile(tmp_dir, target_dir) != 0) {
+      LOG(WARNING) << "Failed to rollback directory from " << tmp_dir << " to " << target_dir;
+    }
+    return copy_status;
+  }
+
+  if (target_exists && !pstd::DeleteDirIfExist(tmp_dir)) {
+    LOG(WARNING) << "Failed to cleanup temporary directory: " << tmp_dir;
+  }
+
+  return Status::OK();
+}
+
 Status Storage::Open(const StorageOptions& storage_options, const std::string& db_path) {
   mkpath(db_path.c_str(), 0755);
+  db_path_ = db_path;
+  open_options_ = storage_options;
+  open_options_initialized_ = true;
 
   strings_db_ = std::make_unique<RedisStrings>(this, kStrings);
   Status s = strings_db_->Open(storage_options, AppendSubDirectory(db_path, "strings"));
@@ -125,6 +247,11 @@ Status Storage::Open(const StorageOptions& storage_options, const std::string& d
   if (!s.ok()) {
     LOG(FATAL) << "open stream db failed, " << s.ToString();
   }
+  
+  if (storage_options.append_log_function) {
+    append_log_function_ = storage_options.append_log_function;
+    LOG(INFO) << "Raft append_log_function registered for storage";
+  }
 
   is_opened_.store(true);
   return Status::OK();
@@ -141,10 +268,13 @@ Status Storage::StoreCursorStartKey(const DataType& dtype, int64_t cursor, const
 }
 
 // Strings Commands
-Status Storage::Set(const Slice& key, const Slice& value) { return strings_db_->Set(key, value); }
+Status Storage::Set(const Slice& key, const Slice& value, CommitCallback callback) {
+  return strings_db_->Set(key, value, callback);
+}
 
-Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setxx(key, value, ret, ttl);
+Status Storage::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                      CommitCallback callback) {
+  return strings_db_->Setxx(key, value, ret, ttl, callback);
 }
 
 Status Storage::Get(const Slice& key, std::string* value) { return strings_db_->Get(key, value); }
@@ -153,17 +283,19 @@ Status Storage::GetWithTTL(const Slice& key, std::string* value, int64_t* ttl) {
   return strings_db_->GetWithTTL(key, value, ttl);
 }
 
-Status Storage::GetSet(const Slice& key, const Slice& value, std::string* old_value) {
-  return strings_db_->GetSet(key, value, old_value);
+Status Storage::GetSet(const Slice& key, const Slice& value, std::string* old_value, CommitCallback callback) {
+  return strings_db_->GetSet(key, value, old_value, callback);
 }
 
-Status Storage::SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret) {
-  return strings_db_->SetBit(key, offset, value, ret);
+Status Storage::SetBit(const Slice& key, int64_t offset, int32_t value, int32_t* ret, CommitCallback callback) {
+  return strings_db_->SetBit(key, offset, value, ret, callback);
 }
 
 Status Storage::GetBit(const Slice& key, int64_t offset, int32_t* ret) { return strings_db_->GetBit(key, offset, ret); }
 
-Status Storage::MSet(const std::vector<KeyValue>& kvs) { return strings_db_->MSet(kvs); }
+Status Storage::MSet(const std::vector<KeyValue>& kvs, CommitCallback callback) {
+  return strings_db_->MSet(kvs, callback);
+}
 
 Status Storage::MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss) {
   return strings_db_->MGet(keys, vss);
@@ -173,22 +305,27 @@ Status Storage::MGetWithTTL(const std::vector<std::string>& keys, std::vector<Va
   return strings_db_->MGetWithTTL(keys, vss);
 }
 
-Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setnx(key, value, ret, ttl);
+Status Storage::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                      CommitCallback callback) {
+  return strings_db_->Setnx(key, value, ret, ttl, callback);
 }
 
-Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) { return strings_db_->MSetnx(kvs, ret); }
-
-Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const int32_t ttl) {
-  return strings_db_->Setvx(key, value, new_value, ret, ttl);
+Status Storage::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret, CommitCallback callback) {
+  return strings_db_->MSetnx(kvs, ret, callback);
 }
 
-Status Storage::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
-  return strings_db_->Delvx(key, value, ret);
+Status Storage::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret, const int32_t ttl,
+                       CommitCallback callback) {
+  return strings_db_->Setvx(key, value, new_value, ret, ttl, callback);
 }
 
-Status Storage::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret) {
-  return strings_db_->Setrange(key, start_offset, value, ret);
+Status Storage::Delvx(const Slice& key, const Slice& value, int32_t* ret, CommitCallback callback) {
+  return strings_db_->Delvx(key, value, ret, callback);
+}
+
+Status Storage::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret,
+                          CommitCallback callback) {
+  return strings_db_->Setrange(key, start_offset, value, ret, callback);
 }
 
 Status Storage::Getrange(const Slice& key, int64_t start_offset, int64_t end_offset, std::string* ret) {
@@ -200,8 +337,9 @@ Status Storage::GetrangeWithValue(const Slice& key, int64_t start_offset, int64_
   return strings_db_->GetrangeWithValue(key, start_offset, end_offset, ret, value, ttl);
 }
 
-Status Storage::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value) {
-  return strings_db_->Append(key, value, ret, expired_timestamp_sec, out_new_value);
+Status Storage::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec,
+                        std::string& out_new_value, CommitCallback callback) {
+  return strings_db_->Append(key, value, ret, expired_timestamp_sec, out_new_value, callback);
 }
 
 Status Storage::BitCount(const Slice& key, int64_t start_offset, int64_t end_offset, int32_t* ret, bool have_range) {
@@ -223,35 +361,44 @@ Status Storage::BitPos(const Slice& key, int32_t bit, int64_t start_offset, int6
   return strings_db_->BitPos(key, bit, start_offset, end_offset, ret);
 }
 
-Status Storage::Decrby(const Slice& key, int64_t value, int64_t* ret) { return strings_db_->Decrby(key, value, ret); }
-
-
-Status Storage::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec) {
-  return strings_db_->Incrby(key, value, ret, expired_timestamp_sec);
+Status Storage::Decrby(const Slice& key, int64_t value, int64_t* ret, CommitCallback callback) {
+  return strings_db_->Decrby(key, value, ret, callback);
 }
 
-Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec) {
-  return strings_db_->Incrbyfloat(key, value, ret, expired_timestamp_sec);
+
+Status Storage::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec,
+                        CommitCallback callback) {
+  return strings_db_->Incrby(key, value, ret, expired_timestamp_sec, callback);
 }
 
-Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl) { return strings_db_->Setex(key, value, ttl); }
+Status Storage::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec,
+                             CommitCallback callback) {
+  return strings_db_->Incrbyfloat(key, value, ret, expired_timestamp_sec, callback);
+}
+
+Status Storage::Setex(const Slice& key, const Slice& value, int32_t ttl, CommitCallback callback) {
+  return strings_db_->Setex(key, value, ttl, callback);
+}
 
 Status Storage::Strlen(const Slice& key, int32_t* len) { return strings_db_->Strlen(key, len); }
 
-Status Storage::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp) {
-  return strings_db_->PKSetexAt(key, value, timestamp);
+Status Storage::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp, CommitCallback callback) {
+  return strings_db_->PKSetexAt(key, value, timestamp, callback);
 }
 
 // Hashes Commands
-Status Storage::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res) {
-  return hashes_db_->HSet(key, field, value, res);
+Status Storage::HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res,
+                     CommitCallback callback) {
+  return hashes_db_->HSet(key, field, value, res, callback);
 }
 
 Status Storage::HGet(const Slice& key, const Slice& field, std::string* value) {
   return hashes_db_->HGet(key, field, value);
 }
 
-Status Storage::HMSet(const Slice& key, const std::vector<FieldValue>& fvs) { return hashes_db_->HMSet(key, fvs); }
+Status Storage::HMSet(const Slice& key, const std::vector<FieldValue>& fvs, CommitCallback callback) {
+  return hashes_db_->HMSet(key, fvs, callback);
+}
 
 Status Storage::HMGet(const Slice& key, const std::vector<std::string>& fields, std::vector<ValueStatus>* vss) {
   return hashes_db_->HMGet(key, fields, vss);
@@ -267,8 +414,9 @@ Status Storage::HKeys(const Slice& key, std::vector<std::string>* fields) { retu
 
 Status Storage::HVals(const Slice& key, std::vector<std::string>* values) { return hashes_db_->HVals(key, values); }
 
-Status Storage::HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret) {
-  return hashes_db_->HSetnx(key, field, value, ret);
+Status Storage::HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret,
+                        CommitCallback callback) {
+  return hashes_db_->HSetnx(key, field, value, ret, callback);
 }
 
 Status Storage::HLen(const Slice& key, int32_t* ret) { return hashes_db_->HLen(key, ret); }
@@ -279,16 +427,17 @@ Status Storage::HStrlen(const Slice& key, const Slice& field, int32_t* len) {
 
 Status Storage::HExists(const Slice& key, const Slice& field) { return hashes_db_->HExists(key, field); }
 
-Status Storage::HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret) {
-  return hashes_db_->HIncrby(key, field, value, ret);
+Status Storage::HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret, CommitCallback callback) {
+  return hashes_db_->HIncrby(key, field, value, ret, callback);
 }
 
-Status Storage::HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value) {
-  return hashes_db_->HIncrbyfloat(key, field, by, new_value);
+Status Storage::HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value, CommitCallback callback) {
+  return hashes_db_->HIncrbyfloat(key, field, by, new_value, callback);
 }
 
-Status Storage::HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret) {
-  return hashes_db_->HDel(key, fields, ret);
+Status Storage::HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret,
+                      CommitCallback callback) {
+  return hashes_db_->HDel(key, fields, ret, callback);
 }
 
 Status Storage::HScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -314,8 +463,9 @@ Status Storage::PKHRScanRange(const Slice& key, const Slice& field_start, const 
 }
 
 // Sets Commands
-Status Storage::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return sets_db_->SAdd(key, members, ret);
+Status Storage::SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return sets_db_->SAdd(key, members, ret, callback);
 }
 
 Status Storage::SCard(const Slice& key, int32_t* ret) { return sets_db_->SCard(key, ret); }
@@ -324,16 +474,18 @@ Status Storage::SDiff(const std::vector<std::string>& keys, std::vector<std::str
   return sets_db_->SDiff(keys, members);
 }
 
-Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SDiffstore(destination, keys, value_to_dest, ret);
+Status Storage::SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                           CommitCallback callback) {
+  return sets_db_->SDiffstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SInter(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   return sets_db_->SInter(keys, members);
 }
 
-Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SInterstore(destination, keys, value_to_dest, ret);
+Status Storage::SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return sets_db_->SInterstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SIsmember(const Slice& key, const Slice& member, int32_t* ret) {
@@ -348,29 +500,30 @@ Status Storage::SMembersWithTTL(const Slice& key, std::vector<std::string>* memb
   return sets_db_->SMembersWithTTL(key, members, ttl);
 }
 
-Status Storage::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret) {
-  return sets_db_->SMove(source, destination, member, ret);
+Status Storage::SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret, CommitCallback callback) {
+  return sets_db_->SMove(source, destination, member, ret, callback);
 }
 
-Status Storage::SPop(const Slice& key, std::vector<std::string>* members, int64_t count) {
-  Status status = sets_db_->SPop(key, members, count);
-  return status;
+Status Storage::SPop(const Slice& key, std::vector<std::string>* members, int64_t count, CommitCallback callback) {
+  return sets_db_->SPop(key, members, count, callback);
 }
 
 Status Storage::SRandmember(const Slice& key, int32_t count, std::vector<std::string>* members) {
   return sets_db_->SRandmember(key, count, members);
 }
 
-Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return sets_db_->SRem(key, members, ret);
+Status Storage::SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return sets_db_->SRem(key, members, ret, callback);
 }
 
 Status Storage::SUnion(const std::vector<std::string>& keys, std::vector<std::string>* members) {
   return sets_db_->SUnion(keys, members);
 }
 
-Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret) {
-  return sets_db_->SUnionstore(destination, keys, value_to_dest, ret);
+Status Storage::SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return sets_db_->SUnionstore(destination, keys, value_to_dest, ret, callback);
 }
 
 Status Storage::SScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -378,12 +531,14 @@ Status Storage::SScan(const Slice& key, int64_t cursor, const std::string& patte
   return sets_db_->SScan(key, cursor, pattern, count, members, next_cursor);
 }
 
-Status Storage::LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret) {
-  return lists_db_->LPush(key, values, ret);
+Status Storage::LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+                       CommitCallback callback) {
+  return lists_db_->LPush(key, values, ret, callback);
 }
 
-Status Storage::RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret) {
-  return lists_db_->RPush(key, values, ret);
+Status Storage::RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+                       CommitCallback callback) {
+  return lists_db_->RPush(key, values, ret, callback);
 }
 
 Status Storage::LRange(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret) {
@@ -394,51 +549,63 @@ Status Storage::LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std
   return lists_db_->LRangeWithTTL(key, start, stop, ret, ttl);
 }
 
-Status Storage::LTrim(const Slice& key, int64_t start, int64_t stop) { return lists_db_->LTrim(key, start, stop); }
+Status Storage::LTrim(const Slice& key, int64_t start, int64_t stop, CommitCallback callback) {
+  return lists_db_->LTrim(key, start, stop, callback);
+}
 
 Status Storage::LLen(const Slice& key, uint64_t* len) { return lists_db_->LLen(key, len); }
 
-Status Storage::LPop(const Slice& key, int64_t count, std::vector<std::string>* elements) { return lists_db_->LPop(key, count, elements); }
+Status Storage::LPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback) { 
+  return lists_db_->LPop(key, count, elements, callback); 
+}
 
-Status Storage::RPop(const Slice& key, int64_t count, std::vector<std::string>* elements) { return lists_db_->RPop(key, count, elements); }
+Status Storage::RPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback) { 
+  return lists_db_->RPop(key, count, elements, callback); 
+}
 
 Status Storage::LIndex(const Slice& key, int64_t index, std::string* element) {
   return lists_db_->LIndex(key, index, element);
 }
 
 Status Storage::LInsert(const Slice& key, const BeforeOrAfter& before_or_after, const std::string& pivot,
-                        const std::string& value, int64_t* ret) {
-  return lists_db_->LInsert(key, before_or_after, pivot, value, ret);
+                        const std::string& value, int64_t* ret, CommitCallback callback) {
+  return lists_db_->LInsert(key, before_or_after, pivot, value, ret, callback);
 }
 
-Status Storage::LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
-  return lists_db_->LPushx(key, values, len);
+Status Storage::LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                       CommitCallback callback) {
+  return lists_db_->LPushx(key, values, len, callback);
 }
 
-Status Storage::RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len) {
-  return lists_db_->RPushx(key, values, len);
+Status Storage::RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                       CommitCallback callback) {
+  return lists_db_->RPushx(key, values, len, callback);
 }
 
-Status Storage::LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret) {
-  return lists_db_->LRem(key, count, value, ret);
+Status Storage::LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret,
+                     CommitCallback callback) {
+  return lists_db_->LRem(key, count, value, ret, callback);
 }
 
-Status Storage::LSet(const Slice& key, int64_t index, const Slice& value) { return lists_db_->LSet(key, index, value); }
-
-Status Storage::RPoplpush(const Slice& source, const Slice& destination, std::string* element) {
-  return lists_db_->RPoplpush(source, destination, element);
+Status Storage::LSet(const Slice& key, int64_t index, const Slice& value, CommitCallback callback) {
+  return lists_db_->LSet(key, index, value, callback);
 }
 
-Status Storage::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  return zsets_db_->ZPopMax(key, count, score_members);
+Status Storage::RPoplpush(const Slice& source, const Slice& destination, std::string* element, CommitCallback callback) {
+  return lists_db_->RPoplpush(source, destination, element, callback);
 }
 
-Status Storage::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members) {
-  return zsets_db_->ZPopMin(key, count, score_members);
+Status Storage::ZPopMax(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
+  return zsets_db_->ZPopMax(key, count, score_members, callback);
 }
 
-Status Storage::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret) {
-  return zsets_db_->ZAdd(key, score_members, ret);
+Status Storage::ZPopMin(const Slice& key, const int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback) {
+  return zsets_db_->ZPopMin(key, count, score_members, callback);
+}
+
+Status Storage::ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret,
+                      CommitCallback callback) {
+  return zsets_db_->ZAdd(key, score_members, ret, callback);
 }
 
 Status Storage::ZCard(const Slice& key, int32_t* ret) { return zsets_db_->ZCard(key, ret); }
@@ -447,8 +614,8 @@ Status Storage::ZCount(const Slice& key, double min, double max, bool left_close
   return zsets_db_->ZCount(key, min, max, left_close, right_close, ret);
 }
 
-Status Storage::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret) {
-  return zsets_db_->ZIncrby(key, member, increment, ret);
+Status Storage::ZIncrby(const Slice& key, const Slice& member, double increment, double* ret, CommitCallback callback) {
+  return zsets_db_->ZIncrby(key, member, increment, ret, callback);
 }
 
 Status Storage::ZRange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members) {
@@ -475,17 +642,19 @@ Status Storage::ZRank(const Slice& key, const Slice& member, int32_t* rank) {
   return zsets_db_->ZRank(key, member, rank);
 }
 
-Status Storage::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret) {
-  return zsets_db_->ZRem(key, members, ret);
+Status Storage::ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+                      CommitCallback callback) {
+  return zsets_db_->ZRem(key, members, ret, callback);
 }
 
-Status Storage::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret) {
-  return zsets_db_->ZRemrangebyrank(key, start, stop, ret);
+Status Storage::ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret,
+                                 CommitCallback callback) {
+  return zsets_db_->ZRemrangebyrank(key, start, stop, ret, callback);
 }
 
 Status Storage::ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
-                                 int32_t* ret) {
-  return zsets_db_->ZRemrangebyscore(key, min, max, left_close, right_close, ret);
+                                 int32_t* ret, CommitCallback callback) {
+  return zsets_db_->ZRemrangebyscore(key, min, max, left_close, right_close, ret, callback);
 }
 
 Status Storage::ZRevrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close,
@@ -513,13 +682,15 @@ Status Storage::ZScore(const Slice& key, const Slice& member, double* ret) {
 }
 
 Status Storage::ZUnionstore(const Slice& destination, const std::vector<std::string>& keys,
-                            const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret) {
-  return zsets_db_->ZUnionstore(destination, keys, weights, agg, value_to_dest, ret);
+                            const std::vector<double>& weights, const AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return zsets_db_->ZUnionstore(destination, keys, weights, agg, value_to_dest, ret, callback);
 }
 
 Status Storage::ZInterstore(const Slice& destination, const std::vector<std::string>& keys,
-                            const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret) {
-  return zsets_db_->ZInterstore(destination, keys, weights, agg, value_to_dest, ret);
+                            const std::vector<double>& weights, const AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret,
+                            CommitCallback callback) {
+  return zsets_db_->ZInterstore(destination, keys, weights, agg, value_to_dest, ret, callback);
 }
 
 Status Storage::ZRangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
@@ -533,8 +704,8 @@ Status Storage::ZLexcount(const Slice& key, const Slice& min, const Slice& max, 
 }
 
 Status Storage::ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                               int32_t* ret) {
-  return zsets_db_->ZRemrangebylex(key, min, max, left_close, right_close, ret);
+                               int32_t* ret, CommitCallback callback) {
+  return zsets_db_->ZRemrangebylex(key, min, max, left_close, right_close, ret, callback);
 }
 
 Status Storage::ZScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
@@ -1509,7 +1680,7 @@ void Storage::ScanDatabase(const DataType& type) {
 }
 
 // HyperLogLog
-Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update) {
+Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, bool* update, CommitCallback callback) {
   *update = false;
   if (values.size() >= kMaxKeys) {
     return Status::InvalidArgument("Invalid the number of key");
@@ -1536,7 +1707,7 @@ Status Storage::PfAdd(const Slice& key, const std::vector<std::string>& values, 
   if (previous != now || (s.IsNotFound() && values.empty())) {
     *update = true;
   }
-  s = strings_db_->Set(key, result);
+  s = strings_db_->Set(key, result, callback);
   return s;
 }
 
@@ -1573,7 +1744,7 @@ Status Storage::PfCount(const std::vector<std::string>& keys, int64_t* result) {
   return Status::OK();
 }
 
-Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest) {
+Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value_to_dest, CommitCallback callback) {
   if (keys.size() >= kMaxKeys || keys.empty()) {
     return Status::InvalidArgument("Invalid the number of key");
   }
@@ -1605,7 +1776,7 @@ Status Storage::PfMerge(const std::vector<std::string>& keys, std::string& value
     HyperLogLog log(kPrecision, registers);
     result = first_log.Merge(log);
   }
-  s = strings_db_->Set(keys[0], result);
+  s = strings_db_->Set(keys[0], result, callback);
   value_to_dest = std::move(result);
   return s;
 }
@@ -2053,6 +2224,343 @@ void Storage::DisableWal(const bool is_wal_disable) {
   lists_db_->SetWriteWalOptions(is_wal_disable);
   sets_db_->SetWriteWalOptions(is_wal_disable);
   zsets_db_->SetWriteWalOptions(is_wal_disable);
+}
+
+rocksdb::Status Storage::OnBinlogWrite(const ::pikiwidb::Binlog& binlog, uint64_t log_index) {
+  rocksdb::WriteBatch batch;
+
+  // Check if there are any entries
+  if (binlog.entries().empty()) {
+    return rocksdb::Status::OK();
+  }
+
+  // Get the data type from the first entry (assuming all entries have the same data type)
+  ::pikiwidb::DataType data_type = binlog.entries(0).data_type();
+  
+  Redis* redis_db = nullptr;
+  switch (data_type) {
+    case ::pikiwidb::DataType::kStrings:
+      redis_db = strings_db_.get();
+      break;
+    case ::pikiwidb::DataType::kHashes:
+      redis_db = hashes_db_.get();
+      break;
+    case ::pikiwidb::DataType::kLists:
+      redis_db = lists_db_.get();
+      break;
+    case ::pikiwidb::DataType::kSets:
+      redis_db = sets_db_.get();
+      break;
+    case ::pikiwidb::DataType::kZSets:
+      redis_db = zsets_db_.get();
+      break;
+    case ::pikiwidb::DataType::kStreams:
+      redis_db = streams_db_.get();
+      break;
+    default:
+      LOG(WARNING) << "Unknown data type: " << static_cast<int>(data_type);
+      return rocksdb::Status::InvalidArgument("Unknown data type");
+      
+  }
+
+  if (!redis_db) {
+    LOG(ERROR) << "Redis DB is null for data type: " << static_cast<int>(data_type);
+    return rocksdb::Status::NotFound("Redis DB not found");
+  }
+
+  rocksdb::DB* db = redis_db->GetDB();
+  if (!db) {
+    LOG(ERROR) << "RocksDB instance is null for data type: " << static_cast<int>(data_type);
+    return rocksdb::Status::NotFound("RocksDB instance not found");
+  }
+
+  const auto& handles = redis_db->GetHandles();
+  auto seqno = redis_db->GetDB()->GetLatestSequenceNumber();
+
+  for (const auto& entry : binlog.entries()) {
+    uint32_t cf_idx = entry.cf_idx();
+    
+    // Check if restarting and log already applied
+    if (redis_db->IsApplied(cf_idx, log_index)) [[unlikely]] {
+      // If the starting phase is over, the log must not have been applied
+      // If the starting phase is not over and the log has been applied, skip it.
+      LOG(WARNING) << "Log " << log_index << " has been applied";
+      continue;
+    }
+
+    rocksdb::ColumnFamilyHandle* cf_handle = nullptr;
+
+    if (data_type == ::pikiwidb::DataType::kStrings) {
+      if (cf_idx != 0) {
+        LOG(WARNING) << "Strings type should use cf_idx=0, got cf_idx=" << cf_idx;
+      }
+    } else {
+      if (cf_idx >= handles.size()) {
+        LOG(ERROR) << "Invalid cf_idx " << cf_idx << " for data type "
+                   << static_cast<int>(data_type) << ", available cf count: " << handles.size();
+        return rocksdb::Status::InvalidArgument("Invalid column family index");
+      }
+      cf_handle = handles[cf_idx];
+    }
+
+    switch (entry.op_type()) {
+      case ::pikiwidb::OperateType::kPut:
+        if (cf_handle) {
+          batch.Put(cf_handle, entry.key(), entry.value());
+        } else {
+          batch.Put(entry.key(), entry.value());
+        }
+        break;
+
+      case ::pikiwidb::OperateType::kDelete:
+        if (cf_handle) {
+          batch.Delete(cf_handle, entry.key());
+        } else {
+          batch.Delete(entry.key());
+        }
+        break;
+
+      default:
+        LOG(WARNING) << "Unknown operate type: " << static_cast<int>(entry.op_type());
+        continue;
+    }
+
+    // 更新 单个 Redis DB 的 Sequence number 和 Log index 的映射关系
+    // Update applied log index for this column family
+    redis_db->UpdateAppliedLogIndexOfColumnFamily(cf_idx, log_index, ++seqno);
+  }
+
+  auto first_seqno = redis_db->GetDB()->GetLatestSequenceNumber() + 1;
+
+  rocksdb::WriteOptions write_options;
+  write_options.disableWAL = true;
+
+  // Commit the batch
+  rocksdb::Status s = redis_db->GetDB()->Write(write_options, &batch);
+
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to apply binlog batch: " << s.ToString();
+    return s;
+  }
+
+  // Update log index mapping with actual sequence number
+  redis_db->UpdateLogIndex(log_index, first_seqno);
+
+  return rocksdb::Status::OK();
+}
+
+Status Storage::LoadFromCheckpoint(const std::string& checkpoint_path) {
+  if (!open_options_initialized_) {
+    return Status::Corruption("Storage options are not initialized");
+  }
+
+  if (!pstd::FileExists(checkpoint_path)) {
+    return Status::NotFound("Checkpoint path does not exist: " + checkpoint_path);
+  }
+
+  auto cancel_bg = [](const auto& db) {
+    if (db && db->GetDB()) {
+      rocksdb::CancelAllBackgroundWork(db->GetDB(), true);
+    }
+  };
+
+  cancel_bg(strings_db_);
+  cancel_bg(hashes_db_);
+  cancel_bg(sets_db_);
+  cancel_bg(lists_db_);
+  cancel_bg(zsets_db_);
+  cancel_bg(streams_db_);
+
+  strings_db_.reset();
+  hashes_db_.reset();
+  sets_db_.reset();
+  lists_db_.reset();
+  zsets_db_.reset();
+  streams_db_.reset();
+  is_opened_.store(false);
+
+  auto checkpoint_tasks = LoadCheckpoint(checkpoint_path, db_path_);
+  for (auto& task : checkpoint_tasks) {
+    auto status = task.get();
+    if (!status.ok()) {
+      return status;
+    }
+  }
+
+  strings_db_ = std::make_unique<RedisStrings>(this, kStrings);
+  Status s = strings_db_->Open(open_options_, AppendSubDirectory(db_path_, STRINGS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  hashes_db_ = std::make_unique<RedisHashes>(this, kHashes);
+  s = hashes_db_->Open(open_options_, AppendSubDirectory(db_path_, HASHES_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  lists_db_ = std::make_unique<RedisLists>(this, kLists);
+  s = lists_db_->Open(open_options_, AppendSubDirectory(db_path_, LISTS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  sets_db_ = std::make_unique<RedisSets>(this, kSets);
+  s = sets_db_->Open(open_options_, AppendSubDirectory(db_path_, SETS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  zsets_db_ = std::make_unique<RedisZSets>(this, kZSets);
+  s = zsets_db_->Open(open_options_, AppendSubDirectory(db_path_, ZSETS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  streams_db_ = std::make_unique<RedisStreams>(this, kStreams);
+  s = streams_db_->Open(open_options_, AppendSubDirectory(db_path_, STREAMS_DB));
+  if (!s.ok()) {
+    return s;
+  }
+
+  is_opened_.store(true);
+  return Status::OK();
+}
+
+std::vector<std::future<Status>> Storage::CreateCheckpoint(const std::string& checkpoint_path) {
+  if (!is_opened_) {
+    return {};
+  }
+
+  if (pstd::FileExists(checkpoint_path) && !pstd::DeleteDirIfExist(checkpoint_path)) {
+    return {};
+  }
+  if (mkpath(checkpoint_path.c_str(), 0755) != 0) {
+    return {};
+  }
+
+  std::vector<std::future<Status>> result;
+  result.reserve(6);
+
+  static const std::vector<std::string> kDbTypes = {STRINGS_DB, HASHES_DB, LISTS_DB, SETS_DB, ZSETS_DB, STREAMS_DB};
+  for (const auto& type : kDbTypes) {
+    auto task = std::async(std::launch::async, &Storage::CreateCheckpointInternal, this, checkpoint_path, type);
+    result.push_back(std::move(task));
+  }
+
+  return result;
+}
+
+Status Storage::CreateCheckpointInternal(const std::string& checkpoint_path, const std::string& db_name) {
+  Redis* db = nullptr;
+  if (db_name == STRINGS_DB) {
+    db = strings_db_.get();
+  } else if (db_name == HASHES_DB) {
+    db = hashes_db_.get();
+  } else if (db_name == LISTS_DB) {
+    db = lists_db_.get();
+  } else if (db_name == SETS_DB) {
+    db = sets_db_.get();
+  } else if (db_name == ZSETS_DB) {
+    db = zsets_db_.get();
+  } else if (db_name == STREAMS_DB) {
+    db = streams_db_.get();
+  }
+
+  if (db == nullptr) {
+    return Status::OK();
+  }
+
+  std::string db_checkpoint_path = checkpoint_path + "/" + db_name;
+  std::string tmp_checkpoint_path = db_checkpoint_path + ".tmp";
+
+  if (!pstd::DeleteDirIfExist(tmp_checkpoint_path)) {
+    return Status::IOError("Failed to remove temporary checkpoint directory: " + tmp_checkpoint_path);
+  }
+
+  rocksdb::Checkpoint* checkpoint = nullptr;
+  auto s = rocksdb::Checkpoint::Create(db->GetDB(), &checkpoint);
+  if (!s.ok()) {
+    return Status::IOError("Create checkpoint object failed: " + s.ToString());
+  }
+
+  std::unique_ptr<rocksdb::Checkpoint> guard(checkpoint);
+  s = checkpoint->CreateCheckpoint(tmp_checkpoint_path);
+  if (!s.ok()) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Create checkpoint failed: " + s.ToString());
+  }
+
+  if (!pstd::DeleteDirIfExist(db_checkpoint_path)) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Failed to clean checkpoint directory: " + db_checkpoint_path);
+  }
+
+  if (pstd::RenameFile(tmp_checkpoint_path, db_checkpoint_path) != 0) {
+    pstd::DeleteDirIfExist(tmp_checkpoint_path);
+    return Status::IOError("Failed to finalize checkpoint directory: " + tmp_checkpoint_path);
+  }
+
+  LOG(INFO) << "CreateCheckpoint: Successfully created checkpoint for " << db_name << " at: " << db_checkpoint_path;
+  return Status::OK();
+}
+
+std::vector<std::future<Status>> Storage::LoadCheckpoint(const std::string& checkpoint_sub_path,
+                                                         const std::string& db_sub_path) {
+  static const std::vector<std::string> kDbTypes = {STRINGS_DB, HASHES_DB, SETS_DB, LISTS_DB, ZSETS_DB, STREAMS_DB};
+  std::vector<std::future<Status>> result;
+  result.reserve(kDbTypes.size());
+
+  for (const auto& db_type : kDbTypes) {
+    auto task = std::async(std::launch::async, &Storage::LoadCheckpointInternal, this, checkpoint_sub_path,
+                           db_sub_path, db_type);
+    result.push_back(std::move(task));
+  }
+  return result;
+}
+
+Status Storage::LoadCheckpointInternal(const std::string& checkpoint_sub_path, const std::string& db_sub_path,
+                                       const std::string& db_type) {
+  auto source_dir = checkpoint_sub_path + "/" + db_type;
+  if (!pstd::FileExists(source_dir)) {
+    LOG(INFO) << "Checkpoint directory for " << db_type << " not found, skip replacing";
+    return Status::OK();
+  }
+
+  auto target_dir = AppendSubDirectory(db_sub_path, db_type);
+  auto status = ReplaceDirectoryWithCheckpoint(source_dir, target_dir);
+  if (!status.ok()) {
+    LOG(ERROR) << "Failed to load checkpoint for " << db_type << ": " << status.ToString();
+  }
+  return status;
+}
+
+uint64_t Storage::GetSmallestFlushedLogIndex() {
+  uint64_t max_log_index = 0;
+  
+  std::vector<Redis*> dbs = {
+    strings_db_.get(), 
+    hashes_db_.get(), 
+    lists_db_.get(),
+    sets_db_.get(), 
+    zsets_db_.get(), 
+    streams_db_.get()
+  };
+  
+  for (auto* db : dbs) {
+    if (db) {
+      auto [smallest_applied_log_index_cf, smallest_applied_log_index, 
+            smallest_flushed_log_index_cf, smallest_flushed_log_index, 
+            smallest_flushed_seqno] = db->GetLogIndexOfColumnFamilies().GetSmallestLogIndex(-1);
+      
+      // Use the maximum of all smallest_flushed_log_index as the recovery point
+      if (smallest_flushed_log_index != std::numeric_limits<int64_t>::max()) {
+        max_log_index = std::max(max_log_index, static_cast<uint64_t>(smallest_flushed_log_index));
+      }
+    }
+  }
+  
+  return max_log_index;
 }
 
 }  //  namespace storage
