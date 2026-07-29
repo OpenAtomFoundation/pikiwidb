@@ -863,7 +863,6 @@ void Cmd::ProcessCommand(const HintKeys& hint_keys) {
     }
   }
 }
-
 void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   uint64_t start_us = pstd::NowMicros();
   pstd::lock::MultiRecordLock record_lock(db_->LockMgr());
@@ -874,14 +873,26 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (!IsSuspend()) {
     db_->DBLockShared();
   }
+  if(g_pika_server->IsConsistency()){
+    uint64_t before_do_binlog_us = pstd::NowMicros();
+    DoBinlog();
+    uint64_t end_us = pstd::NowMicros();
+    this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
+    if(res().ok()){
+        uint64_t before_do_command_us = pstd::NowMicros();
+        DoCommand(hint_keys);
+        this->command_duration_ms = (pstd::NowMicros() - before_do_command_us) / 1000;
+    }
+  }else{
+    uint64_t before_do_command_us = pstd::NowMicros();
+    DoCommand(hint_keys);
+    this->command_duration_ms = (pstd::NowMicros() - before_do_command_us) / 1000;
 
-  uint64_t before_do_command_us = pstd::NowMicros();
-  this->acquire_lock_duration_ms = (before_do_command_us - start_us) / 1000;
-  DoCommand(hint_keys);
-
-  uint64_t before_do_binlog_us = pstd::NowMicros();
-  this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
-  DoBinlog();
+    uint64_t before_do_binlog_us = pstd::NowMicros();
+    DoBinlog();
+    uint64_t end_us = pstd::NowMicros();
+    this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
+  }
 
   if (!IsSuspend()) {
     db_->DBUnlockShared();
@@ -889,9 +900,6 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (is_write()) {
     record_lock.Unlock(current_key());
   }
-
-  uint64_t end_us = pstd::NowMicros();
-  this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
 }
 
 void Cmd::DoCommand(const HintKeys& hint_keys) {
@@ -961,9 +969,15 @@ void Cmd::DoBinlog() {
 
     Status s = sync_db_->ConsensusProposeLog(shared_from_this());
     if (!s.ok()) {
-      LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
-                   << s.ToString();
-      res().SetRes(CmdRes::kErrOther, s.ToString());
+       if(g_pika_server->IsConsistency()&&s.IsTimeout()){
+         res().SetRes(CmdRes::kConsistencyTimeout, "Timeout waiting for consistency");
+         LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Slave node consistency timeout"
+                        << s.ToString();
+       }else{
+        LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
+                        << s.ToString();
+        res().SetRes(CmdRes::kErrOther, s.ToString());
+       }
       return;
     }
   }

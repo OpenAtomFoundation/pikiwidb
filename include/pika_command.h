@@ -339,6 +339,9 @@ class CmdRes {
     kInvalidTransaction,
     kTxnQueued,
     kTxnAbort,
+    kMultiKey,
+    kNoExists,
+    kConsistencyTimeout,  // consistency time out
   };
 
   CmdRes() = default;
@@ -433,6 +436,14 @@ class CmdRes {
         result.append(message_);
         result.append(kNewLine);
         break;
+      case kMultiKey:
+        result = "-WRONGTYPE Operation against a key holding the wrong kind of value";
+        result.append(kNewLine);
+        break;
+      case kNoExists:
+        return message_;
+      case kConsistencyTimeout:
+        return "-ERR consistency timeout\r\n";
       default:
         break;
     }
