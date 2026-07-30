@@ -1281,14 +1281,10 @@ void ZRevrangebylexCmd::ReadCache() {
   STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRevrangebylex(key_, min_, max_, &members, db_);
   if (s.ok()) {
-    FitLimit(count_, offset_, static_cast<int64_t>(members.size()));
-
-    res_.AppendArrayLen(count_);
-    int64_t index = static_cast<int64_t>(members.size()) - 1 - offset_;
-    int64_t end = index - count_;
-    for (; index > end; index--) {
-      res_.AppendStringLenUint64(members[index].size());
-      res_.AppendContent(members[index]);
+    auto size = count_ < members.size() ? count_ : members.size();
+    res_.AppendArrayLen(static_cast<int64_t >(size));
+    for (int i = 0; i < size; ++i) {
+      res_.AppendString(members[i]);
     }
   } else if (s.IsNotFound()) {
     res_.SetRes(CmdRes::kCacheMiss);
