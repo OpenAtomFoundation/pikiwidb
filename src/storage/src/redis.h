@@ -115,6 +115,9 @@ class Redis {
   Status SetSmallCompactionDurationThreshold(uint64_t small_compaction_duration_threshold);
   std::vector<rocksdb::ColumnFamilyHandle*> GetHandles(){ return handles_;};
   void GetRocksDBInfo(std::string &info, const char *prefix);
+  Status CompactOldFiles();
+
+  static uint64_t TableFileNameToNumber(const std::string& name);
 
  protected:
   Storage* const storage_;

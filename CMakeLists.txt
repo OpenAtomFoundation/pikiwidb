@@ -650,6 +650,8 @@ ExternalProject_Add(rocksdb
   -DPORTABLE=1
   BUILD_COMMAND
   make -j${CPU_CORE}
+  INSTALL_COMMAND
+  make install
 )
 
 ExternalProject_Add(rediscache
