@@ -83,6 +83,7 @@ Status RedisZSets::Open(const StorageOptions& storage_options, const std::string
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   column_families.emplace_back("data_cf", data_cf_ops);
   column_families.emplace_back("score_cf", score_cf_ops);
+  share_block_cache_ = storage_options.share_block_cache;
   return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
 
@@ -101,6 +102,16 @@ Status RedisZSets::GetProperty(const std::string& property, uint64_t* out) {
   std::string value;
   db_->GetProperty(handles_[0], property, &value);
   *out = std::strtoull(value.c_str(), nullptr, 10);
+
+  // If share_block_cache is enabled, block cache related properties are shared among CFs,
+  // so we only need to get the value from the first CF to avoid double counting.
+  if (share_block_cache_ &&
+      (property == "rocksdb.block-cache-usage" ||
+       property == "rocksdb.block-cache-capacity" ||
+       property == "rocksdb.block-cache-pinned-usage")) {
+    return Status::OK();
+  }
+
   db_->GetProperty(handles_[1], property, &value);
   *out += std::strtoull(value.c_str(), nullptr, 10);
   db_->GetProperty(handles_[2], property, &value);
