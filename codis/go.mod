@@ -1,10 +1,12 @@
 module pika/codis/v2
 
-go 1.19
+go 1.23.0
+
+toolchain go1.24.3
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.0
+replace google.golang.org/grpc => google.golang.org/grpc v1.56.3
 
 require (
 	github.com/BurntSushi/toml v0.3.1
@@ -18,7 +20,7 @@ require (
 	github.com/martini-contrib/render v0.0.0-20150707142108-ec18f8345a11
 	github.com/samuel/go-zookeeper v0.0.0-20201211165307-7117e9ea2414
 	github.com/spinlock/jemalloc-go v0.0.0-20201010032256-e81523fb8524
-	github.com/stretchr/testify v1.8.0
+	github.com/stretchr/testify v1.10.0
 	go.etcd.io/etcd/client/v2 v2.305.7
 	golang.org/x/net v0.33.0
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
