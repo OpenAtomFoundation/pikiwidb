@@ -462,12 +462,12 @@ Status RedisCache::ZPopMin(std::string& key, int64_t count, std::vector<storage:
     score_members->push_back(sm);
   }
 
-  robj** members_obj = (robj**)zcallocate(sizeof(robj*) * items_size);
-  for (unsigned long i = 0; i < items_size; ++i) {
+  robj** members_obj = (robj**)zcallocate(sizeof(robj*) * to_return);
+  for (unsigned long i = 0; i < to_return; ++i) {
     members_obj[i] = createObject(OBJ_STRING, sdsnewlen(items[i].member, sdslen(items[i].member)));
   }
   DEFER {
-    FreeObjectList(members_obj, items_size);
+    FreeObjectList(members_obj, to_return);
   };
 
   RcZRem(cache_, kobj, members_obj, to_return);
@@ -500,13 +500,14 @@ Status RedisCache::ZPopMax(std::string& key, int64_t count, std::vector<storage:
     score_members->push_back(sm);
   }
 
-  robj** members_obj = (robj**)zcallocate(sizeof(robj*) * items_size);
-  for (unsigned long i = items_size - 1; i >= 0; --i) {
-    members_obj[items_size - 1 - i] = createObject(OBJ_STRING, sdsnewlen(items[i].member, sdslen(items[i].member)));
+  robj** members_obj = (robj**)zcallocate(sizeof(robj*) * to_return);
+  for (unsigned long i = 0; i < to_return; ++i) {
+    unsigned long idx = items_size - 1 - i;
+    members_obj[i] = createObject(OBJ_STRING, sdsnewlen(items[idx].member, sdslen(items[idx].member)));
   }
 
   DEFER {
-    FreeObjectList(members_obj, items_size);
+    FreeObjectList(members_obj, to_return);
   };
 
   RcZRem(cache_, kobj, members_obj, to_return);
