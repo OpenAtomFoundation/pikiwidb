@@ -143,7 +143,7 @@ void PikaAclCmd::DryRun() {
   }
 
   int8_t subCmdIndex = -1;
-  AclDeniedCmd checkRes = user->CheckUserPermission(cmd, args, subCmdIndex, nullptr);
+  AclDeniedCmd checkRes = user->CheckUserPermission(cmd.get(), args, subCmdIndex, nullptr);
 
   switch (checkRes) {
     case AclDeniedCmd::OK:

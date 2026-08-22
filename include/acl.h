@@ -149,7 +149,7 @@ class AclSelector {
 
   void ACLDescribeSelector(std::vector<std::string>& vector);
 
-  AclDeniedCmd CheckCanExecCmd(std::shared_ptr<Cmd>& cmd, int8_t subCmdIndex, const std::vector<std::string>& keys,
+  AclDeniedCmd CheckCanExecCmd(Cmd* cmd, int8_t subCmdIndex, const std::vector<std::string>& keys,
                                std::string* errKey);
 
   bool SetSelectorCommandBitsForCategory(const std::string& categoryName, bool allow);
@@ -281,7 +281,7 @@ class User {
   std::vector<std::string> AllChannelKey();
 
   // check the user can exec the cmd
-  AclDeniedCmd CheckUserPermission(std::shared_ptr<Cmd>& cmd, const PikaCmdArgsType& argv, int8_t& subCmdIndex,
+  AclDeniedCmd CheckUserPermission(Cmd* cmd, const PikaCmdArgsType& argv, int8_t& subCmdIndex,
                                    std::string* errKey);
 
  private:

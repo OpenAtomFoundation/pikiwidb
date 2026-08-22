@@ -15,9 +15,10 @@
 extern PikaServer* g_pika_server;
 
 PikaDispatchThread::PikaDispatchThread(std::set<std::string>& ips, int port, int work_num, int cron_interval,
-                                       int queue_limit, int max_conn_rbuf_size)
+                                       int queue_limit, int max_conn_rbuf_size, size_t memory_pool_page_size)
     : conn_factory_(max_conn_rbuf_size), handles_(this) {
-  thread_rep_ = net::NewDispatchThread(ips, port, work_num, &conn_factory_, cron_interval, queue_limit, &handles_);
+  thread_rep_ = net::NewDispatchThread(ips, port, work_num, &conn_factory_, cron_interval, queue_limit, &handles_,
+                                       memory_pool_page_size);
   thread_rep_->set_thread_name("Dispatcher");
 }
 

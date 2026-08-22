@@ -35,6 +35,9 @@ class XAddCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XAddCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -53,6 +56,9 @@ class XDelCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XDelCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -70,6 +76,9 @@ class XReadCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XReadCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   storage::StreamReadGroupReadArgs args_;
@@ -89,6 +98,9 @@ class XRangeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XRangeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  protected:
   std::string key_;
@@ -104,6 +116,9 @@ class XRevrangeCmd : public XRangeCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XRevrangeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 };
 
 class XLenCmd : public Cmd {
@@ -114,6 +129,9 @@ class XLenCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XLenCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -129,6 +147,9 @@ class XTrimCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XTrimCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -145,6 +166,9 @@ class XInfoCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new XInfoCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;

@@ -588,7 +588,7 @@ void FlushallCmd::DoBinlogByDB(const std::shared_ptr<SyncMasterDB>& sync_db) {
       return;
     }
 
-    Status s = sync_db->ConsensusProposeLog(shared_from_this());
+    Status s = sync_db->ConsensusProposeLog(this);
     if (!s.ok()) {
       LOG(WARNING) << sync_db->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
                    << s.ToString();

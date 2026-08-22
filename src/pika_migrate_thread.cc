@@ -471,7 +471,7 @@ void WriteDelKeyToBinlog(const std::string& key, const std::shared_ptr<DB>& db) 
 
   std::shared_ptr<SyncMasterDB> sync_db =
       g_pika_rm->GetSyncMasterDBByName(DBInfo(db->GetDBName()));
-  pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr);
+  pstd::Status s = sync_db->ConsensusProposeLog(cmd_ptr.get());
   if (!s.ok()) {
     LOG(ERROR) << "write delete key to binlog failed, key: " << key;
   }

@@ -6,6 +6,7 @@
 #include <fmt/format.h>
 #include <glog/logging.h>
 #include <utility>
+#include <variant>
 #include <vector>
 
 #include "include/pika_admin.h"
@@ -38,11 +39,12 @@ PikaClientConn::PikaClientConn(int fd, const std::string& ip_port, net::Thread* 
   time_stat_.reset(new TimeStat());
 }
 
-std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
-                                           const std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc) {
+std::variant<std::shared_ptr<Cmd>, Cmd*> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
+                                                               const std::shared_ptr<std::string>& resp_ptr,
+                                                               bool cache_miss_in_rtc) {
   // Get command info
-  std::shared_ptr<Cmd> c_ptr = g_pika_cmd_table_manager->GetCmd(opt);
-  if (!c_ptr) {
+  auto cmd = g_pika_cmd_table_manager->GetRawCmd(opt);
+  if (!cmd) {
     std::shared_ptr<Cmd> tmp_ptr = std::make_shared<DummyCmd>(DummyCmd());
     tmp_ptr->res().SetRes(CmdRes::kErrOther, "unknown command \"" + opt + "\"");
     if (IsInTxn()) {
@@ -50,6 +52,7 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
     }
     return tmp_ptr;
   }
+  auto c_ptr = cmd->Clone(memory_pool_);
   c_ptr->SetCacheMissedInRtc(cache_miss_in_rtc);
   c_ptr->SetConn(shared_from_this());
   c_ptr->SetResp(resp_ptr);
@@ -119,14 +122,16 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
   }
 
   if (IsInTxn() && opt != kCmdNameExec && opt != kCmdNameWatch && opt != kCmdNameDiscard && opt != kCmdNameMulti) {
-    if (c_ptr->is_write() && g_pika_server->readonly(current_db_)) {
+    auto tmp_cmd = std::shared_ptr<Cmd>(c_ptr->Clone());
+    memory_pool_->Deallocate(c_ptr);
+    if (tmp_cmd->is_write() && g_pika_server->readonly(current_db_)) {
       SetTxnInitFailState(true);
-      c_ptr->res().SetRes(CmdRes::kErrOther, "READONLY You can't write against a read only replica.");
-      return c_ptr;
+      tmp_cmd->res().SetRes(CmdRes::kErrOther, "READONLY You can't write against a read only replica.");
+      return tmp_cmd;
     }
-    PushCmdToQue(c_ptr);
-    c_ptr->res().SetRes(CmdRes::kTxnQueued);
-    return c_ptr;
+    PushCmdToQue(tmp_cmd);
+    tmp_cmd->res().SetRes(CmdRes::kTxnQueued);
+    return tmp_cmd;
   }
 
   bool is_monitoring = g_pika_server->HasMonitorClients();
@@ -193,7 +198,7 @@ std::shared_ptr<Cmd> PikaClientConn::DoCmd(const PikaCmdArgsType& argv, const st
 
   if (c_ptr->res().ok() && c_ptr->is_write() && name() != kCmdNameExec) {
     if (c_ptr->name() == kCmdNameFlushdb) {
-      auto flushdb = std::dynamic_pointer_cast<FlushdbCmd>(c_ptr);
+      auto flushdb = dynamic_cast<FlushdbCmd*>(c_ptr);
       SetTxnFailedIfKeyExists(flushdb->GetFlushDBname());
     } else if (c_ptr->name() == kCmdNameFlushall) {
       SetTxnFailedIfKeyExists();
@@ -371,13 +376,15 @@ void PikaClientConn::BatchExecRedisCmd(const std::vector<net::RedisCmdArgsType>&
 
 bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std::string& opt) {
   resp_num.store(1);
-  std::shared_ptr<Cmd> c_ptr = g_pika_cmd_table_manager->GetCmd(opt);
-  if (!c_ptr) {
+  auto cmd = g_pika_cmd_table_manager->GetRawCmd(opt);
+  if (!cmd) {
     return false;
   }
+  auto c_ptr = cmd->Clone(memory_pool_);
   // Check authed
   if (AuthRequired()) {  // the user is not authed, need to do auth
     if (!(c_ptr->flag() & kCmdFlagsNoAuth)) {
+      memory_pool_->Deallocate(c_ptr);
       return false;
     }
   }
@@ -387,6 +394,7 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
   // the cmd with large key should be non-exist in cache, except for pre-stored
   if (c_ptr->IsTooLargeKey(g_pika_conf->max_key_size_in_cache())) {
     resp_num--;
+    memory_pool_->Deallocate(c_ptr);
     return false;
   }
   // acl check
@@ -397,6 +405,7 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
   if (checkRes == AclDeniedCmd::CMD || checkRes == AclDeniedCmd::KEY || checkRes == AclDeniedCmd::CHANNEL ||
       checkRes == AclDeniedCmd::NO_SUB_CMD || checkRes == AclDeniedCmd::NO_AUTH) {
     // acl check failed
+    memory_pool_->Deallocate(c_ptr);
     return false;
   }
   // only read command(Get, HGet) will reach here, no need of record lock
@@ -410,6 +419,7 @@ bool PikaClientConn::ReadCmdInCache(const net::RedisCmdArgsType& argv, const std
     resp_array.emplace_back(std::make_shared<std::string>(std::move(c_ptr->res().message())));
     TryWriteResp();
   }
+  memory_pool_->Deallocate(c_ptr);
   return read_status;
 }
 
@@ -554,8 +564,15 @@ void PikaClientConn::ExecRedisCmd(const PikaCmdArgsType& argv, std::shared_ptr<s
     }
   }
 
-  std::shared_ptr<Cmd> cmd_ptr = DoCmd(argv, opt, resp_ptr, cache_miss_in_rtc);
-  *resp_ptr = std::move(cmd_ptr->res().message());
+  auto cmd_ptr = DoCmd(argv, opt, resp_ptr, cache_miss_in_rtc);
+  if (std::holds_alternative<std::shared_ptr<Cmd>>(cmd_ptr)) {
+    auto cmd = std::get<std::shared_ptr<Cmd>>(cmd_ptr);
+    *resp_ptr = std::move(cmd->res().message());
+  } else if (std::holds_alternative<Cmd*>(cmd_ptr)) {
+    auto cmd = std::get<Cmd*>(cmd_ptr);
+    *resp_ptr = std::move(cmd->res().message());
+    memory_pool_->Deallocate(cmd);
+  }
   resp_num--;
 }
 

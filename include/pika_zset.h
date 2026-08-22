@@ -29,6 +29,9 @@ class ZAddCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZAddCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -53,6 +56,9 @@ class ZCardCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZCardCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -72,6 +78,9 @@ class ZScanCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ZScanCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, pattern_ = "*";
@@ -98,6 +107,9 @@ class ZIncrbyCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZIncrbyCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   double Score() { return score_; }
 
  private:
@@ -136,6 +148,9 @@ class ZRangeCmd : public ZsetRangeParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRangeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -157,6 +172,9 @@ class ZRevrangeCmd : public ZsetRangeParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRevrangeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -205,6 +223,9 @@ class ZRangebyscoreCmd : public ZsetRangebyscoreParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRangebyscoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -227,6 +248,9 @@ class ZRevrangebyscoreCmd : public ZsetRangebyscoreParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRevrangebyscoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -249,6 +273,9 @@ class ZCountCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZCountCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   double MinScore() { return min_score_; }
   double MaxScore() { return max_score_; }
   bool LeftClose() { return left_close_; }
@@ -282,6 +309,9 @@ class ZRemCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRemCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_;
@@ -330,6 +360,9 @@ class ZUnionstoreCmd : public ZsetUIstoreParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZUnionstoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -348,6 +381,9 @@ class ZInterstoreCmd : public ZsetUIstoreParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZInterstoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void DoBinlog() override;
 
  private:
@@ -382,6 +418,9 @@ class ZRankCmd : public ZsetRankParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRankCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -403,6 +442,9 @@ class ZRevrankCmd : public ZsetRankParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRevrankCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -424,6 +466,9 @@ class ZScoreCmd : public ZsetRankParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZScoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, member_;
@@ -464,6 +509,9 @@ class ZRangebylexCmd : public ZsetRangebylexParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRangebylexCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   rocksdb::Status s_;
@@ -485,6 +533,9 @@ class ZRevrangebylexCmd : public ZsetRangebylexParentCmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRevrangebylexCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -507,6 +558,9 @@ class ZLexcountCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZLexcountCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, min_member_, max_member_;
@@ -532,6 +586,9 @@ class ZRemrangebyrankCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRemrangebyrankCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, min_, max_;
@@ -556,6 +613,9 @@ class ZRemrangebyscoreCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRemrangebyscoreCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, min_, max_;
@@ -581,6 +641,9 @@ class ZRemrangebylexCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ZRemrangebylexCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string key_, min_, max_;
@@ -606,6 +669,9 @@ class ZPopmaxCmd : public Cmd {
   void DoThroughDB() override;
   void DoUpdateCache() override;
   Cmd* Clone() override { return new ZPopmaxCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -628,6 +694,9 @@ class ZPopminCmd : public Cmd {
   void DoThroughDB() override;
   void DoUpdateCache() override;
   Cmd* Clone() override { return new ZPopminCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;

@@ -63,7 +63,7 @@ class DispatchThread : public ServerThread {
   DispatchThread(const std::string& ip, int port, int work_num, ConnFactory* conn_factory, int cron_interval,
                  int queue_limit, const ServerHandle* handle);
   DispatchThread(const std::set<std::string>& ips, int port, int work_num, ConnFactory* conn_factory, int cron_interval,
-                 int queue_limit, const ServerHandle* handle);
+                 int queue_limit, const ServerHandle* handle, size_t memory_pool_page_size);
 
   ~DispatchThread() override;
 

@@ -961,7 +961,7 @@ void Cmd::DoBinlog() {
       return;
     }
 
-    Status s = sync_db_->ConsensusProposeLog(shared_from_this());
+    Status s = sync_db_->ConsensusProposeLog(this);
     if (!s.ok()) {
       LOG(WARNING) << sync_db_->SyncDBInfo().ToString() << " Writing binlog failed, maybe no space left on device "
                    << s.ToString();
