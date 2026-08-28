@@ -2,6 +2,7 @@ package pika_integration
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	. "github.com/bsm/ginkgo/v2"
@@ -343,6 +344,35 @@ var _ = Describe("Cache test", func() {
 		Expect(MultiMget.Err()).NotTo(HaveOccurred())
 		Expect(MultiMget.Val()).To(Equal([]interface{}{"a", nil, "c", "d"}))
 	})
+	It("should apply LIMIT offset to cached ZREVRANGEBYLEX results", func() {
+		members := []redis.Z{
+			{Score: 0, Member: "a"},
+			{Score: 0, Member: "b"},
+			{Score: 0, Member: "c"},
+			{Score: 0, Member: "d"},
+			{Score: 0, Member: "e"},
+			{Score: 0, Member: "f"},
+		}
+		Expect(client.ZAdd(ctx, "letters", members...).Err()).NotTo(HaveOccurred())
+
+		result, err := client.Do(ctx, "ZREVRANGEBYLEX", "letters", "+", "-", "LIMIT", 2, 2).StringSlice()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal([]string{"d", "c"}))
+
+		Eventually(func() bool {
+			info, infoErr := client.Info(ctx, "cache").Result()
+			return infoErr == nil && strings.Contains(info, "cache_keys:1")
+		}, 5*time.Second, 100*time.Millisecond).Should(BeTrue())
+
+		result, err = client.Do(ctx, "ZREVRANGEBYLEX", "letters", "+", "-", "LIMIT", 2, 2).StringSlice()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal([]string{"d", "c"}))
+
+		result, err = client.Do(ctx, "ZREVRANGEBYLEX", "letters", "+", "-", "LIMIT", 4, 2).StringSlice()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(result).To(Equal([]string{"b", "a"}))
+	})
+
 	It("MGET against non-string key", func() {
 		SetMultiKey := client.Set(ctx, "foo{t}", "BAR", 3000*time.Millisecond)
 		Expect(SetMultiKey.Err()).NotTo(HaveOccurred())
