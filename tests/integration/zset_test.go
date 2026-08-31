@@ -1092,6 +1092,90 @@ var _ = Describe("Zset Commands", func() {
 		Expect(err).To(MatchError(ContainSubstring("ERR wrong number of arguments for 'zpopmin' command")))
 	})
 
+	// Regression tests for issue #3269: RedisCache::ZPopMax used an
+	// unsigned-underflowing reverse loop and over-allocated at items_size,
+	// causing an out-of-bounds access when count >= the number of members.
+	// These cases exercise the boundary conditions (count > size, count == size,
+	// count == 0, empty/non-existent key) for both ZPopMax and ZPopMin.
+	It("should ZPopMax with count exceeding size (issue 3269)", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		// count larger than the set size must return every member (highest
+		// score first) without crashing or looping forever.
+		members, err := client.ZPopMax(ctx, "zset", 10).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(Equal([]redis.Z{{
+			Score:  3,
+			Member: "three",
+		}, {
+			Score:  2,
+			Member: "two",
+		}, {
+			Score:  1,
+			Member: "one",
+		}}))
+
+		// the set is now empty; a further pop returns nothing.
+		members, err = client.ZPopMax(ctx, "zset", 5).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(BeEmpty())
+	})
+
+	It("should ZPopMax with count equal to size (issue 3269)", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		members, err := client.ZPopMax(ctx, "zset", 2).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(Equal([]redis.Z{{
+			Score:  2,
+			Member: "two",
+		}, {
+			Score:  1,
+			Member: "one",
+		}}))
+		Expect(client.ZCard(ctx, "zset").Val()).To(Equal(int64(0)))
+	})
+
+	It("should ZPopMax on empty or non-existent key (issue 3269)", func() {
+		members, err := client.ZPopMax(ctx, "no-such-zset", 5).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(BeEmpty())
+	})
+
+	It("should ZPopMin with count exceeding size (issue 3269)", func() {
+		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 2, Member: "two"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+		err = client.ZAdd(ctx, "zset", redis.Z{Score: 3, Member: "three"}).Err()
+		Expect(err).NotTo(HaveOccurred())
+
+		members, err := client.ZPopMin(ctx, "zset", 10).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(Equal([]redis.Z{{
+			Score:  1,
+			Member: "one",
+		}, {
+			Score:  2,
+			Member: "two",
+		}, {
+			Score:  3,
+			Member: "three",
+		}}))
+
+		members, err = client.ZPopMin(ctx, "zset", 5).Result()
+		Expect(err).NotTo(HaveOccurred())
+		Expect(members).To(BeEmpty())
+	})
+
 	It("should ZRange", func() {
 		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
 		Expect(err).NotTo(HaveOccurred())
@@ -1471,7 +1555,7 @@ var _ = Describe("Zset Commands", func() {
 		Expect(err).NotTo(HaveOccurred())
 		Expect(rangeResult).To(Equal([]string{"m3"}))
 	})
-	
+
 	It("should ZRemRangeByRank", func() {
 		err := client.ZAdd(ctx, "zset", redis.Z{Score: 1, Member: "one"}).Err()
 		Expect(err).NotTo(HaveOccurred())
