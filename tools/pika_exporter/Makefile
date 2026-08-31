@@ -62,7 +62,10 @@ export TEST_COVER
 all: build 
 
 build: deps
-	CGO_ENABLED=0 go build -o bin/$(PROJNAME)
+	CGO_ENABLED=0 GOFLAGS=-mod=mod go build -o bin/$(PROJNAME); \
+	ret=$$?; \
+	git checkout -- go.mod go.sum 2>/dev/null || true; \
+	exit $$ret
 
 deps: generateVer
 	@mkdir -p bin

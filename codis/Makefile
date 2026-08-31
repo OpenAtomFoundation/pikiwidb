@@ -2,7 +2,13 @@
 
 export GO111MODULE=on
 
-build-all: generate-version codis-dashboard codis-proxy codis-admin codis-ha codis-fe
+build-all: generate-version codis-dashboard codis-proxy codis-admin codis-ha codis-fe restore-go-mod
+
+# go1.24's `go mod tidy` rewrites `go 1.23` -> `go 1.23.0` and injects a toolchain
+# line, which CentOS7 CI rejects. Restore go.mod/go.sum to the committed state
+# after the build so the normalization never lands in version control.
+restore-go-mod:
+	@git checkout -- go.mod go.sum 2>/dev/null || true
 
 PRJ_ROOT=${CURDIR}
 

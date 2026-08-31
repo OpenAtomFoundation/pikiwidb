@@ -2,6 +2,22 @@
 
 set -e
 
+# go1.24 normalizes `go 1.23` -> `go 1.23.0` and injects a toolchain line during
+# -mod=mod builds. CentOS7 CI rejects the three-segment form, so build with
+# -mod=mod but restore go.mod/go.sum to the committed state on exit.
+GO_MOD_FILE=$(cd "$(dirname "$0")" && pwd)/go.mod
+GO_SUM_FILE=$(cd "$(dirname "$0")" && pwd)/go.sum
+_c2p_mod_bak=/tmp/codis2pika.go.mod.bak
+_c2p_sum_bak=/tmp/codis2pika.go.sum.bak
+cp "$GO_MOD_FILE" "$_c2p_mod_bak"
+cp "$GO_SUM_FILE" "$_c2p_sum_bak"
+restore_go_files() {
+  cp "$_c2p_mod_bak" "$GO_MOD_FILE"
+  cp "$_c2p_sum_bak" "$GO_SUM_FILE"
+}
+trap restore_go_files EXIT
+export GOFLAGS=-mod=mod
+
 echo "[ BUILD RELEASE ]"
 BIN_DIR=$(pwd)/bin/
 rm -rf "$BIN_DIR"
