@@ -23,6 +23,7 @@
 | codis/cmd/fe/assets | bootstrap | 3.3.6 | **3.4.1** | CVE-2018-14041 / CVE-2018-14040 / CVE-2018-20676 / CVE-2018-20677 / CVE-2019-8331 / CVE-2016-10735 |
 | codis/cmd/fe/assets | jquery | 2.1.4 | **3.7.1** | CVE-2020-11022 / CVE-2020-11023 / CVE-2019-11358 / CVE-2015-9251 / CVE-2023-43051 |
 | codis/cmd/fe/assets | angular (AngularJS) | 1.4.8 | **1.8.3** | CVE-2019-10768 / CVE-2020-7676 / CVE-2022-25844 / CVE-2023-26116/26117/26118 |
+| codis/cmd/fe/assets | highcharts | 4.1.10 | **9.3.3** | CVE-2021-29489（需 v9+）/ CVE-2018-20801（需 v6.1+） |
 
 验证方式：各 Go 模块 `go build ./...` 通过；pika_exporter 经 `make build` 产出可执行文件；
 codis `go mod verify` = all modules verified；Bootstrap 为 3.x 分支内纯安全补丁，dist 结构一致、零 API breaking。
@@ -30,6 +31,13 @@ codis `go mod verify` = all modules verified；Bootstrap 为 3.x 分支内纯安
 `node --check` 语法完整，index.html 全部引用文件解析正常，`angular-ui-bootstrap@0.14.3` peer 范围（无上限）兼容 AngularJS 1.8.3。
 业务代码 `dashboard-fe.js` 经扫描无 jQuery 2→3 / AngularJS 1.4→1.8 的 breaking API 调用（`.success/.error`、`.andSelf/.size/.bind/.live` 等均为 0），
 但无 live Codis 集群，**UI 回归未经人工验证**，合并前需在真实面板过一遍关键交互。
+
+Highcharts 4.1.10 → 9.3.3 升级说明（2026-08-21 复扫后修复）：
+`highcharts` 为 vendored 静态库，整目录替换为官方 npm tarball（9.3.3 主包 `highcharts.js` 与 `highcharts-more.js` 已从旧版 `lib/` 移到包根，`index.html` 脚本路径同步调整）。
+`highcharts-ng@0.0.11` 封装通过 `new Highcharts[chartType](...)` 动态构造图表，经浏览器 smoke test 验证与 9.3.3 兼容：
+`Highcharts.version=9.3.3`，`chart_ops` spline（highchart directive）与 `slots_charts` columnrange（`new Highcharts.Chart`，与 `renderSlotsCharts` 同路径）均正常渲染 SVG，
+定时刷新推点、`destroy`/重建生命周期、以及 `dashboard-fe.js` 中已废弃的 `setOptions({global:{useUTC:false}})` 调用均无报错，浏览器控制台零错误，故未引入额外适配层。
+smoke test 仅覆盖静态页面与 mock 数据，真实接口返回、权限流程与集群状态页仍需合并前在 live 面板人工回归。
 
 ## 二、误报 / 已在仓库中修复（报告版本与实际代码不符）
 
@@ -48,13 +56,12 @@ codis `go mod verify` = all modules verified；Bootstrap 为 3.x 分支内纯安
 
 ## 三、需人工评估（高风险，本次未改动）
 
-codis 面板前端为 AngularJS 1.x 深度耦合的 SPA。jQuery、AngularJS 已在第一节升到分支内最高安全版本，
-仅剩以下两项无法在不引入回归风险的前提下修复，留待前端评估：
+codis 面板前端为 AngularJS 1.x 深度耦合的 SPA。jQuery、AngularJS、Highcharts 均已升到可修复范围内的最高安全版本，
+仅剩 AngularJS 一项因框架 EOL 无法通过继续升级消除，留待前端评估：
 
 | 组件 | 当前版本 | 情况 |
 |---|---|---|
-| highcharts | 4.1.10 | 修复报告 CVE 需升到 v9+，属跨大版本 breaking；且 `highcharts-ng@0.0.11` 封装仅适配 Highcharts 3/4，业务代码直接调用 `Highcharts.Chart`，升级会同时打断封装层与业务层，需连带替换或移除 `highcharts-ng`。**高风险，需专项评估。** |
-| angular (AngularJS) | 1.8.3（已升到 1.x 终版） | 1.x 已 EOL；1.8.3 是官方最后一个版本，仍无补丁的残留项（如 CVE-2024-8372 / CVE-2023-43004）只能通过迁移到 Angular 2+ 根治，属重写级工作量 |
+| angular (AngularJS) | 1.8.3（已升到 1.x 终版） | 1.x 已 EOL；1.8.3 是官方最后一个版本。最新复扫（2026-08-21）报告的 CVE-2024-21490（`ng-srcset` ReDoS）、CVE-2023-43004 **无 1.x 补丁版本**，不能通过继续升级 1.x 消除。短期缓解只能限制相关输入来自可信后端并做长度/格式校验，**仅降低攻击面，不等于 CVE 已修复**；根治需迁移到 Angular 2+，属重写级工作量，另立后续任务。 |
 
 ## 四、回退方式
 
