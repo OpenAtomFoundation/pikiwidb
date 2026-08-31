@@ -510,8 +510,6 @@ void ZRangebyscoreCmd::ReadCache() {
   }
 
   std::vector<storage::ScoreMember> score_members;
-  min_ = std::to_string(min_score_);
-  max_ = std::to_string(max_score_);
   STAGE_TIMER_GUARD(cache_duration_ms, true);
   auto s = db_->cache()->ZRangebyscore(key_, min_, max_, &score_members, this);
   if (s.ok()) {
