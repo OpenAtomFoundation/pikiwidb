@@ -2,8 +2,6 @@ module pika/codis/v2
 
 go 1.23.0
 
-toolchain go1.24.3
-
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
 
 replace google.golang.org/grpc => google.golang.org/grpc v1.56.3

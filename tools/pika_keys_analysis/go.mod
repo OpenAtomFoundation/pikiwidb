@@ -2,8 +2,6 @@ module pika/tools/pika_keys_analysis
 
 go 1.23.0
 
-toolchain go1.24.3
-
 require (
 	github.com/desertbit/grumble v1.1.3
 	github.com/fatih/color v1.16.0

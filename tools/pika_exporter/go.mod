@@ -2,8 +2,6 @@ module github.com/OpenAtomFoundation/pika/tools/pika_exporter
 
 go 1.23.0
 
-toolchain go1.24.3
-
 require (
 	github.com/Masterminds/semver v1.5.0
 	github.com/garyburd/redigo v1.6.4
