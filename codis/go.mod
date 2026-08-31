@@ -1,6 +1,6 @@
 module pika/codis/v2
 
-go 1.23.0
+go 1.23
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
 

@@ -1,6 +1,6 @@
 module github.com/OpenAtomFoundation/pika/tools/codis2pika
 
-go 1.23.0
+go 1.23
 
 require (
 	github.com/hdt3213/rdb v1.0.9

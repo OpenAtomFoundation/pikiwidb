@@ -1,6 +1,6 @@
 module pika/tools/pika_keys_analysis
 
-go 1.23.0
+go 1.23
 
 require (
 	github.com/desertbit/grumble v1.1.3

@@ -1,6 +1,6 @@
 module github.com/OpenAtomFoundation/pika/tools/pika_exporter
 
-go 1.23.0
+go 1.23
 
 require (
 	github.com/Masterminds/semver v1.5.0
