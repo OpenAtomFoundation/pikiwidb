@@ -7,6 +7,7 @@
 
 #include <glog/logging.h>
 
+#include "include/pika_conf.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
 
@@ -428,33 +429,47 @@ int PikaReplServerConn::DealMessage() {
   }
   switch (req->type()) {
     case InnerMessage::kMetaSync: {
+      // Record the auth result on the network thread before dispatching, so
+      // subsequent messages on this connection can be gated in DealMessage.
+      const std::string masterauth = req->meta_sync().has_auth() ? req->meta_sync().auth() : "";
+      if (g_pika_conf->requirepass().empty() || g_pika_conf->requirepass() == masterauth) {
+        is_authed_ = true;
+      }
       auto task_arg =
           new ReplServerTaskArg(req, std::dynamic_pointer_cast<PikaReplServerConn>(shared_from_this()));
       g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleMetaSyncRequest, task_arg);
       break;
     }
-    case InnerMessage::kTrySync: {
-      auto task_arg =
-          new ReplServerTaskArg(req, std::dynamic_pointer_cast<PikaReplServerConn>(shared_from_this()));
-      g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleTrySyncRequest, task_arg);
-      break;
-    }
-    case InnerMessage::kDBSync: {
-      auto task_arg =
-          new ReplServerTaskArg(req, std::dynamic_pointer_cast<PikaReplServerConn>(shared_from_this()));
-      g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleDBSyncRequest, task_arg);
-      break;
-    }
-    case InnerMessage::kBinlogSync: {
-      auto task_arg =
-          new ReplServerTaskArg(req, std::dynamic_pointer_cast<PikaReplServerConn>(shared_from_this()));
-      g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleBinlogSyncRequest, task_arg);
-      break;
-    }
+    case InnerMessage::kTrySync:
+    case InnerMessage::kDBSync:
+    case InnerMessage::kBinlogSync:
     case InnerMessage::kRemoveSlaveNode: {
+      // Require a successful MetaSync auth before serving any other message
+      // type, otherwise an unauthenticated peer could register itself as a
+      // slave and receive the whole binlog stream (issue #3270).
+      if (!g_pika_conf->requirepass().empty() && !is_authed_) {
+        LOG(WARNING) << "Unauthenticated replication request (type " << req->type()
+                     << ") rejected, close connection: " << ip_port();
+        return -1;
+      }
       auto task_arg =
           new ReplServerTaskArg(req, std::dynamic_pointer_cast<PikaReplServerConn>(shared_from_this()));
-      g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleRemoveSlaveNodeRequest, task_arg);
+      switch (req->type()) {
+        case InnerMessage::kTrySync:
+          g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleTrySyncRequest, task_arg);
+          break;
+        case InnerMessage::kDBSync:
+          g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleDBSyncRequest, task_arg);
+          break;
+        case InnerMessage::kBinlogSync:
+          g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleBinlogSyncRequest, task_arg);
+          break;
+        case InnerMessage::kRemoveSlaveNode:
+          g_pika_rm->ScheduleReplServerBGTask(&PikaReplServerConn::HandleRemoveSlaveNodeRequest, task_arg);
+          break;
+        default:
+          break;
+      }
       break;
     }
     default:

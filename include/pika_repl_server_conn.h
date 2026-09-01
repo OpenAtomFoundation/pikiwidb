@@ -37,6 +37,13 @@ class PikaReplServerConn : public net::PbConn {
   static void HandleRemoveSlaveNodeRequest(void* arg);
 
   int DealMessage() override;
+
+ private:
+  // Whether this replication connection has passed MetaSync authentication.
+  // Only accessed from the network thread invoking DealMessage(), so a plain
+  // bool is sufficient. When requirepass is set, every message type except
+  // MetaSync must arrive on an authenticated connection (issue #3270).
+  bool is_authed_{false};
 };
 
 #endif  // INCLUDE_PIKA_REPL_SERVER_CONN_H_
