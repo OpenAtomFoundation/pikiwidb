@@ -184,6 +184,13 @@ jobs:
           mkdir -p ./bin || true
           df -h
 
+      - name: Upgrade Go
+        run: |
+          curl -fsSL https://go.dev/dl/go1.23.12.linux-amd64.tar.gz -o /tmp/go.tgz
+          rm -rf /usr/local/go
+          tar -C /usr/local -xzf /tmp/go.tgz
+          /usr/local/go/bin/go version
+
       - name: Start codis, pika master and pika slave
         working-directory: ${{ github.workspace }}/build
         run: |
