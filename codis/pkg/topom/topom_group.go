@@ -5,6 +5,7 @@ package topom
 
 import (
 	"encoding/json"
+	"net"
 	"time"
 
 	"pika/codis/v2/pkg/models"
@@ -695,29 +696,58 @@ func getBinlogOffset(serverAddr, auth string) (fileNum uint64, offset uint64, er
 	return info.DbBinlogFileNum, info.DbBinlogOffset, nil
 }
 
-// binlogCaughtUp reports whether the new master's binlog position (newFileNum,
-// newOffset) has reached the old master's target position (oldFileNum,
-// oldOffset), tolerating up to `threshold` bytes of lag within the same file.
-func binlogCaughtUp(newFileNum, newOffset, oldFileNum, oldOffset, threshold uint64) bool {
-	if newFileNum > oldFileNum {
-		return true
+// getSlaveLagFromMaster reads the old master's `info replication` and returns
+// the replication lag (in bytes) that the master reports for the slave at
+// slaveAddr, i.e. how far behind that slave is from the master's current binlog
+// producer offset.
+//
+// This is the correct "has the slave caught up" signal: the master computes it
+// from a single, consistent binlog coordinate (see pika GetSlaveListString),
+// unlike comparing each node's own independent binlog producer offset. `found`
+// is false when the slave is not present in the master's slave list yet (e.g.
+// the replication link is not established); callers MUST treat that as "not
+// caught up", never as lag 0.
+func getSlaveLagFromMaster(masterAddr, slaveAddr, auth string) (lag uint64, found bool, err error) {
+	var rc *redis.Client
+	if rc, err = redis.NewClient(masterAddr, auth, 500*time.Millisecond); err != nil {
+		return 0, false, errors.Errorf("create redis client to %s failed, err:%v", masterAddr, err)
 	}
-	if newFileNum < oldFileNum {
-		return false
+	defer rc.Close()
+	info, err := rc.InfoReplication()
+	if err != nil {
+		return 0, false, errors.Errorf("get info replication from %s failed, err:%v", masterAddr, err)
 	}
-	// same file number
-	return newOffset+threshold >= oldOffset
+
+	slaveHost, slavePort, serr := net.SplitHostPort(slaveAddr)
+	if serr != nil {
+		return 0, false, errors.Errorf("invalid slave addr %s, err:%v", slaveAddr, serr)
+	}
+	for _, sl := range info.Slaves {
+		if sl.IP == slaveHost && sl.Port == slavePort {
+			if sl.Lag < 0 {
+				return 0, true, nil
+			}
+			return uint64(sl.Lag), true, nil
+		}
+	}
+	return 0, false, nil
 }
 
 // waitCatchUpBeforePromote pauses writes on the old master and then polls the
-// new master until its binlog offset catches up to the old master's frozen
-// position, or until the configured timeout elapses.
+// old master's own view of the target slave's replication lag until it reaches
+// the configured threshold, or until the configured timeout elapses.
 //
-// On success it returns aligned=true with writes still paused on the old
-// master (the caller is responsible for the subsequent slaveof / resume). If
-// pausing writes fails, it returns err with pause best-effort cleared. If the
-// timeout elapses without catching up, it returns aligned=false (writes remain
-// paused) and lets the caller decide whether to abort or force per config.
+// Why the old master's view: pika's `db0:binlog_offset` is each node's OWN
+// binlog producer offset, so comparing the new master's value against the old
+// master's is meaningless (independent binlog coordinates). The old master, on
+// the other hand, reports each connected slave's lag against a single binlog
+// coordinate (`slaveN:...,lag=(db0:N)`), which is the correct catch-up signal.
+//
+// On success it returns aligned=true with writes still paused on the old master
+// (the caller performs the subsequent slaveof / resume). If pausing writes
+// fails it returns err with pause best-effort cleared. If the timeout elapses
+// without catching up it returns aligned=false (writes remain paused) and lets
+// the caller decide whether to abort (default) or force per config.
 //
 // NOTE: the caller (GroupPromoteServer) holds s.mu while this runs, so the
 // timeout is kept short (default 15s) to bound how long the dashboard lock is
@@ -733,29 +763,36 @@ func (s *Topom) waitCatchUpBeforePromote(oldMasterAddr, newMasterAddr string) (a
 	}
 	log.Warnf("promote: paused write on old master[%s], waiting new master[%s] to catch up", oldMasterAddr, newMasterAddr)
 
-	// 2. Read the frozen target offset of the old master.
-	oldFileNum, oldOffset, err := getBinlogOffset(oldMasterAddr, auth)
-	if err != nil {
-		return false, errors.Errorf("read old master[%s] binlog offset failed, err:%v", oldMasterAddr, err)
+	// Log the old master's frozen producer offset for operability (not used for
+	// the catch-up decision, which is lag-based).
+	if oldFileNum, oldOffset, gerr := getBinlogOffset(oldMasterAddr, auth); gerr == nil {
+		log.Warnf("promote: old master[%s] frozen at (file:%d offset:%d)", oldMasterAddr, oldFileNum, oldOffset)
 	}
 
-	// 3. Poll the new master until it catches up or the timeout elapses.
+	// 2. Poll the old master's view of the new master's replication lag until it
+	// falls within the threshold or the timeout elapses.
 	threshold := s.config.PromoteAlignOffsetThreshold
 	deadline := time.Now().Add(s.config.PromoteAlignTimeout.Duration())
 	for {
-		newFileNum, newOffset, gerr := getBinlogOffset(newMasterAddr, auth)
+		lag, found, gerr := getSlaveLagFromMaster(oldMasterAddr, newMasterAddr, auth)
 		if gerr != nil {
 			// transient read error; keep retrying until the deadline
-			log.Warnf("promote: read new master[%s] binlog offset failed, err:%v", newMasterAddr, gerr)
-		} else if binlogCaughtUp(newFileNum, newOffset, oldFileNum, oldOffset, threshold) {
-			log.Warnf("promote: new master[%s] caught up (file:%d offset:%d) old master[%s] (file:%d offset:%d)",
-				newMasterAddr, newFileNum, newOffset, oldMasterAddr, oldFileNum, oldOffset)
+			log.Warnf("promote: read slave[%s] lag from old master[%s] failed, err:%v", newMasterAddr, oldMasterAddr, gerr)
+		} else if !found {
+			// new master not yet in old master's slave list: not caught up
+			log.Warnf("promote: new master[%s] not present in old master[%s] slave list yet", newMasterAddr, oldMasterAddr)
+		} else if lag <= threshold {
+			log.Warnf("promote: new master[%s] caught up old master[%s] (lag:%d <= threshold:%d)",
+				newMasterAddr, oldMasterAddr, lag, threshold)
 			return true, nil
+		} else {
+			log.Warnf("promote: new master[%s] lag behind old master[%s]: lag:%d > threshold:%d",
+				newMasterAddr, oldMasterAddr, lag, threshold)
 		}
 
 		if time.Now().After(deadline) {
-			log.Warnf("promote: new master[%s] failed to catch up old master[%s] (file:%d offset:%d) within %s",
-				newMasterAddr, oldMasterAddr, oldFileNum, oldOffset, s.config.PromoteAlignTimeout)
+			log.Warnf("promote: new master[%s] failed to catch up old master[%s] within %s",
+				newMasterAddr, oldMasterAddr, s.config.PromoteAlignTimeout)
 			return false, nil
 		}
 		time.Sleep(200 * time.Millisecond)
