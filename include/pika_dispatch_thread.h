@@ -11,7 +11,7 @@
 class PikaDispatchThread {
  public:
   PikaDispatchThread(std::set<std::string>& ips, int port, int work_num, int cron_interval, int queue_limit,
-                     int max_conn_rbuf_size);
+                     int max_conn_rbuf_size, size_t memory_pool_page_size);
   ~PikaDispatchThread();
   int StartThread();
   void StopThread();

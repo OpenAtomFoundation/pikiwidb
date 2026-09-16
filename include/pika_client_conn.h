@@ -8,10 +8,12 @@
 
 #include <bitset>
 #include <utility>
+#include <variant>
 
 #include "acl.h"
 #include "include/pika_command.h"
 #include "include/pika_define.h"
+#include "net/src/memory_pool.h"
 
 // TODO: stat time costing in write out data to connfd
 struct TimeStat {
@@ -114,6 +116,8 @@ class PikaClientConn : public net::RedisConn {
 
   std::shared_ptr<TimeStat> time_stat_;
 
+  void SetMemoryPool(net::MemoryPool* memory_pool) override { memory_pool_ = memory_pool; }
+
  private:
   net::ServerThread* const server_thread_;
   std::string current_db_;
@@ -127,7 +131,9 @@ class PikaClientConn : public net::RedisConn {
   bool authenticated_ = false;
   std::shared_ptr<User> user_;
 
-  std::shared_ptr<Cmd> DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
+  net::MemoryPool *memory_pool_= nullptr;
+
+  std::variant<std::shared_ptr<Cmd>, Cmd*> DoCmd(const PikaCmdArgsType& argv, const std::string& opt,
                              const std::shared_ptr<std::string>& resp_ptr, bool cache_miss_in_rtc);
 
   void ProcessSlowlog(const PikaCmdArgsType& argv, std::shared_ptr<Cmd> c_ptr);

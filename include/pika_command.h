@@ -20,6 +20,7 @@
 #include "pstd/include/stage_timer.h"
 
 #include "net/src/dispatch_thread.h"
+#include "net/src/memory_pool.h"
 
 // Declare and set start time of the timer
 #define STAGE_TIMER_GUARD(metric, enabled)  \
@@ -536,6 +537,7 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   virtual void DoUpdateCache() {}
   virtual void ReadCache() {}
   virtual Cmd* Clone() = 0;
+  virtual Cmd* Clone(net::MemoryPool* pool) = 0;
   // used for execute multikey command into different slots
   virtual void Split(const HintKeys& hint_keys) = 0;
   virtual void Merge() = 0;

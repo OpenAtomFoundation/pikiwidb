@@ -257,7 +257,7 @@ void User::GetUserDescribe(CmdRes* res) {
   }
 }
 
-AclDeniedCmd User::CheckUserPermission(std::shared_ptr<Cmd>& cmd, const PikaCmdArgsType& argv, int8_t& subCmdIndex,
+AclDeniedCmd User::CheckUserPermission(Cmd* cmd, const PikaCmdArgsType& argv, int8_t& subCmdIndex,
                                        std::string* errKey) {
   std::shared_lock l(mutex_);
 
@@ -1226,8 +1226,8 @@ void AclSelector::ACLDescribeSelector(std::vector<std::string>& vector) {
   }
 }
 
-AclDeniedCmd AclSelector::CheckCanExecCmd(std::shared_ptr<Cmd>& cmd, int8_t subCmdIndex,
-                                          const std::vector<std::string>& keys, std::string* errKey) {
+AclDeniedCmd AclSelector::CheckCanExecCmd(Cmd* cmd, int8_t subCmdIndex, const std::vector<std::string>& keys,
+                                          std::string* errKey) {
   if (!HasFlags(static_cast<uint32_t>(AclSelectorFlag::ALL_COMMANDS)) && !(cmd->flag() & kCmdFlagsNoAuth)) {
     if (subCmdIndex < 0) {
       if (!allowedCommands_.test(cmd->GetCmdId())) {

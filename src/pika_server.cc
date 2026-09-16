@@ -71,7 +71,8 @@ PikaServer::PikaServer()
   LOG(INFO) << "Worker queue limit is " << worker_queue_limit;
   for_each(ips.begin(), ips.end(), [](auto& ip) { LOG(WARNING) << ip; });
   pika_dispatch_thread_ = std::make_unique<PikaDispatchThread>(ips, port_, worker_num_, 3000, worker_queue_limit,
-                                                               g_pika_conf->max_conn_rbuf_size());
+                                                               g_pika_conf->max_conn_rbuf_size(),
+                                                               g_pika_cmd_table_manager->GetMaxCmdSize());
   pika_rsync_service_ =
       std::make_unique<PikaRsyncService>(g_pika_conf->db_sync_path(), g_pika_conf->port() + kPortShiftRSync);
   // TODO: remove pika_rsync_service_，reuse pika_rsync_service_ port
