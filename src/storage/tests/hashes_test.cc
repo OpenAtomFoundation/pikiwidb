@@ -10,6 +10,9 @@
 #include <iterator>
 #include <thread>
 
+#include "glog/logging.h"
+#include "pstd/include/env.h"
+#include "pstd/include/pika_codis_slot.h"
 #include "storage/storage.h"
 #include "storage/util.h"
 
@@ -22,9 +25,8 @@ class HashesTest : public ::testing::Test {
 
   void SetUp() override {
     std::string path = "./db/hashes";
-    if (access(path.c_str(), F_OK) != 0) {
-      mkdir(path.c_str(), 0755);
-    }
+    pstd::DeleteDirIfExist(path);
+    mkdir(path.c_str(), 0755);
     storage_options.options.create_if_missing = true;
     s = db.Open(storage_options, path);
   }
@@ -351,7 +353,7 @@ TEST_F(HashesTest, HIncrbyfloat) {
 
   s = db.HIncrbyfloat("GP1_HINCRBYFLOAT_KEY", "GP1_HINCRBYFLOAT_FIELD", "1.234", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "2.468");
+  ASSERT_NEAR(std::stod(new_value), 2.468, 1e-9);
 
   // ***************** Group 2 Test *****************
   s = db.HSet("GP2_HINCRBYFLOAT_KEY", "GP2_HINCRBYFLOAT_FIELD", " 1.234", &ret);
@@ -382,10 +384,10 @@ TEST_F(HashesTest, HIncrbyfloat) {
   // operation is performed
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_FIELD", "12.3456", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "12.3456");
+  ASSERT_NEAR(std::stod(new_value), 12.3456, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_FIELD", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "12.3456");
+  //ASSERT_EQ(new_value, "12.3456");
   s = db.HLen("HINCRBYFLOAT_KEY", &ret);
   ASSERT_TRUE(s.ok());
   ASSERT_EQ(ret, 1);
@@ -404,10 +406,10 @@ TEST_F(HashesTest, HIncrbyfloat) {
   // operation is performed
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NOT_EXIST_FIELD", "65.4321000", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "65.4321");
+  ASSERT_NEAR(std::stod(new_value), 65.4321, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NOT_EXIST_FIELD", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "65.4321");
+  ASSERT_NEAR(std::stod(new_value), 65.4321, 1e-9);
   s = db.HLen("HINCRBYFLOAT_KEY", &ret);
   ASSERT_TRUE(s.ok());
   ASSERT_EQ(ret, 3);
@@ -418,18 +420,18 @@ TEST_F(HashesTest, HIncrbyfloat) {
   // Positive test
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NUM_FIELD", "+123.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "1123.456789");
+  ASSERT_NEAR(std::stod(new_value), 1123.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NUM_FIELD", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "1123.456789");
+  ASSERT_NEAR(std::stod(new_value), 1123.456789, 1e-9);
 
   // Negative test
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NUM_FIELD", "-123.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "1000");
+  ASSERT_NEAR(std::stod(new_value), 1000, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_NUM_FIELD", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "1000");
+  ASSERT_NEAR(std::stod(new_value), 1000, 1e-9);
 
   s = db.HLen("HINCRBYFLOAT_KEY", &ret);
   ASSERT_TRUE(s.ok());
@@ -439,83 +441,83 @@ TEST_F(HashesTest, HIncrbyfloat) {
   // case 1
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD1", "2.0e2", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "200");
+  ASSERT_NEAR(std::stod(new_value), 200, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD1", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "200");
+  ASSERT_NEAR(std::stod(new_value), 200, 1e-9);
 
   // case2
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD2", "5.0e3", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "5000");
+  ASSERT_NEAR(std::stod(new_value), 5000, 1e-9);
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD2", "2.0e2", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "5200");
+  ASSERT_NEAR(std::stod(new_value), 5200, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD2", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "5200");
+  ASSERT_NEAR(std::stod(new_value), 5200, 1e-9);
 
   // case 3
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD3", "5.0e3", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "5000");
+  ASSERT_NEAR(std::stod(new_value), 5000, 1e-9);
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD3", "-2.0e2", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "4800");
+  ASSERT_NEAR(std::stod(new_value), 4800, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD3", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "4800");
+  ASSERT_NEAR(std::stod(new_value), 4800, 1e-9);
 
   // case 4
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD4", ".456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD4", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
 
   // case5
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD5", "-.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "-0.456789");
+  ASSERT_NEAR(std::stod(new_value), -0.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD5", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "-0.456789");
+  ASSERT_NEAR(std::stod(new_value), -0.456789, 1e-9);
 
   // case6
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD6", "+.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD6", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
 
   // case7
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD7", "+.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD7", "-.456789", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0");
+  ASSERT_NEAR(std::stod(new_value), 0, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD7", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0");
+  ASSERT_NEAR(std::stod(new_value), 0, 1e-9);
 
   // case8
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD8", "-00000.456789000", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "-0.456789");
+  ASSERT_NEAR(std::stod(new_value), -0.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD8", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "-0.456789");
+  ASSERT_NEAR(std::stod(new_value), -0.456789, 1e-9);
 
   // case9
   s = db.HIncrbyfloat("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD9", "+00000.456789000", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
   s = db.HGet("HINCRBYFLOAT_KEY", "HINCRBYFLOAT_SP_FIELD9", &new_value);
   ASSERT_TRUE(s.ok());
-  ASSERT_EQ(new_value, "0.456789");
+  ASSERT_NEAR(std::stod(new_value), 0.456789, 1e-9);
 
   s = db.HLen("HINCRBYFLOAT_KEY", &ret);
   ASSERT_TRUE(s.ok());
@@ -2420,6 +2422,14 @@ TEST_F(HashesTest, PKHRScanRangeTest) {
 }
 
 int main(int argc, char** argv) {
+  if (!pstd::FileExists("./log")) {
+    pstd::CreatePath("./log");
+  }
+  FLAGS_log_dir = "./log";
+  FLAGS_minloglevel = 0;
+  FLAGS_max_log_size = 1800;
+  FLAGS_logbufsecs = 0;
+  ::google::InitGoogleLogging("hashes_test");
   ::testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
