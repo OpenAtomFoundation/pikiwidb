@@ -1,10 +1,10 @@
 module pika/codis/v2
 
-go 1.19
+go 1.20
 
 replace github.com/coreos/bbolt => go.etcd.io/bbolt v1.3.4
 
-replace google.golang.org/grpc => google.golang.org/grpc v1.29.0
+replace google.golang.org/grpc => google.golang.org/grpc v1.56.3
 
 require (
 	github.com/BurntSushi/toml v0.3.1
@@ -20,7 +20,7 @@ require (
 	github.com/spinlock/jemalloc-go v0.0.0-20201010032256-e81523fb8524
 	github.com/stretchr/testify v1.8.0
 	go.etcd.io/etcd/client/v2 v2.305.7
-	golang.org/x/net v0.17.0
+	golang.org/x/net v0.33.0
 	gopkg.in/alexcesaro/statsd.v2 v2.0.0
 )
 
@@ -33,7 +33,12 @@ require (
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/sirupsen/logrus v1.9.3 // indirect
 	go.etcd.io/etcd/api/v3 v3.5.7 // indirect
 	go.etcd.io/etcd/client/pkg/v3 v3.5.7 // indirect
+	golang.org/x/crypto v0.31.0 // indirect
+	golang.org/x/sys v0.28.0 // indirect
+	golang.org/x/text v0.21.0 // indirect
+	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

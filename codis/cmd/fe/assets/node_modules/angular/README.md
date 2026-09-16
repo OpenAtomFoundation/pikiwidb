@@ -1,8 +1,11 @@
 # packaged angular
 
-This repo is for distribution on `npm` and `bower`. The source for this module is in the
-[main AngularJS repo](https://github.com/angular/angular.js).
-Please file issues and pull requests against that repo.
+**This package contains the legacy AngularJS (version 1.x). AngularJS support has officially ended
+as of January 2022.
+[See what ending support means](https://docs.angularjs.org/misc/version-support-status) and
+[read the end of life announcement](https://goo.gle/angularjs-end-of-life).**
+
+**[See `@angular/core` for the actively supported Angular](https://npmjs.com/@angular/core).**
 
 ## Install
 
@@ -43,7 +46,7 @@ Documentation is available on the
 
 The MIT License
 
-Copyright (c) 2010-2015 Google, Inc. http://angularjs.org
+Copyright (c) 2022 Google LLC
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
