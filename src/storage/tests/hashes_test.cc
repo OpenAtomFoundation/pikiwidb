@@ -12,7 +12,6 @@
 
 #include "glog/logging.h"
 #include "pstd/include/env.h"
-#include "pstd/include/pika_codis_slot.h"
 #include "storage/storage.h"
 #include "storage/util.h"
 
