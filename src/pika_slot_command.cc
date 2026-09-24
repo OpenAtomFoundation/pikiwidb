@@ -635,7 +635,7 @@ void RemSlotKeyByType(const std::string& type, const std::string& key, const std
   std::vector<std::string> members;
   members.emplace_back(type + key);
   rocksdb::Status s = db->storage()->SRem(slot_key, members, &res);
-  if (!s.ok()) {
+  if (!s.ok() && !s.IsNotFound()) {
     LOG(ERROR) << "srem key[" << key << "] from slotKey[" << slot_key << "] failed, error: " << s.ToString();
     return;
   }
@@ -643,7 +643,7 @@ void RemSlotKeyByType(const std::string& type, const std::string& key, const std
   if (hastag) {
     std::string tag_key = GetSlotsTagKey(crc);
     s = db->storage()->SRem(tag_key, members, &res);
-    if (!s.ok()) {
+    if (!s.ok() && !s.IsNotFound()) {
       LOG(ERROR) << "srem key[" << key << "] from tagKey[" << tag_key << "] failed, error: " << s.ToString();
       return;
     }
@@ -761,17 +761,12 @@ void RemSlotKey(const std::string& key, const std::shared_ptr<DB>& db) {
 int GetKeyType(const std::string& key, std::string& key_type, const std::shared_ptr<DB>& db) {
   enum storage::DataType type;
   rocksdb::Status s = db->storage()->GetType(key, type);
-  if (!s.ok()) {
-    LOG(WARNING) << "Get key type error: " << key << " " << s.ToString();
+  if (!s.ok() || type == storage::DataType::kNones) {
+    LOG(WARNING) << "Get key type error: " << key << " type: " << static_cast<int>(type);
     key_type = "";
     return -1;
   }
   auto key_type_char = storage::DataTypeToTag(type);
-  if (key_type_char == DataTypeToTag(storage::DataType::kNones)) {
-    LOG(WARNING) << "Get key type error: " << key;
-    key_type = "";
-    return -1;
-  }
   key_type = key_type_char;
   return 1;
 }

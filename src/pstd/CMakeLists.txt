@@ -3,7 +3,6 @@ cmake_minimum_required(VERSION 3.18)
 set (CMAKE_CXX_STANDARD 17)
 project (pstd)
 
-# 强制使用用户自定的 memcmp
 add_compile_options("-fno-builtin-memcmp -pipe")
 
 
