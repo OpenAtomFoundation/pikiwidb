@@ -65,7 +65,8 @@ Status Context::Init() {
 void Context::UpdateAppliedIndex(const LogOffset& offset) {
   std::lock_guard l(rwlock_);
   LogOffset cur_offset;
-  applied_win_.Update(SyncWinItem(offset), SyncWinItem(offset), &cur_offset);
+  // TODO: 暂时注释掉这一行，因为applied_win_没有push调用，只有update，窗口永远对不上
+  //applied_win_.Update(SyncWinItem(offset), SyncWinItem(offset), &cur_offset);
   if (cur_offset > applied_index_) {
     applied_index_ = cur_offset;
     StableSave();
@@ -226,6 +227,7 @@ ConsensusCoordinator::ConsensusCoordinator(const std::string& db_name)
   context_ = std::make_shared<Context>(log_path + kContext);
   stable_logger_ = std::make_shared<StableLog>(db_name, log_path);
   mem_logger_ = std::make_shared<MemLog>();
+  logs_ = std::make_shared<Log>();
 }
 
 ConsensusCoordinator::~ConsensusCoordinator() = default;
@@ -371,12 +373,30 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
 
 Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const LogOffset& start,
                                          const LogOffset& end) {
-  LogOffset committed_index;
-  Status s = sync_pros_.Update(ip, port, start, end, &committed_index);
-  if (!s.ok()) {
-    return s;
+  if (is_consistency_) {
+    std::shared_ptr<SlaveNode> slave_ptr = sync_pros_.GetSlaveNode(ip, port);
+    if (!slave_ptr) {
+      return Status::NotFound("ip " + ip + " port " + std::to_string(port));
+    }
+    {
+      std::lock_guard l(slave_ptr->slave_mu);
+      slave_ptr->acked_offset = end;
+      sync_pros_.AddMatchIndex(ip, port, slave_ptr->acked_offset);
+      LOG(INFO) << "PacificA slave ip: " << ip << ", port :" << port << ",slave acked_offset "
+                << slave_ptr->acked_offset.ToString();
+      if (slave_ptr->slave_state != kSlaveBinlogSync && slave_ptr->acked_offset >= slave_ptr->target_offset) {
+        slave_ptr->slave_state = kSlaveBinlogSync;
+        LOG(INFO) << "PacificA change slave_state kSlaveBinlogSync acked_offset: " << slave_ptr->acked_offset.ToString()
+                  << ", target_offset: " << slave_ptr->target_offset.ToString();
+      }
+    }
+  } else {
+    LogOffset committed_index;
+    Status s = sync_pros_.Update(ip, port, start, end, &committed_index);
+    if (!s.ok()) {
+      return s;
+    }
   }
-
   return Status::OK();
 }
 
@@ -453,8 +473,7 @@ Status ConsensusCoordinator::TruncateTo(const LogOffset& offset) {
     return s;
   }
   LOG(INFO) << DBInfo(db_name_).ToString() << " Founded truncate pos "
-            << founded_offset.ToString();
-  LogOffset committed = committed_index();
+            << founded_offset.ToString();  LogOffset committed = committed_index();
   stable_logger_->Logger()->Lock();
   if (founded_offset.l_offset.index == committed.l_offset.index) {
     mem_logger_->Reset(committed);
@@ -780,4 +799,281 @@ Status ConsensusCoordinator::FollowerNegotiate(const std::vector<LogOffset>& hin
   }
   *reply_offset = mem_logger_->last_offset();
   return Status::OK();
+}
+// pacificA public:
+
+void ConsensusCoordinator::SetConsistency(bool is_consistency) {
+  std::lock_guard l(is_consistency_rwlock_);
+  is_consistency_ = is_consistency;
+}
+bool ConsensusCoordinator::GetISConsistency() {
+  std::shared_lock l(is_consistency_rwlock_);
+  return is_consistency_;
+}
+
+bool ConsensusCoordinator::checkFinished(const LogOffset& offset) {
+  //TODO: 暂时加了读写锁，后期考虑替换为原子变量
+  std::lock_guard l(committed_id_rwlock_);
+  if (offset <= committed_id_) {
+    return true;
+  }
+  return false;
+}
+
+//// pacificA private:
+
+Status ConsensusCoordinator::PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset) {
+  std::string content = cmd_ptr->ToRedisProtocol();
+  std::string binlog = std::string();
+  LogOffset offset = LogOffset();
+  Status s = stable_logger_->Logger()->Put(content, &offset, binlog);
+  LOG(INFO) << "PacificA  binlog_offset :" << offset.ToString();
+  cur_offset = offset;
+  if (!s.ok()) {
+    std::string db_name = cmd_ptr->db_name().empty() ? g_pika_conf->default_db() : cmd_ptr->db_name();
+    std::shared_ptr<DB> db = g_pika_server->GetDB(db_name);
+    if (db) {
+      db->SetBinlogIoError();
+    }
+
+    return s;
+  }
+  // If successful, append the log entry to the logs
+  // TODO: 这里logs_的appendlog操作和上边的stable_logger_->Logger()->Put不是原子的，可能导致offset大的先被追加到logs_中，
+  // 多线程写入的时候窗口会对不上，最终主从断开连接。需要加逻辑保证原子性
+  logs_->AppendLog(Log::LogItem(cur_offset, cmd_ptr, binlog));
+
+  SetPreparedId(cur_offset);
+
+  return stable_logger_->Logger()->IsOpened();
+}
+
+Status ConsensusCoordinator::AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_logoffset) {
+  std::vector<std::string> keys = cmd_ptr->current_key();
+  // slotkey shouldn't add binlog
+  if (cmd_ptr->name() == kCmdNameSAdd && !keys.empty() &&
+      (keys[0].compare(0, SlotKeyPrefix.length(), SlotKeyPrefix) == 0 ||
+       keys[0].compare(0, SlotTagPrefix.length(), SlotTagPrefix) == 0)) {
+    return Status::OK();
+  }
+
+  // make sure stable log and mem log consistent
+  Status s = PersistAppendBinlog(cmd_ptr, cur_logoffset);
+  if (!s.ok()) {
+    return s;
+  }
+
+  g_pika_server->SignalAuxiliary();
+  return Status::OK();
+}
+Status ConsensusCoordinator::AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute) {
+  LogOffset last_index = logs_->LastOffset();
+  if (attribute.logic_id() < last_index.l_offset.index) {
+    LOG(WARNING) << DBInfo(db_name_).ToString() << "Drop log from leader logic_id " << attribute.logic_id()
+                 << " cur last index " << last_index.l_offset.index;
+    return Status::OK();
+  }
+  LogOffset offset = LogOffset();
+  Status s = PersistAppendBinlog(cmd_ptr, offset);
+  if (!s.ok()) {
+    return s;
+  }
+  return s;
+}
+
+/**
+ * @brief Commit logs up to the given offset and update the committed ID.
+ */
+Status ConsensusCoordinator::CommitAppLog(const LogOffset& master_committed_id) {
+  int index = logs_->FindOffset(logs_->FirstOffset());
+  int log_size = logs_->Size();  // Cache log size
+  for (int i = index; i < log_size; ++i) {
+    Log::LogItem log = logs_->At(i);
+    if (master_committed_id >= log.offset) {
+      LOG(INFO) << "PacificA master_committed_id: " << master_committed_id.ToString()
+                << ", ApplyLog: " << log.offset.ToString();
+      ApplyBinlog(log.cmd_ptr);
+    }
+  }
+
+  logs_->TruncateFrom(master_committed_id);  // Truncate logs
+  SetCommittedId(master_committed_id);       // Update committed ID
+  return Status::OK();
+}
+
+/**
+ * @brief Update the committed ID based on the Prepared ID of the slave
+ */
+Status ConsensusCoordinator::UpdateCommittedID() {
+  std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves = sync_pros_.GetAllSlaveNodes();
+  LogOffset slave_prepared_id = LogOffset();
+
+  for (const auto& slave : slaves) {
+    if (slave.second->slave_state == kSlaveBinlogSync) {
+      if (slave_prepared_id == LogOffset()) {
+        slave_prepared_id = slave.second->acked_offset;
+      } else if (slave.second->acked_offset < slave_prepared_id) {
+        slave_prepared_id = slave.second->acked_offset;
+      }
+    }
+  }
+  if (slave_prepared_id < GetCommittedId()) {
+    LOG(WARNING) << "Error: slave_prepared_id (" << slave_prepared_id.ToString() << ") < master_committedId ("
+                 << GetCommittedId().ToString() << ")";
+    return Status::Error("slave_prepared_id < master_committedId");
+  }
+  SetCommittedId(slave_prepared_id);
+  LOG(INFO) << "PacificA update CommittedID: " << GetCommittedId().ToString();
+  return Status::OK();
+}
+Status ConsensusCoordinator::ProcessCoordination() {
+  LogOffset offset = LogOffset();
+  Status s = stable_logger_->Logger()->GetProducerStatus(&(offset.b_offset.filenum), &(offset.b_offset.offset),
+                                                         &(offset.l_offset.term), &(offset.l_offset.index));
+  LogOffset stable_committed_id = context_->applied_index_;
+  if (stable_committed_id == LogOffset() || stable_committed_id.l_offset.index + 10 < offset.l_offset.index) {
+    SetCommittedId(offset);
+  } else {
+    SetCommittedId(stable_committed_id);
+  }
+  SetPreparedId(offset);
+  if (g_pika_server->role() & PIKA_ROLE_MASTER && g_pika_server->last_role() & PIKA_ROLE_SLAVE) {
+    Status s = CommitAppLog(GetPreparedId());
+    if (!s.ok()) {
+      return s;
+    }
+  }
+  return Status::OK();
+}
+// Execute the operation of writing to DB
+Status ConsensusCoordinator::ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
+  auto opt = cmd_ptr->argv()[0];
+  if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
+    InternalApplyFollower(cmd_ptr);
+  } else {
+    int32_t wait_ms = 250;
+    while (g_pika_rm->GetUnfinishedAsyncWriteDBTaskCount(db_name_) > 0) {
+      // TODO: 暂时去掉了sleep的逻辑，考虑使用条件变量唤醒
+      //std::this_thread::sleep_for(std::chrono::milliseconds(wait_ms));
+      wait_ms *= 2;
+      wait_ms = wait_ms < 3000 ? wait_ms : 3000;
+    }
+    PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
+  }
+
+  return Status::OK();
+}
+
+Status ConsensusCoordinator::SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name) {
+  std::vector<WriteTask> tasks;
+
+  // Check if there are new log entries that need to be sent to the slave
+  if (logs_->LastOffset() >= slave_ptr->acked_offset) {
+    // Find the index of the log entry corresponding to the slave's acknowledged offset
+    int index = logs_->FindOffset(slave_ptr->acked_offset);
+    if (index < logs_->Size()) {
+      for (int i = index; i < logs_->Size(); ++i) {
+        const Log::LogItem& item = logs_->At(i);
+
+        slave_ptr->SetLastSendTime(pstd::NowMicros());
+
+        RmNode rm_node(slave_ptr->Ip(), slave_ptr->Port(), slave_ptr->DBName(), slave_ptr->SessionId());
+        WriteTask task(rm_node, BinlogChip(item.offset, item.binlog_), slave_ptr->sent_offset, GetCommittedId());
+        tasks.emplace_back(std::move(task));
+
+        slave_ptr->sent_offset = item.offset;
+      }
+    }
+  }
+
+  if (!tasks.empty()) {
+    g_pika_rm->ProduceWriteQueue(slave_ptr->Ip(), slave_ptr->Port(), db_name, tasks);
+  }
+  return Status::OK();
+}
+
+Status ConsensusCoordinator::Truncate(const LogOffset& offset) {
+  LOG(INFO) << DBInfo(db_name_).ToString() << "Truncate to " << offset.ToString();
+
+  LogOffset founded_offset;
+  Status s = FindLogicOffset(offset.b_offset, offset.l_offset.index, &founded_offset);
+  if (!s.ok()) {
+    return s;
+  }
+
+  LOG(INFO) << DBInfo(db_name_).ToString() << " Founded truncate pos " << founded_offset.ToString();
+  s = logs_->Truncate(founded_offset);
+  if (!s.ok()) {
+    return s;
+  }
+  return Status::OK();
+}
+// LOG
+Log::Log() = default;
+
+int Log::Size() {
+  std::shared_lock lock(logs_mutex_);
+  return static_cast<int>(logs_.size());
+}
+
+void Log::AppendLog(const LogItem& item) {
+  std::lock_guard lock(logs_mutex_);
+  logs_.push_back(item);
+  last_index_ = item.offset;
+}
+
+LogOffset Log::LastOffset() {
+  std::shared_lock lock(logs_mutex_);
+  return last_index_;
+}
+
+LogOffset Log::FirstOffset() {
+  std::shared_lock lock(logs_mutex_);
+  return first_index_;
+}
+
+Log::LogItem Log::At(int index) {
+  std::shared_lock lock(logs_mutex_);
+  return logs_.at(index);  // 使用 at() 确保边界安全
+}
+
+int Log::FindOffset(const LogOffset& send_offset) {
+  std::shared_lock lock(logs_mutex_);
+  for (size_t i = 0; i < logs_.size(); ++i) {
+    if (logs_[i].offset > send_offset) {
+      return i;
+    }
+  }
+  return static_cast<int>(logs_.size());
+}
+
+Status Log::Truncate(const LogOffset& offset) {
+  std::lock_guard lock(logs_mutex_);
+  int index = FindLogIndex(offset);
+  if (index < 0) {
+    return Status::Corruption("Can't find correct index");
+  }
+  last_index_ = logs_[index].offset;
+  logs_.erase(logs_.begin() + index + 1, logs_.end());
+  return Status::OK();
+}
+
+Status Log::TruncateFrom(const LogOffset& offset) {
+  std::lock_guard lock(logs_mutex_);
+  int index = FindLogIndex(offset);
+  if (index < 0) {
+    return Status::Corruption("Can't find correct index");
+  }
+  first_index_ = logs_[index].offset;
+  logs_.erase(logs_.begin(), logs_.begin() + index);
+  return Status::OK();
+}
+
+int Log::FindLogIndex(const LogOffset& offset) {
+  for (size_t i = 0; i < logs_.size(); ++i) {
+    if (logs_[i].offset == offset) {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
 }

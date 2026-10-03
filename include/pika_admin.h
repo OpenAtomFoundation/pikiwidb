@@ -35,6 +35,7 @@ class SlaveofCmd : public Cmd {
  private:
   std::string master_ip_;
   int64_t master_port_ = -1;
+  bool is_consistency_cmd_ = false;
   bool is_none_ = false;
   void DoInitial() override;
   void Clear() override {

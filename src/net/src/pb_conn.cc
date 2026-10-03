@@ -3,6 +3,10 @@
 // LICENSE file in the root directory of this source tree. An additional grant
 // of patent rights can be found in the PATENTS file in the same directory.
 
+#include <sys/socket.h>
+#include <netinet/tcp.h>
+#include <netinet/in.h>
+
 #include "net/include/pb_conn.h"
 
 #include <arpa/inet.h>
@@ -20,7 +24,7 @@ namespace net {
 
 PbConn::PbConn(const int fd, const std::string& ip_port, Thread* thread, NetMultiplexer* mpx)
     : NetConn(fd, ip_port, thread, mpx),
-      
+
       write_buf_(0)
       {
   rbuf_ = reinterpret_cast<char*>(malloc(sizeof(char) * PB_IOBUF_LEN));
@@ -36,7 +40,9 @@ ReadStatus PbConn::GetRequest() {
   while (true) {
     switch (connStatus_) {
       case kHeader: {
+        int quickack = 1;
         ssize_t nread = read(fd(), rbuf_ + cur_pos_, COMMAND_HEADER_LENGTH - cur_pos_);
+        setsockopt(fd(), IPPROTO_TCP, TCP_QUICKACK, &quickack, sizeof(quickack));
         if (nread == -1) {
           if (errno == EAGAIN) {
             return kReadHalf;
@@ -75,6 +81,8 @@ ReadStatus PbConn::GetRequest() {
         }
         // read msg body
         ssize_t nread = read(fd(), rbuf_ + cur_pos_, remain_packet_len_);
+        int quickack = 1;
+        setsockopt(fd(), IPPROTO_TCP, TCP_QUICKACK, &quickack, sizeof(quickack));
         if (nread == -1) {
           if (errno == EAGAIN) {
             return kReadHalf;
@@ -123,6 +131,7 @@ WriteStatus PbConn::SendReply() {
     while (item_len - write_buf_.item_pos_ > 0) {
       nwritten = write(fd(), item.data() + write_buf_.item_pos_, item_len - write_buf_.item_pos_);
       if (nwritten <= 0) {
+        LOG(ERROR) << "nwritten less than 0";
         break;
       }
       g_network_statistic->IncrReplOutputBytes(nwritten);
@@ -144,6 +153,7 @@ WriteStatus PbConn::SendReply() {
     if (item_len - write_buf_.item_pos_ != 0) {
       return kWriteHalf;
     }
+    LOG(ERROR) << "write item success";
   }
   return kWriteAll;
 }
