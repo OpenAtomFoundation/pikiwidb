@@ -20,6 +20,9 @@ Get_Dist_Name()
     elif grep -Eqi "Fedora" /etc/issue || grep -Eq "Fedora" /etc/*-release; then
         DISTRO='Fedora'
         PM='yum'
+    elif grep -Eqi "UOS" /etc/issue || grep -Eq "UOS" /etc/*-release; then
+        DISTRO='UOS'
+        PM='yum'
     elif grep -Eqi "Debian" /etc/issue || grep -Eq "Debian" /etc/*-release; then
         DISTRO='Debian'
         PM='apt'
