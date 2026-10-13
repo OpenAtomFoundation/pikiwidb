@@ -17,8 +17,8 @@ function install_deps() {
     brew install --overwrite python@3.12 autoconf protobuf llvm wget git
     brew install gcc@10 automake cmake make binutils
   elif [[ $OS == *"ubuntu"* ]]; then
-    run_as_root apt-get install -y autoconf libprotobuf-dev protobuf-compiler
-    run_as_root apt-get install -y clang-tidy-12
+    run_as_root apt-get update
+    run_as_root apt-get install -y autoconf libprotobuf-dev protobuf-compiler clang-tidy
   elif [[ $OS == *"rocky"* ]]; then
     run_as_root dnf update -y
     run_as_root dnf install -y bash cmake
