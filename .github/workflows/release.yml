@@ -31,19 +31,21 @@ jobs:
       - name: Calculate checksum and rename binary
         run: |
           chmod +x ci/release-build.sh
-          ./ci/release-build.sh checksum ${{ github.event.repository.name }} ${{ matrix.name }}
+          ./ci/release-build.sh checksum pika ${{ matrix.name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}
           path: build/${{ matrix.name }}
+          if-no-files-found: error
 
       - name: Upload checksum of artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.name }}.sha256sum
           path: build/${{ matrix.name }}.sha256sum
+          if-no-files-found: error
 
   rocky:
     runs-on: ubuntu-latest
@@ -65,23 +67,25 @@ jobs:
       - name: Release build os - rocky
         run: |
           chmod +x ci/release-build.sh
-          ./ci/release-build.sh install rocky ${{ env.BUILD_TYPE }} -xe
+          ./ci/release-build.sh install rocky ${{ env.BUILD_TYPE }}
 
       - name: Calculate checksum and rename binary
         shell: bash
-        run: ./ci/release-build.sh checksum ${{ github.event.repository.name }} ${{ env.name }}
+        run: ./ci/release-build.sh checksum pika ${{ env.name }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.name }}
           path: build/${{ env.name }}
+          if-no-files-found: error
 
       - name: Upload checksum of artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.name }}.sha256sum
           path: build/${{ env.name }}.sha256sum
+          if-no-files-found: error
 
   release:
     name: Release artifacts
