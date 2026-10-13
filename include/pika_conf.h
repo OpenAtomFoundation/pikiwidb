@@ -361,6 +361,26 @@ class PikaConf : public pstd::BaseConf {
     std::shared_lock l(rwlock_);
     return rate_limiter_mode_;
   }
+  
+  bool enable_progressive_compact() {
+    std::shared_lock l(rwlock_);
+    return enable_auto_compact_old_sst_;
+  }
+  
+  int progressive_compact_interval() {
+    std::shared_lock l(rwlock_);
+    return auto_compact_old_sst_interval_;
+  }
+  
+  bool enable_auto_compact_old_sst() {
+    std::shared_lock l(rwlock_);
+    return enable_auto_compact_old_sst_;
+  }
+  
+  int auto_compact_old_sst_interval() {
+    std::shared_lock l(rwlock_);
+    return auto_compact_old_sst_interval_;
+  }
   int64_t rate_limiter_bandwidth() {
     std::shared_lock l(rwlock_);
     return rate_limiter_bandwidth_;
@@ -731,6 +751,29 @@ class PikaConf : public pstd::BaseConf {
     max_compaction_bytes_ = value;
   }
 
+  // Progressive compaction methods
+  bool enable_auto_compact_old_sst() const {
+    std::shared_lock l(rwlock_);
+    return enable_auto_compact_old_sst_;
+  }
+
+  void SetEnableAutoCompactOldSst(bool value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("enable-progressive-compact", value ? "yes" : "no");
+    enable_auto_compact_old_sst_ = value;
+  }
+
+  int64_t auto_compact_old_sst_interval() const {
+    std::shared_lock l(rwlock_);
+    return auto_compact_old_sst_interval_;
+  }
+
+  void SetAutoCompactOldSstInterval(int64_t value) {
+    std::lock_guard l(rwlock_);
+    TryPushDiffCommands("progressive-compact-interval", std::to_string(value));
+    auto_compact_old_sst_interval_ = value;
+  }
+
   void SetLogNetActivities(std::string& value) {
     TryPushDiffCommands("log-net-activities", value);
     if (value == "yes") {
@@ -1018,6 +1061,10 @@ class PikaConf : public pstd::BaseConf {
   bool write_binlog_ = false;
   int target_file_size_base_ = 0;
   int64_t max_compaction_bytes_ = 0;
+  
+  // Progressive compaction configuration
+  bool enable_auto_compact_old_sst_ = false;
+  int64_t auto_compact_old_sst_interval_ = 90; // seconds
   int binlog_file_size_ = 0;
 
   // cache
@@ -1054,7 +1101,7 @@ class PikaConf : public pstd::BaseConf {
   std::string blob_compression_type_ = "none";
 
   std::unique_ptr<PikaMeta> local_meta_;
-  std::shared_mutex rwlock_;
+  mutable std::shared_mutex rwlock_;
 
   // Rsync Rate limiting configuration
   int throttle_bytes_per_second_ = 200 << 20; // 200MB/s

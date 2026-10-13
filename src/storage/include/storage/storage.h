@@ -126,9 +126,9 @@ struct ScoreMember {
 
 enum BeforeOrAfter { Before, After };
 
-enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets, kStreams };
+enum DataType { kAll, kStrings, kHashes, kLists, kZSets, kSets, kStreams, kSST };
 
-const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's', 'x'};
+const char DataTypeTag[] = {'a', 'k', 'h', 'l', 'z', 's', 'x', 't'};
 
 enum class OptionType {
   kDB,
@@ -150,7 +150,9 @@ enum Operation {
   kCleanSets,
   kCleanLists,
   kCleanStreams,
-  kCompactRange
+  kCompactRange,
+  kCompactSST,
+  kCompactOldSST
 };
 
 struct BGTask {
@@ -1075,6 +1077,8 @@ class Storage {
 
   Status Compact(const DataType& type, bool sync = false);
   Status CompactRange(const DataType& type, const std::string& start, const std::string& end, bool sync = false);
+  Status CompactOldFiles(const DataType& type, bool sync = false);
+  Status DoCompactOldFiles(const DataType& type);
   Status DoCompact(const DataType& type);
   Status DoCompactRange(const DataType& type, const std::string& start, const std::string& end);
 
