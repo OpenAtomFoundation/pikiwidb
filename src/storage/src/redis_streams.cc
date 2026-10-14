@@ -367,6 +367,7 @@ Status RedisStreams::Open(const StorageOptions& storage_options, const std::stri
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
+  share_block_cache_ = storage_options.share_block_cache;
   return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
 }
 
@@ -385,6 +386,15 @@ Status RedisStreams::GetProperty(const std::string& property, uint64_t* out) {
   std::string value;
   db_->GetProperty(handles_[0], property, &value);
   *out = std::strtoull(value.c_str(), nullptr, 10);
+
+  // Avoids double counting when share_block_cache is enabled.
+  if (share_block_cache_ &&
+      (property == "rocksdb.block-cache-usage" ||
+       property == "rocksdb.block-cache-capacity" ||
+       property == "rocksdb.block-cache-pinned-usage")) {
+    return Status::OK();
+  }
+
   db_->GetProperty(handles_[1], property, &value);
   *out += std::strtoull(value.c_str(), nullptr, 10);
   return Status::OK();
