@@ -10,6 +10,9 @@
 #include "pstd/include/pstd_string.h"
 
 #include "include/pika_geohash_helper.h"
+#include "include/pika_client_conn.h"
+#include "include/pika_slot_command.h"
+#include "src/storage/include/storage/batch.h"
 #include "rocksdb/status.h"
 
 void GeoAddCmd::DoInitial() {
@@ -56,12 +59,46 @@ void GeoAddCmd::Do() {
     pstd::string2d(str_bits.data(), str_bits.size(), &score);
     score_members.push_back({score, geo_point.member});
   }
+
   int32_t count = 0;
-  rocksdb::Status s = db_->storage()->ZAdd(key_, score_members, &count);
-  if (s.ok()) {
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<GeoAddCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(self->count_);
+        AddSlotKey("g", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
+  s_ = db_->storage()->ZAdd(key_, score_members, &count, callback);
+  count_ = count;  // Store count for async callback
+
+  if (callback) {
+    return;
+  }
+
+  if (s_.ok()) {
     res_.AppendInteger(count);
+    AddSlotKey("g", key_, db_);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
@@ -229,14 +266,13 @@ void GeoHashCmd::Do() {
         buf[i] = geoalphabet[idx];
       }
       buf[11] = '\0';
-      res_.AppendStringLen(11);
-      res_.AppendContent(buf);
+      res_.AppendString(std::string(buf));
       continue;
     } else if (s.IsNotFound()) {
       res_.AppendStringLen(-1);
       continue;
     } else {
-      res_.SetRes(CmdRes::kErrOther, s.ToString());
+      res_.AppendStringLen(-1); // Changed to append nil instead of setting error for the whole response
       continue;
     }
   }

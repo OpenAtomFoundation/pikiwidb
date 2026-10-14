@@ -29,42 +29,48 @@ class RedisZSets : public Redis {
   Status ScanKeys(const std::string& pattern, std::vector<std::string>* keys) override;
   Status PKPatternMatchDelWithRemoveKeys(const DataType& data_type, const std::string& pattern, int64_t* ret, std::vector<std::string>* remove_keys, const int64_t& max_count) override;
   // ZSets Commands
-  Status ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret);
+  Status ZAdd(const Slice& key, const std::vector<ScoreMember>& score_members, int32_t* ret,
+              CommitCallback callback = nullptr);
   Status ZCard(const Slice& key, int32_t* card);
   Status ZCount(const Slice& key, double min, double max, bool left_close, bool right_close, int32_t* ret);
-  Status ZIncrby(const Slice& key, const Slice& member, double increment, double* ret);
+  Status ZIncrby(const Slice& key, const Slice& member, double increment, double* ret, CommitCallback callback = nullptr);
   Status ZRange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members);
   Status ZRangeWithTTL(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members,
                                    int64_t* ttl);
   Status ZRangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int64_t count,
                        int64_t offset, std::vector<ScoreMember>* score_members);
   Status ZRank(const Slice& key, const Slice& member, int32_t* rank);
-  Status ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
-  Status ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret);
-  Status ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int32_t* ret);
+  Status ZRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
+  Status ZRemrangebyrank(const Slice& key, int32_t start, int32_t stop, int32_t* ret,
+                         CommitCallback callback = nullptr);
+  Status ZRemrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int32_t* ret,
+                          CommitCallback callback = nullptr);
   Status ZRevrange(const Slice& key, int32_t start, int32_t stop, std::vector<ScoreMember>* score_members);
   Status ZRevrangebyscore(const Slice& key, double min, double max, bool left_close, bool right_close, int64_t count,
                           int64_t offset, std::vector<ScoreMember>* score_members);
   Status ZRevrank(const Slice& key, const Slice& member, int32_t* rank);
   Status ZScore(const Slice& key, const Slice& member, double* score);
   Status ZUnionstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,
-                     AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret);
+                     AGGREGATE agg, std::map<std::string, double>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
   Status ZInterstore(const Slice& destination, const std::vector<std::string>& keys, const std::vector<double>& weights,
-                     AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret);
+                     AGGREGATE agg, std::vector<ScoreMember>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
   Status ZRangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
                      std::vector<std::string>* members);
   Status ZLexcount(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
                    int32_t* ret);
   Status ZRemrangebylex(const Slice& key, const Slice& min, const Slice& max, bool left_close, bool right_close,
-                        int32_t* ret);
+                        int32_t* ret, CommitCallback callback = nullptr);
   Status ZScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
                std::vector<ScoreMember>* score_members, int64_t* next_cursor);
   Status PKScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,
                      std::vector<std::string>* keys, std::string* next_key);
   Status PKRScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,
                       std::vector<std::string>* keys, std::string* next_key);
-  Status ZPopMax(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members);
-  Status ZPopMin(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members);
+  Status ZPopMax(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback = nullptr);
+  Status ZPopMin(const Slice& key, int64_t count, std::vector<ScoreMember>* score_members, CommitCallback callback = nullptr);
 
   // Keys Commands
   Status Expire(const Slice& key, int32_t ttl) override;

@@ -29,19 +29,23 @@ class RedisHashes : public Redis {
   Status PKPatternMatchDelWithRemoveKeys(const DataType& data_type, const std::string& pattern, int64_t* ret, std::vector<std::string>* remove_keys, const int64_t& max_count) override;
 
   // Hashes Commands
-  Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret);
+  Status HDel(const Slice& key, const std::vector<std::string>& fields, int32_t* ret,
+              CommitCallback callback = nullptr);
   Status HExists(const Slice& key, const Slice& field);
   Status HGet(const Slice& key, const Slice& field, std::string* value);
   Status HGetall(const Slice& key, std::vector<FieldValue>* fvs);
   Status HGetallWithTTL(const Slice& key, std::vector<FieldValue>* fvs, int64_t* ttl);
-  Status HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret);
-  Status HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value);
+  Status HIncrby(const Slice& key, const Slice& field, int64_t value, int64_t* ret, CommitCallback callback = nullptr);
+  Status HIncrbyfloat(const Slice& key, const Slice& field, const Slice& by, std::string* new_value, CommitCallback callback = nullptr);
   Status HKeys(const Slice& key, std::vector<std::string>* fields);
   Status HLen(const Slice& key, int32_t* ret);
   Status HMGet(const Slice& key, const std::vector<std::string>& fields, std::vector<ValueStatus>* vss);
-  Status HMSet(const Slice& key, const std::vector<FieldValue>& fvs);
-  Status HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res);
-  Status HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret);
+  Status HMSet(const Slice& key, const std::vector<FieldValue>& fvs,
+               CommitCallback callback = nullptr);
+  Status HSet(const Slice& key, const Slice& field, const Slice& value, int32_t* res,
+              CommitCallback callback = nullptr);
+  Status HSetnx(const Slice& key, const Slice& field, const Slice& value, int32_t* ret,
+                CommitCallback callback = nullptr);
   Status HVals(const Slice& key, std::vector<std::string>* values);
   Status HStrlen(const Slice& key, const Slice& field, int32_t* len);
   Status HScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,

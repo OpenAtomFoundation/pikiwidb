@@ -20,12 +20,14 @@
 #include "src/scope_snapshot.h"
 #include "storage/storage.h"
 #include "storage/util.h"
+#include "storage/batch.h"
+#include "glog/logging.h"
 
 #include "pstd/include/pstd_defer.h"
 
 namespace storage {
 
-Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args) {
+Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args, CommitCallback callback) {
   // With the lock, we do not need snapshot for read.
   // And it's bugy to use snapshot for read when we try to add message with trim.
   // such as: XADD key 1-0 field value MINID 1-0
@@ -66,11 +68,11 @@ Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_messag
   assert(current_id > serialized_last_id);
 #endif
 
+  // Use batch for Raft consistency
+  auto batch = Batch::CreateBatch(this);
+  
   StreamDataKey stream_data_key(key, stream_meta.version(), args.id.Serialize());
-  s = db_->Put(default_write_options_, handles_[1], stream_data_key.Encode(), serialized_message);
-  if (!s.ok()) {
-    return Status::Corruption("error from XADD, insert stream message failed 1: " + s.ToString());
-  }
+  batch->Put(1, stream_data_key.Encode(), serialized_message);
 
   // 3 update stream meta
   if (stream_meta.length() == 0) {
@@ -91,12 +93,9 @@ Status RedisStreams::XAdd(const Slice& key, const std::string& serialized_messag
   }
 
   // 5 update stream meta
-  s = db_->Put(default_write_options_, handles_[0], key, stream_meta.value());
-  if (!s.ok()) {
-    return s;
-  }
-
-  return Status::OK();
+  batch->Put(0, key, stream_meta.value());
+  
+  return batch->Commit(callback);
 }
 
 Status RedisStreams::XTrim(const Slice& key, StreamAddTrimArgs& args, int32_t& count) {
@@ -359,15 +358,42 @@ Status RedisStreams::Open(const StorageOptions& storage_options, const std::stri
     meta_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
     data_cf_table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
+  
   meta_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(meta_cf_table_ops));
   data_cf_ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(data_cf_table_ops));
+  
+  // Add LogIndex table properties collector for Raft
+  meta_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+  data_cf_ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
+
+  // Add LogIndex event listener for Raft
+  if (storage_options.do_snapshot_function) {
+    auto purger = std::make_shared<LogIndexAndSequenceCollectorPurger>(
+        &handles_, &log_index_collector_, &log_index_of_all_cfs_,
+        storage_options.do_snapshot_function);
+    db_ops.listeners.push_back(purger);
+  }
 
   std::vector<rocksdb::ColumnFamilyDescriptor> column_families;
   // Meta CF
   column_families.emplace_back(rocksdb::kDefaultColumnFamilyName, meta_cf_ops);
   // Data CF
   column_families.emplace_back("data_cf", data_cf_ops);
-  return rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  
+  s = rocksdb::DB::Open(db_ops, db_path, column_families, &handles_, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  
+  // Initialize log index of column families
+  s = log_index_of_all_cfs_.Init(this);
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to init log index of column families for streams: " << s.ToString();
+  }
+  
+  return s;
 }
 
 Status RedisStreams::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,
@@ -869,6 +895,11 @@ Status RedisStreams::TrimByMinid(TrimRet& trim_ret, StreamMetaValue& stream_meta
   trim_ret.next_field = stream_meta.first_id().Serialize();
   serialized_min_id = args.minid.Serialize();
 
+  // Early return: if first_id is already >= minid, nothing to trim
+  if (trim_ret.next_field >= serialized_min_id) {
+    return Status::OK();
+  }
+
   // we delete the message in batchs, prevent from using too much memory
   while (trim_ret.next_field < serialized_min_id && stream_meta.length() - trim_ret.count > 0) {
     auto cur_batch = static_cast<int32_t>(
@@ -883,17 +914,23 @@ Status RedisStreams::TrimByMinid(TrimRet& trim_ret, StreamMetaValue& stream_meta
       return s;
     }
 
-    if (!id_messages.empty()) {
-      if (id_messages.back().field == serialized_min_id) {
-        // we do not need to delete the message that it's id matches the minid
-        id_messages.pop_back();
-        trim_ret.next_field = serialized_min_id;
-      }
-      // duble check
-      if (!id_messages.empty()) {
-        trim_ret.max_deleted_field = id_messages.back().field;
-      }
+    // If no messages were found, break to avoid infinite loop
+    if (id_messages.empty()) {
+      break;
     }
+
+    if (id_messages.back().field == serialized_min_id) {
+      // we do not need to delete the message that it's id matches the minid
+      id_messages.pop_back();
+      trim_ret.next_field = serialized_min_id;
+    }
+    
+    // If after removing the minid entry, there's nothing left to delete, break
+    if (id_messages.empty()) {
+      break;
+    }
+    
+    trim_ret.max_deleted_field = id_messages.back().field;
 
     assert(id_messages.size() <= cur_batch);
     trim_ret.count += static_cast<int32_t>(id_messages.size());

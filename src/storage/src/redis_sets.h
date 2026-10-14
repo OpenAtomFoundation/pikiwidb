@@ -31,21 +31,26 @@ class RedisSets : public Redis {
   Status PKPatternMatchDelWithRemoveKeys(const DataType& data_type, const std::string& pattern, int64_t* ret, std::vector<std::string>* remove_keys, const int64_t& max_count) override;
 
   // Setes Commands
-  Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
+  Status SAdd(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
   Status SCard(const Slice& key, int32_t* ret);
   Status SDiff(const std::vector<std::string>& keys, std::vector<std::string>* members);
-  Status SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SDiffstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                    CommitCallback callback = nullptr);
   Status SInter(const std::vector<std::string>& keys, std::vector<std::string>* members);
-  Status SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SInterstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
   Status SIsmember(const Slice& key, const Slice& member, int32_t* ret);
   Status SMembers(const Slice& key, std::vector<std::string>* members);
   Status SMembersWithTTL(const Slice& key, std::vector<std::string>* members, int64_t* ttl);
-  Status SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret);
-  Status SPop(const Slice& key, std::vector<std::string>* members, int64_t cnt);
+  Status SMove(const Slice& source, const Slice& destination, const Slice& member, int32_t* ret, CommitCallback callback = nullptr);
+  Status SPop(const Slice& key, std::vector<std::string>* members, int64_t cnt, CommitCallback callback = nullptr);
   Status SRandmember(const Slice& key, int32_t count, std::vector<std::string>* members);
-  Status SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret);
+  Status SRem(const Slice& key, const std::vector<std::string>& members, int32_t* ret,
+              CommitCallback callback = nullptr);
   Status SUnion(const std::vector<std::string>& keys, std::vector<std::string>* members);
-  Status SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret);
+  Status SUnionstore(const Slice& destination, const std::vector<std::string>& keys, std::vector<std::string>& value_to_dest, int32_t* ret,
+                     CommitCallback callback = nullptr);
   Status SScan(const Slice& key, int64_t cursor, const std::string& pattern, int64_t count,
                std::vector<std::string>* members, int64_t* next_cursor);
   Status PKScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,

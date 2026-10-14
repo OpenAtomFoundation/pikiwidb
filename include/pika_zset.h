@@ -33,6 +33,7 @@ class ZAddCmd : public Cmd {
  private:
   std::string key_;
   std::vector<storage::ScoreMember> score_members;
+  int32_t added_count_ = 0;  // For async mode
   rocksdb::Status s_;
   void DoInitial() override;
 };
@@ -103,7 +104,8 @@ class ZIncrbyCmd : public Cmd {
  private:
   std::string key_, member_;
   double by_ = .0f;
-  double score_ = .0f;
+  double score_ = .0f;  // For async mode: result after increment
+  rocksdb::Status s_;
   void DoInitial() override;
 };
 
@@ -333,6 +335,7 @@ class ZUnionstoreCmd : public ZsetUIstoreParentCmd {
 
  private:
   void DoInitial() override;
+  int32_t result_count_ = 0;  // For async mode
   // used for write binlog
   std::map<std::string, double> value_to_dest_;
   rocksdb::Status s_;
@@ -352,6 +355,7 @@ class ZInterstoreCmd : public ZsetUIstoreParentCmd {
 
  private:
   void DoInitial() override;
+  int32_t result_count_ = 0;  // For async mode
   rocksdb::Status s_;
   // used for write binlog
   std::vector<storage::ScoreMember> value_to_dest_;
@@ -561,6 +565,7 @@ class ZRemrangebyscoreCmd : public Cmd {
   std::string key_, min_, max_;
   double min_score_ = 0, max_score_ = 0;
   bool left_close_ = true, right_close_ = true;
+  int32_t deleted_count_ = 0;  // For async mode
   rocksdb::Status s_;
   void DoInitial() override;
   void Clear() override { left_close_ = right_close_ = true; }
@@ -586,6 +591,7 @@ class ZRemrangebylexCmd : public Cmd {
   std::string key_, min_, max_;
   std::string min_member_, max_member_;
   bool left_close_ = true, right_close_ = true;
+  int32_t deleted_count_ = 0;  // For async mode
   rocksdb::Status s_;
   void DoInitial() override;
   void Clear() override { left_close_ = right_close_ = true; }
@@ -611,6 +617,8 @@ class ZPopmaxCmd : public Cmd {
   void DoInitial() override;
   std::string key_;
   int64_t count_ = 0;
+  std::vector<storage::ScoreMember> score_members_;  // For async mode: popped members
+  rocksdb::Status s_;
 };
 
 class ZPopminCmd : public Cmd {
@@ -633,6 +641,8 @@ class ZPopminCmd : public Cmd {
   void DoInitial() override;
   std::string key_;
   int64_t count_ = 0;
+  std::vector<storage::ScoreMember> score_members_;  // For async mode: popped members
+  rocksdb::Status s_;
 };
 
 #endif

@@ -43,11 +43,41 @@ void BitSetCmd::DoInitial() {
 }
 
 void BitSetCmd::Do() {
-  std::string value;
-  int32_t bit_val = 0;
-  s_ = db_->storage()->SetBit(key_, bit_offset_, static_cast<int32_t>(on_), &bit_val);
+  bit_val_ = 0;
+  storage::CommitCallback callback = nullptr;
+
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<BitSetCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.AppendInteger(static_cast<int>(self->bit_val_));
+        AddSlotKey("k", self->key_, self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+
+  s_ = db_->storage()->SetBit(key_, bit_offset_, static_cast<int32_t>(on_), &bit_val_, callback);
+
+  if (callback) {
+    return;
+  }
+
   if (s_.ok()) {
-    res_.AppendInteger(static_cast<int>(bit_val));
+    res_.AppendInteger(static_cast<int>(bit_val_));
     AddSlotKey("k", key_, db_);
   } else {
     res_.SetRes(CmdRes::kErrOther, s_.ToString());

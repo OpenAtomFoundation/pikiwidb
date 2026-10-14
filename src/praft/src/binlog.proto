@@ -1,0 +1,42 @@
+// Copyright (c) 2024-present, Qihoo, Inc.  All rights reserved.
+// This source code is licensed under the BSD-style license found in the
+// LICENSE file in the root directory of this source tree.
+
+syntax = "proto3";
+package pikiwidb;
+
+option optimize_for = LITE_RUNTIME;
+
+// 操作类型
+enum OperateType {
+  kNoOperate = 0;
+  kPut = 1;
+  kDelete = 2;
+}
+
+// 数据类型（与 storage::DataType 对应）
+enum DataType {
+  kAll = 0;
+  kStrings = 1;
+  kHashes = 2;
+  kLists = 3;
+  kZSets = 4;
+  kSets = 5;
+  kStreams = 6;
+}
+
+// Binlog 条目（对应单个 RocksDB 操作）
+message BinlogEntry {
+  DataType data_type = 1;       // 数据类型（用于定位对应的 RocksDB 实例）
+  uint32 cf_idx = 2;            // 列族索引 (column family index, 0=meta/default, 1=data)
+  OperateType op_type = 3;      // 操作类型
+  bytes key = 4;                // 已编码的 key
+  optional bytes value = 5;     // 已编码的 value（包含 TTL、version 等）
+}
+
+// Binlog（对应一次 Raft 日志提交）
+message Binlog {
+  uint32 db_id = 1;                  // 数据库 ID
+  uint32 slot_idx = 2;               // 槽位索引（预留）
+  repeated BinlogEntry entries = 3;  // 批量操作条目
+}

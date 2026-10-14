@@ -16,6 +16,7 @@
 #include "rocksdb/status.h"
 #include "src/redis.h"
 #include "storage/storage.h"
+#include "storage/batch.h"
 
 namespace storage {
 
@@ -129,7 +130,7 @@ class RedisStreams : public Redis {
   //===--------------------------------------------------------------------===//
   // Commands
   //===--------------------------------------------------------------------===//
-  Status XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args);
+  Status XAdd(const Slice& key, const std::string& serialized_message, StreamAddTrimArgs& args, CommitCallback callback = nullptr);
   Status XDel(const Slice& key, const std::vector<streamID>& ids, int32_t& count);
   Status XTrim(const Slice& key, StreamAddTrimArgs& args, int32_t& count);
   Status XRange(const Slice& key, const StreamScanArgs& args, std::vector<IdMessage>& id_messages);

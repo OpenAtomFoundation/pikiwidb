@@ -67,6 +67,10 @@ const std::string kCmdNameLastSave = "lastsave";
 const std::string kCmdNameCache = "cache";
 const std::string kCmdNameClearCache = "clearcache";
 
+// Raft commands
+const std::string kCmdNameRaftCluster = "raft.cluster";
+const std::string kCmdNameRaftNode = "raft.node";
+
 // Migrate slot
 const std::string kCmdNameSlotsMgrtSlot = "slotsmgrtslot";
 const std::string kCmdNameSlotsMgrtTagSlot = "slotsmgrttagslot";
@@ -616,6 +620,11 @@ class Cmd : public std::enable_shared_from_this<Cmd> {
   uint32_t cmdId_ = 0;
   uint32_t aclCategory_ = 0;
   bool cache_missed_in_rtc_{false};
+
+  // Raft async mode helper functions
+  bool IsRaftLeader() const;
+  bool IsRaftEnabled() const;
+  bool ShouldUseAsyncMode() const;
 
  private:
   virtual void DoInitial() = 0;

@@ -23,15 +23,34 @@ Redis::Redis(Storage* const s, const DataType& type)
 }
 
 Redis::~Redis() {
-  std::vector<rocksdb::ColumnFamilyHandle*> tmp_handles = handles_;
-  handles_.clear();
-  for (auto handle : tmp_handles) {
-    delete handle;
+  // Proper RocksDB shutdown sequence:
+  // 1. Cancel all background work and wait for it to complete
+  // 2. Destroy column family handles (except DefaultColumnFamily which is managed by RocksDB)
+  // 3. Delete the DB object (this will also call Close() internally)
+  
+  if (db_) {
+    // Cancel all background work first
+    rocksdb::CancelAllBackgroundWork(db_, true);
+    
+    // Destroy column family handles before deleting db_
+    // Note: DefaultColumnFamily() returns a handle managed by RocksDB internally,
+    // so we should NOT destroy it. Only destroy handles that were created via
+    // DB::Open with multiple column families (not DefaultColumnFamily).
+    for (auto handle : handles_) {
+      if (handle && handle != db_->DefaultColumnFamily()) {
+        db_->DestroyColumnFamilyHandle(handle);
+      }
+    }
+    handles_.clear();
+    
+    // Delete the DB object - this will call Close() internally if not already called
+    delete db_;
+    db_ = nullptr;
   }
-  delete db_;
 
   if (default_compact_range_options_.canceled) {
     delete default_compact_range_options_.canceled;
+    default_compact_range_options_.canceled = nullptr;
   }
 }
 

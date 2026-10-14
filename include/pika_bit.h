@@ -63,6 +63,7 @@ class BitSetCmd : public Cmd {
   std::string key_;
   int64_t bit_offset_;
   int64_t on_;
+  int32_t bit_val_ = 0;  // For async mode
   rocksdb::Status s_;
   void Clear() override {
     key_ = "";
@@ -169,6 +170,7 @@ class BitOpCmd : public Cmd {
   rocksdb::Status s_;
   std::vector<std::string> src_keys_;
   storage::BitOpType op_;
+  int64_t result_length_ = 0;  // For async mode
   void Clear() override {
     dest_key_ = "";
     src_keys_.clear();
