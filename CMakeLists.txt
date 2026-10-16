@@ -758,6 +758,12 @@ if (USE_PIKA_TOOLS)
   add_subdirectory(tools)
 endif()
 aux_source_directory(src DIR_SRCS)
+# A stale, git-ignored src/build_version.cc can be left behind in the source
+# tree by the legacy Makefile build. It must never be compiled: the version
+# globals are generated into ${PIKA_BUILD_VERSION_CC} below, and compiling both
+# files breaks the link with "multiple definition of `pika_build_git_sha' /
+# `pika_build_compile_date'".
+list(FILTER DIR_SRCS EXCLUDE REGEX "/build_version\\.cc$")
 
 # # generate version
 string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")
@@ -796,9 +802,7 @@ message("pika GIT_DATE = ${PIKA_GIT_DATE}")
 message("pika GIT_TAG = ${PIKA_GIT_TAG}")
 message("pika BUILD_DATE = ${PIKA_BUILD_DATE}")
 
-set(PIKA_BUILD_VERSION_CC ${CMAKE_BINARY_DIR}/pika_build_version.cc
-        src/pika_cache_load_thread.cc
-        )
+set(PIKA_BUILD_VERSION_CC ${CMAKE_BINARY_DIR}/pika_build_version.cc)
 message("PIKA_BUILD_VERSION_CC : " ${PIKA_BUILD_VERSION_CC})
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/src/build_version.cc.in ${PIKA_BUILD_VERSION_CC} @ONLY)
 
