@@ -760,7 +760,12 @@ if (USE_PIKA_TOOLS)
   add_subdirectory(tools)
 endif()
 aux_source_directory(src DIR_SRCS)
-list(REMOVE_ITEM DIR_SRCS "src/build_version.cc")
+# A stale, git-ignored src/build_version.cc can be left behind in the source
+# tree by the legacy Makefile build. It must never be compiled: the version
+# globals are generated into ${PIKA_BUILD_VERSION_CC} below, and compiling both
+# files breaks the link with "multiple definition of `pika_build_git_sha' /
+# `pika_build_compile_date'".
+list(FILTER DIR_SRCS EXCLUDE REGEX "/build_version\\.cc$")
 
 # # generate version
 string(TIMESTAMP TS "%Y-%m-%d %H:%M:%S")
@@ -769,7 +774,15 @@ set(PIKA_BUILD_DATE "${TS}")
 find_package(Git)
 
 if(GIT_FOUND AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-  execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE PIKA_GIT_SHA COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD)
+  execute_process(
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    OUTPUT_VARIABLE PIKA_GIT_SHA
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    RESULT_VARIABLE PIKA_GIT_SHA_RESULT
+    COMMAND "${GIT_EXECUTABLE}" rev-parse --verify HEAD)
+  if(PIKA_GIT_SHA_RESULT OR "${PIKA_GIT_SHA}" STREQUAL "")
+    set(PIKA_GIT_SHA "unknown")
+  endif()
   execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" RESULT_VARIABLE PIKA_GIT_MOD COMMAND "${GIT_EXECUTABLE}" diff-index HEAD --quiet)
   execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE PIKA_GIT_DATE COMMAND "${GIT_EXECUTABLE}" log -1 --date=format:"%Y-%m-%d %T" --format="%ad")
   execute_process(WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}" OUTPUT_VARIABLE PIKA_GIT_TAG RESULT_VARIABLE rv COMMAND "${GIT_EXECUTABLE}" symbolic-ref -q --short HEAD OUTPUT_STRIP_TRAILING_WHITESPACE)
