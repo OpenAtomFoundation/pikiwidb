@@ -22,6 +22,10 @@ PikaCmdTableManager::PikaCmdTableManager() {
 void PikaCmdTableManager::InitCmdTable(void) {
   ::InitCmdTable(cmds_.get());
   for (const auto& cmd : *cmds_) {
+    auto size = sizeof(*cmd.second);
+    if (size > maxCmdSize) {
+      maxCmdSize = size;
+    }
     if (cmd.second->flag() & kCmdFlagsWrite) {
       cmd.second->AddAclCategory(static_cast<uint32_t>(AclCategory::WRITE));
     }
@@ -71,6 +75,8 @@ std::shared_ptr<Cmd> PikaCmdTableManager::GetCmd(const std::string& opt) {
   const std::string& internal_opt = opt;
   return NewCommand(internal_opt);
 }
+
+Cmd* PikaCmdTableManager::GetRawCmd(const std::string& opt) { return GetCmdFromDB(opt, *cmds_); }
 
 std::shared_ptr<Cmd> PikaCmdTableManager::NewCommand(const std::string& opt) {
   Cmd* cmd = GetCmdFromDB(opt, *cmds_);

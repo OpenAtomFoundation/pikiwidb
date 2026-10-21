@@ -109,7 +109,7 @@ class ConsensusCoordinator {
   // invoked by dbsync process
   pstd::Status Reset(const LogOffset& offset);
 
-  pstd::Status ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status ProposeLog(Cmd* cmd_ptr);
   pstd::Status UpdateSlave(const std::string& ip, int port, const LogOffset& start, const LogOffset& end);
   pstd::Status AddSlaveNode(const std::string& ip, int port, int session_id);
   pstd::Status RemoveSlaveNode(const std::string& ip, int port);
@@ -167,8 +167,8 @@ class ConsensusCoordinator {
  private:
   pstd::Status TruncateTo(const LogOffset& offset);
 
-  pstd::Status InternalAppendLog(const std::shared_ptr<Cmd>& cmd_ptr);
-  pstd::Status InternalAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status InternalAppendLog(Cmd* cmd_ptr);
+  pstd::Status InternalAppendBinlog(Cmd* cmd_ptr);
   void InternalApply(const MemLog::LogItem& log);
   void InternalApplyFollower(const std::shared_ptr<Cmd>& cmd_ptr);
 

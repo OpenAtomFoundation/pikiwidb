@@ -32,6 +32,7 @@ class PikaCmdTableManager {
   void InitCmdTable(void);
   void RenameCommand(const std::string before, const std::string after);
   std::shared_ptr<Cmd> GetCmd(const std::string& opt);
+  Cmd* GetRawCmd(const std::string& opt);
   bool CmdExist(const std::string& cmd) const;
   CmdTable* GetCmdTable();
   uint32_t GetMaxCmdId();
@@ -42,6 +43,8 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics>* GetCommandStatMap();
+
+  size_t GetMaxCmdSize() const { return maxCmdSize; }
 
  private:
   std::shared_ptr<Cmd> NewCommand(const std::string& opt);
@@ -60,5 +63,7 @@ class PikaCmdTableManager {
   * Info Commandstats used
   */
   std::unordered_map<std::string, CommandStatistics> cmdstat_map_;
+
+  size_t maxCmdSize = 0;
 };
 #endif

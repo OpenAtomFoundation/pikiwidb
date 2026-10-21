@@ -20,6 +20,9 @@ class PublishCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new PublishCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::vector<std::string> current_key() const override { return {channel_}; }
 
  private:
@@ -36,6 +39,9 @@ class SubscribeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new SubscribeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::vector<std::string> current_key() const override { return channels_; }
 
  private:
@@ -51,6 +57,9 @@ class UnSubscribeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new UnSubscribeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::vector<std::string> current_key() const override { return channels_; }
 
  private:
@@ -66,6 +75,9 @@ class PUnSubscribeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new PUnSubscribeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::vector<std::string> current_key() const override { return {channels_}; }
 
  private:
@@ -81,6 +93,9 @@ class PSubscribeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new PSubscribeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::vector<std::string> current_key() const override { return {channels_}; }
 
   std::vector<std::string> channels_;
@@ -96,6 +111,9 @@ class PubSubCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new PubSubCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string subcommand_;

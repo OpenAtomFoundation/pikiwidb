@@ -18,6 +18,9 @@ class MultiCmd : public Cmd {
       : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::TRANSACTION)) {}
   void Do() override;
   Cmd* Clone() override { return new MultiCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Split(const HintKeys& hint_keys) override {}
   void Merge() override {}
 
@@ -31,6 +34,9 @@ class ExecCmd : public Cmd {
       : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::TRANSACTION)) {}
   void Do() override;
   Cmd* Clone() override { return new ExecCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Split(const HintKeys& hint_keys) override {}
   void Merge() override {}
   std::vector<std::string> current_key() const override { return {}; }
@@ -65,6 +71,9 @@ class DiscardCmd : public Cmd {
       : Cmd(name, arity, flag, static_cast<uint32_t>(AclCategory::TRANSACTION)) {}
   void Do() override;
   Cmd* Clone() override { return new DiscardCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Split(const HintKeys& hint_keys) override {}
   void Merge() override {}
 
@@ -80,6 +89,9 @@ class WatchCmd : public Cmd {
   void Do() override;
   void Split(const HintKeys& hint_keys) override {}
   Cmd* Clone() override { return new WatchCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Merge() override {}
   std::vector<std::string> current_key() const override { return keys_; }
   void Execute() override;
@@ -97,6 +109,9 @@ class UnwatchCmd : public Cmd {
 
   void Do() override;
   Cmd* Clone() override { return new UnwatchCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Split(const HintKeys& hint_keys) override {}
   void Merge() override {}
 

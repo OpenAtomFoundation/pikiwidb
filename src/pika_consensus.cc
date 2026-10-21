@@ -315,7 +315,7 @@ Status ConsensusCoordinator::Reset(const LogOffset& offset) {
   return Status::OK();
 }
 
-Status ConsensusCoordinator::ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
+Status ConsensusCoordinator::ProposeLog(Cmd* cmd_ptr) {
   std::vector<std::string> keys = cmd_ptr->current_key();
   // slotkey shouldn't add binlog
   if (cmd_ptr->name() == kCmdNameSAdd && !keys.empty() &&
@@ -333,7 +333,7 @@ Status ConsensusCoordinator::ProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
   return Status::OK();
 }
 
-Status ConsensusCoordinator::InternalAppendLog(const std::shared_ptr<Cmd>& cmd_ptr) {
+Status ConsensusCoordinator::InternalAppendLog(Cmd* cmd_ptr) {
   return InternalAppendBinlog(cmd_ptr);
 }
 
@@ -349,7 +349,7 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
   auto opt = cmd_ptr->argv()[0];
   if (pstd::StringToLower(opt) != kCmdNameFlushdb) {
     // apply binlog in sync way
-    Status s = InternalAppendLog(cmd_ptr);
+    Status s = InternalAppendLog(cmd_ptr.get());
     // apply db in async way
     InternalApplyFollower(cmd_ptr);
   } else {
@@ -362,7 +362,7 @@ Status ConsensusCoordinator::ProcessLeaderLog(const std::shared_ptr<Cmd>& cmd_pt
       wait_ms = wait_ms < 3000 ? wait_ms : 3000;
     }
     // apply flushdb-binlog in sync way
-    Status s = InternalAppendLog(cmd_ptr);
+    Status s = InternalAppendLog(cmd_ptr.get());
     // applyDB in sync way
     PikaReplBgWorker::WriteDBInSyncWay(cmd_ptr);
   }
@@ -380,7 +380,7 @@ Status ConsensusCoordinator::UpdateSlave(const std::string& ip, int port, const 
   return Status::OK();
 }
 
-Status ConsensusCoordinator::InternalAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr) {
+Status ConsensusCoordinator::InternalAppendBinlog(Cmd* cmd_ptr) {
   std::string content = cmd_ptr->ToRedisProtocol();
   Status s = stable_logger_->Logger()->Put(content);
   if (!s.ok()) {

@@ -31,6 +31,9 @@ class SlaveofCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new SlaveofCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string master_ip_;
@@ -52,6 +55,9 @@ class DbSlaveofCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DbSlaveofCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string db_name_;
@@ -76,6 +82,9 @@ class AuthCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new AuthCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -89,6 +98,9 @@ class BgsaveCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new BgsaveCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -104,6 +116,9 @@ class CompactCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new CompactCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -121,6 +136,9 @@ class CompactRangeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new CompactRangeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -142,6 +160,9 @@ class PurgelogstoCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new PurgelogstoCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   uint32_t num_ = 0;
@@ -156,6 +177,9 @@ class PingCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new PingCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -168,6 +192,9 @@ class SelectCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new SelectCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -184,6 +211,9 @@ class FlushallCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new FlushallCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   bool FlushAllWithoutLock();
   void DoBinlog() override;
   void DoBinlogByDB(const std::shared_ptr<SyncMasterDB>& sync_db);
@@ -210,6 +240,9 @@ class FlushdbCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new FlushdbCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   std::string GetFlushDBname() { return db_name_; }
   void DoBinlog() override;
   bool DoWithoutLock();
@@ -236,6 +269,9 @@ class ClientCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ClientCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   const static std::string KILLTYPE_NORMAL;
@@ -270,6 +306,9 @@ class InfoCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new InfoCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Execute() override;
 
  private:
@@ -323,6 +362,9 @@ class ShutdownCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ShutdownCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -338,6 +380,9 @@ class ConfigCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ConfigCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void Execute() override;
 
  private:
@@ -358,6 +403,9 @@ class MonitorCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new MonitorCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -371,6 +419,9 @@ class DbsizeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DbsizeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -383,6 +434,9 @@ class TimeCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new TimeCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -395,6 +449,9 @@ class LastsaveCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new LastsaveCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -408,6 +465,9 @@ class DelbackupCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DelbackupCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -420,6 +480,9 @@ class EchoCmd : public Cmd {
   void Do() override;
   void Split(const HintKeys& hint_keys) override {};
   Cmd* Clone() override { return new EchoCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   std::string body_;
@@ -433,6 +496,9 @@ class ScandbCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ScandbCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   storage::DataType type_ = storage::DataType::kAll;
@@ -449,6 +515,9 @@ class SlowlogCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new SlowlogCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   int64_t number_ = 10;
@@ -468,6 +537,9 @@ class PaddingCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new PaddingCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -484,6 +556,9 @@ class PKPatternMatchDelCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new PKPatternMatchDelCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
   void DoBinlog() override;
 
  private:
@@ -503,6 +578,9 @@ class DummyCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DummyCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -515,6 +593,9 @@ class QuitCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new QuitCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -527,6 +608,9 @@ class HelloCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new HelloCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -540,6 +624,9 @@ class DiskRecoveryCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DiskRecoveryCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -554,6 +641,9 @@ class ClearReplicationIDCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new ClearReplicationIDCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -566,6 +656,9 @@ class DisableWalCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new DisableWalCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -579,6 +672,9 @@ class CacheCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new CacheCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   CacheCondition condition_;
@@ -597,6 +693,9 @@ class ClearCacheCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override{};
   void Merge() override{};
   Cmd* Clone() override { return new ClearCacheCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
  private:
   void DoInitial() override;
@@ -610,6 +709,9 @@ class CommandCmd : public Cmd {
   void Split(const HintKeys& hint_keys) override {};
   void Merge() override {};
   Cmd* Clone() override { return new CommandCmd(*this); }
+  Cmd* Clone(net::MemoryPool* pool) override {
+    return pool->Allocate<std::remove_pointer<decltype(this)>::type>(*this);
+  }
 
   class CommandFieldCompare {
    public:

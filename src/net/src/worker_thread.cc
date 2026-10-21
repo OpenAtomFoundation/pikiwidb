@@ -16,12 +16,13 @@
 
 namespace net {
 
-WorkerThread::WorkerThread(ConnFactory* conn_factory, ServerThread* server_thread, int queue_limit, int cron_interval)
-    :
-      server_thread_(server_thread),
+WorkerThread::WorkerThread(ConnFactory* conn_factory, ServerThread* server_thread, size_t memory_pool_page_size,
+                           int queue_limit, int cron_interval)
+    : server_thread_(server_thread),
       conn_factory_(conn_factory),
       cron_interval_(cron_interval),
-      keepalive_timeout_(kDefaultKeepAliveTime) {
+      keepalive_timeout_(kDefaultKeepAliveTime),
+      memory_pool_(memory_pool_page_size) {
   /*
    * install the protobuf handler here
    */
@@ -123,6 +124,8 @@ void* WorkerThread::ThreadMain() {
                 if (!tc || !tc->SetNonblock()) {
                   continue;
                 }
+
+                tc->SetMemoryPool(&memory_pool_);
 
 #ifdef __ENABLE_SSL
                 // Create SSL failed

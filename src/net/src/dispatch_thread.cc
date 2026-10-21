@@ -35,13 +35,14 @@ DispatchThread::DispatchThread(const std::string& ip, int port, int work_num, Co
 }
 
 DispatchThread::DispatchThread(const std::set<std::string>& ips, int port, int work_num, ConnFactory* conn_factory,
-                               int cron_interval, int queue_limit, const ServerHandle* handle)
+                               int cron_interval, int queue_limit, const ServerHandle* handle,
+                               size_t memory_pool_page_size)
     : ServerThread::ServerThread(ips, port, cron_interval, handle),
       last_thread_(0),
       work_num_(work_num),
       queue_limit_(queue_limit) {
   for (int i = 0; i < work_num_; i++) {
-    worker_thread_.emplace_back(std::make_unique<WorkerThread>(conn_factory, this, queue_limit, cron_interval));
+    worker_thread_.emplace_back(std::make_unique<WorkerThread>(conn_factory, this, queue_limit, cron_interval,memory_pool_page_size));
   }
 }
 
@@ -346,8 +347,9 @@ extern ServerThread* NewDispatchThread(const std::string& ip, int port, int work
 }
 extern ServerThread* NewDispatchThread(const std::set<std::string>& ips, int port, int work_num,
                                        ConnFactory* conn_factory, int cron_interval, int queue_limit,
-                                       const ServerHandle* handle) {
-  return new DispatchThread(ips, port, work_num, conn_factory, cron_interval, queue_limit, handle);
+                                       const ServerHandle* handle, size_t memory_pool_page_size) {
+  return new DispatchThread(ips, port, work_num, conn_factory, cron_interval, queue_limit, handle,
+                            memory_pool_page_size);
 }
 
 };  // namespace net

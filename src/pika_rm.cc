@@ -380,7 +380,7 @@ bool SyncMasterDB::CheckSessionId(const std::string& ip, int port, const std::st
   return true;
 }
 
-Status SyncMasterDB::ConsensusProposeLog(const std::shared_ptr<Cmd>& cmd_ptr) {
+Status SyncMasterDB::ConsensusProposeLog(Cmd* cmd_ptr) {
   return coordinator_.ProposeLog(cmd_ptr);
 }
 

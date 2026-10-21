@@ -17,9 +17,10 @@
 
 #include "net/include/net_define.h"
 #include "net/include/server_thread.h"
+#include "net/src/memory_pool.h"
 #include "net/src/net_multiplexer.h"
-#include "pstd/include/testutil.h"
 #include "pstd/include/noncopyable.h"
+#include "pstd/include/testutil.h"
 
 namespace net {
 
@@ -88,6 +89,8 @@ class NetConn : public std::enable_shared_from_this<NetConn>, public pstd::nonco
     ss << "fd: " << fd_ << ", ip_port: " << ip_port_ << ", name: " << name_ << ", is_reply: " << is_reply_ << ", close: " << close_;
     return ss.str();
   }
+
+  virtual void SetMemoryPool (MemoryPool* memory_pool){}
 
 #ifdef __ENABLE_SSL
   SSL* ssl() { return ssl_; }
