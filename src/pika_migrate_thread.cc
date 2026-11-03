@@ -689,7 +689,7 @@ int PikaMigrateThread::ReqMigrateOne(const std::string &key, const std::shared_p
     NotifyRequestMigrate();
   }
 
-  return 1;
+  return 0;
 }
 
 void PikaMigrateThread::GetMigrateStatus(std::string *ip, int64_t* port, int64_t *slot, bool *migrating, int64_t *moved,

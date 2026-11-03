@@ -1439,10 +1439,28 @@ void SlotsMgrtExecWrapperCmd::Do() {
   res_.AppendArrayLen(2);
   int ret = g_pika_server->SlotsMigrateOne(key_, db_);
   switch (ret) {
-    case 0:
-      res_.AppendInteger(0);
-      res_.AppendInteger(0);
+    case 0: {
+      res_.AppendInteger(2);
+      PikaCmdArgsType args;
+      for (size_t i = 2; i < argv_.size(); ++i) {
+        args.push_back(argv_[i]);
+      }
+      std::string opt = args[0];
+      pstd::StringToLower(opt);
+      std::shared_ptr<Cmd> c_ptr = g_pika_cmd_table_manager->GetCmd(opt);
+      if (!c_ptr) {
+        res_.SetRes(CmdRes::kErrOther, "unknown command");
+        return;
+      }
+      c_ptr->Initial(args, db_->GetDBName());
+      if (!c_ptr->res().ok()) {
+        res_.SetRes(CmdRes::kErrOther, c_ptr->res().message());
+        return;
+      }
+      c_ptr->Execute();
+      res_.AppendStringRaw(c_ptr->res().message());
       return;
+    }
     case 1:
       res_.AppendInteger(1);
       res_.AppendInteger(1);
