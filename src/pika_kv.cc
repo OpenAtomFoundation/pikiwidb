@@ -206,13 +206,26 @@ void DelCmd::DoInitial() {
 }
 
 void DelCmd::Do() {
+  // 先获取所有键的类型
+  std::map<std::string, std::string> key_type_map;
+  for (const auto& key : keys_) {
+    std::string type;
+    int result = GetKeyType(key, type, db_);
+    if (result > 0) {
+      key_type_map[key] = type;
+    }
+  }
+  
+  // 然后删除键
   int64_t count = db_->storage()->Del(keys_);
+  
   if (count >= 0) {
     res_.AppendInteger(count);
     s_ = rocksdb::Status::OK();
-    std::vector<std::string>::const_iterator it;
-    for (it = keys_.begin(); it != keys_.end(); it++) {
-      RemSlotKey(*it, db_);
+    
+    // 使用预先获取的类型信息从 slotKey 中移除
+    for (const auto& [key, type] : key_type_map) {
+      RemSlotKeyByType(type, key, db_);
     }
   } else {
     res_.SetRes(CmdRes::kErrOther, "delete error");
