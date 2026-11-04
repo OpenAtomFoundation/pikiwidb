@@ -415,6 +415,20 @@ int PikaConf::Load() {
   // disable_auto_compactions
   GetConfBool("disable_auto_compactions", &disable_auto_compactions_);
 
+  // Progressive compaction configuration
+  std::string enable_auto_compact_old_sst_str;
+  GetConfStr("enable_auto_compact_old_sst", &enable_auto_compact_old_sst_str);
+  if (enable_auto_compact_old_sst_str == "yes") {
+    enable_auto_compact_old_sst_ = true;
+  } else {
+    enable_auto_compact_old_sst_ = false;
+  }
+
+  GetConfInt64("auto-compact-old-sst-interval", &auto_compact_old_sst_interval_);
+  if (auto_compact_old_sst_interval_ < 60) { // Minimum 60 seconds
+    auto_compact_old_sst_interval_ = 90;
+  }
+
   small_compaction_threshold_ = 5000;
   GetConfInt("small-compaction-threshold", &small_compaction_threshold_);
   if (small_compaction_threshold_ < 0) {
@@ -429,6 +443,22 @@ int PikaConf::Load() {
     small_compaction_duration_threshold_ = 0;
   } else if (small_compaction_duration_threshold_ >= 1000000) {
     small_compaction_duration_threshold_ = 1000000;
+  }
+  
+  // Progressive compact configuration
+  enable_auto_compact_old_sst_ = false;
+  std::string enable_pc;
+  GetConfStr("enable-progressive-compact", &enable_pc);
+  if (enable_pc == "yes") {
+    enable_auto_compact_old_sst_ = true;
+  }
+  
+  auto_compact_old_sst_interval_ = 90;
+  int interval;
+  GetConfInt("progressive-compact-interval", &interval);
+  auto_compact_old_sst_interval_ = interval;
+  if (auto_compact_old_sst_interval_ < 1) {
+    auto_compact_old_sst_interval_ = 90;
   }
 
   GetConfInt("max-background-flushes", &max_background_flushes_);
@@ -773,6 +803,8 @@ int PikaConf::ConfigRewrite() {
   SetConfStr("compact-cron", compact_cron_);
   SetConfStr("compact-interval", compact_interval_);
   SetConfStr("disable_auto_compactions", disable_auto_compactions_ ? "true" : "false");
+  SetConfStr("enable-progressive-compact", enable_auto_compact_old_sst_ ? "yes" : "no");
+  SetConfInt64("progressive-compact-interval", auto_compact_old_sst_interval_);
   SetConfStr("cache-type", scachetype);
   SetConfInt64("least-free-disk-resume-size", least_free_disk_to_resume_);
   SetConfInt64("manually-resume-interval", resume_check_interval_);

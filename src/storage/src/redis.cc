@@ -5,6 +5,9 @@
 
 #include "src/redis.h"
 #include <sstream>
+#include "rocksdb/db.h"
+#include "rocksdb/compaction_job_stats.h"
+#include "glog/logging.h"  // 确保LOG宏可用
 
 namespace storage {
 
@@ -196,7 +199,67 @@ void Redis::SetCompactRangeOptions(const bool is_canceled) {
     default_compact_range_options_.canceled = new std::atomic<bool>(is_canceled);
   } else {
     default_compact_range_options_.canceled->store(is_canceled);
-  } 
+  }
+}
+
+uint64_t Redis::TableFileNameToNumber(const std::string& name) {
+      uint64_t number = 0;
+      uint64_t base = 1;
+      int pos = static_cast<int>(name.find_last_of('.'));
+      while (--pos >= 0 && name[pos] >= '0' && name[pos] <= '9') {
+        number += (name[pos] - '0') * base;
+        base *= 10;
+      }
+      return number;
+}
+
+Status Redis::CompactOldFiles() {
+    Status s;
+    std::vector<rocksdb::ColumnFamilyHandle*> compact_handles_;
+    for (auto handle : handles_) {
+        compact_handles_.push_back(handle);
+    }
+    if (handles_.empty()) {
+        compact_handles_.push_back(db_->DefaultColumnFamily());
+    }
+    for (auto handle : compact_handles_) {
+        int rate = 0;
+        while (rate < 70) {
+            rate = 100;
+            rocksdb::ColumnFamilyMetaData meta;
+            rocksdb::CompactionOptions compact_options_;
+            std::vector<std::string> input_file_names;
+            db_->GetColumnFamilyMetaData(handle, &meta);
+            uint64_t min_number = -1;
+            int min_level = 0;
+            std::string min_file = "999999.sst";
+            std::string file_path;
+            for (auto level_meta : meta.levels) {
+                for (auto file_meta : level_meta.files) {
+                    file_path = file_meta.db_path;
+                    uint64_t number = 0;
+                    number = TableFileNameToNumber(file_meta.name);
+                    if (number < min_number) {
+                        min_file = file_meta.name;
+                        min_level = level_meta.level;
+                        min_number = number;
+                    }
+                }
+            }
+
+            if (min_level < 6) min_level++;
+
+            if (min_file != "999999.sst") {
+                input_file_names.push_back(min_file);
+                rocksdb::CompactionJobInfo job_info;
+                db_->CompactFiles(compact_options_, handle, input_file_names, min_level, -1, nullptr, &job_info);
+                LOG(WARNING) << "CompactFiles: " << handle->GetName()<< " : " << file_path << " : " << min_file << " : " << min_level << ", job_stats : " << job_info.stats.num_input_records <<  ": "<< job_info.stats.num_output_records;
+                if (job_info.stats.num_input_records == 0) { break; }
+                rate = job_info.stats.num_output_records * 100 / job_info.stats.num_input_records;
+            }
+        }
+    }
+    return s;
 }
 
 }  // namespace storage
