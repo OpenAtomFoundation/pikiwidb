@@ -198,6 +198,7 @@ void PikaReplClientConn::HandleTrySyncResponse(void* arg) {
     LOG(WARNING) << "TrySync Failed: " << reply;
     return;
   }
+
   const InnerMessage::InnerResponse_TrySync& try_sync_response = response->try_sync();
   const InnerMessage::Slot& db_response = try_sync_response.slot();
   std::string db_name = db_response.db_name();
@@ -222,11 +223,33 @@ void PikaReplClientConn::HandleTrySyncResponse(void* arg) {
     db->Logger()->GetProducerStatus(&boffset.filenum, &boffset.offset);
     slave_db->SetMasterSessionId(session_id);
     LogOffset offset(boffset, logic_last_offset);
+    LOG(INFO)<<"PacificA slave first binlog stable offset : "<< offset.ToString();
+    if(db->GetISConsistency()){
+      if (try_sync_response.has_prepared_id()){
+        const InnerMessage::BinlogOffset& prepared_id = try_sync_response.prepared_id();
+        LogOffset master_prepared_id(BinlogOffset(prepared_id.filenum(),prepared_id.offset()),LogicOffset(prepared_id.term(),prepared_id.index()));
+        LOG(INFO)<<"PacificA master TrySync Response master_prepared_id: "<<master_prepared_id.ToString();
+        LOG(INFO)<<"PacificA slave cur_prepared_id: "<<db->GetPreparedId().ToString();
+
+        if(master_prepared_id < db->GetPreparedId()){
+          if(master_prepared_id < db->GetCommittedId()){
+            slave_db->SetReplState(ReplState::kError);
+            LOG(WARNING) << "DB: " << db_name << " master preparedId < slave committedId error";
+            return;
+          }
+          db->SetPreparedId(master_prepared_id);
+          // 向主的preparedid看齐，多余的裁剪掉
+          db->Truncate(master_prepared_id);
+        }
+      }else{
+        LOG(WARNING) << "consistency  master trySync no preparedID";
+        return ;
+      }
+    }
     g_pika_rm->SendBinlogSyncAckRequest(db_name, offset, offset, true);
     slave_db->SetReplState(ReplState::kConnected);
     // after connected, update receive time first to avoid connection timeout
     slave_db->SetLastRecvTime(pstd::NowMicros());
-
     LOG(INFO) << "DB: " << db_name << " TrySync Ok";
   } else if (try_sync_response.reply_code() == InnerMessage::InnerResponse::TrySync::kSyncPointBePurged) {
     slave_db->SetReplState(ReplState::kTryDBSync);

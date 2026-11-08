@@ -180,6 +180,18 @@ Status PikaReplClient::SendMetaSync() {
   request.set_type(InnerMessage::kMetaSync);
   InnerMessage::InnerRequest::MetaSync* meta_sync = request.mutable_meta_sync();
   InnerMessage::Node* node = meta_sync->mutable_node();
+  bool is_consistency = g_pika_server->IsConsistency();
+  meta_sync->set_is_consistency(is_consistency);
+  if(is_consistency){
+    auto master_dbs = g_pika_rm->GetSyncMasterDBs();
+    for (auto& db : master_dbs) {
+      if (g_pika_server->slaves_.size() == 0) {
+        db.second->SetConsistency(is_consistency);
+        db.second->InitContext();
+        Status s = db.second->ProcessCoordination();
+      }
+    }
+  }
   node->set_ip(local_ip);
   node->set_port(g_pika_server->port());
 
@@ -229,6 +241,7 @@ Status PikaReplClient::SendDBSync(const std::string& ip, uint32_t port, const st
   return client_thread_->Write(ip, static_cast<int32_t>(port) + kPortShiftReplServer, to_send);
 }
 
+
 Status PikaReplClient::SendTrySync(const std::string& ip, uint32_t port, const std::string& db_name,
                                    const BinlogOffset& boffset, const std::string& local_ip) {
   InnerMessage::InnerRequest request;
@@ -247,6 +260,13 @@ Status PikaReplClient::SendTrySync(const std::string& ip, uint32_t port, const s
   db->set_slot_id(0);
 
   InnerMessage::BinlogOffset* binlog_offset = try_sync->mutable_binlog_offset();
+  std::shared_ptr<SyncMasterDB> master_db =g_pika_rm->GetSyncMasterDBByName(DBInfo(db_name));
+  if(master_db->GetISConsistency()){
+    InnerMessage::BinlogOffset* committed_id = try_sync->mutable_committed_id();
+    LogOffset master_committed_id = master_db->GetCommittedId();
+    g_pika_rm->BuildBinlogOffset(master_committed_id,committed_id);
+  }
+
   binlog_offset->set_filenum(boffset.filenum);
   binlog_offset->set_offset(boffset.offset);
 

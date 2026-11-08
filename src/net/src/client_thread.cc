@@ -356,7 +356,6 @@ void ClientThread::ProcessNotifyEvents(const NetFiredEvent* pfe) {
             NotifyWrite(ip_port);
           }
         } else if (ti.notify_type() == kNotiClose) {
-          LOG(INFO) << "received kNotiClose";
           net_multiplexer_->NetDelEvent(fd, 0);
           CloseFd(fd, ip_port);
           fd_conns_.erase(fd);

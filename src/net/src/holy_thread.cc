@@ -19,7 +19,7 @@ namespace net {
 HolyThread::HolyThread(int port, ConnFactory* conn_factory, int cron_interval, const ServerHandle* handle, bool async)
     : ServerThread::ServerThread(port, cron_interval, handle),
       conn_factory_(conn_factory),
-      
+
       keepalive_timeout_(kDefaultKeepAliveTime),
       async_(async) {}
 
@@ -290,7 +290,6 @@ void HolyThread::ProcessNotifyEvents(const net::NetFiredEvent* pfe) {
         if (ti.notify_type() == net::kNotiWrite) {
           net_multiplexer_->NetModEvent(ti.fd(), 0, kReadable | kWritable);
         } else if (ti.notify_type() == net::kNotiClose) {
-          LOG(INFO) << "receive noti close";
           std::shared_ptr<net::NetConn> conn = get_conn(fd);
           if (!conn) {
             continue;

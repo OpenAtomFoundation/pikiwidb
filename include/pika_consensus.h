@@ -25,7 +25,7 @@ class Context : public pstd::noncopyable {
   void Reset(const LogOffset& offset);
 
   std::shared_mutex rwlock_;
-  LogOffset applied_index_;
+  LogOffset applied_index_ = LogOffset();
   SyncWindow applied_win_;
 
   std::string ToString() {
@@ -52,11 +52,28 @@ class SyncProgress {
   pstd::Status Update(const std::string& ip, int port, const LogOffset& start, const LogOffset& end,
                 LogOffset* committed_index);
   int SlaveSize();
+  int SlaveBinlogStateSize() {
+    std::shared_lock l(rwlock_);
+    return slave_binlog_state_size;
+  }
+  void AddSlaveBinlogStateSize() {
+    std::lock_guard l(rwlock_);
+    slave_binlog_state_size++;
+  }
+  void SubSlaveBinlogStateSize() {
+    std::lock_guard l(rwlock_);
+    slave_binlog_state_size--;
+  }
+  void AddMatchIndex(const std::string& ip, int port, const LogOffset& offset) {
+    std::lock_guard l(rwlock_);
+    match_index_[ip + std::to_string(port)] = offset;
+  }
 
  private:
   std::shared_mutex rwlock_;
   std::unordered_map<std::string, std::shared_ptr<SlaveNode>> slaves_;
   std::unordered_map<std::string, LogOffset> match_index_;
+  int slave_binlog_state_size = 0;
 };
 
 class MemLog {
@@ -98,6 +115,34 @@ class MemLog {
   pstd::Mutex logs_mu_;
   std::vector<LogItem> logs_;
   LogOffset last_offset_;
+};
+
+class Log {
+ public:
+  struct LogItem {
+    LogItem(const LogOffset& _offset, std::shared_ptr<Cmd> _cmd_ptr, std::string _binlog)
+        : offset(_offset), cmd_ptr(std::move(_cmd_ptr)), binlog_(std::move(_binlog)) {}
+    LogOffset offset;
+    std::shared_ptr<Cmd> cmd_ptr;
+    std::string binlog_;
+  };
+
+  Log();
+  int Size();
+  void AppendLog(const LogItem& item);
+  LogOffset LastOffset();
+  LogOffset FirstOffset();
+  LogItem At(int index);
+  int FindOffset(const LogOffset& send_offset);
+  pstd::Status Truncate(const LogOffset& offset);
+  pstd::Status TruncateFrom(const LogOffset& offset);
+
+ private:
+  int FindLogIndex(const LogOffset& offset);
+  std::shared_mutex logs_mutex_;
+  std::vector<LogItem> logs_;
+  LogOffset last_index_ = LogOffset();
+  LogOffset first_index_ = LogOffset();
 };
 
 class ConsensusCoordinator {
@@ -199,5 +244,51 @@ class ConsensusCoordinator {
   SyncProgress sync_pros_;
   std::shared_ptr<StableLog> stable_logger_;
   std::shared_ptr<MemLog> mem_logger_;
+
+  // pacificA
+ public:
+  void InitContext() { context_->Init(); }
+  bool checkFinished(const LogOffset& offset);
+  pstd::Status AppendEntries(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_logoffset);
+  void SetConsistency(bool is_consistency);
+  bool GetISConsistency();
+  pstd::Status SendBinlog(std::shared_ptr<SlaveNode> slave_ptr, std::string db_name);
+  pstd::Status Truncate(const LogOffset& offset);
+  pstd::Status AppendSlaveEntries(const std::shared_ptr<Cmd>& cmd_ptr, const BinlogItem& attribute);
+  pstd::Status CommitAppLog(const LogOffset& master_committed_id);
+  pstd::Status UpdateCommittedID();
+  pstd::Status ApplyBinlog(const std::shared_ptr<Cmd>& cmd_ptr);
+  pstd::Status ProcessCoordination();
+
+  LogOffset GetCommittedId() {
+    std::lock_guard l(committed_id_rwlock_);
+    return committed_id_;
+  }
+  LogOffset GetPreparedId() {
+    std::lock_guard l(prepared_id__rwlock_);
+    return prepared_id_;
+  }
+  void SetPreparedId(const LogOffset& offset) {
+    std::lock_guard l(prepared_id__rwlock_);
+    prepared_id_ = offset;
+  }
+  void SetCommittedId(const LogOffset& offset) {
+    std::lock_guard l(committed_id_rwlock_);
+    committed_id_ = offset;
+    context_->UpdateAppliedIndex(committed_id_);
+  }
+
+ private:
+  pstd::Status PersistAppendBinlog(const std::shared_ptr<Cmd>& cmd_ptr, LogOffset& cur_offset);
+
+ private:
+  std::shared_mutex is_consistency_rwlock_;
+  bool is_consistency_ = false;
+  std::shared_mutex committed_id_rwlock_;
+  LogOffset committed_id_ = LogOffset();
+  std::shared_mutex prepared_id__rwlock_;
+  LogOffset prepared_id_ = LogOffset();
+  std::shared_ptr<Log> logs_;
 };
+
 #endif  // INCLUDE_PIKA_CONSENSUS_H_

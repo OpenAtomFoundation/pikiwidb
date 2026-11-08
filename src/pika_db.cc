@@ -490,7 +490,10 @@ bool DB::TryUpdateMasterOffset() {
   }
   master_db->Logger()->SetProducerStatus(filenum, offset);
   slave_db->SetReplState(ReplState::kTryConnect);
-
+  LogOffset master_offset(BinlogOffset(filenum,offset),LogicOffset());
+  master_db->SetPreparedId(master_offset);
+  master_db->SetCommittedId(master_offset);
+  LOG(INFO)<<"PacificA write DB finished slave_comitted: "<<master_db->GetCommittedId().ToString()<<" prepared: "<<master_db->GetPreparedId().ToString();
   //now full sync is finished, remove unfinished full sync count
   g_pika_conf->RemoveInternalUsedUnfinishedFullSync(slave_db->DBName());
 
