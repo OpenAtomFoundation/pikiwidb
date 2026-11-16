@@ -3,9 +3,10 @@
 //  LICENSE file in the root directory of this source tree. An additional grant
 //  of patent rights can be found in the PATENTS file in the same directory.
 
-#include <iostream>
 #include <algorithm>
+#include <cerrno>
 #include <climits>
+#include <iostream>
 #include <limits>
 #include <memory>
 
@@ -646,8 +647,9 @@ Status Redis::Incrby(const Slice& key, int64_t value, int64_t* ret, int64_t* exp
       uint64_t timestamp = parsed_strings_value.Etime();
       std::string old_user_value = parsed_strings_value.UserValue().ToString();
       char* end = nullptr;
+      errno = 0;
       int64_t ival = strtoll(old_user_value.c_str(), &end, 10);
-      if (*end != 0) {
+      if (errno == ERANGE || *end != 0) {
         return Status::Corruption("Value is not a integer");
       }
       if ((value >= 0 && LLONG_MAX - value < ival) || (value < 0 && LLONG_MIN - value > ival)) {
