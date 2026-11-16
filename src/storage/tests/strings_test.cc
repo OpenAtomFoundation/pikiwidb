@@ -5,6 +5,7 @@
 
 #include <gtest/gtest.h>
 #include <iostream>
+#include <limits>
 #include <thread>
 
 #include "glog/logging.h"
@@ -440,6 +441,59 @@ TEST_F(StringsTest, IncrbyTest) {
   s = db.Get("GP4_INCRBY_KEY", &value);
   ASSERT_EQ(value, "100000");
   ASSERT_EQ(expired_timestamp_millsec, 0);
+}
+
+TEST_F(StringsTest, IncrbyRejectsOutOfRangeStoredValues) {
+  const std::string key = "INCRBY_OUT_OF_RANGE_KEY";
+  for (const std::string stored :
+       {"9223372036854775808", "-9223372036854775809", "18446744073709551616", "-18446744073709551617"}) {
+    for (int64_t increment : {0, 1, -1}) {
+      SCOPED_TRACE(stored + " increment " + std::to_string(increment));
+      ASSERT_TRUE(db.Setex(key, stored, 60000).ok());
+      std::string value;
+      int64_t ttl_before = 0;
+      const auto started = pstd::NowMillis();
+      ASSERT_TRUE(db.GetWithTTL(key, &value, &ttl_before).ok());
+      ASSERT_GT(ttl_before, 0);
+
+      int64_t result = 0;
+      int64_t expired_timestamp_millsec = 0;
+      EXPECT_TRUE(db.Incrby(key, increment, &result, &expired_timestamp_millsec).IsCorruption());
+
+      int64_t ttl_after = 0;
+      ASSERT_TRUE(db.GetWithTTL(key, &value, &ttl_after).ok());
+      const int64_t elapsed = pstd::NowMillis() - started;
+      EXPECT_EQ(value, stored);
+      EXPECT_GT(ttl_after, 0);
+      EXPECT_LE(ttl_after, ttl_before);
+      EXPECT_GE(ttl_after, ttl_before - elapsed);
+    }
+  }
+}
+
+TEST_F(StringsTest, IncrbyInt64Boundaries) {
+  const std::string key = "INCRBY_BOUNDARY_KEY";
+  for (int64_t boundary : {std::numeric_limits<int64_t>::max(), std::numeric_limits<int64_t>::min()}) {
+    const std::string stored = std::to_string(boundary);
+    SCOPED_TRACE(stored);
+    ASSERT_TRUE(db.Set(key, stored).ok());
+
+    int64_t result = 0;
+    int64_t expired_timestamp_millsec = 0;
+    ASSERT_TRUE(db.Incrby(key, 0, &result, &expired_timestamp_millsec).ok());
+    EXPECT_EQ(result, boundary);
+
+    const int64_t outward = boundary > 0 ? 1 : -1;
+    EXPECT_TRUE(db.Incrby(key, outward, &result, &expired_timestamp_millsec).IsInvalidArgument());
+    std::string value;
+    ASSERT_TRUE(db.Get(key, &value).ok());
+    EXPECT_EQ(value, stored);
+
+    ASSERT_TRUE(db.Incrby(key, -outward, &result, &expired_timestamp_millsec).ok());
+    EXPECT_EQ(result, boundary - outward);
+    ASSERT_TRUE(db.Get(key, &value).ok());
+    EXPECT_EQ(value, std::to_string(boundary - outward));
+  }
 }
 
 // Incrbyfloat
