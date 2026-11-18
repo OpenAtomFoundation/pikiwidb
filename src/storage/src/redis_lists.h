@@ -32,20 +32,28 @@ class RedisLists : public Redis {
   // Lists commands;
   Status LIndex(const Slice& key, int64_t index, std::string* element);
   Status LInsert(const Slice& key, const BeforeOrAfter& before_or_after, const std::string& pivot,
-                 const std::string& value, int64_t* ret);
+                 const std::string& value, int64_t* ret,
+                 CommitCallback callback = nullptr);
   Status LLen(const Slice& key, uint64_t* len);
-  Status LPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
-  Status LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret);
-  Status LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len);
+  Status LPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback = nullptr);
+  Status LPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+               CommitCallback callback = nullptr);
+  Status LPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                CommitCallback callback = nullptr);
   Status LRange(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret);
-  Status LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret);
+  Status LRem(const Slice& key, int64_t count, const Slice& value, uint64_t* ret,
+              CommitCallback callback = nullptr);
   Status LRangeWithTTL(const Slice& key, int64_t start, int64_t stop, std::vector<std::string>* ret, int64_t* ttl);
-  Status LSet(const Slice& key, int64_t index, const Slice& value);
-  Status LTrim(const Slice& key, int64_t start, int64_t stop);
-  Status RPop(const Slice& key, int64_t count, std::vector<std::string>* elements);
-  Status RPoplpush(const Slice& source, const Slice& destination, std::string* element);
-  Status RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret);
-  Status RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len);
+  Status LSet(const Slice& key, int64_t index, const Slice& value,
+              CommitCallback callback = nullptr);
+  Status LTrim(const Slice& key, int64_t start, int64_t stop,
+               CommitCallback callback = nullptr);
+  Status RPop(const Slice& key, int64_t count, std::vector<std::string>* elements, CommitCallback callback = nullptr);
+  Status RPoplpush(const Slice& source, const Slice& destination, std::string* element, CommitCallback callback = nullptr);
+  Status RPush(const Slice& key, const std::vector<std::string>& values, uint64_t* ret,
+               CommitCallback callback = nullptr);
+  Status RPushx(const Slice& key, const std::vector<std::string>& values, uint64_t* len,
+                CommitCallback callback = nullptr);
   Status PKScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,
                      std::vector<std::string>* keys, std::string* next_key);
   Status PKRScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,

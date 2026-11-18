@@ -14,6 +14,8 @@
 #include <glog/logging.h>
 #include <iostream>
 
+#include "storage/batch.h"  // For Batch support
+
 #include "src/scope_record_lock.h"
 #include "src/scope_snapshot.h"
 #include "src/strings_filter.h"
@@ -35,9 +37,36 @@ Status RedisStrings::Open(const StorageOptions& storage_options, const std::stri
     table_ops.block_cache = rocksdb::NewLRUCache(storage_options.block_cache_size);
   }
   table_ops.filter_policy.reset(rocksdb::NewBloomFilterPolicy(10, true));
+  
   ops.table_factory.reset(rocksdb::NewBlockBasedTableFactory(table_ops));
+  
+  // Add LogIndex table properties collector for Raft
+  ops.table_properties_collector_factories.push_back(
+      std::make_shared<LogIndexTablePropertiesCollectorFactory>(log_index_collector_));
 
-  return rocksdb::DB::Open(ops, db_path, &db_);
+  // Add LogIndex event listener for Raft
+  if (storage_options.do_snapshot_function) {
+    auto purger = std::make_shared<LogIndexAndSequenceCollectorPurger>(
+        &handles_, &log_index_collector_, &log_index_of_all_cfs_,
+        storage_options.do_snapshot_function);
+    ops.listeners.push_back(purger);
+  }
+
+  Status s = rocksdb::DB::Open(ops, db_path, &db_);
+  if (!s.ok()) {
+    return s;
+  }
+  
+  // Initialize handles for strings (default column family only)
+  handles_.push_back(db_->DefaultColumnFamily());
+  
+  // Initialize log index of column families
+  s = log_index_of_all_cfs_.Init(this);
+  if (!s.ok()) {
+    LOG(ERROR) << "Failed to init log index of column families for strings: " << s.ToString();
+  }
+  
+  return s;
 }
 
 Status RedisStrings::CompactRange(const rocksdb::Slice* begin, const rocksdb::Slice* end,
@@ -156,18 +185,20 @@ Status RedisStrings::PKPatternMatchDelWithRemoveKeys(const DataType& data_type, 
   return s;
 }
 
-Status RedisStrings::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value) {
+Status RedisStrings::Append(const Slice& key, const Slice& value, int32_t* ret, int32_t* expired_timestamp_sec, std::string& out_new_value, CommitCallback callback) {
   std::string old_value;
   *ret = 0;
   *expired_timestamp_sec = 0;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &old_value);
   if (s.ok()) {
     ParsedStringsValue parsed_strings_value(&old_value);
     if (parsed_strings_value.IsStale()) {
       *ret = static_cast<int32_t>(value.size());
+      out_new_value = value.ToString();
       StringsValue strings_value(value);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
     } else {
       int32_t timestamp = parsed_strings_value.timestamp();
       std::string old_user_value = parsed_strings_value.value().ToString();
@@ -176,16 +207,18 @@ Status RedisStrings::Append(const Slice& key, const Slice& value, int32_t* ret, 
       StringsValue strings_value(new_value);
       strings_value.set_timestamp(timestamp);
       *ret = static_cast<int32_t>(new_value.size());
-      return db_->Put(default_write_options_, key, strings_value.Encode());
       *expired_timestamp_sec = timestamp;
+      batch->Put(0, key, strings_value.Encode());
     }
   } else if (s.IsNotFound()) {
     *ret = static_cast<int32_t>(value.size());
     out_new_value = value.ToString();
     StringsValue strings_value(value);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
+  } else {
+    return s;
   }
-  return s;
+  return batch->Commit(callback);
 }
 
 int GetBitCount(const unsigned char* value, int64_t bytes) {
@@ -333,9 +366,10 @@ Status RedisStrings::BitOp(BitOpType op, const std::string& dest_key, const std:
   return db_->Put(default_write_options_, dest_key, strings_value.Encode());
 }
 
-Status RedisStrings::Decrby(const Slice& key, int64_t value, int64_t* ret) {
+Status RedisStrings::Decrby(const Slice& key, int64_t value, int64_t* ret, CommitCallback callback) {
   std::string old_value;
   std::string new_value;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &old_value);
   if (s.ok()) {
@@ -344,7 +378,7 @@ Status RedisStrings::Decrby(const Slice& key, int64_t value, int64_t* ret) {
       *ret = -value;
       new_value = std::to_string(*ret);
       StringsValue strings_value(new_value);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
     } else {
       int32_t timestamp = parsed_strings_value.timestamp();
       std::string old_user_value = parsed_strings_value.value().ToString();
@@ -361,16 +395,17 @@ Status RedisStrings::Decrby(const Slice& key, int64_t value, int64_t* ret) {
       new_value = std::to_string(*ret);
       StringsValue strings_value(new_value);
       strings_value.set_timestamp(timestamp);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
     }
   } else if (s.IsNotFound()) {
     *ret = -value;
     new_value = std::to_string(*ret);
     StringsValue strings_value(new_value);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
   } else {
     return s;
   }
+  return batch->Commit(callback);
 }
 
 Status RedisStrings::Get(const Slice& key, std::string* value) {
@@ -526,7 +561,7 @@ Status RedisStrings::GetrangeWithValue(const Slice& key, int64_t start_offset, i
   return s;
 }
 
-Status RedisStrings::GetSet(const Slice& key, const Slice& value, std::string* old_value) {
+Status RedisStrings::GetSet(const Slice& key, const Slice& value, std::string* old_value, CommitCallback callback) {
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, old_value);
   if (s.ok()) {
@@ -538,15 +573,22 @@ Status RedisStrings::GetSet(const Slice& key, const Slice& value, std::string* o
     }
   } else if (!s.IsNotFound()) {
     return s;
+  } else if (s.IsNotFound()) {
+    *old_value = "";
   }
+  
   StringsValue strings_value(value);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  auto batch = Batch::CreateBatch(this);
+  batch->Put(0, key, strings_value.Encode());
+  return batch->Commit(callback);
 }
 
-Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec) {
+Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32_t* expired_timestamp_sec,
+                             CommitCallback callback) {
   std::string old_value;
   std::string new_value;
   *expired_timestamp_sec = 0;
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &old_value);
   char buf[32] = {0};
@@ -556,7 +598,7 @@ Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32
       *ret = value;
       Int64ToStr(buf, 32, value);
       StringsValue strings_value(buf);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
     } else {
       int32_t timestamp = parsed_strings_value.timestamp();
       std::string old_user_value = parsed_strings_value.value().ToString();
@@ -572,7 +614,7 @@ Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32
       new_value = std::to_string(*ret);
       StringsValue strings_value(new_value);
       strings_value.set_timestamp(timestamp);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
       *expired_timestamp_sec = timestamp;
     }
   } else if (s.IsNotFound()) {
@@ -580,13 +622,15 @@ Status RedisStrings::Incrby(const Slice& key, int64_t value, int64_t* ret, int32
     Int64ToStr(buf, 32, value);
     StringsValue strings_value(buf);
     *expired_timestamp_sec = 0;
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
   } else {
     return s;
   }
+  return batch->Commit(callback);
 }
 
-Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec) {
+Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::string* ret, int32_t* expired_timestamp_sec,
+                                  CommitCallback callback) {
   std::string old_value;
   std::string new_value;
   *expired_timestamp_sec = 0;
@@ -594,6 +638,7 @@ Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::stri
   if (StrToLongDouble(value.data(), value.size(), &long_double_by) == -1) {
     return Status::Corruption("Value is not a vaild float");
   }
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &old_value);
   if (s.ok()) {
@@ -602,7 +647,7 @@ Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::stri
       LongDoubleToStr(long_double_by, &new_value);
       *ret = new_value;
       StringsValue strings_value(new_value);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
     } else {
       int32_t timestamp = parsed_strings_value.timestamp();
       std::string old_user_value = parsed_strings_value.value().ToString();
@@ -618,7 +663,7 @@ Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::stri
       *ret = new_value;
       StringsValue strings_value(new_value);
       strings_value.set_timestamp(timestamp);
-      return db_->Put(default_write_options_, key, strings_value.Encode());
+      batch->Put(0, key, strings_value.Encode());
       *expired_timestamp_sec = timestamp;
     }
   } else if (s.IsNotFound()) {
@@ -626,10 +671,11 @@ Status RedisStrings::Incrbyfloat(const Slice& key, const Slice& value, std::stri
     *ret = new_value;
     StringsValue strings_value(new_value);
     *expired_timestamp_sec = 0;
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
   } else {
     return s;
   }
+  return batch->Commit(callback);
 }
 
 Status RedisStrings::MGet(const std::vector<std::string>& keys, std::vector<ValueStatus>* vss) {
@@ -696,23 +742,23 @@ Status RedisStrings::MGetWithTTL(const std::vector<std::string>& keys, std::vect
   return Status::OK();
 }
 
-Status RedisStrings::MSet(const std::vector<KeyValue>& kvs) {
+Status RedisStrings::MSet(const std::vector<KeyValue>& kvs, CommitCallback callback) {
   std::vector<std::string> keys;
   keys.reserve(kvs.size());
   for (const auto& kv : kvs) {
     keys.push_back(kv.key);
   }
 
+  auto batch = Batch::CreateBatch(this);
   MultiScopeRecordLock ml(lock_mgr_, keys);
-  rocksdb::WriteBatch batch;
   for (const auto& kv : kvs) {
     StringsValue strings_value(kv.value);
-    batch.Put(kv.key, strings_value.Encode());
+    batch->Put(0, kv.key, strings_value.Encode());
   }
-  return db_->Write(default_write_options_, &batch);
+  return batch->Commit(callback);
 }
 
-Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
+Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret, CommitCallback callback) {
   Status s;
   bool exists = false;
   *ret = 0;
@@ -728,7 +774,7 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
     }
   }
   if (!exists) {
-    s = MSet(kvs);
+    s = MSet(kvs, callback);
     if (s.ok()) {
       *ret = 1;
     }
@@ -736,13 +782,18 @@ Status RedisStrings::MSetnx(const std::vector<KeyValue>& kvs, int32_t* ret) {
   return s;
 }
 
-Status RedisStrings::Set(const Slice& key, const Slice& value) {
+Status RedisStrings::Set(const Slice& key, const Slice& value,
+                          CommitCallback callback) {
   StringsValue strings_value(value);
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  
+  batch->Put(0, key, strings_value.Encode());
+  return batch->Commit(callback);
 }
 
-Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
+Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                            CommitCallback callback) {
   bool not_found = true;
   std::string old_value;
   StringsValue strings_value(value);
@@ -765,11 +816,14 @@ Status RedisStrings::Setxx(const Slice& key, const Slice& value, int32_t* ret, c
     if (ttl > 0) {
       strings_value.SetRelativeTimestamp(ttl);
     }
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    // Use batch for consistency
+    auto batch = Batch::CreateBatch(this);
+    batch->Put(0, key, strings_value.Encode());
+    return batch->Commit(callback);
   }
 }
 
-Status RedisStrings::SetBit(const Slice& key, int64_t offset, int32_t on, int32_t* ret) {
+Status RedisStrings::SetBit(const Slice& key, int64_t offset, int32_t on, int32_t* ret, CommitCallback callback) {
   std::string meta_value;
   if (offset < 0) {
     return Status::InvalidArgument("offset < 0");
@@ -811,13 +865,16 @@ Status RedisStrings::SetBit(const Slice& key, int64_t offset, int32_t on, int32_
     }
     StringsValue strings_value(data_value);
     strings_value.set_timestamp(timestamp);
-    return db_->Put(rocksdb::WriteOptions(), key, strings_value.Encode());
+    auto batch = Batch::CreateBatch(this);
+    batch->Put(0, key, strings_value.Encode());
+    return batch->Commit(callback);
   } else {
     return s;
   }
 }
 
-Status RedisStrings::Setex(const Slice& key, const Slice& value, int32_t ttl) {
+Status RedisStrings::Setex(const Slice& key, const Slice& value, int32_t ttl,
+                            CommitCallback callback) {
   if (ttl <= 0) {
     return Status::InvalidArgument("invalid expire time");
   }
@@ -827,10 +884,14 @@ Status RedisStrings::Setex(const Slice& key, const Slice& value, int32_t ttl) {
     return s;
   }
   ScopeRecordLock l(lock_mgr_, key);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  // Use batch for consistency
+  auto batch = Batch::CreateBatch(this);
+  batch->Put(0, key, strings_value.Encode());
+  return batch->Commit(callback);
 }
 
-Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl) {
+Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, const int32_t ttl,
+                            CommitCallback callback) {
   *ret = 0;
   std::string old_value;
   ScopeRecordLock l(lock_mgr_, key);
@@ -842,7 +903,10 @@ Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, c
       if (ttl > 0) {
         strings_value.SetRelativeTimestamp(ttl);
       }
-      s = db_->Put(default_write_options_, key, strings_value.Encode());
+      // Use batch for consistency
+      auto batch = Batch::CreateBatch(this);
+      batch->Put(0, key, strings_value.Encode());
+      s = batch->Commit(callback);
       if (s.ok()) {
         *ret = 1;
       }
@@ -852,16 +916,20 @@ Status RedisStrings::Setnx(const Slice& key, const Slice& value, int32_t* ret, c
     if (ttl > 0) {
       strings_value.SetRelativeTimestamp(ttl);
     }
-    s = db_->Put(default_write_options_, key, strings_value.Encode());
+    // Use batch for consistency
+    auto batch = Batch::CreateBatch(this);
+    batch->Put(0, key, strings_value.Encode());
+    s = batch->Commit(callback);
     if (s.ok()) {
       *ret = 1;
     }
+
   }
   return s;
 }
 
 Status RedisStrings::Setvx(const Slice& key, const Slice& value, const Slice& new_value, int32_t* ret,
-                           const int32_t ttl) {
+                           const int32_t ttl, CommitCallback callback) {
   *ret = 0;
   std::string old_value;
   ScopeRecordLock l(lock_mgr_, key);
@@ -876,7 +944,9 @@ Status RedisStrings::Setvx(const Slice& key, const Slice& value, const Slice& ne
         if (ttl > 0) {
           strings_value.SetRelativeTimestamp(ttl);
         }
-        s = db_->Put(default_write_options_, key, strings_value.Encode());
+        auto batch = Batch::CreateBatch(this);
+        batch->Put(0, key, strings_value.Encode());
+        s = batch->Commit(callback);
         if (!s.ok()) {
           return s;
         }
@@ -893,7 +963,7 @@ Status RedisStrings::Setvx(const Slice& key, const Slice& value, const Slice& ne
   return Status::OK();
 }
 
-Status RedisStrings::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
+Status RedisStrings::Delvx(const Slice& key, const Slice& value, int32_t* ret, CommitCallback callback) {
   *ret = 0;
   std::string old_value;
   ScopeRecordLock l(lock_mgr_, key);
@@ -906,7 +976,9 @@ Status RedisStrings::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
     } else {
       if (value.compare(parsed_strings_value.value()) == 0) {
         *ret = 1;
-        return db_->Delete(default_write_options_, key);
+        auto batch = Batch::CreateBatch(this);
+        batch->Delete(0, key);
+        return batch->Commit(callback);
       } else {
         *ret = -1;
       }
@@ -917,13 +989,14 @@ Status RedisStrings::Delvx(const Slice& key, const Slice& value, int32_t* ret) {
   return s;
 }
 
-Status RedisStrings::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret) {
+Status RedisStrings::Setrange(const Slice& key, int64_t start_offset, const Slice& value, int32_t* ret, CommitCallback callback) {
   std::string old_value;
   std::string new_value;
   if (start_offset < 0) {
     return Status::InvalidArgument("offset < 0");
   }
 
+  auto batch = Batch::CreateBatch(this);
   ScopeRecordLock l(lock_mgr_, key);
   Status s = db_->Get(default_read_options_, key, &old_value);
   if (s.ok()) {
@@ -951,15 +1024,17 @@ Status RedisStrings::Setrange(const Slice& key, int64_t start_offset, const Slic
     *ret = static_cast<int32_t>(new_value.length());
     StringsValue strings_value(new_value);
     strings_value.set_timestamp(timestamp);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
   } else if (s.IsNotFound()) {
     std::string tmp(start_offset, '\0');
     new_value = tmp.append(value.data());
     *ret = static_cast<int32_t>(new_value.length());
     StringsValue strings_value(new_value);
-    return db_->Put(default_write_options_, key, strings_value.Encode());
+    batch->Put(0, key, strings_value.Encode());
+  } else {
+    return s;
   }
-  return s;
+  return batch->Commit(callback);
 }
 
 Status RedisStrings::Strlen(const Slice& key, int32_t* len) {
@@ -1159,11 +1234,13 @@ Status RedisStrings::BitPos(const Slice& key, int32_t bit, int64_t start_offset,
   return Status::OK();
 }
 
-Status RedisStrings::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp) {
+Status RedisStrings::PKSetexAt(const Slice& key, const Slice& value, int32_t timestamp, CommitCallback callback) {
   StringsValue strings_value(value);
   ScopeRecordLock l(lock_mgr_, key);
   strings_value.set_timestamp(timestamp);
-  return db_->Put(default_write_options_, key, strings_value.Encode());
+  auto batch = Batch::CreateBatch(this);
+  batch->Put(0, key, strings_value.Encode());
+  return batch->Commit(callback);
 }
 
 Status RedisStrings::PKScanRange(const Slice& key_start, const Slice& key_end, const Slice& pattern, int32_t limit,

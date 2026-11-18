@@ -15,6 +15,7 @@
 #include "include/pika_geo.h"
 #include "include/pika_hash.h"
 #include "include/pika_hyperloglog.h"
+#include "include/pika_raft.h"
 #include "include/pika_kv.h"
 #include "include/pika_list.h"
 #include "include/pika_pubsub.h"
@@ -157,6 +158,15 @@ void InitCmdTable(CmdTable* cmd_table) {
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameClearCache, std::move(clearcacheptr)));
   std::unique_ptr<Cmd> lastsaveptr = std::make_unique<LastsaveCmd>(kCmdNameLastSave, 1, kCmdFlagsAdmin | kCmdFlagsRead | kCmdFlagsFast);
   cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameLastSave, std::move(lastsaveptr)));
+
+  // Raft Commands
+  std::unique_ptr<Cmd> raftclusterptr =
+      std::make_unique<RaftClusterCmd>(kCmdNameRaftCluster, -2, kCmdFlagsRead | kCmdFlagsAdmin | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftCluster, std::move(raftclusterptr)));
+
+  std::unique_ptr<Cmd> raftnodeptr =
+      std::make_unique<RaftNodeCmd>(kCmdNameRaftNode, -3, kCmdFlagsWrite | kCmdFlagsAdmin | kCmdFlagsSlow);
+  cmd_table->insert(std::pair<std::string, std::unique_ptr<Cmd>>(kCmdNameRaftNode, std::move(raftnodeptr)));
 
 #ifdef WITH_COMMAND_DOCS
   std::unique_ptr<Cmd> commandptr =
@@ -881,7 +891,8 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
 
   uint64_t before_do_binlog_us = pstd::NowMicros();
   this->command_duration_ms = (before_do_binlog_us - before_do_command_us) / 1000;
-  DoBinlog();
+  DoBinlog(); 
+
 
   if (!IsSuspend()) {
     db_->DBUnlockShared();
@@ -889,6 +900,7 @@ void Cmd::InternalProcessCommand(const HintKeys& hint_keys) {
   if (is_write()) {
     record_lock.Unlock(current_key());
   }
+  
 
   uint64_t end_us = pstd::NowMicros();
   this->binlog_duration_ms = (end_us - before_do_binlog_us) / 1000;
@@ -944,6 +956,12 @@ bool Cmd::DoReadCommandInCache() {
 
 
 void Cmd::DoBinlog() {
+  // 如果是 Raft 模式，跳过写 binlog（改用 Protobuf binlog）
+  if (g_pika_server->GetRaftManager()) {
+    return;
+  }
+  
+  // Traditional binlog path (non-Raft mode)
   if (res().ok() && is_write() && g_pika_conf->write_binlog()) {
     std::shared_ptr<net::NetConn> conn_ptr = GetConn();
     std::shared_ptr<std::string> resp_ptr = GetResp();
@@ -1092,3 +1110,20 @@ std::shared_ptr<std::string> Cmd::GetResp() { return resp_.lock(); }
 void Cmd::SetStage(CmdStage stage) { stage_ = stage; }
 bool Cmd::IsCacheMissedInRtc() const { return cache_missed_in_rtc_; }
 void Cmd::SetCacheMissedInRtc(bool value) { cache_missed_in_rtc_ = value; }
+
+// Raft async mode helper functions
+bool Cmd::IsRaftLeader() const {
+  if (!g_pika_server || !g_pika_server->GetRaftManager()) {
+    return false;
+  }
+  auto node = g_pika_server->GetRaftManager()->GetRaftNode(db_->GetDBName());
+  return node && node->IsLeader();
+}
+
+bool Cmd::IsRaftEnabled() const {
+  return db_ && db_->storage() && db_->storage()->IsRaftEnabled();
+}
+
+bool Cmd::ShouldUseAsyncMode() const {
+  return IsRaftLeader() && IsRaftEnabled();
+}

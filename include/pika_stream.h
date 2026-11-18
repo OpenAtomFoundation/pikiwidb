@@ -40,6 +40,8 @@ class XAddCmd : public Cmd {
   std::string key_;
   storage::StreamAddTrimArgs args_;
   int field_pos_{0};
+  std::string serialized_message_;
+  rocksdb::Status s_;
 
   void DoInitial() override;
 };
@@ -57,6 +59,7 @@ class XDelCmd : public Cmd {
  private:
   std::string key_;
   std::vector<storage::streamID> ids_;
+  rocksdb::Status s_;
 
   void DoInitial() override;
   void Clear() override { ids_.clear(); }
@@ -133,6 +136,7 @@ class XTrimCmd : public Cmd {
  private:
   std::string key_;
   storage::StreamAddTrimArgs args_;
+  rocksdb::Status s_;
 
   void DoInitial() override;
 };

@@ -22,8 +22,10 @@
 #include "include/pika_dispatch_thread.h"
 #include "include/pika_instant.h"
 #include "include/pika_monotonic_time.h"
+#include "praft/praft.h"
 #include "include/pika_rm.h"
 #include "include/pika_server.h"
+#include "binlog.pb.h"
 
 using pstd::Status;
 extern PikaServer* g_pika_server;
@@ -103,6 +105,27 @@ PikaServer::PikaServer()
 
   acl_ = std::make_unique<::Acl>();
   SetSlowCmdThreadPoolFlag(g_pika_conf->slow_cmd_pool());
+  
+  // Initialize Raft if enabled
+  if (g_pika_conf->raft_enabled()) {
+    raft_manager_ = std::make_unique<pika_raft::RaftManager>();
+    auto status = raft_manager_->Init();
+    if (!status.ok()) {
+      LOG(FATAL) << "Failed to initialize Raft manager: " << status.ToString();
+    }
+    LOG(INFO) << "Raft manager initialized successfully";
+    
+    std::lock_guard rwl(storage_options_rw_);
+    storage_options_.append_log_function = 
+      [this](const ::pikiwidb::Binlog& binlog, std::promise<rocksdb::Status>&& promise,
+             storage::CommitCallback callback) {
+        std::string db_name = "db0";
+        
+        raft_manager_->AppendLog(db_name, binlog, std::move(promise), callback);
+      };
+    LOG(INFO) << "Raft append_log_function registered in storage_options";
+  }
+  
   bgsave_thread_.set_thread_name("PikaServer::bgsave_thread_");
   purge_thread_.set_thread_name("PikaServer::purge_thread_");
   bgslots_cleanup_thread_.set_thread_name("PikaServer::bgslots_cleanup_thread_");
@@ -129,6 +152,12 @@ PikaServer::~PikaServer() {
   bgsave_thread_.StopThread();
   key_scan_thread_.StopThread();
   pika_migrate_thread_->StopThread();
+
+  // Shutdown Raft if running
+  if (raft_manager_) {
+    raft_manager_->Shutdown();
+    LOG(INFO) << "Raft manager shutdown complete";
+  }
 
   dbs_.clear();
 
@@ -208,6 +237,16 @@ void PikaServer::Start() {
     dbs_.clear();
     LOG(FATAL) << "Start Auxiliary Thread Error: " << ret
                << (ret == net::kCreateThreadError ? ": create thread error " : ": other error");
+  }
+
+  // Start Raft if enabled
+  if (raft_manager_) {
+    auto status = raft_manager_->Start();
+    if (!status.ok()) {
+      LOG(WARNING) << "Failed to start Raft manager: " << status.ToString();
+    } else {
+      LOG(INFO) << "Raft manager started successfully";
+    }
   }
 
   time(&start_time_s_);
@@ -464,6 +503,37 @@ Status PikaServer::DoSameThingSpecificDB(const std::set<std::string>& dbs, const
       case TaskType::kCompactRangeList:
         db_item.second->CompactRange(storage::DataType::kLists, arg.argv[0], arg.argv[1]);
         break;
+      case TaskType::kLoadDBFromCheckpoint: {
+        // arg.argv[0] should contain checkpoint_path
+        if (arg.argv.empty()) {
+          LOG(ERROR) << "LoadDBFromCheckpoint requires checkpoint_path argument";
+          return Status::InvalidArgument("Missing checkpoint_path");
+        }
+        std::string checkpoint_path = arg.argv[0];
+        auto s = db_item.second->LoadDBFromCheckpoint(checkpoint_path);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to load DB from checkpoint: " << s.ToString();
+          return s;
+        }
+        LOG(INFO) << "Successfully loaded DB " << db_item.first << " from checkpoint: " << checkpoint_path;
+        break;
+      }
+      case TaskType::kCreateCheckpoint: {
+        // arg.argv[0] should contain checkpoint_path
+        if (arg.argv.empty()) {
+          LOG(ERROR) << "CreateCheckpoint requires checkpoint_path argument";
+          return Status::InvalidArgument("Missing checkpoint_path");
+        }
+        std::string checkpoint_path = arg.argv[0];
+        auto s = db_item.second->CreateCheckpoint(checkpoint_path);
+        if (!s.ok()) {
+          LOG(ERROR) << "Failed to create checkpoint: " << s.ToString();
+          return s;
+        }
+        LOG(INFO) << "Successfully created checkpoint for DB " << db_item.first << " at: " << checkpoint_path;
+        break;
+      }
+      
       default:
         break;
     }

@@ -4,6 +4,10 @@
 // of patent rights can be found in the PATENTS file in the same directory.
 
 #include "include/pika_hyperloglog.h"
+#include "include/pika_client_conn.h"
+#include "include/pika_slot_command.h"
+#include "storage/include/storage/storage.h"
+#include "storage/include/storage/batch.h"
 
 void PfAddCmd::DoInitial() {
   if (!CheckArg(argv_.size())) {
@@ -20,14 +24,48 @@ void PfAddCmd::DoInitial() {
 }
 
 void PfAddCmd::Do() {
-  bool update = false;
-  rocksdb::Status s = db_->storage()->PfAdd(key_, values_, &update);
-  if (s.ok() && update) {
+  update_ = false;
+  storage::CommitCallback callback = nullptr;
+  
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<PfAddCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+    
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+    
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok() && self->update_) {
+        self->res_.AppendInteger(1);
+        AddSlotKey("h", self->key_, self->db_);
+      } else if (status.ok() && !self->update_) {
+        self->res_.AppendInteger(0);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+      
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+  
+  s_ = db_->storage()->PfAdd(key_, values_, &update_, callback);
+  
+  if (callback) {
+    return;
+  }
+  
+  if (s_.ok() && update_) {
     res_.AppendInteger(1);
-  } else if (s.ok() && !update) {
+    AddSlotKey("h", key_, db_);
+  } else if (s_.ok() && !update_) {
     res_.AppendInteger(0);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 
@@ -64,11 +102,43 @@ void PfMergeCmd::DoInitial() {
 }
 
 void PfMergeCmd::Do() {
-  rocksdb::Status s = db_->storage()->PfMerge(keys_, value_to_dest_);
-  if (s.ok()) {
+  storage::CommitCallback callback = nullptr;
+  
+  if (ShouldUseAsyncMode()) {
+    auto self = std::static_pointer_cast<PfMergeCmd>(shared_from_this());
+    auto resp_ptr = std::make_shared<std::string>();
+    auto pika_conn = std::dynamic_pointer_cast<PikaClientConn>(GetConn());
+    
+    if (!pika_conn) {
+      res_.SetRes(CmdRes::kErrOther, "Invalid connection");
+      return;
+    }
+    
+    callback = [self, resp_ptr, pika_conn](rocksdb::Status status) {
+      if (status.ok()) {
+        self->res_.SetRes(CmdRes::kOk);
+        AddSlotKey("h", self->keys_[0], self->db_);
+      } else {
+        self->res_.SetRes(CmdRes::kErrOther, status.ToString());
+      }
+      
+      *resp_ptr = std::move(self->res_.message());
+      pika_conn->WriteResp(*resp_ptr);
+      pika_conn->NotifyEpoll(true);
+    };
+  }
+  
+  s_ = db_->storage()->PfMerge(keys_, value_to_dest_, callback);
+  
+  if (callback) {
+    return;
+  }
+  
+  if (s_.ok()) {
     res_.SetRes(CmdRes::kOk);
+    AddSlotKey("h", keys_[0], db_);
   } else {
-    res_.SetRes(CmdRes::kErrOther, s.ToString());
+    res_.SetRes(CmdRes::kErrOther, s_.ToString());
   }
 }
 void PfMergeCmd::DoBinlog() {

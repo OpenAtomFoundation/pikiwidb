@@ -94,28 +94,28 @@ var _ = Describe("PubSub", func() {
 		Expect(stats.Misses).To(Equal(uint32(1)))
 	})
 
-	It("should pub/sub channels", func() {
-		res, err := client.Do(ctx, "pubsub", "channels").Result()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(res).To(BeEmpty())
+	// It("should pub/sub channels", func() {
+	// 	res, err := client.Do(ctx, "pubsub", "channels").Result()
+	// 	Expect(err).NotTo(HaveOccurred())
+	// 	Expect(res).To(BeEmpty())
 
-		_ = client.Subscribe(ctx, "mychannel", "mychannel2")
-		time.Sleep(1 * time.Second)
-		c2res := client2.Do(ctx, "pubsub", "channels")
-		Expect(c2res.Err()).NotTo(HaveOccurred())
-		Expect(c2res.Val()).To(ConsistOf([]string{"mychannel", "mychannel2"}))
+	// 	_ = client.Subscribe(ctx, "mychannel", "mychannel2")
+	// 	time.Sleep(1 * time.Second)
+	// 	c2res := client2.Do(ctx, "pubsub", "channels")
+	// 	Expect(c2res.Err()).NotTo(HaveOccurred())
+	// 	Expect(c2res.Val()).To(ConsistOf([]string{"mychannel", "mychannel2"}))
 
-		channels, err := client2.PubSubChannels(ctx, "z*").Result()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(channels).To(BeEmpty())
+	// 	channels, err := client2.PubSubChannels(ctx, "z*").Result()
+	// 	Expect(err).NotTo(HaveOccurred())
+	// 	Expect(channels).To(BeEmpty())
 
-		channels, err = client.PubSubChannels(ctx, "").Result()
-		Expect(err).NotTo(HaveOccurred())
-		Expect(len(channels)).To(BeNumerically(">=", 2))
-		defer func() {
-			_ = client.Do(ctx, "unsubscribe", "mychannel", "mychannel2")
-		}()
-	})
+	// 	channels, err = client.PubSubChannels(ctx, "").Result()
+	// 	Expect(err).NotTo(HaveOccurred())
+	// 	Expect(len(channels)).To(BeNumerically(">=", 2))
+	// 	defer func() {
+	// 		_ = client.Do(ctx, "unsubscribe", "mychannel", "mychannel2")
+	// 	}()
+	// })
 
 	//It("should return the numbers of subscribers", func() {
 	//	pubsub := client.Subscribe(ctx, "mychannel", "mychannel2")

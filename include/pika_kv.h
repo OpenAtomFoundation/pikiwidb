@@ -92,6 +92,7 @@ class DelCmd : public Cmd {
  private:
   std::vector<std::string> keys_;
   int64_t split_res_ = 0;
+  int64_t deleted_count_ = 0;  // For async mode: number of deleted keys
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -236,6 +237,7 @@ class GetsetCmd : public Cmd {
  private:
   std::string key_;
   std::string new_value_;
+  std::string old_value_;  // For async mode
   void DoInitial() override;
   rocksdb::Status s_;
 };
@@ -260,6 +262,7 @@ class AppendCmd : public Cmd {
   std::string key_;
   std::string value_;
   std::string new_value_;
+  int32_t new_len_ = 0;  // For async mode
   void DoInitial() override;
   rocksdb::Status s_;
   int32_t expired_timestamp_sec_ = 0;
@@ -519,6 +522,7 @@ class SetrangeCmd : public Cmd {
   std::string key_;
   int64_t offset_ = 0;
   std::string value_;
+  int32_t new_len_ = 0;  // For async mode
   void DoInitial() override;
   rocksdb::Status s_;
 };
