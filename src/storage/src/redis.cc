@@ -115,8 +115,18 @@ void Redis::GetRocksDBInfo(std::string &info, const char *prefix) {
     string_stream << "#" << prefix << "RocksDB" << "\r\n";
 
     auto write_stream_key_value=[&](const Slice& property, const char *metric) {
-        uint64_t value;
-        db_->GetAggregatedIntProperty(property, &value);
+        uint64_t value = 0;
+        // Avoids double-counting of shared cache.
+        if (share_block_cache_ && handles_.size() > 0 &&
+            (property == rocksdb::DB::Properties::kBlockCacheCapacity ||
+             property == rocksdb::DB::Properties::kBlockCacheUsage ||
+             property == rocksdb::DB::Properties::kBlockCachePinnedUsage)) {
+            std::string sval;
+            db_->GetProperty(handles_[0], property, &sval);
+            value = std::strtoull(sval.c_str(), nullptr, 10);
+        } else {
+            db_->GetAggregatedIntProperty(property, &value);
+        }
         string_stream << prefix << metric << ':' << value << "\r\n";
     };
 

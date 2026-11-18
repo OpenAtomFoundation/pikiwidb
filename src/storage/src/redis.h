@@ -122,6 +122,7 @@ class Redis {
   std::shared_ptr<LockMgr> lock_mgr_;
   rocksdb::DB* db_ = nullptr;
 
+  bool share_block_cache_ = false;
   std::vector<rocksdb::ColumnFamilyHandle*> handles_;
   rocksdb::WriteOptions default_write_options_;
   rocksdb::ReadOptions default_read_options_;
